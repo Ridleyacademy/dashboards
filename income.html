@@ -618,6 +618,14 @@
         </div>
       </div>
 
+      <!-- Income by date (bar chart) -->
+      <div class="chart-card" style="margin-top:28px;">
+        <div class="chart-card-title">Income by Date</div>
+        <div class="chart-wrap" style="height:260px;">
+          <canvas id="incomeBarChart"></canvas>
+        </div>
+      </div>
+
       <!-- Comparison chart -->
       <div class="sec-label" style="margin-top:28px;">
         <span class="sec-label-text">Daily Comparison</span>
@@ -812,6 +820,7 @@ let logData         = null;
 let currentSession  = null;
 let revenueChartInst    = null;
 let breakdownChartInst  = null;
+let incomeBarChartInst  = null;
 let comparisonChartInst = null;
 let compareMode         = 'month'; // 'month' | 'week'
 let activePlatform      = '';      // '' = all, otherwise exact platform name
@@ -1046,6 +1055,7 @@ function renderStats() {
 
   // Revenue chart
   renderRevenueChart(daily || []);
+  renderIncomeBarChart(daily || []);
 
   // Comparison chart (async, non-blocking)
   loadComparisonChart();
@@ -1105,6 +1115,66 @@ function renderRevenueChart(daily) {
       scales: {
         x: { ticks: { color: '#3e4668', font: { size: 10 }, maxRotation: 45 }, grid: { color: 'rgba(31,36,56,0.8)' } },
         y: { ticks: { color: '#3e4668', font: { size: 10 }, callback: v => fmtMoney(v) }, grid: { color: 'rgba(31,36,56,0.8)' } },
+      },
+    },
+  });
+}
+
+function renderIncomeBarChart(daily) {
+  const labels = daily.map(d => {
+    const dt = new Date(d.date + 'T00:00:00');
+    return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  });
+  const totalData  = daily.map(d => Number(d.sale || 0) + Number(d.rebill || 0) + Number(d.pp || 0));
+  const saleData   = daily.map(d => Number(d.sale   || 0));
+  const rebillData = daily.map(d => Number(d.rebill || 0));
+  const ppData     = daily.map(d => Number(d.pp     || 0));
+
+  const canvas = document.getElementById('incomeBarChart');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  if (incomeBarChartInst) { incomeBarChartInst.destroy(); incomeBarChartInst = null; }
+  if (!daily.length) return;
+
+  incomeBarChartInst = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Income',
+        data: totalData,
+        backgroundColor: 'rgba(52,211,153,0.55)',
+        borderColor: '#34d399',
+        borderWidth: 1.5,
+        borderRadius: 4,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#0f1120', borderColor: '#1f2438', borderWidth: 1,
+          titleColor: '#eaecf8', bodyColor: '#7880a8',
+          callbacks: {
+            label: c => ' Total: ' + fmtMoney(c.raw),
+            afterLabel: c => {
+              const i = c.dataIndex;
+              const lines = [];
+              if (saleData[i])   lines.push(' Sales:   ' + fmtMoney(saleData[i]));
+              if (rebillData[i]) lines.push(' Rebills: ' + fmtMoney(rebillData[i]));
+              if (ppData[i])     lines.push(' Plans:   ' + fmtMoney(ppData[i]));
+              return lines;
+            },
+          },
+        },
+      },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#7880a8', font: { size: 10 }, maxRotation: 45 } },
+        y: { grid: { color: 'rgba(255,255,255,0.04)' },
+             ticks: { color: '#7880a8', font: { size: 10 }, callback: v => '$' + (v >= 1000 ? (v/1000).toFixed(0)+'k' : v) },
+             beginAtZero: true },
       },
     },
   });

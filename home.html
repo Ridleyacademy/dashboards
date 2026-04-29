@@ -256,6 +256,12 @@
   .save-btn:hover { color: var(--text); border-color: var(--border-light); background: var(--border); }
   .save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
   .save-msg { font-size: 0.7rem; min-width: 40px; text-align: center; }
+  .delete-btn { background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.25); border-radius: 9px; color: #f87171; font-size: 0.72rem; font-weight: 700; padding: 6px 12px; cursor: pointer; transition: all 0.14s; white-space: nowrap; flex-shrink: 0; }
+  .delete-btn:hover { background: rgba(248,113,113,0.16); border-color: rgba(248,113,113,0.5); }
+  .delete-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .user-meta { font-size: 0.66rem; color: var(--text-dim); margin-top: 3px; line-height: 1.4; }
+  .user-meta-stale { color: #fbbf24; }
+  .user-meta-never { color: #f87171; }
 
   /* Loading users skeleton */
   .skeleton { height: 62px; background: linear-gradient(90deg, var(--surface2) 0%, var(--surface3) 50%, var(--surface2) 100%); background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 14px; margin-bottom: 8px; }
@@ -688,15 +694,20 @@ async function loadAdminUsers() {
 
     count.textContent = `${users.length} team member${users.length !== 1 ? 's' : ''}`;
 
+    const callerId = session_.user.id;
+
     list.innerHTML = users.map(u => {
       const initials = (u.email || u.id).slice(0, 2).toUpperCase();
       const roleLabel = u.is_admin ? 'Admin' : (u.permissions?.length ? u.permissions.join(', ') : 'No permissions');
+      const lastLogin = formatLastLogin(u.last_sign_in_at);
+      const isSelf = u.id === callerId;
       return `
       <div class="user-row" data-id="${u.id}">
         <div class="user-av">${initials}</div>
         <div class="user-info">
-          <div class="user-email">${u.email || u.id}</div>
+          <div class="user-email">${u.email || u.id}${isSelf?' <span style="color:var(--text-dim);font-weight:500;font-size:0.7rem;">(you)</span>':''}</div>
           <div class="user-role" id="role-${u.id}">${roleLabel}</div>
+          <div class="user-meta ${lastLogin.cls}">${lastLogin.text}</div>
         </div>
         <div class="user-perms">
           ${AVAILABLE_PERMS.map(p => `
@@ -710,6 +721,7 @@ async function loadAdminUsers() {
           </label>
         </div>
         <button class="save-btn" data-id="${u.id}">Save</button>
+        ${isSelf ? '' : `<button class="delete-btn" data-id="${u.id}" data-email="${u.email||''}">Delete</button>`}
         <span class="save-msg" id="msg-${u.id}"></span>
       </div>`;
     }).join('');
@@ -717,9 +729,59 @@ async function loadAdminUsers() {
     list.querySelectorAll('.save-btn').forEach(btn => {
       btn.addEventListener('click', () => saveUser(btn));
     });
+    list.querySelectorAll('.delete-btn').forEach(btn => {
+      btn.addEventListener('click', () => deleteUser(btn));
+    });
 
   } catch(err) {
     list.innerHTML = `<div style="color:var(--red);font-size:0.84rem;padding:12px 0;">${err.message}</div>`;
+  }
+}
+
+function formatLastLogin(iso) {
+  if (!iso) return { text: 'Never logged in', cls: 'user-meta-never' };
+  const d = new Date(iso);
+  const now = new Date();
+  const diffMs = now - d;
+  const mins = Math.floor(diffMs / 60000);
+  const hrs  = Math.floor(diffMs / 3600000);
+  const days = Math.floor(diffMs / 86400000);
+  let text;
+  if (mins < 1) text = 'Last login: just now';
+  else if (mins < 60) text = `Last login: ${mins}m ago`;
+  else if (hrs < 24) text = `Last login: ${hrs}h ago`;
+  else if (days < 7) text = `Last login: ${days}d ago`;
+  else if (days < 30) text = `Last login: ${Math.floor(days/7)}w ago`;
+  else text = `Last login: ${d.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })}`;
+  // Stale if no login for 30+ days
+  const cls = days >= 30 ? 'user-meta-stale' : '';
+  return { text, cls };
+}
+
+async function deleteUser(btn) {
+  const userId = btn.dataset.id;
+  const email  = btn.dataset.email || 'this user';
+  if (!confirm(`Permanently delete ${email}?\n\nThis revokes their access immediately and cannot be undone.`)) return;
+  const msg = document.getElementById('msg-' + userId);
+  btn.disabled = true; btn.textContent = 'Deleting…';
+  try {
+    const r = await fetch(ADMIN_API_BASE + '?api=delete-user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session_.access_token },
+      body: JSON.stringify({ userId }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Delete failed');
+    // Remove the row
+    btn.closest('.user-row').remove();
+    // Update count
+    const countEl = document.getElementById('usersCount');
+    const remaining = document.querySelectorAll('#adminUserList .user-row').length;
+    if (countEl) countEl.textContent = `${remaining} team member${remaining !== 1 ? 's' : ''}`;
+  } catch(err) {
+    if (msg) { msg.style.color = 'var(--red)'; msg.textContent = err.message || 'Failed'; setTimeout(()=>{msg.textContent=''},4000); }
+    else alert('Delete failed: ' + (err.message || err));
+    btn.disabled = false; btn.textContent = 'Delete';
   }
 }
 

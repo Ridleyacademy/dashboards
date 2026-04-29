@@ -452,7 +452,7 @@
         <div class="table-title">Campaigns <span class="count" id="campaignCount">0</span></div>
       </div>
       <div class="table-wrap">
-        <table>
+        <table class="data-table">
           <thead>
             <tr>
               <th>Campaign</th>
@@ -480,7 +480,7 @@
         <div class="table-title">Ad Sets <span class="count" id="adsetCount">0</span></div>
       </div>
       <div class="table-wrap">
-        <table>
+        <table class="data-table">
           <thead>
             <tr>
               <th>Ad Set</th>
@@ -723,14 +723,14 @@ function renderCampaigns(campaigns, insights) {
     const cpm = ins.impressions > 0 ? (ins.spend / ins.impressions) * 1000 : 0;
     const cpc = ins.clicks > 0 ? ins.spend / ins.clicks : 0;
     return `<tr>
-      <td style="color:var(--text); font-weight:600; max-width:220px; overflow:hidden; text-overflow:ellipsis;">${c.name || '—'}</td>
-      <td>${statusBadge(c.status || '')}</td>
-      <td class="num">${fmtMoney(ins.spend)}</td>
-      <td class="num">${fmtNum(ins.impressions)}</td>
-      <td class="num">${fmtNum(ins.clicks)}</td>
-      <td class="num">${ctr.toFixed(2)}%</td>
-      <td class="num">${fmtCur(cpm)}</td>
-      <td class="num">${fmtCur(cpc)}</td>
+      <td data-label="Campaign" style="color:var(--text); font-weight:600; max-width:220px; overflow:hidden; text-overflow:ellipsis;">${c.name || '—'}</td>
+      <td data-label="Status">${statusBadge(c.status || '')}</td>
+      <td class="num" data-label="Spend">${fmtMoney(ins.spend)}</td>
+      <td class="num" data-label="Impressions">${fmtNum(ins.impressions)}</td>
+      <td class="num" data-label="Clicks">${fmtNum(ins.clicks)}</td>
+      <td class="num" data-label="CTR">${ctr.toFixed(2)}%</td>
+      <td class="num" data-label="CPM">${fmtCur(cpm)}</td>
+      <td class="num" data-label="CPC">${fmtCur(cpc)}</td>
     </tr>`;
   }).join('');
 }
@@ -744,11 +744,11 @@ function renderAdsets(adsets) {
   }
   const fmtBudget = v => v && v !== '0' ? fmtMoney(Number(v) / 100) : '—';
   document.getElementById('adsetTbody').innerHTML = adsets.map(a => `<tr>
-    <td style="color:var(--text); font-weight:600;">${a.name || '—'}</td>
-    <td>${statusBadge(a.status || '')}</td>
-    <td style="color:var(--text-muted);">${(a.optimization_goal || '').replace(/_/g, ' ') || '—'}</td>
-    <td class="num">${fmtBudget(a.daily_budget)}/day</td>
-    <td class="num">${fmtBudget(a.lifetime_budget)}</td>
+    <td data-label="Ad set" style="color:var(--text); font-weight:600;">${a.name || '—'}</td>
+    <td data-label="Status">${statusBadge(a.status || '')}</td>
+    <td data-label="Goal" style="color:var(--text-muted);">${(a.optimization_goal || '').replace(/_/g, ' ') || '—'}</td>
+    <td class="num" data-label="Daily">${fmtBudget(a.daily_budget)}/day</td>
+    <td class="num" data-label="Lifetime">${fmtBudget(a.lifetime_budget)}</td>
   </tr>`).join('');
 }
 

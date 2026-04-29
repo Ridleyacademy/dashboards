@@ -3,6 +3,26 @@
 
 @media (max-width: 768px) {
 
+  /* Prevent any element from causing horizontal page scroll */
+  html, body { overflow-x: hidden !important; max-width: 100vw; }
+
+  /* Pill tabs / product picker — wrap rows on mobile so they don't overflow */
+  .pill-tabs {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    width: 100% !important;
+    overflow-x: visible !important;
+  }
+  .pill-tab {
+    flex: 0 1 auto;
+    font-size: 0.72rem !important;
+    padding: 6px 10px !important;
+  }
+  .platform-select {
+    width: 100% !important;
+    margin-top: 8px;
+  }
+
   /* Topbar wraps to 2 rows so buttons are reachable */
   .topbar {
     flex-wrap: wrap !important;

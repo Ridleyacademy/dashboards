@@ -4,14 +4,32 @@
   if (typeof supa === 'undefined') { console.warn('[access-guard] supa not found, skipping'); return; }
 
   const PAGES = [
-    { href: 'home.html',         perms: null },
-    { href: 'index.html',        perms: ['sales', 'sales_manager'] },
-    { href: 'meta-ads.html',     perms: ['marketing'] },
-    { href: 'performance.html',  perms: ['marketing'] },
-    { href: 'income.html',       perms: ['finance', 'sales_manager'] },
-    { href: 'calls.html',        perms: ['calls', 'sales_manager', 'rep'] },
-    { href: 'declarations.html', perms: ['rep', 'sales_manager'] },
+    { href: 'home.html',         perms: null,                                       id: null },
+    { href: 'index.html',        perms: ['sales', 'sales_manager'],                 id: 'sales' },
+    { href: 'meta-ads.html',     perms: ['marketing'],                              id: 'meta' },
+    { href: 'performance.html',  perms: ['marketing'],                              id: 'performance' },
+    { href: 'income.html',       perms: ['finance', 'sales_manager'],               id: 'income' },
+    { href: 'calls.html',        perms: ['calls', 'sales_manager', 'rep'],          id: 'calls' },
+    { href: 'declarations.html', perms: ['rep', 'sales_manager'],                   id: 'declarations' },
   ];
+
+  // Cached archive list (Set of dashboard ids). Loaded lazily.
+  let archivedIds = null;
+  async function getArchivedIds(token) {
+    if (archivedIds !== null) return archivedIds;
+    try {
+      const SUPABASE_URL = supa.supabaseUrl || (typeof window !== 'undefined' && window.SUPABASE_URL);
+      const url = (SUPABASE_URL || '').replace(/\/$/, '') + '/functions/v1/admin-api?api=dashboard-archive';
+      const r = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
+      if (!r.ok) { archivedIds = new Set(); return archivedIds; }
+      const j = await r.json();
+      archivedIds = new Set(j.archived || []);
+    } catch (e) {
+      console.warn('[access-guard] could not load archive list:', e);
+      archivedIds = new Set();
+    }
+    return archivedIds;
+  }
 
   function permsOf(user) { return user?.app_metadata?.permissions || []; }
   function isAdmin(user) { return user?.app_metadata?.is_admin === true; }
@@ -38,25 +56,36 @@
       const user = session?.user;
       if (!user) return; // login flow handles unauth
 
+      const userIsAdmin = isAdmin(user);
+      const archived = await getArchivedIds(session.access_token);
+
       const file = currentPageFile();
       const def  = PAGES.find(p => p.href === file);
 
-      // Page-level guard — only redirect once
-      if (!didRedirect && def && !canAccess(def, user)) {
-        didRedirect = true;
-        console.log('[access-guard] redirecting from', file);
-        window.location.replace('home.html?denied=' + encodeURIComponent(file));
-        return;
+      // Page-level guard — only redirect once.
+      // Block if: missing perms, OR (archived AND not admin)
+      if (!didRedirect && def) {
+        const archivedBlock = !userIsAdmin && def.id && archived.has(def.id);
+        if (!canAccess(def, user) || archivedBlock) {
+          didRedirect = true;
+          const reason = archivedBlock ? 'archived' : 'denied';
+          console.log('[access-guard] redirecting from', file, 'reason:', reason);
+          window.location.replace('home.html?' + reason + '=' + encodeURIComponent(file));
+          return;
+        }
       }
 
-      // Hide nav-dropdown links the user can't access — only run once
+      // Filter nav items — only run once
       if (!didFilter) {
         didFilter = true;
         const items = document.querySelectorAll('.nav-dropdown-item, .nav-drop-item, [data-nav-link]');
         items.forEach(el => {
           const href = (el.getAttribute('href') || '').split('/').pop();
           const d = PAGES.find(p => p.href === href);
-          if (d && !canAccess(d, user)) el.style.display = 'none';
+          if (!d) return;
+          const noPerm = !canAccess(d, user);
+          const archivedHide = !userIsAdmin && d.id && archived.has(d.id);
+          if (noPerm || archivedHide) el.style.display = 'none';
         });
       }
     } catch (e) {
@@ -80,14 +109,20 @@
   }
   runWhenReady();
 
-  // Show notice on home if redirected from a forbidden page
+  // Show notice on home if redirected from a forbidden / archived page
   const params = new URLSearchParams(window.location.search);
-  const denied = params.get('denied');
-  if (denied && currentPageFile() === 'home.html') {
+  const denied   = params.get('denied');
+  const archivedFrom = params.get('archived');
+  if ((denied || archivedFrom) && currentPageFile() === 'home.html') {
     const showNotice = () => {
+      const which = archivedFrom || denied;
+      const isArch = !!archivedFrom;
       const notice = document.createElement('div');
-      notice.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#1a1d2e;border:1px solid #f87171;color:#f87171;padding:12px 20px;border-radius:10px;font-size:0.84rem;font-weight:600;z-index:10000;box-shadow:0 8px 32px rgba(0,0,0,0.4);max-width:90%;text-align:center;';
-      notice.innerHTML = `🔒 You don't have access to <strong>${denied.replace('.html','')}</strong>. Contact an admin if you think this is a mistake.`;
+      const color = isArch ? '#fbbf24' : '#f87171';
+      notice.style.cssText = `position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#1a1d2e;border:1px solid ${color};color:${color};padding:12px 20px;border-radius:10px;font-size:0.84rem;font-weight:600;z-index:10000;box-shadow:0 8px 32px rgba(0,0,0,0.4);max-width:90%;text-align:center;`;
+      notice.innerHTML = isArch
+        ? `📦 <strong>${which.replace('.html','')}</strong> is currently archived.`
+        : `🔒 You don't have access to <strong>${which.replace('.html','')}</strong>. Contact an admin if you think this is a mistake.`;
       document.body.appendChild(notice);
       setTimeout(() => { notice.style.transition = 'opacity 0.5s'; notice.style.opacity = '0'; setTimeout(() => notice.remove(), 500); }, 6000);
       history.replaceState({}, '', window.location.pathname);

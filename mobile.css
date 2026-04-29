@@ -138,28 +138,39 @@
   .kpi-grid { grid-template-columns: repeat(3, 1fr) !important; }
 }
 
-/* Dashboard picker dropdown — fix overflow on narrow viewports */
+/* Dashboard picker dropdown — universally fix overflow on narrow viewports.
+   Catches the variants used across pages: .nav-dropdown-menu (class),
+   #navDropMenu / #navDropdownMenu (ids) and meta-ads's inline-styled menu. */
 @media (max-width: 768px) {
-  .nav-dropdown { position: static !important; }
-  .nav-dropdown-menu {
+  #navDropdown, .nav-dropdown { position: static !important; }
+  .nav-dropdown-menu,
+  #navDropMenu,
+  #navDropdownMenu {
     position: fixed !important;
-    top: auto !important;
+    top: 70px !important;
     bottom: auto !important;
     left: 12px !important;
     right: 12px !important;
     max-width: none !important;
     width: auto !important;
-    margin-top: 4px;
+    box-sizing: border-box;
+    margin: 0 !important;
   }
-  .nav-dropdown-menu.open {
-    margin-top: 6px;
-  }
-  /* Position right below topbar */
-  .nav-dropdown-menu[style*="display: block"], .nav-dropdown-menu.open {
-    top: 60px !important;
-  }
-  .nav-dropdown-item, .nav-drop-item {
+  .nav-dropdown-item,
+  .nav-drop-item,
+  #navDropMenu a,
+  #navDropdownMenu a {
     padding: 12px 14px !important;
     font-size: 0.86rem !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
   }
+}
+
+/* Uniform sticky topbar on all dashboards — keep it pinned during scroll */
+.topbar {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 100 !important;
 }

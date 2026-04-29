@@ -170,8 +170,8 @@
 
 /* ────────────────────────────────────────────────────────────
    Uniform topbar across all dashboards.
-   Sticky, consistent height, and consistent styling for the
-   shared elements (date range, refresh, theme, picker, user pill, sign out).
+   Sticky, identical padding/height, and identical right-cluster position
+   regardless of brand text length.
    ──────────────────────────────────────────────────────────── */
 .topbar {
   position: sticky !important;
@@ -180,10 +180,34 @@
   background: rgba(8,10,20,0.92) !important;
   backdrop-filter: blur(20px) !important;
   -webkit-backdrop-filter: blur(20px) !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  padding: 12px 32px !important;
+  height: auto !important;
+  min-height: 56px;
 }
 body.light .topbar {
   background: rgba(255,255,255,0.92) !important;
 }
+
+/* Brand cluster (logo + name) takes a fixed area so right buttons line up
+   in the same horizontal position whether the brand is "Sales" or "Declarations". */
+.topbar-logo { flex-shrink: 0; }
+.topbar-brand {
+  flex-shrink: 0;
+  min-width: 0;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Spacer must be the only flexible item — pushes the right cluster firmly to the edge */
+.topbar-spacer { flex: 1 1 auto !important; min-width: 8px; }
+
+/* All topbar buttons render at the same height for visual alignment */
+.topbar .tbtn { line-height: 1; height: 30px; box-sizing: border-box; }
 
 /* Standardize the dashboard picker dropdown across all pages.
    Some pages use #navDropMenu, some #navDropdownMenu, some .nav-dropdown-menu. */

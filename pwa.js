@@ -3,11 +3,46 @@
 // - Exposes window.showInstallPrompt() — call this from a button on home.html
 // - Auto-shows install button (#pwaInstallBtn) only when actually installable
 (function () {
+  let swRegistration = null;
+
   if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    window.addEventListener('load', async () => {
+      try {
+        swRegistration = await navigator.serviceWorker.register('/sw.js');
+      } catch (e) {
+        console.warn('[PWA] SW register failed:', e);
+      }
+    });
+
+    // When the new SW takes over (after skipWaiting + claim), reload once to
+    // pick up fresh code & assets.
+    let _reloading = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (_reloading) return;
+      _reloading = true;
+      window.location.reload();
     });
   }
+
+  // Force a SW update check whenever the app becomes visible (e.g. user reopens
+  // it from the iOS home screen). Combined with controllerchange above, this
+  // makes a re-launch behave like a hard refresh.
+  async function checkForUpdates() {
+    if (!('serviceWorker' in navigator)) return;
+    try {
+      const reg = swRegistration || await navigator.serviceWorker.getRegistration();
+      if (reg) await reg.update();
+    } catch (_) {}
+  }
+  window.addEventListener('pageshow', (e) => {
+    // bfcache restore — be safe and check
+    if (e.persisted) checkForUpdates();
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') checkForUpdates();
+  });
+  // Also do an initial check ~3s after load, in case there's a freshly deployed SW
+  setTimeout(checkForUpdates, 3000);
 
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !('MSStream' in window);
   const isStandalone =

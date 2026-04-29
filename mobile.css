@@ -23,6 +23,27 @@
     margin-top: 8px;
   }
 
+  /* Admin tabs (Invite / Manage Access / Rep Mapping / Activity)
+     — wrap to a 2x2 grid so all 4 are visible without horizontal scrolling */
+  .admin-tabs {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0 !important;
+  }
+  .admin-tab {
+    flex: 1 1 auto !important;
+    padding: 12px 8px !important;
+    font-size: 0.72rem !important;
+    gap: 5px !important;
+    border-right: 1px solid var(--border, #1f2438);
+    border-bottom: 2px solid transparent !important;
+  }
+  .admin-tab:nth-child(2n) { border-right: none; }
+  .admin-tab:nth-child(-n+2) { border-bottom: 1px solid var(--border, #1f2438); }
+  .admin-tab.active { border-bottom-color: var(--blue, #6b9eff) !important; }
+  .admin-tab-icon { width: 14px !important; height: 14px !important; }
+  .admin-pane { padding: 18px 14px !important; }
+
   /* Topbar wraps to 2 rows so buttons are reachable */
   .topbar {
     flex-wrap: wrap !important;

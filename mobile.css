@@ -301,60 +301,37 @@ header.topbar {
   box-sizing: border-box;
 }
 
-/* Compact mode kicks in below 1100px wide — saves space without hiding anything */
+/* On narrow widths, the brand grows to fill row 1, pushing all action
+   buttons to row 2. Buttons keep their full size — no shrinking. */
 @media (max-width: 1100px) {
-  .topbar,
-  header.topbar {
-    padding: 10px 14px !important;
-    gap: 6px !important;
+  .topbar > .topbar-brand,
+  header.topbar > .topbar-brand {
+    flex: 1 1 auto !important;
+    max-width: none !important;
   }
-  .topbar .tbtn,
-  .topbar .btn,
-  .topbar .btn-ghost,
-  header.topbar .tbtn,
-  header.topbar .btn,
-  header.topbar .btn-ghost {
-    padding: 6px 8px !important;
-    font-size: 0.7rem !important;
+  /* Right-cluster items: no grow, no margin-left:auto on narrow.
+     They flow naturally onto row 2. */
+  .topbar > .daterange-wrap,
+  header.topbar > .daterange-wrap {
+    margin-left: 0 !important;
+    flex: 0 0 auto !important;
   }
-  .topbar .topbar-brand,
-  header.topbar .topbar-brand {
-    max-width: 130px !important;
-    font-size: 0.82rem !important;
+  .topbar > #refreshBtn,
+  .topbar > #refetchBtn,
+  .topbar > #themeBtn,
+  .topbar > .nav-dropdown,
+  .topbar > #navDropdown,
+  .topbar > .user-pill,
+  .topbar > #signOutBtn,
+  header.topbar > #refreshBtn,
+  header.topbar > #refetchBtn,
+  header.topbar > #themeBtn,
+  header.topbar > .nav-dropdown,
+  header.topbar > #navDropdown,
+  header.topbar > .user-pill,
+  header.topbar > #signOutBtn {
+    flex: 0 0 auto !important;
   }
-  .topbar .user-pill-email,
-  header.topbar .user-pill-email {
-    max-width: 100px !important;
-  }
-  .topbar .daterange-btn,
-  header.topbar .daterange-btn {
-    padding: 6px 8px !important;
-    font-size: 0.7rem !important;
-  }
-}
-
-/* Hide text on Refresh / Sign Out below ~900px to save space */
-@media (max-width: 900px) {
-  .topbar #refreshBtn,
-  .topbar #refetchBtn,
-  .topbar #signOutBtn,
-  header.topbar #refreshBtn,
-  header.topbar #refetchBtn,
-  header.topbar #signOutBtn {
-    font-size: 0 !important;
-    gap: 0 !important;
-    padding: 6px 8px !important;
-  }
-  .topbar #refreshBtn svg,
-  .topbar #refetchBtn svg,
-  .topbar #signOutBtn svg,
-  header.topbar #refreshBtn svg,
-  header.topbar #refetchBtn svg,
-  header.topbar #signOutBtn svg { font-size: 13px !important; }
-
-  /* Hide brand text below 900, keep just the logo icon */
-  .topbar .topbar-brand,
-  header.topbar .topbar-brand { display: none !important; }
 }
 
 /* Below 700px (phone), hide the user-pill email text — keep just the avatar */

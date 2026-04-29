@@ -24,10 +24,43 @@
     });
   }
 
+  // Nuclear version check: hits /version.txt with cache-busting. If the
+  // version on the server differs from what we last loaded, wipe everything
+  // and reload. This is the SAFETY NET — works even if the SW is misbehaving.
+  async function nuclearVersionCheck() {
+    try {
+      const res = await fetch('/version.txt?ts=' + Date.now(), { cache: 'no-store' });
+      if (!res.ok) return;
+      const remote = (await res.text()).trim();
+      const local  = localStorage.getItem('app-version') || '';
+      if (!local) {
+        localStorage.setItem('app-version', remote);
+        return;
+      }
+      if (remote && remote !== local) {
+        console.log('[PWA] version mismatch:', local, '->', remote, '— purging caches & reloading');
+        // Wipe all caches
+        try {
+          const keys = await caches.keys();
+          await Promise.all(keys.map((k) => caches.delete(k)));
+        } catch (_) {}
+        // Unregister SWs
+        try {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs.map((r) => r.unregister()));
+        } catch (_) {}
+        localStorage.setItem('app-version', remote);
+        // Hard reload bypassing browser cache
+        window.location.reload();
+      }
+    } catch (_) {}
+  }
+
   // Force a SW update check whenever the app becomes visible (e.g. user reopens
   // it from the iOS home screen). Combined with controllerchange above, this
   // makes a re-launch behave like a hard refresh.
   async function checkForUpdates() {
+    nuclearVersionCheck(); // independent, runs in parallel
     if (!('serviceWorker' in navigator)) return;
     try {
       const reg = swRegistration || await navigator.serviceWorker.getRegistration();

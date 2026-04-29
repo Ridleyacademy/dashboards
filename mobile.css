@@ -191,13 +191,15 @@ body.light .topbar {
   background: rgba(255,255,255,0.92) !important;
 }
 
-/* Brand cluster (logo + name) takes a fixed area so right buttons line up
-   in the same horizontal position whether the brand is "Sales" or "Declarations". */
-.topbar-logo { flex-shrink: 0; }
+/* Brand cluster — logo + brand title always alone on row 1.
+   The brand grows to consume all remaining row 1 space, forcing every
+   action button to wrap to row 2 ALWAYS. Result: button positions are
+   100% identical across pages because they're never affected by brand width. */
+.topbar-logo { flex: 0 0 auto !important; }
 .topbar-brand {
-  flex-shrink: 0;
+  flex: 1 1 auto !important;
   min-width: 0;
-  max-width: 200px;
+  max-width: none !important;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -215,7 +217,7 @@ header.topbar .topbar-spacer { flex: 0 0 0 !important; min-width: 0 !important; 
 .topbar > .topbar-brand,   header.topbar > .topbar-brand   { order: 1 !important; }
 .topbar > .daterange-wrap,
 .topbar > #daterangeWrap,  header.topbar > .daterange-wrap,
-header.topbar > #daterangeWrap                              { order: 10 !important; margin-left: auto !important; }
+header.topbar > #daterangeWrap                              { order: 10 !important; margin-left: 0 !important; }
 .topbar > #refreshBtn, .topbar > #refetchBtn,
 header.topbar > #refreshBtn, header.topbar > #refetchBtn   { order: 20 !important; }
 .topbar > #themeBtn,       header.topbar > #themeBtn       { order: 30 !important; }
@@ -305,37 +307,23 @@ header.topbar {
   box-sizing: border-box;
 }
 
-/* On narrow widths, the brand grows to fill row 1, pushing all action
-   buttons to row 2. Buttons keep their full size — no shrinking. */
-@media (max-width: 1100px) {
-  .topbar > .topbar-brand,
-  header.topbar > .topbar-brand {
-    flex: 1 1 auto !important;
-    max-width: none !important;
-  }
-  /* Right-cluster items: no grow, no margin-left:auto on narrow.
-     They flow naturally onto row 2. */
-  .topbar > .daterange-wrap,
-  header.topbar > .daterange-wrap {
-    margin-left: 0 !important;
-    flex: 0 0 auto !important;
-  }
-  .topbar > #refreshBtn,
-  .topbar > #refetchBtn,
-  .topbar > #themeBtn,
-  .topbar > .nav-dropdown,
-  .topbar > #navDropdown,
-  .topbar > .user-pill,
-  .topbar > #signOutBtn,
-  header.topbar > #refreshBtn,
-  header.topbar > #refetchBtn,
-  header.topbar > #themeBtn,
-  header.topbar > .nav-dropdown,
-  header.topbar > #navDropdown,
-  header.topbar > .user-pill,
-  header.topbar > #signOutBtn {
-    flex: 0 0 auto !important;
-  }
+/* All right-cluster items have fixed natural size — no grow, no shrink.
+   They sit on row 2 always, in the canonical order, never moving. */
+.topbar > .daterange-wrap, .topbar > #daterangeWrap,
+.topbar > #refreshBtn, .topbar > #refetchBtn,
+.topbar > #themeBtn,
+.topbar > .nav-dropdown, .topbar > #navDropdown,
+.topbar > .user-pill,
+.topbar > #signOutBtn,
+.topbar > [data-pwa-install],
+header.topbar > .daterange-wrap, header.topbar > #daterangeWrap,
+header.topbar > #refreshBtn, header.topbar > #refetchBtn,
+header.topbar > #themeBtn,
+header.topbar > .nav-dropdown, header.topbar > #navDropdown,
+header.topbar > .user-pill,
+header.topbar > #signOutBtn,
+header.topbar > [data-pwa-install] {
+  flex: 0 0 auto !important;
 }
 
 /* Below 700px (phone), hide the user-pill email text — keep just the avatar */

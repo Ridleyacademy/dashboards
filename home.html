@@ -426,6 +426,10 @@
             <svg class="admin-tab-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
             Rep Mapping
           </button>
+          <button class="admin-tab" data-tab="activity">
+            <svg class="admin-tab-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            Activity
+          </button>
         </div>
 
         <!-- Invite pane -->
@@ -503,6 +507,37 @@
           </div>
         </div>
 
+      </div>
+
+      <!-- Activity pane -->
+      <div class="admin-pane" id="pane-activity" style="padding:0;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:24px 28px 14px;">
+          <div>
+            <div style="font-size:0.78rem;font-weight:700;color:var(--text);">Recent activity</div>
+            <div style="font-size:0.7rem;color:var(--text-dim);margin-top:3px;">Audit trail of every change made by users (and the system).</div>
+          </div>
+          <button class="save-btn" id="refreshActivityBtn" style="font-size:0.7rem;">↻ Refresh</button>
+        </div>
+        <div id="activityFilters" style="display:flex;gap:8px;flex-wrap:wrap;padding:0 28px 16px;">
+          <select id="activityActionFilter" class="auth-input" style="max-width:220px;font-size:0.78rem;">
+            <option value="">All actions</option>
+            <option value="declaration.create">Declarations · created</option>
+            <option value="declaration.update">Declarations · edited</option>
+            <option value="declaration.delete">Declarations · deleted</option>
+            <option value="declaration.auto_import">Declarations · auto-imported</option>
+            <option value="user.invite">Users · invited</option>
+            <option value="user.delete">Users · deleted</option>
+            <option value="user.permissions_change">Users · permissions changed</option>
+            <option value="dashboard.archive">Dashboard archived</option>
+            <option value="dashboard.unarchive">Dashboard unarchived</option>
+            <option value="rep_mapping.set">Rep mapping changed</option>
+            <option value="rep_mapping.delete">Rep mapping deleted</option>
+          </select>
+          <input id="activitySearch" class="auth-input" type="search" placeholder="Search actor / target…" style="max-width:240px;font-size:0.78rem;">
+        </div>
+        <div id="activityList" style="padding:0 28px 24px;max-height:520px;overflow-y:auto;">
+          <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
+        </div>
       </div>
     </div>
 
@@ -591,10 +626,14 @@ document.querySelectorAll('.admin-tab').forEach(tab => {
     document.getElementById('pane-' + tab.dataset.tab).classList.add('active');
     if (tab.dataset.tab === 'users') loadAdminUsers();
     if (tab.dataset.tab === 'rep-map') loadRepMappings();
+    if (tab.dataset.tab === 'activity') loadActivity();
   });
 });
 
 document.getElementById('refreshUsersBtn').addEventListener('click', loadAdminUsers);
+document.getElementById('refreshActivityBtn').addEventListener('click', loadActivity);
+document.getElementById('activityActionFilter').addEventListener('change', renderActivity);
+document.getElementById('activitySearch').addEventListener('input', renderActivity);
 
 // ── Auth ──────────────────────────────────────────────────────
 async function initAuth() {
@@ -812,6 +851,106 @@ async function loadAdminUsers() {
   } catch(err) {
     list.innerHTML = `<div style="color:var(--red);font-size:0.84rem;padding:12px 0;">${err.message}</div>`;
   }
+}
+
+// ── Activity log ──────────────────────────────────────────────
+let activityRows = [];
+const ACTION_META = {
+  'declaration.create':       { color: '#34d399', icon: '➕', label: 'declared a sale' },
+  'declaration.update':       { color: '#6b9eff', icon: '✏️', label: 'edited a declaration' },
+  'declaration.delete':       { color: '#f87171', icon: '🗑️', label: 'deleted a declaration' },
+  'declaration.auto_import':  { color: '#a78bfa', icon: '⚡', label: 'auto-imported a sale' },
+  'user.invite':              { color: '#34d399', icon: '✉️', label: 'invited' },
+  'user.delete':              { color: '#f87171', icon: '🗑️', label: 'deleted user' },
+  'user.permissions_change':  { color: '#fbbf24', icon: '🔐', label: 'changed permissions for' },
+  'dashboard.archive':        { color: '#fbbf24', icon: '📦', label: 'archived dashboard' },
+  'dashboard.unarchive':      { color: '#34d399', icon: '📂', label: 'unarchived dashboard' },
+  'rep_mapping.set':          { color: '#22d3ee', icon: '🧩', label: 'updated rep mapping' },
+  'rep_mapping.delete':       { color: '#f87171', icon: '🧩', label: 'deleted rep mapping' },
+};
+
+function formatActivityTime(iso) {
+  const d = new Date(iso); const now = new Date(); const diff = now - d;
+  const m = Math.floor(diff/60000), h = Math.floor(diff/3600000), days = Math.floor(diff/86400000);
+  if (m < 1) return 'just now';
+  if (m < 60) return m + 'm ago';
+  if (h < 24) return h + 'h ago';
+  if (days < 7) return days + 'd ago';
+  return d.toLocaleDateString('en-US', { month:'short', day:'numeric' }) + ' ' +
+         d.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' });
+}
+
+function activityDescription(row) {
+  const meta = ACTION_META[row.action] || { color:'#7880a8', icon:'•', label: row.action };
+  const actor = row.actor_email || 'system';
+  const d = row.details || {};
+  let target = '';
+  if (row.action === 'declaration.create' || row.action === 'declaration.update' || row.action === 'declaration.delete' || row.action === 'declaration.auto_import') {
+    const amt = d.amount ? '$' + Number(d.amount).toLocaleString() : '';
+    const name = d.name || '(unnamed)';
+    target = `${name}${amt ? ' · ' + amt : ''}${d.rep_name ? ' · ' + d.rep_name : ''}`;
+  } else if (row.action === 'user.invite') {
+    target = d.invited_email || row.target_id;
+  } else if (row.action === 'user.delete') {
+    target = d.email || row.target_id;
+  } else if (row.action === 'user.permissions_change') {
+    const perms = (d.permissions || []).join(', ') || 'no permissions';
+    target = `${row.target_id ? row.target_id.slice(0,8) + '…' : ''} → ${d.is_admin?'admin':perms}`;
+  } else if (row.action === 'dashboard.archive' || row.action === 'dashboard.unarchive') {
+    target = row.target_id;
+  } else if (row.action === 'rep_mapping.set' || row.action === 'rep_mapping.delete') {
+    target = d.callsName || row.target_id || '';
+  }
+  return { meta, actor, target };
+}
+
+async function loadActivity() {
+  const list = document.getElementById('activityList');
+  list.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>';
+  try {
+    const r = await fetch(ADMIN_API_BASE + '?api=activity&limit=200', {
+      headers: { Authorization: 'Bearer ' + session_.access_token }
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Failed');
+    activityRows = j.rows || [];
+    renderActivity();
+  } catch(err) {
+    list.innerHTML = `<div style="color:var(--red);font-size:0.84rem;padding:12px 0;">${err.message}</div>`;
+  }
+}
+
+function renderActivity() {
+  const list = document.getElementById('activityList');
+  const actionFilter = document.getElementById('activityActionFilter').value;
+  const search = (document.getElementById('activitySearch').value || '').toLowerCase().trim();
+  let rows = activityRows;
+  if (actionFilter) rows = rows.filter(r => r.action === actionFilter);
+  if (search) rows = rows.filter(r => {
+    const blob = (r.actor_email + ' ' + (r.target_id||'') + ' ' + JSON.stringify(r.details||{})).toLowerCase();
+    return blob.includes(search);
+  });
+
+  if (!rows.length) {
+    list.innerHTML = `<div style="color:var(--text-dim);font-size:0.84rem;padding:24px 0;text-align:center;">No matching activity.</div>`;
+    return;
+  }
+
+  list.innerHTML = rows.map(r => {
+    const { meta, actor, target } = activityDescription(r);
+    return `
+    <div style="display:flex;gap:14px;padding:12px 0;border-bottom:1px solid var(--border);">
+      <div style="width:32px;height:32px;flex-shrink:0;border-radius:50%;background:${meta.color}22;color:${meta.color};display:flex;align-items:center;justify-content:center;font-size:0.95rem;">${meta.icon}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:0.82rem;color:var(--text);">
+          <span style="font-weight:700;">${actor}</span>
+          <span style="color:var(--text-muted);"> ${meta.label} </span>
+          <span style="font-weight:600;color:${meta.color};">${target||''}</span>
+        </div>
+        <div style="font-size:0.68rem;color:var(--text-dim);margin-top:3px;">${formatActivityTime(r.ts)}</div>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 function formatLastLogin(iso) {

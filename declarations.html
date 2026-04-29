@@ -199,7 +199,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Ridley">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
-  </head>
+  <link rel="stylesheet" href="mobile.css">
+</head>
 <body data-state="loading">
 
 <!-- Boot -->
@@ -880,17 +881,17 @@ function renderTable() {
 
   const wrap = 'word-break:break-word;white-space:normal;line-height:1.35;';
   tbody.innerHTML = rows.map(r => `<tr>
-    <td class="admin-col muted" style="white-space:nowrap;">${r.rep_name||'—'}</td>
-    <td style="white-space:nowrap;color:var(--text-muted);">${fmtDate(r.date_closed)}</td>
-    <td class="td-main" style="${wrap}">${r.name||'—'}</td>
-    <td class="muted" style="${wrap}">${r.email||'—'}</td>
-    <td class="muted" style="${wrap}">${r.product||'—'}</td>
-    <td>${typeBadge(r.type)}</td>
-    <td class="td-money" style="white-space:nowrap;">${r.sale_amount ? fmtMoney(r.sale_amount) : '—'}</td>
-    <td class="muted" style="${wrap}">${r.type_of_sale||'—'}</td>
-    <td class="muted" style="${wrap}">${r.platform||'—'}</td>
-    <td class="muted" style="${wrap}">${r.note||'—'}</td>
-    <td style="${wrap}">${checkBadge(r.sales_check, r.sales_check_reason)}</td>
+    <td class="admin-col muted" data-label="Rep" style="white-space:nowrap;">${r.rep_name||'—'}</td>
+    <td data-label="Date" style="white-space:nowrap;color:var(--text-muted);">${fmtDate(r.date_closed)}</td>
+    <td class="td-main" data-label="Name" style="${wrap}">${r.name||'—'}</td>
+    <td class="muted" data-label="Email" style="${wrap}">${r.email||'—'}</td>
+    <td class="muted" data-label="Product" style="${wrap}">${r.product||'—'}</td>
+    <td data-label="Type">${typeBadge(r.type)}</td>
+    <td class="td-money" data-label="Amount" style="white-space:nowrap;">${r.sale_amount ? fmtMoney(r.sale_amount) : '—'}</td>
+    <td class="muted" data-label="Type of sale" style="${wrap}">${r.type_of_sale||'—'}</td>
+    <td class="muted" data-label="From" style="${wrap}">${r.platform||'—'}</td>
+    <td class="muted" data-label="Note" style="${wrap}">${r.note||'—'}</td>
+    <td data-label="Check" style="${wrap}">${checkBadge(r.sales_check, r.sales_check_reason)}</td>
     <td class="col-actions" style="text-align:right;white-space:nowrap;">
       <button class="action-btn action-btn-edit" data-id="${r.id}">Edit</button>
       <button class="action-btn action-btn-del"  data-id="${r.id}" style="margin-left:4px;">Del</button>

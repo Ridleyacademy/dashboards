@@ -325,7 +325,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Ridley">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
-  </head>
+  <link rel="stylesheet" href="mobile.css">
+</head>
 <body data-state="loading">
 
 <!-- Boot -->
@@ -371,6 +372,10 @@
     </div>
     <span class="topbar-brand">Workspace</span>
     <div class="topbar-spacer"></div>
+    <button class="tbtn tbtn-ghost" data-pwa-install style="display:none;background:rgba(172,24,24,0.12);border-color:rgba(172,24,24,0.3);color:#ff7a7a;" title="Install Ridley to your home screen">
+      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Install app
+    </button>
     <button class="tbtn tbtn-ghost" id="themeBtn" style="font-size:1rem;padding:5px 10px;" title="Toggle theme"></button>
     <div class="user-pill">
       <div class="user-pill-av" id="userAvatar">U</div>

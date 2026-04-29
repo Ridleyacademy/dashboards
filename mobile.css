@@ -1,0 +1,98 @@
+/* Shared mobile responsiveness for dashboard pages.
+   At <768px, wide tables collapse into card-stack views and topbars wrap. */
+
+@media (max-width: 768px) {
+
+  /* Topbar wraps to 2 rows so buttons are reachable */
+  .topbar {
+    flex-wrap: wrap !important;
+    height: auto !important;
+    padding: 8px 14px !important;
+    gap: 6px !important;
+    row-gap: 6px;
+  }
+  .topbar > * { flex-shrink: 0; }
+  .topbar-spacer { flex: 1 1 100%; min-width: 0; height: 0; }
+  .user-pill .user-pill-email { max-width: 110px !important; }
+  .tbtn { padding: 5px 9px !important; font-size: 0.7rem !important; }
+
+  /* Page padding tighter */
+  .main, .page { padding: 16px 12px 60px !important; }
+
+  /* KPI grid: 2 columns max on phones */
+  .kpi-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 10px !important; }
+
+  /* Generic data tables → card-stack layout
+     Each row becomes a card; each cell stacks with a label from data-label or the th text */
+  .data-table {
+    width: 100% !important;
+    min-width: 0 !important;
+    table-layout: auto !important;
+    border-collapse: separate !important;
+    border-spacing: 0 8px !important;
+  }
+  .data-table colgroup { display: none !important; }
+  .data-table thead { display: none !important; }
+  .data-table, .data-table tbody, .data-table tr, .data-table td {
+    display: block !important;
+    width: 100% !important;
+  }
+  .data-table tr {
+    background: var(--surface2, #141728) !important;
+    border: 1px solid var(--border, #1f2438) !important;
+    border-radius: 12px !important;
+    padding: 10px 12px !important;
+    margin-bottom: 8px !important;
+  }
+  .data-table tr:hover td { background: transparent !important; }
+  .data-table td {
+    padding: 5px 0 !important;
+    border: none !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: flex-start !important;
+    gap: 10px !important;
+    text-align: right !important;
+    font-size: 0.78rem !important;
+  }
+  .data-table td::before {
+    content: attr(data-label);
+    color: var(--text-dim, #3e4668);
+    font-size: 0.66rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    flex-shrink: 0;
+    align-self: center;
+  }
+  .data-table td.col-actions {
+    position: static !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    justify-content: flex-end !important;
+    padding-top: 8px !important;
+    border-top: 1px solid var(--border, #1f2438) !important;
+    margin-top: 6px !important;
+  }
+  .data-table td.col-actions::before { display: none; }
+  /* Hide the rep column on mobile cards (label already implicit in admin context) */
+
+  /* Charts: shorter on mobile */
+  .chart-wrap { height: 200px !important; }
+
+  /* Filter bars: stack vertically */
+  .filter-bar { flex-direction: column !important; align-items: stretch !important; }
+  .filter-bar > * { width: 100% !important; }
+
+  /* Modals: nearly full width */
+  .modal-card { max-width: 100% !important; padding: 22px 18px !important; }
+
+  /* Hide admin-only column on mobile */
+  body:not(.can-see-all) .admin-col { display: none !important; }
+}
+
+/* Slightly smaller tweaks for tablet */
+@media (max-width: 1100px) and (min-width: 769px) {
+  .data-table { min-width: 900px !important; }
+  .kpi-grid { grid-template-columns: repeat(3, 1fr) !important; }
+}

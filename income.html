@@ -489,11 +489,6 @@
 
     <div class="topbar-spacer"></div>
 
-    <!-- Live badge -->
-    <div class="live-badge" id="liveBadge" style="display:none;">
-      <div class="live-dot"></div>Live
-    </div>
-
     <!-- Date range picker -->
     <div class="daterange-wrap" id="daterangeWrap">
       <button class="daterange-btn" id="daterangeBtn">
@@ -980,10 +975,7 @@ function setupRealtime() {
         logData   = null;
         loadData();
       })
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          document.getElementById('liveBadge').style.display = 'inline-flex';
-        }
+      .subscribe(() => { /* live updates without status badge */
       });
   } catch(e) {
     console.error('Realtime setup error:', e);

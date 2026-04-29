@@ -207,14 +207,34 @@ body.light .topbar {
 .topbar-spacer { flex: 1 1 auto !important; min-width: 8px; }
 
 /* All topbar buttons render at the same height for visual alignment */
-.topbar .tbtn { line-height: 1; height: 30px; box-sizing: border-box; }
+.topbar .tbtn,
+header.topbar .tbtn {
+  line-height: 1 !important;
+  height: 32px !important;
+  box-sizing: border-box !important;
+  padding: 6px 12px !important;
+  font-size: 0.74rem !important;
+  font-weight: 600 !important;
+  border-radius: 8px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+}
+.topbar .user-pill,
+header.topbar .user-pill {
+  height: 32px !important;
+  padding: 0 12px 0 4px !important;
+  margin-left: 0 !important;
+}
 
 /* Standardize the dashboard picker dropdown across all pages.
-   Some pages use #navDropMenu, some #navDropdownMenu, some .nav-dropdown-menu. */
-#navDropMenu,
-#navDropdownMenu,
-.nav-dropdown-menu {
-  /* Position: anchored to the picker button, pinned to its right edge */
+   Use VERY high specificity (chained ids/classes) so per-page CSS can't win. */
+.topbar #navDropMenu,
+.topbar #navDropdownMenu,
+.topbar .nav-dropdown-menu,
+header.topbar #navDropMenu,
+header.topbar #navDropdownMenu,
+header.topbar .nav-dropdown-menu {
   position: absolute !important;
   top: calc(100% + 8px) !important;
   right: 0 !important;
@@ -224,29 +244,41 @@ body.light .topbar {
   border: 1px solid var(--border-light, #272d45) !important;
   border-radius: 12px !important;
   padding: 6px !important;
-  min-width: 200px !important;
+  min-width: 220px !important;
   box-shadow: 0 12px 32px rgba(0,0,0,0.5) !important;
   z-index: 200 !important;
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif !important;
 }
-#navDropMenu a,
-#navDropdownMenu a,
-.nav-dropdown-item,
-.nav-drop-item {
+.topbar #navDropMenu a,
+.topbar #navDropdownMenu a,
+.topbar .nav-dropdown-item,
+.topbar .nav-drop-item,
+header.topbar #navDropMenu a,
+header.topbar #navDropdownMenu a,
+header.topbar .nav-dropdown-item,
+header.topbar .nav-drop-item {
   display: flex !important;
   align-items: center !important;
   gap: 10px !important;
-  padding: 9px 12px !important;
+  padding: 10px 12px !important;
   border-radius: 8px !important;
   font-size: 0.8rem !important;
   font-weight: 600 !important;
   color: var(--text-muted, #7880a8) !important;
+  background: transparent !important;
   text-decoration: none !important;
   transition: background 0.12s, color 0.12s !important;
 }
-#navDropMenu a:hover,
-#navDropdownMenu a:hover,
-.nav-dropdown-item:hover,
-.nav-drop-item:hover {
+.topbar #navDropMenu a:hover,
+.topbar #navDropdownMenu a:hover,
+.topbar .nav-dropdown-item:hover,
+.topbar .nav-drop-item:hover {
   background: var(--surface2, #141728) !important;
   color: var(--text, #eaecf8) !important;
+}
+.topbar .nav-dropdown-item.active,
+.topbar #navDropMenu a.active,
+.topbar #navDropdownMenu a.active {
+  background: var(--blue-bg, rgba(107,158,255,0.1)) !important;
+  color: var(--blue, #6b9eff) !important;
 }

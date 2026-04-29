@@ -168,9 +168,54 @@
   }
 }
 
-/* Uniform sticky topbar on all dashboards — keep it pinned during scroll */
+/* ────────────────────────────────────────────────────────────
+   Uniform topbar across all dashboards.
+   Sticky, consistent height, and consistent styling for the
+   shared elements (date range, refresh, theme, picker, user pill, sign out).
+   ──────────────────────────────────────────────────────────── */
 .topbar {
   position: sticky !important;
   top: 0 !important;
   z-index: 100 !important;
+  background: rgba(8,10,20,0.92) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+}
+body.light .topbar {
+  background: rgba(255,255,255,0.92) !important;
+}
+
+/* Standardize the dashboard picker dropdown across all pages.
+   Some pages use #navDropMenu, some #navDropdownMenu, some .nav-dropdown-menu. */
+#navDropMenu,
+#navDropdownMenu,
+.nav-dropdown-menu {
+  background: var(--surface, #0f1120) !important;
+  border: 1px solid var(--border-light, #272d45) !important;
+  border-radius: 12px !important;
+  padding: 6px !important;
+  min-width: 200px !important;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.5) !important;
+}
+#navDropMenu a,
+#navDropdownMenu a,
+.nav-dropdown-item,
+.nav-drop-item {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  padding: 9px 12px !important;
+  border-radius: 8px !important;
+  font-size: 0.8rem !important;
+  font-weight: 600 !important;
+  color: var(--text-muted, #7880a8) !important;
+  text-decoration: none !important;
+  transition: background 0.12s, color 0.12s !important;
+}
+#navDropMenu a:hover,
+#navDropdownMenu a:hover,
+.nav-dropdown-item:hover,
+.nav-drop-item:hover {
+  background: var(--surface2, #141728) !important;
+  color: var(--text, #eaecf8) !important;
 }

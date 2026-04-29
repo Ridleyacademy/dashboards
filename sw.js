@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v6';
+const CACHE_NAME = 'ridley-v8-no-version-cache';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [
@@ -50,7 +50,12 @@ self.addEventListener('message', (event) => {
 });
 
 function isApiRequest(url) {
-  return url.hostname.includes('supabase.co') || url.pathname.includes('/functions/v1/');
+  // Never cache: Supabase, edge functions, and the version-check file.
+  // The version file MUST always be fresh — it's how we detect new deploys.
+  return url.hostname.includes('supabase.co')
+    || url.pathname.includes('/functions/v1/')
+    || url.pathname.endsWith('/version.txt')
+    || url.pathname === '/version.txt';
 }
 function isHTML(req) {
   return req.mode === 'navigate' ||

@@ -24,36 +24,44 @@
     });
   }
 
-  // Nuclear version check: hits /version.txt with cache-busting. If the
-  // version on the server differs from what we last loaded, wipe everything
-  // and reload. This is the SAFETY NET — works even if the SW is misbehaving.
+  // Nuclear version check: bypasses SW entirely by going to the network
+  // directly with cache:no-store. If the server's version.txt differs from
+  // what we last loaded, wipe ALL caches + unregister SWs + hard reload.
   async function nuclearVersionCheck() {
     try {
-      const res = await fetch('/version.txt?ts=' + Date.now(), { cache: 'no-store' });
+      // Bypass SW with a Request that has cache: 'reload' AND a query string.
+      // This forces a network round-trip on the most stubborn iOS Safari builds.
+      const url = '/version.txt?_cb=' + Date.now() + Math.random().toString(36).slice(2);
+      const res = await fetch(url, {
+        cache: 'no-store',
+        credentials: 'omit',
+        headers: { 'cache-control': 'no-cache, no-store, must-revalidate', pragma: 'no-cache' },
+      });
       if (!res.ok) return;
       const remote = (await res.text()).trim();
       const local  = localStorage.getItem('app-version') || '';
+      console.log('[PWA] version local=', local, ' remote=', remote);
       if (!local) {
         localStorage.setItem('app-version', remote);
         return;
       }
       if (remote && remote !== local) {
-        console.log('[PWA] version mismatch:', local, '->', remote, '— purging caches & reloading');
-        // Wipe all caches
+        console.log('[PWA] version mismatch — purging caches & reloading');
         try {
           const keys = await caches.keys();
           await Promise.all(keys.map((k) => caches.delete(k)));
         } catch (_) {}
-        // Unregister SWs
         try {
           const regs = await navigator.serviceWorker.getRegistrations();
           await Promise.all(regs.map((r) => r.unregister()));
         } catch (_) {}
         localStorage.setItem('app-version', remote);
         // Hard reload bypassing browser cache
-        window.location.reload();
+        window.location.replace(window.location.pathname + '?_v=' + Date.now());
       }
-    } catch (_) {}
+    } catch (e) {
+      console.warn('[PWA] version check failed:', e);
+    }
   }
 
   // Force a SW update check whenever the app becomes visible (e.g. user reopens

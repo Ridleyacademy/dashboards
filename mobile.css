@@ -212,19 +212,71 @@ header.topbar .tbtn {
   line-height: 1 !important;
   height: 32px !important;
   box-sizing: border-box !important;
-  padding: 6px 12px !important;
+  padding: 6px 10px !important;
   font-size: 0.74rem !important;
   font-weight: 600 !important;
   border-radius: 8px !important;
   display: inline-flex !important;
   align-items: center !important;
   gap: 5px !important;
+  white-space: nowrap !important;
 }
 .topbar .user-pill,
 header.topbar .user-pill {
   height: 32px !important;
-  padding: 0 12px 0 4px !important;
+  padding: 0 10px 0 4px !important;
   margin-left: 0 !important;
+  flex-shrink: 0;
+}
+.topbar .user-pill-email,
+header.topbar .user-pill-email {
+  max-width: 140px !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Topbar stays on one line by allowing the user pill email to truncate
+   and shrinking horizontal padding on narrow widths. */
+.topbar,
+header.topbar {
+  flex-wrap: nowrap !important;
+  overflow: visible;
+}
+
+/* Compact mode kicks in below 1100px wide — saves space without hiding anything */
+@media (max-width: 1100px) {
+  .topbar,
+  header.topbar {
+    padding: 10px 16px !important;
+    gap: 6px !important;
+  }
+  .topbar .tbtn,
+  header.topbar .tbtn {
+    padding: 6px 8px !important;
+    font-size: 0.7rem !important;
+  }
+  .topbar .topbar-brand,
+  header.topbar .topbar-brand {
+    max-width: 130px !important;
+    font-size: 0.82rem !important;
+  }
+  .topbar .user-pill-email,
+  header.topbar .user-pill-email {
+    max-width: 100px !important;
+  }
+}
+
+/* Below 700px (phone), hide the user-pill email text — keep just the avatar */
+@media (max-width: 700px) {
+  .topbar .user-pill-email,
+  header.topbar .user-pill-email {
+    display: none !important;
+  }
+  .topbar .user-pill,
+  header.topbar .user-pill {
+    padding: 0 4px !important;
+  }
 }
 
 /* Standardize the dashboard picker dropdown across all pages.

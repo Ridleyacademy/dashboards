@@ -1,0 +1,42 @@
+/* Shared loading skeleton styles. */
+.skel {
+  background: linear-gradient(
+    90deg,
+    var(--surface2, #1a1d2e) 0%,
+    var(--surface3, #252939) 50%,
+    var(--surface2, #1a1d2e) 100%
+  );
+  background-size: 200% 100%;
+  animation: skel-shimmer 1.4s infinite;
+  border-radius: 6px;
+  display: inline-block;
+  vertical-align: middle;
+}
+@keyframes skel-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Common shapes */
+.skel-row     { height: 14px; }
+.skel-row-sm  { height: 10px; }
+.skel-row-lg  { height: 18px; }
+.skel-kpi     { height: 32px; width: 80%;  margin-bottom: 6px; }
+.skel-kpi-sm  { height: 12px; width: 60%; }
+.skel-bar     { height: 220px; width: 100%; border-radius: 12px; display: block; }
+.skel-card    { height: 120px; width: 100%; border-radius: 14px; display: block; }
+.skel-circle  { border-radius: 50%; }
+
+/* Table skeleton row */
+.skel-table-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border, #1f2438);
+}
+.skel-table-row .skel { height: 14px; }
+
+/* Hide skeletons once data has loaded by toggling a parent class */
+.data-loaded .skel-only { display: none !important; }
+.is-loading .data-only  { display: none !important; }

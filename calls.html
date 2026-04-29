@@ -354,6 +354,7 @@
     font-size: 0.67rem; font-weight: 800; letter-spacing: 0.03em; white-space: nowrap;
   }
 </style>
+<link rel="stylesheet" href="skeletons.css">
 </head>
 <body data-state="loading">
 
@@ -667,7 +668,9 @@
               </tr>
             </thead>
             <tbody id="logTableBody">
-              <tr><td colspan="6" class="empty-state">No data loaded</td></tr>
+              <tr><td colspan="6" style="padding:12px 16px;"><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;"><span class="skel skel-row" style="width:80%;"></span><span class="skel skel-row" style="width:70%;"></span><span class="skel skel-row" style="width:60%;"></span><span class="skel skel-row" style="width:75%;"></span></div></td></tr>
+              <tr><td colspan="6" style="padding:12px 16px;"><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;"><span class="skel skel-row" style="width:65%;"></span><span class="skel skel-row" style="width:80%;"></span><span class="skel skel-row" style="width:70%;"></span><span class="skel skel-row" style="width:55%;"></span></div></td></tr>
+              <tr><td colspan="6" style="padding:12px 16px;"><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;"><span class="skel skel-row" style="width:75%;"></span><span class="skel skel-row" style="width:65%;"></span><span class="skel skel-row" style="width:85%;"></span><span class="skel skel-row" style="width:70%;"></span></div></td></tr>
             </tbody>
           </table>
         </div>
@@ -1444,5 +1447,6 @@ initAuth().catch(e => { console.error('Unhandled auth error:', e); setState('log
 </script>
 <script src="forgot-password.js"></script>
 <script src="access-guard.js"></script>
+<script src="loading-states.js"></script>
 </body>
 </html>

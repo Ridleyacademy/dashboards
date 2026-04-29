@@ -178,6 +178,20 @@
     animation: pulse 2s ease-in-out infinite;
   }
   @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.8)} }
+  @keyframes live-pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(52,211,153,0.7); }
+    70%  { box-shadow: 0 0 0 8px rgba(52,211,153,0); }
+    100% { box-shadow: 0 0 0 0 rgba(52,211,153,0); }
+  }
+  /* Skeleton placeholders */
+  .skel { background: linear-gradient(90deg, var(--surface2,#1a1d2e) 0%, var(--surface3,#252939) 50%, var(--surface2,#1a1d2e) 100%); background-size: 200% 100%; animation: skel-shimmer 1.4s infinite; border-radius: 6px; display:inline-block; }
+  @keyframes skel-shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+  .skel-row { height:14px; }
+  .skel-kpi { height:32px; width:80%; margin-bottom:6px; }
+  .skel-sub { height:11px; width:60%; }
+  .skel-bar { height: 220px; border-radius: 12px; }
+  .skel-table-row { display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:12px; padding:12px 16px; border-bottom:1px solid var(--border, #1f2438); }
+  .skel-table-row .skel { height:14px; }
 
   /* Nav dropdown */
   .nav-dropdown { position: relative; }
@@ -398,6 +412,7 @@
   .modal-btn-save:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
   .modal-err { color: var(--red); font-size: 0.76rem; margin-bottom: 10px; min-height: 1em; }
 </style>
+<link rel="stylesheet" href="skeletons.css">
 </head>
 <body data-state="loading">
 
@@ -501,6 +516,12 @@
     <button class="tbtn tbtn-ghost" id="refreshBtn" title="Refresh data">
       <svg id="refreshIcon" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
       Refresh
+    </button>
+
+    <!-- Auto-refresh toggle -->
+    <button class="tbtn tbtn-ghost" id="autoRefreshBtn" title="Auto-refresh every 30 seconds" style="display:flex;align-items:center;gap:6px;">
+      <span id="autoRefreshDot" style="width:8px;height:8px;border-radius:50%;background:#7880a8;transition:background 0.2s;"></span>
+      <span id="autoRefreshLabel">Live: Off</span>
     </button>
 
     <!-- Theme -->
@@ -722,7 +743,9 @@
               </tr>
             </thead>
             <tbody id="logTableBody">
-              <tr><td colspan="9" class="empty-state">No data loaded</td></tr>
+              <tr><td colspan="9" style="padding:12px 16px;"><div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;"><span class="skel skel-row" style="width:75%;"></span><span class="skel skel-row" style="width:85%;"></span><span class="skel skel-row" style="width:70%;"></span><span class="skel skel-row" style="width:60%;"></span><span class="skel skel-row" style="width:80%;"></span></div></td></tr>
+              <tr><td colspan="9" style="padding:12px 16px;"><div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;"><span class="skel skel-row" style="width:65%;"></span><span class="skel skel-row" style="width:75%;"></span><span class="skel skel-row" style="width:80%;"></span><span class="skel skel-row" style="width:70%;"></span><span class="skel skel-row" style="width:55%;"></span></div></td></tr>
+              <tr><td colspan="9" style="padding:12px 16px;"><div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;"><span class="skel skel-row" style="width:80%;"></span><span class="skel skel-row" style="width:70%;"></span><span class="skel skel-row" style="width:75%;"></span><span class="skel skel-row" style="width:85%;"></span><span class="skel skel-row" style="width:65%;"></span></div></td></tr>
             </tbody>
           </table>
         </div>
@@ -1522,6 +1545,55 @@ document.getElementById('refreshBtn').addEventListener('click', () => {
   if (currentSession) loadData();
 });
 
+// ── Auto-refresh (Live mode) ─────────────────────────────────────
+let autoRefreshTimer = null;
+const AUTO_REFRESH_MS = 30000; // 30 seconds
+
+function setAutoRefresh(on) {
+  const dot   = document.getElementById('autoRefreshDot');
+  const label = document.getElementById('autoRefreshLabel');
+  if (autoRefreshTimer) { clearInterval(autoRefreshTimer); autoRefreshTimer = null; }
+  if (on) {
+    dot.style.background = '#34d399';
+    dot.style.boxShadow  = '0 0 0 0 rgba(52,211,153,0.7)';
+    dot.style.animation  = 'live-pulse 1.6s infinite';
+    label.textContent = 'Live: On';
+    autoRefreshTimer = setInterval(() => {
+      if (document.visibilityState === 'visible' && currentSession) {
+        statsData = null; logData = null;
+        loadData();
+      }
+    }, AUTO_REFRESH_MS);
+    try { localStorage.setItem('income_autorefresh', '1'); } catch(_){}
+  } else {
+    dot.style.background = '#7880a8';
+    dot.style.animation  = '';
+    dot.style.boxShadow  = '';
+    label.textContent = 'Live: Off';
+    try { localStorage.setItem('income_autorefresh', '0'); } catch(_){}
+  }
+}
+
+document.getElementById('autoRefreshBtn').addEventListener('click', () => {
+  const isOn = !!autoRefreshTimer;
+  setAutoRefresh(!isOn);
+});
+
+// Restore preference on load
+try {
+  if (localStorage.getItem('income_autorefresh') === '1') {
+    setTimeout(() => setAutoRefresh(true), 800);
+  }
+} catch(_){}
+
+// Pause when tab hidden, resume when visible (saves API calls)
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && autoRefreshTimer && currentSession) {
+    statsData = null; logData = null;
+    loadData();
+  }
+});
+
 // Log search
 document.getElementById('logSearch').addEventListener('input', e => {
   renderLog(e.target.value.toLowerCase());
@@ -1798,5 +1870,6 @@ document.getElementById('logTableBody').addEventListener('click', e => {
 
 <script src="forgot-password.js"></script>
 <script src="access-guard.js"></script>
+<script src="loading-states.js"></script>
 </body>
 </html>

@@ -203,24 +203,28 @@ body.light .topbar {
   white-space: nowrap;
 }
 
-/* Spacer is now zero-width — we use margin-left:auto on the right cluster's
-   first item instead. This makes the right cluster sit at the right edge
-   regardless of WHICH page or WHERE the page placed its <topbar-spacer>. */
+/* The spacer takes 0 width — order is enforced via CSS `order` below. */
 .topbar .topbar-spacer,
-header.topbar .topbar-spacer { flex: 0 0 0 !important; min-width: 0 !important; }
+header.topbar .topbar-spacer { flex: 0 0 0 !important; min-width: 0 !important; display: none; }
 
-/* The first right-cluster item (date range OR refresh OR theme — whatever
-   appears first that belongs on the right) gets pushed to the edge. */
-.topbar .daterange-wrap,
-header.topbar .daterange-wrap { margin-left: auto !important; }
-/* Pages without a daterange-wrap still need a right-anchor: refresh button */
-.topbar:not(:has(.daterange-wrap)) #refreshBtn,
-.topbar:not(:has(.daterange-wrap)) #refetchBtn,
-header.topbar:not(:has(.daterange-wrap)) #refreshBtn,
-header.topbar:not(:has(.daterange-wrap)) #refetchBtn { margin-left: auto !important; }
-/* Or theme button if no refresh exists */
-.topbar:not(:has(.daterange-wrap)):not(:has(#refreshBtn)):not(:has(#refetchBtn)) #themeBtn,
-header.topbar:not(:has(.daterange-wrap)):not(:has(#refreshBtn)):not(:has(#refetchBtn)) #themeBtn { margin-left: auto !important; }
+/* CANONICAL ORDER OF TOPBAR ITEMS (regardless of HTML source order):
+   logo (0) → brand (1) → daterange (10) → refresh (20) → theme (30) →
+   picker (40) → user pill (50) → sign out (60).
+   Every dashboard now has the exact same button positions. */
+.topbar > .topbar-logo,    header.topbar > .topbar-logo    { order: 0 !important; }
+.topbar > .topbar-brand,   header.topbar > .topbar-brand   { order: 1 !important; }
+.topbar > .daterange-wrap,
+.topbar > #daterangeWrap,  header.topbar > .daterange-wrap,
+header.topbar > #daterangeWrap                              { order: 10 !important; margin-left: auto !important; }
+.topbar > #refreshBtn, .topbar > #refetchBtn,
+header.topbar > #refreshBtn, header.topbar > #refetchBtn   { order: 20 !important; }
+.topbar > #themeBtn,       header.topbar > #themeBtn       { order: 30 !important; }
+.topbar > .nav-dropdown, .topbar > #navDropdown,
+header.topbar > .nav-dropdown, header.topbar > #navDropdown { order: 40 !important; }
+.topbar > .user-pill,      header.topbar > .user-pill      { order: 50 !important; }
+.topbar > #signOutBtn,     header.topbar > #signOutBtn     { order: 60 !important; }
+/* Catch any other tbtn-ghost we don't know about — sit at order 25 (between refresh and theme) */
+.topbar > [data-pwa-install], header.topbar > [data-pwa-install] { order: 25 !important; }
 
 /* Treat all topbar buttons identically regardless of class (.btn vs .tbtn).
    Performance, meta-ads, sales use .btn-ghost; calls/income/decl use .tbtn-ghost. */

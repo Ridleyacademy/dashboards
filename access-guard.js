@@ -64,17 +64,21 @@
     }
   }
 
-  // Run as soon as DOM is interactive AND on every auth state change.
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', enforce);
-  } else {
-    enforce();
+  // Run once when DOM is ready AND once after a short delay (gives the page's own
+  // auth flow time to hydrate the session). Don't subscribe to onAuthStateChange
+  // because it can race with the page's own auth handlers.
+  function runWhenReady() {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => {
+        enforce();
+        setTimeout(enforce, 1500); // catch the post-hydration session
+      });
+    } else {
+      enforce();
+      setTimeout(enforce, 1500);
+    }
   }
-  try {
-    supa.auth.onAuthStateChange(() => enforce());
-  } catch (e) {
-    console.warn('[access-guard] could not subscribe to auth changes:', e);
-  }
+  runWhenReady();
 
   // Show notice on home if redirected from a forbidden page
   const params = new URLSearchParams(window.location.search);

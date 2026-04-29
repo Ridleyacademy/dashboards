@@ -75,7 +75,10 @@
         }
       }
 
-      // Filter nav items — only run once
+      // Filter nav items — only run once.
+      // Archived dashboards are hidden from the picker for EVERYONE (including admins)
+      // so the picker only shows currently-active boards. Admins manage archived
+      // boards from the home page.
       if (!didFilter) {
         didFilter = true;
         const items = document.querySelectorAll('.nav-dropdown-item, .nav-drop-item, [data-nav-link]');
@@ -84,7 +87,7 @@
           const d = PAGES.find(p => p.href === href);
           if (!d) return;
           const noPerm = !canAccess(d, user);
-          const archivedHide = !userIsAdmin && d.id && archived.has(d.id);
+          const archivedHide = d.id && archived.has(d.id);
           if (noPerm || archivedHide) el.style.display = 'none';
         });
       }

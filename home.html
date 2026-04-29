@@ -426,10 +426,14 @@
         <!-- Invite pane -->
         <div class="admin-pane active" id="pane-invite">
           <div class="invite-layout">
-            <p class="invite-desc">Send a secure invitation email. The recipient will receive a link to set their password and access the workspace.</p>
+            <p class="invite-desc">Send a secure invitation email. The recipient will receive a link to set their password and access the workspace with the permissions you choose below.</p>
             <div class="invite-row">
               <input class="auth-input" type="email" id="inviteEmail" placeholder="teammate@company.com" autocomplete="off">
               <button class="invite-btn" id="sendInviteBtn">Send Invite</button>
+            </div>
+            <div style="margin-top:18px;">
+              <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:10px;">Permissions for this user</div>
+              <div id="invitePerms" class="user-perms" style="gap:6px;"></div>
             </div>
             <div class="feedback" id="inviteFeedback"></div>
           </div>
@@ -814,6 +818,20 @@ async function saveUser(btn) {
 }
 
 // ── Invite ────────────────────────────────────────────────────
+// Render the invite permission chips
+function renderInvitePerms() {
+  const el = document.getElementById('invitePerms');
+  if (!el) return;
+  el.innerHTML = AVAILABLE_PERMS.map(p => `
+    <label class="perm-chip">
+      <input type="checkbox" class="invite-perm" data-perm="${p}">${p}
+    </label>`).join('') + `
+    <label class="perm-chip admin-chip">
+      <input type="checkbox" id="inviteAdminCheck">admin
+    </label>`;
+}
+renderInvitePerms();
+
 document.getElementById('sendInviteBtn').addEventListener('click', async () => {
   const emailVal = document.getElementById('inviteEmail').value.trim();
   const feedback = document.getElementById('inviteFeedback');
@@ -822,18 +840,28 @@ document.getElementById('sendInviteBtn').addEventListener('click', async () => {
   if (!emailVal || !emailVal.includes('@')) {
     feedback.style.color = 'var(--red)'; feedback.textContent = 'Please enter a valid email address.'; return;
   }
+  const permissions = [...document.querySelectorAll('.invite-perm')].filter(c=>c.checked).map(c=>c.dataset.perm);
+  const is_admin    = document.getElementById('inviteAdminCheck')?.checked === true;
+  if (!is_admin && permissions.length === 0) {
+    feedback.style.color = 'var(--red)';
+    feedback.textContent = 'Pick at least one permission (or check admin).';
+    return;
+  }
   btn.disabled = true; btn.textContent = 'Sending…';
   try {
     const res = await fetch(INVITE_BASE, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session_.access_token },
-      body: JSON.stringify({ email: emailVal }),
+      body: JSON.stringify({ email: emailVal, permissions, is_admin }),
     });
     const json = await res.json();
     if (!res.ok) throw new Error(json.error || 'Invite failed');
     feedback.style.color = 'var(--green)';
-    feedback.textContent = '✓ Invitation sent to ' + emailVal;
+    const roleSummary = is_admin ? 'as admin' : `with: ${permissions.join(', ')}`;
+    feedback.textContent = `✓ Invitation sent to ${emailVal} ${roleSummary}`;
     document.getElementById('inviteEmail').value = '';
+    document.querySelectorAll('.invite-perm').forEach(c => c.checked = false);
+    if (document.getElementById('inviteAdminCheck')) document.getElementById('inviteAdminCheck').checked = false;
   } catch(err) {
     feedback.style.color = 'var(--red)'; feedback.textContent = err.message;
   } finally {

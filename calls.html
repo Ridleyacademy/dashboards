@@ -1262,20 +1262,20 @@ function renderRepSummaryTable(byRep, totalCalls) {
     const cr = (val) => val > 0 ? val + '%' : dim;
 
     return `<tr>
-      <td>
+      <td data-label="Rep">
         <span class="rep-badge" style="background:rgba(${r},${g},${b},0.15);color:${color};">${rep}</span>
         <div style="margin-top:4px;">
           <div class="mini-bar-bg" style="width:100%;max-width:80px;"><div class="mini-bar-fill" style="width:${pct.toFixed(1)}%;background:${color};"></div></div>
           <span style="font-size:0.65rem;color:var(--text-dim);">${pct.toFixed(1)}% of calls</span>
         </div>
       </td>
-      <td class="td-num">${calls.toLocaleString()}</td>
-      <td class="td-num">${contacts.toLocaleString()}<br><span style="color:var(--text-dim);font-size:0.7rem;">${cRate}% of calls</span></td>
-      <td class="td-num">${interviews.toLocaleString()}<br><span style="color:var(--text-dim);font-size:0.7rem;">${iRate}% of calls</span></td>
-      <td class="td-num">${fmtDuration(v.totalDuration)}<br><span style="color:var(--text-dim);font-size:0.7rem;">avg ${fmtDuration(avgDuration)}</span></td>
-      <td class="td-num sales-col">${v.sales > 0 ? v.sales : dim}</td>
-      <td class="td-money sales-col">${v.sales > 0 ? '$' + (v.grossIncome ?? 0).toLocaleString() : dim}</td>
-      <td class="td-num sales-col" style="line-height:1.7;">
+      <td class="td-num" data-label="Calls">${calls.toLocaleString()}</td>
+      <td class="td-num" data-label="Contacts">${contacts.toLocaleString()}<br><span style="color:var(--text-dim);font-size:0.7rem;">${cRate}% of calls</span></td>
+      <td class="td-num" data-label="Interviews">${interviews.toLocaleString()}<br><span style="color:var(--text-dim);font-size:0.7rem;">${iRate}% of calls</span></td>
+      <td class="td-num" data-label="Duration">${fmtDuration(v.totalDuration)}<br><span style="color:var(--text-dim);font-size:0.7rem;">avg ${fmtDuration(avgDuration)}</span></td>
+      <td class="td-num sales-col" data-label="Sales">${v.sales > 0 ? v.sales : dim}</td>
+      <td class="td-money sales-col" data-label="GI">${v.sales > 0 ? '$' + (v.grossIncome ?? 0).toLocaleString() : dim}</td>
+      <td class="td-num sales-col" data-label="Close rates" style="line-height:1.7;">
         <span style="color:var(--text-dim);font-size:0.68rem;">/ call&nbsp;</span>${cr(v.closeRateVsCalls)}<br>
         <span style="color:var(--text-dim);font-size:0.68rem;">/ contact&nbsp;</span>${cr(v.closeRateVsContacts)}<br>
         <span style="color:var(--text-dim);font-size:0.68rem;">/ intv&nbsp;</span>${cr(v.closeRateVsInterviews)}
@@ -1331,12 +1331,12 @@ function renderLog(filter) {
       : '<span style="color:var(--text-dim);">—</span>';
 
     return `<tr>
-      <td style="white-space:nowrap;font-size:0.74rem;color:var(--text-muted);">${fmtDateTime(r['Date & Time'])}</td>
-      <td class="td-main">${r['First Name'] || '—'}</td>
-      <td style="font-size:0.74rem;color:var(--text-muted);">${r['Number'] || '—'}</td>
-      <td style="font-size:0.74rem;color:var(--text-muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r['Email'] || '—'}</td>
-      <td>${repBadge}</td>
-      <td class="td-num">${r['Duration'] != null ? fmtDuration(r['Duration']) : '—'}</td>
+      <td data-label="Date" style="white-space:nowrap;font-size:0.74rem;color:var(--text-muted);">${fmtDateTime(r['Date & Time'])}</td>
+      <td class="td-main" data-label="Name">${r['First Name'] || '—'}</td>
+      <td data-label="Number" style="font-size:0.74rem;color:var(--text-muted);">${r['Number'] || '—'}</td>
+      <td data-label="Email" style="font-size:0.74rem;color:var(--text-muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r['Email'] || '—'}</td>
+      <td data-label="Rep">${repBadge}</td>
+      <td class="td-num" data-label="Duration">${r['Duration'] != null ? fmtDuration(r['Duration']) : '—'}</td>
     </tr>`;
   }).join('');
 

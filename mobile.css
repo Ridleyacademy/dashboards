@@ -96,3 +96,29 @@
   .data-table { min-width: 900px !important; }
   .kpi-grid { grid-template-columns: repeat(3, 1fr) !important; }
 }
+
+/* Dashboard picker dropdown — fix overflow on narrow viewports */
+@media (max-width: 768px) {
+  .nav-dropdown { position: static !important; }
+  .nav-dropdown-menu {
+    position: fixed !important;
+    top: auto !important;
+    bottom: auto !important;
+    left: 12px !important;
+    right: 12px !important;
+    max-width: none !important;
+    width: auto !important;
+    margin-top: 4px;
+  }
+  .nav-dropdown-menu.open {
+    margin-top: 6px;
+  }
+  /* Position right below topbar */
+  .nav-dropdown-menu[style*="display: block"], .nav-dropdown-menu.open {
+    top: 60px !important;
+  }
+  .nav-dropdown-item, .nav-drop-item {
+    padding: 12px 14px !important;
+    font-size: 0.86rem !important;
+  }
+}

@@ -1316,14 +1316,14 @@ function renderSummaryTable(byProduct) {
     const grp = PRODUCT_GROUPS.find(g => g.matches && g.matches.some(m => p.includes(m)));
     const color = grp ? grp.color : '#6b9eff';
     return `<tr>
-      <td class="td-main" style="color:${color};">${p}</td>
-      <td class="td-num">${Number(d?.sale?.count||0).toLocaleString()}</td>
-      <td class="td-money">${fmtMoney(d?.sale?.revenue||0)}</td>
-      <td class="td-num">${Number(d?.rebill?.count||0).toLocaleString()}</td>
-      <td class="td-money">${fmtMoney(d?.rebill?.revenue||0)}</td>
-      <td class="td-num">${Number(d?.pp?.count||0).toLocaleString()}</td>
-      <td class="td-money">${fmtMoney(d?.pp?.revenue||0)}</td>
-      <td class="td-money" style="color:var(--gold);">${fmtMoney(totalRev)}</td>
+      <td class="td-main" data-label="Product" style="color:${color};">${p}</td>
+      <td class="td-num" data-label="Cash sales #">${Number(d?.sale?.count||0).toLocaleString()}</td>
+      <td class="td-money" data-label="Cash sales $">${fmtMoney(d?.sale?.revenue||0)}</td>
+      <td class="td-num" data-label="Rebills #">${Number(d?.rebill?.count||0).toLocaleString()}</td>
+      <td class="td-money" data-label="Rebills $">${fmtMoney(d?.rebill?.revenue||0)}</td>
+      <td class="td-num" data-label="Plans #">${Number(d?.pp?.count||0).toLocaleString()}</td>
+      <td class="td-money" data-label="Plans $">${fmtMoney(d?.pp?.revenue||0)}</td>
+      <td class="td-money" data-label="Total" style="color:var(--gold);">${fmtMoney(totalRev)}</td>
     </tr>`;
   }).join('');
 }
@@ -1482,15 +1482,15 @@ function renderLog(filter) {
 
   const clip = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
   tbody.innerHTML = rows.map(r => `<tr>
-    <td style="white-space:nowrap;color:var(--text-muted);">${fmtDate(r.Date)}</td>
-    <td class="td-main" style="${clip}" title="${r.Name||''}">${r.Name || '—'}</td>
-    <td style="${clip}color:var(--text-muted);" title="${r.Email||''}">${r.Email || '—'}</td>
-    <td style="${clip}color:var(--text-muted);" title="${r.Product||''}">${r.Product || '—'}</td>
-    <td class="td-money">${r.Price ? fmtMoney(r.Price) : '—'}</td>
-    <td>${getStatusBadge(r.Status)}</td>
-    <td style="${clip}color:var(--text-muted);" title="${r.Platform||''}">${r.Platform || '—'}</td>
-    <td style="${clip}color:var(--text-muted);" title="${r.Affiliate||''}">${r.Affiliate || '—'}</td>
-    <td style="text-align:right;white-space:nowrap;">
+    <td data-label="Date" style="white-space:nowrap;color:var(--text-muted);">${fmtDate(r.Date)}</td>
+    <td class="td-main" data-label="Name" style="${clip}" title="${r.Name||''}">${r.Name || '—'}</td>
+    <td data-label="Email" style="${clip}color:var(--text-muted);" title="${r.Email||''}">${r.Email || '—'}</td>
+    <td data-label="Product" style="${clip}color:var(--text-muted);" title="${r.Product||''}">${r.Product || '—'}</td>
+    <td class="td-money" data-label="Price">${r.Price ? fmtMoney(r.Price) : '—'}</td>
+    <td data-label="Status">${getStatusBadge(r.Status)}</td>
+    <td data-label="Platform" style="${clip}color:var(--text-muted);" title="${r.Platform||''}">${r.Platform || '—'}</td>
+    <td data-label="Affiliate" style="${clip}color:var(--text-muted);" title="${r.Affiliate||''}">${r.Affiliate || '—'}</td>
+    <td class="col-actions" style="text-align:right;white-space:nowrap;">
       <button class="action-btn action-btn-edit" data-id="${r.id}" title="Edit">Edit</button>
       <button class="action-btn action-btn-del" data-id="${r.id}" title="Delete" style="margin-left:4px;">Del</button>
     </td>

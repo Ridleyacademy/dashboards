@@ -1160,14 +1160,6 @@ document.getElementById('setPwForm').addEventListener('submit', async e => {
   }
 });
 
-document.getElementById('navDropdownBtn').addEventListener('click', e => {
-  e.stopPropagation();
-  document.getElementById('navDropdownMenu').classList.toggle('open');
-});
-document.addEventListener('click', () => {
-  document.getElementById('navDropdownMenu').classList.remove('open');
-});
-
 // ── Boot ──────────────────────────────────────────────────────────
 setState('loading');
 initAuth().catch(() => setState('login'));

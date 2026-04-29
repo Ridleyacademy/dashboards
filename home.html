@@ -273,6 +273,10 @@
   .boards-section { animation: fadeUp 0.5s 0.08s ease both; }
   .admin-section  { animation: fadeUp 0.5s 0.16s ease both; }
 
+  /* Admin gating — section is fully hidden unless body has is-admin class. !important so nothing can override it. */
+  .admin-section { display: none !important; }
+  body.is-admin .admin-section { display: block !important; }
+
   /* Rep mapping pane */
   .rep-map-row {
     padding: 16px; background: var(--surface2); border: 1px solid var(--border);
@@ -632,8 +636,11 @@ async function onAuthed(session) {
 
     renderBoards(isAdmin, perms);
 
+    // Admin gating via body class — CSS rules ensure the section can't render without it
     if (isAdmin) {
-      document.getElementById('adminSection').style.display = 'block';
+      document.body.classList.add('is-admin');
+    } else {
+      document.body.classList.remove('is-admin');
     }
 
     setState('dashboard');

@@ -203,8 +203,54 @@ body.light .topbar {
   white-space: nowrap;
 }
 
-/* Spacer must be the only flexible item — pushes the right cluster firmly to the edge */
-.topbar-spacer { flex: 1 1 auto !important; min-width: 8px; }
+/* Spacer is now zero-width — we use margin-left:auto on the right cluster's
+   first item instead. This makes the right cluster sit at the right edge
+   regardless of WHICH page or WHERE the page placed its <topbar-spacer>. */
+.topbar .topbar-spacer,
+header.topbar .topbar-spacer { flex: 0 0 0 !important; min-width: 0 !important; }
+
+/* The first right-cluster item (date range OR refresh OR theme — whatever
+   appears first that belongs on the right) gets pushed to the edge. */
+.topbar .daterange-wrap,
+header.topbar .daterange-wrap { margin-left: auto !important; }
+/* Pages without a daterange-wrap still need a right-anchor: refresh button */
+.topbar:not(:has(.daterange-wrap)) #refreshBtn,
+.topbar:not(:has(.daterange-wrap)) #refetchBtn,
+header.topbar:not(:has(.daterange-wrap)) #refreshBtn,
+header.topbar:not(:has(.daterange-wrap)) #refetchBtn { margin-left: auto !important; }
+/* Or theme button if no refresh exists */
+.topbar:not(:has(.daterange-wrap)):not(:has(#refreshBtn)):not(:has(#refetchBtn)) #themeBtn,
+header.topbar:not(:has(.daterange-wrap)):not(:has(#refreshBtn)):not(:has(#refetchBtn)) #themeBtn { margin-left: auto !important; }
+
+/* Treat all topbar buttons identically regardless of class (.btn vs .tbtn).
+   Performance, meta-ads, sales use .btn-ghost; calls/income/decl use .tbtn-ghost. */
+.topbar .btn,
+.topbar .btn-ghost,
+header.topbar .btn,
+header.topbar .btn-ghost {
+  line-height: 1 !important;
+  height: 32px !important;
+  box-sizing: border-box !important;
+  padding: 6px 10px !important;
+  font-size: 0.74rem !important;
+  font-weight: 600 !important;
+  border-radius: 8px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  white-space: nowrap !important;
+  background: var(--surface2, #141728) !important;
+  color: var(--text-muted, #7880a8) !important;
+  border: 1px solid var(--border, #1f2438) !important;
+  cursor: pointer;
+}
+.topbar .btn:hover,
+.topbar .btn-ghost:hover,
+header.topbar .btn:hover,
+header.topbar .btn-ghost:hover {
+  color: var(--text, #eaecf8) !important;
+  border-color: var(--border-light, #272d45) !important;
+}
 
 /* All topbar buttons render at the same height for visual alignment */
 .topbar .tbtn,

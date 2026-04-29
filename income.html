@@ -1546,55 +1546,6 @@ document.getElementById('refreshBtn').addEventListener('click', () => {
   if (currentSession) loadData();
 });
 
-// ── Auto-refresh (Live mode) ─────────────────────────────────────
-let autoRefreshTimer = null;
-const AUTO_REFRESH_MS = 30000; // 30 seconds
-
-function setAutoRefresh(on) {
-  const dot   = document.getElementById('autoRefreshDot');
-  const label = document.getElementById('autoRefreshLabel');
-  if (autoRefreshTimer) { clearInterval(autoRefreshTimer); autoRefreshTimer = null; }
-  if (on) {
-    dot.style.background = '#34d399';
-    dot.style.boxShadow  = '0 0 0 0 rgba(52,211,153,0.7)';
-    dot.style.animation  = 'live-pulse 1.6s infinite';
-    label.textContent = 'Live: On';
-    autoRefreshTimer = setInterval(() => {
-      if (document.visibilityState === 'visible' && currentSession) {
-        statsData = null; logData = null;
-        loadData();
-      }
-    }, AUTO_REFRESH_MS);
-    try { localStorage.setItem('income_autorefresh', '1'); } catch(_){}
-  } else {
-    dot.style.background = '#7880a8';
-    dot.style.animation  = '';
-    dot.style.boxShadow  = '';
-    label.textContent = 'Live: Off';
-    try { localStorage.setItem('income_autorefresh', '0'); } catch(_){}
-  }
-}
-
-document.getElementById('autoRefreshBtn').addEventListener('click', () => {
-  const isOn = !!autoRefreshTimer;
-  setAutoRefresh(!isOn);
-});
-
-// Restore preference on load
-try {
-  if (localStorage.getItem('income_autorefresh') === '1') {
-    setTimeout(() => setAutoRefresh(true), 800);
-  }
-} catch(_){}
-
-// Pause when tab hidden, resume when visible (saves API calls)
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && autoRefreshTimer && currentSession) {
-    statsData = null; logData = null;
-    loadData();
-  }
-});
-
 // Log search
 document.getElementById('logSearch').addEventListener('input', e => {
   renderLog(e.target.value.toLowerCase());

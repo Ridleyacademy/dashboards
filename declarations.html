@@ -21,6 +21,11 @@
     --red: #f87171; --red-bg: rgba(248,113,113,0.1);
     --gold: #fbbf24; --gold-bg: rgba(251,191,36,0.1);
   }
+  body.light {
+    --bg: #f0f2fa; --surface: #ffffff; --surface2: #f5f6fc; --surface3: #eceef8;
+    --border: #dde1f2; --border-light: #ccd1e8;
+    --text: #0f1220; --text-muted: #525b82; --text-dim: #9099be;
+  }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
     background: var(--bg); color: var(--text); min-height: 100vh;
@@ -302,7 +307,20 @@
 <!-- App -->
 <div id="app">
   <header class="topbar">
-    <div class="topbar-brand">📋 Declarations</div>
+    <div class="topbar-logo" style="width:32px;height:32px;border-radius:9px;flex-shrink:0;background:linear-gradient(135deg,#34d399,#6b9eff);display:flex;align-items:center;justify-content:center;box-shadow:0 0 14px rgba(52,211,153,0.35);">
+      <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+    </div>
+    <span class="topbar-brand">Declarations</span>
+    <div class="topbar-spacer" style="flex:1;"></div>
+
+    <!-- Refresh -->
+    <button class="tbtn tbtn-ghost" id="refreshBtn" title="Refresh data">
+      <svg id="refreshIcon" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+      Refresh
+    </button>
+
+    <!-- Theme -->
+    <button class="tbtn tbtn-ghost" id="themeBtn" style="font-size:1rem;padding:5px 10px;" title="Toggle theme"></button>
 
     <!-- Nav dropdown -->
     <div class="nav-dropdown" id="navDropdown">
@@ -322,7 +340,7 @@
     </div>
 
     <!-- User pill -->
-    <div class="user-pill" style="margin-left:auto;">
+    <div class="user-pill">
       <div class="user-pill-av" id="userAvatar">U</div>
       <span class="user-pill-email" id="userEmail"></span>
     </div>
@@ -1053,6 +1071,35 @@ document.getElementById('signOutBtn').addEventListener('click', async () => {
 });
 document.getElementById('deniedSignOutBtn').addEventListener('click', async () => {
   await supa.auth.signOut(); setState('login');
+});
+
+// Refresh button — re-fetches declarations
+document.getElementById('refreshBtn').addEventListener('click', async () => {
+  if (currentSession) await loadDeclarations();
+});
+
+// Theme toggle (light / dark)
+const _savedTheme = localStorage.getItem('theme');
+if (_savedTheme === 'light') document.body.classList.add('light');
+function _setThemeIcon() {
+  document.getElementById('themeBtn').textContent = document.body.classList.contains('light') ? '🌙' : '☀️';
+}
+_setThemeIcon();
+document.getElementById('themeBtn').addEventListener('click', () => {
+  document.body.classList.toggle('light');
+  localStorage.setItem('theme', document.body.classList.contains('light') ? 'light' : 'dark');
+  _setThemeIcon();
+});
+
+// Dashboard picker dropdown toggle
+document.getElementById('navDropdownBtn').addEventListener('click', e => {
+  e.stopPropagation();
+  document.getElementById('navDropdownMenu').classList.toggle('open');
+});
+document.addEventListener('click', e => {
+  if (!e.target.closest('#navDropdown')) {
+    document.getElementById('navDropdownMenu').classList.remove('open');
+  }
 });
 
 // ── Forgot password flow ──────────────────────────────────────────

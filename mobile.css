@@ -196,23 +196,18 @@ body.light .topbar {
    item with `flex-basis: 100%` and `order: 5` (between brand at 1 and
    the first action at 10). This forces a row break, so action buttons
    ALWAYS appear on row 2 regardless of brand text length. */
-.topbar-logo { flex: 0 0 auto !important; }
-.topbar-brand {
-  flex: 1 1 auto !important;
+.topbar > .topbar-logo,
+header.topbar > .topbar-logo { flex: 0 0 auto !important; order: 0 !important; }
+.topbar > .topbar-brand,
+header.topbar > .topbar-brand {
+  flex: 1 0 auto !important;
   min-width: 0;
   max-width: none !important;
+  width: calc(100% - 60px) !important;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.topbar::after,
-header.topbar::after {
-  content: '' !important;
-  flex: 1 0 100% !important;
-  height: 0 !important;
-  order: 5 !important;
-  margin: 0 !important;
-  padding: 0 !important;
+  order: 1 !important;
 }
 
 /* The spacer takes 0 width — order is enforced via CSS `order` below. */

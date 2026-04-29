@@ -645,31 +645,36 @@ async function onAuthed(session) {
 
 // ── Boards ────────────────────────────────────────────────────
 function renderBoards(isAdmin, perms) {
-  document.getElementById('boardsGrid').innerHTML = BOARDS.map(b => {
-    const hasAccess = isAdmin || (
-      b.permission === 'both'
-        ? (perms.includes('sales') && perms.includes('marketing'))
-        : b.permission === 'calls'
-          ? (perms.includes('calls') || perms.includes('rep') || perms.includes('sales_manager'))
-          : b.permission === 'rep'
-            ? (perms.includes('rep') || perms.includes('sales_manager'))
-            : perms.includes(b.permission)
-    );
+  const accessible = BOARDS.filter(b => {
+    if (isAdmin) return true;
+    switch (b.permission) {
+      case 'both':       return perms.includes('marketing');
+      case 'sales':      return perms.includes('sales') || perms.includes('sales_manager');
+      case 'marketing':  return perms.includes('marketing');
+      case 'finance':    return perms.includes('finance') || perms.includes('sales_manager');
+      case 'calls':      return perms.includes('calls') || perms.includes('rep') || perms.includes('sales_manager');
+      case 'rep':        return perms.includes('rep') || perms.includes('sales_manager');
+      default:           return perms.includes(b.permission);
+    }
+  });
 
-    const statusHtml = hasAccess
-      ? `<div class="card-status open"><div class="card-status-dot"></div>Available</div>`
-      : `<div class="card-status locked-badge"><div class="card-status-dot"></div>Restricted</div>`;
+  if (accessible.length === 0) {
+    document.getElementById('boardsGrid').innerHTML =
+      `<div style="grid-column:1/-1;padding:60px 20px;text-align:center;color:var(--text-muted);font-size:0.9rem;">No dashboards have been assigned to your account yet. Contact an admin.</div>`;
+    return;
+  }
 
+  document.getElementById('boardsGrid').innerHTML = accessible.map(b => {
     const tagsHtml = b.tags.map(t =>
       `<span class="card-tag" style="background:${t.bg};color:${t.color};">${t.label}</span>`
     ).join('');
 
     return `
-    <a href="${b.href}" class="board-card${hasAccess ? '' : ' locked'}"
+    <a href="${b.href}" class="board-card"
        style="--c-color:${b.color};--c-glow:${b.glow};--c-bg:${b.bg};">
       <div class="card-toprow">
         <div class="card-icon-wrap">${b.icon}</div>
-        ${statusHtml}
+        <div class="card-status open"><div class="card-status-dot"></div>Available</div>
       </div>
       <div class="card-title">${b.title}</div>
       <div class="card-desc">${b.desc}</div>
@@ -1109,5 +1114,6 @@ setState('loading');
 initAuth().catch(e => { console.error('Unhandled auth error:', e); setState('login'); });
 </script>
 <script src="forgot-password.js"></script>
+<script src="access-guard.js"></script>
 </body>
 </html>

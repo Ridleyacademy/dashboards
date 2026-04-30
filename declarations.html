@@ -1397,7 +1397,7 @@ function showAutoAssignModal(preview, scope) {
         j.errors ? `${j.errors} insert error${j.errors !== 1 ? 's' : ''}` : '',
       ].filter(Boolean);
       alert(lines.join('\n'));
-      if (j.created > 0) await loadData();
+      if (j.created > 0) await loadDeclarations();
     } catch (e) {
       alert('Apply failed: ' + (e.message || e));
       apply.disabled = false;

@@ -400,12 +400,35 @@ Mirror constraints in the Sales Dashboard SQL (`get_daily_stats`):
   `coalesce(trim(s."Status"), '') <> 'Rebill'`
 - `declared_extra` filters `coalesce(trim(sd.type), '') <> 'Rebill'`
 
-## Bulk auto-assign from Sales Log (v8 of declarations fn)
+## Bulk auto-assign from Sales Log (v10 of declarations fn)
 
-`POST /functions/v1/declarations?api=auto-assign&from=…&to=…[&rep=…][&product=…]` —
-**admin only**. Scans `Sales Log` within the date range and creates
-verified declarations for any sale whose `Affiliate` maps to a rep but
-no matching declaration exists.
+Two-step preview/commit flow with three endpoints, all **admin only**:
+
+- `POST /declarations?api=auto-assign-preview&from=…&to=…[&rep=…][&product=…]`
+  Scans Sales Log in scope. Returns:
+  - `autoMatched: [...]` — sales whose `Affiliate` maps to a rep AND no
+    matching declaration exists. Each item carries `suggestedRep`. The
+    UI pre-checks these.
+  - `unmapped: [...]` — sales without a rep-mapped affiliate. Each item
+    carries `existingRep` (null, or the rep that has already declared
+    the same email+date+amount under another rep). The UI surfaces
+    these for manual rep assignment.
+  - `allReps: [...]` — full list of `rep_mappings.calls_name` for the
+    manual-assign dropdown.
+  - `skippedExisting`, `skippedMissing` — counts.
+- `POST /declarations?api=auto-assign-commit` body:
+  `{ assignments: [{ rep_name, date, email, name, product, price, status, platform, source }] }`
+  Inserts each assignment with the standard dedup check
+  `(rep_name, date_closed, sale_amount, lower(email))`. Source is
+  either `'matched'` or `'manual'`; the latter sets a different note
+  string `'Auto-assigned by admin from Sales Log (manual rep selection)'`
+  so the audit log can tell apart.
+- `POST /declarations?api=auto-assign` (legacy) — kept for backward
+  compat. Equivalent to preview + commit on autoMatched only. Skips
+  unmapped sales without surfacing them.
+
+The Declarations dashboard's button now uses preview → modal → commit.
+Don't revert it back to a one-shot confirm.
 
 - Honours optional `rep` (matched against `rep_mappings.calls_name`) and
   `product` (exact `Sales Log.Product` match) filters.

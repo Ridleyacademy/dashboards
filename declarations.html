@@ -1121,8 +1121,8 @@ document.getElementById('declTable').addEventListener('click', e => {
   renderTable();
 });
 
-// Auto-assign from Sales Log (admin only). Respects current date range,
-// rep filter, and product filter — only those filters that aren't "All".
+// Auto-assign from Sales Log (admin only).
+// Two-step flow: preview → custom modal with checkboxes → commit.
 document.getElementById('autoAssignBtn').addEventListener('click', async () => {
   const btn = document.getElementById('autoAssignBtn');
   const from = document.getElementById('drFrom').value;
@@ -1130,15 +1130,11 @@ document.getElementById('autoAssignBtn').addEventListener('click', async () => {
   const rep  = document.getElementById('repFilter').value || '';
   const prod = document.getElementById('productFilter').value || '';
   if (!from || !to) { alert('Pick a date range first.'); return; }
-  const scopeBits = [`${from} → ${to}`];
-  if (rep)  scopeBits.push(`rep=${rep}`);
-  if (prod) scopeBits.push(`product=${prod}`);
-  if (!confirm(`Scan Sales Log for ${scopeBits.join(', ')} and create verified declarations for any sale whose Affiliate maps to a rep but doesn't already have one?\n\nRebills are included (their declarations get type='Rebill' and are excluded from GI/leaderboard server-side).`)) return;
   const original = btn.textContent;
   btn.disabled = true;
   btn.textContent = '⏳ Scanning…';
   try {
-    const params = new URLSearchParams({ api: 'auto-assign', from, to });
+    const params = new URLSearchParams({ api: 'auto-assign-preview', from, to });
     if (rep)  params.set('rep', rep);
     if (prod) params.set('product', prod);
     const r = await fetch(DECL_BASE + '?' + params.toString(), {
@@ -1147,22 +1143,227 @@ document.getElementById('autoAssignBtn').addEventListener('click', async () => {
     });
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
-    const lines = [
-      `✓ Created ${j.created} declaration${j.created !== 1 ? 's' : ''}`,
-      j.skippedExisting    ? `${j.skippedExisting} already had a declaration`        : '',
-      j.skippedNoRep       ? `${j.skippedNoRep} had no rep-mapped affiliate`         : '',
-      j.skippedMissing     ? `${j.skippedMissing} were missing email/date/price`     : '',
-      j.errors             ? `${j.errors} insert errors (see console)`               : '',
-    ].filter(Boolean);
-    alert(lines.join('\n'));
-    if (j.created > 0) await loadData();
+    showAutoAssignModal(j, { from, to, rep, prod });
   } catch (e) {
-    alert('Auto-assign failed: ' + (e.message || e));
+    alert('Scan failed: ' + (e.message || e));
   } finally {
     btn.disabled = false;
     btn.textContent = original;
   }
 });
+
+function showAutoAssignModal(preview, scope) {
+  // Remove any existing
+  const old = document.getElementById('aaModal');
+  if (old) old.remove();
+
+  const auto    = preview.autoMatched || [];
+  const unmap   = preview.unmapped    || [];
+  const allReps = preview.allReps     || [];
+  const fmtMoney = n => '$' + Number(n || 0).toLocaleString();
+
+  const m = document.createElement('div');
+  m.id = 'aaModal';
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(8,9,18,0.78);backdrop-filter:blur(8px);z-index:10005;display:flex;align-items:center;justify-content:center;padding:20px;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;';
+  m.innerHTML = `
+    <div style="background:#13141f;border:1px solid #1f2438;border-radius:16px;max-width:920px;width:100%;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;color:#eaecf8;box-shadow:0 24px 60px rgba(0,0,0,0.6);">
+      <div style="padding:18px 22px;border-bottom:1px solid #1f2438;display:flex;align-items:center;gap:12px;">
+        <div style="flex:1;">
+          <div style="font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;">⚡ Auto-assign from Sales Log</div>
+          <div style="font-size:0.74rem;color:#7880a8;margin-top:3px;">
+            ${scope.from} → ${scope.to}${scope.rep ? ' · rep=' + scope.rep : ''}${scope.prod ? ' · product=' + scope.prod : ''}
+            ${preview.skippedExisting ? ' · ' + preview.skippedExisting + ' already declared' : ''}
+            ${preview.skippedMissing  ? ' · ' + preview.skippedMissing  + ' missing fields'   : ''}
+          </div>
+        </div>
+        <button id="aaClose" style="background:transparent;border:none;color:#7880a8;font-size:1.5rem;cursor:pointer;padding:0 8px;">×</button>
+      </div>
+
+      <div style="flex:1;overflow-y:auto;padding:14px 22px 8px;">
+        <!-- Auto-matched section -->
+        <div style="margin-bottom:18px;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+            <span style="font-size:0.72rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:#34d399;">✓ Auto-matched · ${auto.length}</span>
+            <span style="font-size:0.72rem;color:#7880a8;">Affiliate maps to a rep. Pre-selected; uncheck to skip.</span>
+            ${auto.length > 0 ? `<button id="aaToggleAuto" style="margin-left:auto;background:transparent;border:1px solid #1f2438;color:#7880a8;border-radius:7px;padding:4px 10px;font-size:0.7rem;cursor:pointer;">Toggle all</button>` : ''}
+          </div>
+          ${auto.length === 0
+            ? '<div style="padding:14px;background:rgba(120,128,168,0.06);border-radius:10px;color:#7880a8;font-size:0.84rem;text-align:center;">No new affiliate-matched sales in this scope.</div>'
+            : `<div style="border:1px solid #1f2438;border-radius:10px;overflow:hidden;">
+              <table style="width:100%;border-collapse:collapse;font-size:0.78rem;">
+                <thead style="background:#0f1120;color:#7880a8;font-size:0.68rem;text-transform:uppercase;letter-spacing:0.06em;">
+                  <tr>
+                    <th style="padding:8px 10px;text-align:center;width:30px;"><input type="checkbox" id="aaAutoAll" checked></th>
+                    <th style="padding:8px 10px;text-align:left;">Rep</th>
+                    <th style="padding:8px 10px;text-align:left;">Date</th>
+                    <th style="padding:8px 10px;text-align:left;">Email</th>
+                    <th style="padding:8px 10px;text-align:left;">Product</th>
+                    <th style="padding:8px 10px;text-align:right;">Price</th>
+                    <th style="padding:8px 10px;text-align:left;">Type</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${auto.map((s, i) => `
+                    <tr style="border-top:1px solid #1f2438;">
+                      <td style="padding:8px 10px;text-align:center;"><input type="checkbox" class="aa-auto-cb" data-idx="${i}" checked></td>
+                      <td style="padding:8px 10px;font-weight:600;color:#34d399;">${s.suggestedRep}</td>
+                      <td style="padding:8px 10px;color:#7880a8;">${s.date}</td>
+                      <td style="padding:8px 10px;color:#7880a8;overflow:hidden;text-overflow:ellipsis;max-width:220px;white-space:nowrap;" title="${s.email}">${s.email}</td>
+                      <td style="padding:8px 10px;color:#7880a8;overflow:hidden;text-overflow:ellipsis;max-width:200px;white-space:nowrap;" title="${s.product||''}">${s.product || '—'}</td>
+                      <td style="padding:8px 10px;text-align:right;">${fmtMoney(s.price)}</td>
+                      <td style="padding:8px 10px;color:#7880a8;">${s.type}</td>
+                    </tr>`).join('')}
+                </tbody>
+              </table>
+            </div>`}
+        </div>
+
+        <!-- Unmapped section -->
+        <div>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+            <span style="font-size:0.72rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:#fbbf24;">⚠ Unmapped · ${unmap.length}</span>
+            <span style="font-size:0.72rem;color:#7880a8;">No affiliate match. Pick a rep to assign each one (or leave blank to skip).</span>
+          </div>
+          ${unmap.length === 0
+            ? '<div style="padding:14px;background:rgba(120,128,168,0.06);border-radius:10px;color:#7880a8;font-size:0.84rem;text-align:center;">No unmapped sales in this scope. Every sale either has a rep-affiliate or is already declared.</div>'
+            : `<div style="border:1px solid #1f2438;border-radius:10px;overflow:hidden;">
+              <table style="width:100%;border-collapse:collapse;font-size:0.78rem;">
+                <thead style="background:#0f1120;color:#7880a8;font-size:0.68rem;text-transform:uppercase;letter-spacing:0.06em;">
+                  <tr>
+                    <th style="padding:8px 10px;text-align:center;width:30px;">✓</th>
+                    <th style="padding:8px 10px;text-align:left;">Assign rep</th>
+                    <th style="padding:8px 10px;text-align:left;">Date</th>
+                    <th style="padding:8px 10px;text-align:left;">Email</th>
+                    <th style="padding:8px 10px;text-align:left;">Product</th>
+                    <th style="padding:8px 10px;text-align:right;">Price</th>
+                    <th style="padding:8px 10px;text-align:left;">Affiliate</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${unmap.map((s, i) => `
+                    <tr style="border-top:1px solid #1f2438;${s.existingRep ? 'background:rgba(251,191,36,0.04);' : ''}">
+                      <td style="padding:8px 10px;text-align:center;"><input type="checkbox" class="aa-manual-cb" data-idx="${i}"></td>
+                      <td style="padding:8px 10px;">
+                        <select class="aa-manual-rep" data-idx="${i}" style="background:#0f1120;border:1px solid #1f2438;color:#eaecf8;border-radius:6px;padding:4px 6px;font-size:0.74rem;width:100%;max-width:160px;">
+                          <option value="">— pick —</option>
+                          ${allReps.map(r => `<option value="${r}">${r}</option>`).join('')}
+                        </select>
+                        ${s.existingRep ? `<div style="font-size:0.65rem;color:#fbbf24;margin-top:2px;">⚠ ${s.existingRep} already declared this</div>` : ''}
+                      </td>
+                      <td style="padding:8px 10px;color:#7880a8;">${s.date}</td>
+                      <td style="padding:8px 10px;color:#7880a8;overflow:hidden;text-overflow:ellipsis;max-width:220px;white-space:nowrap;" title="${s.email}">${s.email}</td>
+                      <td style="padding:8px 10px;color:#7880a8;overflow:hidden;text-overflow:ellipsis;max-width:180px;white-space:nowrap;" title="${s.product||''}">${s.product || '—'}</td>
+                      <td style="padding:8px 10px;text-align:right;">${fmtMoney(s.price)}</td>
+                      <td style="padding:8px 10px;color:#7880a8;font-style:${s.affiliate ? 'normal' : 'italic'};">${s.affiliate || '(none)'}</td>
+                    </tr>`).join('')}
+                </tbody>
+              </table>
+            </div>`}
+        </div>
+      </div>
+
+      <div style="padding:14px 22px;border-top:1px solid #1f2438;display:flex;align-items:center;gap:12px;">
+        <span id="aaSummary" style="flex:1;font-size:0.78rem;color:#7880a8;"></span>
+        <button id="aaCancel" style="background:transparent;border:1px solid #1f2438;color:#7880a8;border-radius:9px;padding:8px 16px;font-weight:600;cursor:pointer;">Cancel</button>
+        <button id="aaApply" style="background:linear-gradient(135deg,#34d399,#10b981);color:#0b0c14;border:none;border-radius:9px;padding:8px 18px;font-weight:800;cursor:pointer;">Apply</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(m);
+
+  function close() { m.remove(); }
+  document.getElementById('aaClose').addEventListener('click', close);
+  document.getElementById('aaCancel').addEventListener('click', close);
+  m.addEventListener('click', e => { if (e.target === m) close(); });
+
+  function refreshSummary() {
+    const autoChecked = m.querySelectorAll('.aa-auto-cb:checked').length;
+    let manualChecked = 0;
+    m.querySelectorAll('.aa-manual-cb:checked').forEach(cb => {
+      const idx = +cb.dataset.idx;
+      const sel = m.querySelector(`.aa-manual-rep[data-idx="${idx}"]`);
+      if (sel && sel.value) manualChecked++;
+    });
+    document.getElementById('aaSummary').textContent =
+      `${autoChecked} auto-matched + ${manualChecked} manual = ${autoChecked + manualChecked} declaration${(autoChecked+manualChecked)!==1?'s':''} to create`;
+  }
+  refreshSummary();
+  m.addEventListener('change', refreshSummary);
+
+  // Toggle-all for auto section
+  const autoAll = document.getElementById('aaAutoAll');
+  if (autoAll) autoAll.addEventListener('change', () => {
+    m.querySelectorAll('.aa-auto-cb').forEach(cb => { cb.checked = autoAll.checked; });
+    refreshSummary();
+  });
+  const toggleBtn = document.getElementById('aaToggleAuto');
+  if (toggleBtn) toggleBtn.addEventListener('click', () => {
+    const cbs = m.querySelectorAll('.aa-auto-cb');
+    const allChecked = [...cbs].every(c => c.checked);
+    cbs.forEach(c => { c.checked = !allChecked; });
+    if (autoAll) autoAll.checked = !allChecked;
+    refreshSummary();
+  });
+
+  // Auto-check the manual checkbox when a rep is picked
+  m.querySelectorAll('.aa-manual-rep').forEach(sel => {
+    sel.addEventListener('change', () => {
+      const cb = m.querySelector(`.aa-manual-cb[data-idx="${sel.dataset.idx}"]`);
+      if (cb) cb.checked = !!sel.value;
+    });
+  });
+
+  document.getElementById('aaApply').addEventListener('click', async () => {
+    const assignments = [];
+    m.querySelectorAll('.aa-auto-cb:checked').forEach(cb => {
+      const s = auto[+cb.dataset.idx];
+      if (!s) return;
+      assignments.push({
+        source: 'matched', rep_name: s.suggestedRep,
+        date: s.date, name: s.name, email: s.email, product: s.product,
+        price: s.price, status: s.status, platform: s.platform,
+      });
+    });
+    m.querySelectorAll('.aa-manual-cb:checked').forEach(cb => {
+      const idx = +cb.dataset.idx;
+      const s = unmap[idx]; if (!s) return;
+      const sel = m.querySelector(`.aa-manual-rep[data-idx="${idx}"]`);
+      const repName = sel?.value || '';
+      if (!repName) return; // can't commit without a rep
+      assignments.push({
+        source: 'manual', rep_name: repName,
+        date: s.date, name: s.name, email: s.email, product: s.product,
+        price: s.price, status: s.status, platform: s.platform,
+      });
+    });
+    if (!assignments.length) { alert('Nothing selected.'); return; }
+
+    const apply = document.getElementById('aaApply');
+    apply.disabled = true;
+    apply.textContent = '⏳ Applying…';
+    try {
+      const r = await fetch(DECL_BASE + '?api=auto-assign-commit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
+        body: JSON.stringify({ assignments }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+      close();
+      const lines = [
+        `✓ Created ${j.created} declaration${j.created !== 1 ? 's' : ''}`,
+        j.skippedExisting ? `${j.skippedExisting} were already declared` : '',
+        j.errors ? `${j.errors} insert error${j.errors !== 1 ? 's' : ''}` : '',
+      ].filter(Boolean);
+      alert(lines.join('\n'));
+      if (j.created > 0) await loadData();
+    } catch (e) {
+      alert('Apply failed: ' + (e.message || e));
+      apply.disabled = false;
+      apply.textContent = 'Apply';
+    }
+  });
+}
 
 document.getElementById('searchBox').addEventListener('input', () => renderTable());
 document.getElementById('repFilter').addEventListener('change', () => renderTable());

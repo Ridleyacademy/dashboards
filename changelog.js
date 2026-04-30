@@ -11,6 +11,14 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v62', title: 'Auto-assign now opens a preview modal',
+      adminOnly: true, items: [
+      'Clicking ⚡ Auto-assign opens a custom modal listing every sale that would be added.',
+      'Top section: affiliate-matched sales (pre-checked). Uncheck any you do not want.',
+      'Bottom section: unmapped sales (no affiliate). Pick a rep per row to manually assign — leave blank to skip.',
+      'Apply commits exactly the selected rows. Existing declarations are still skipped.',
+      'A row is highlighted if some other rep already declared the same sale.',
+    ]},
     { version: 'v61', title: 'Auto-create declarations now includes Rebills',
       adminOnly: true, items: [
       'Both the per-row income auto-create and the bulk auto-assign on declarations now create declarations for Rebill rows too (with type=Rebill).',

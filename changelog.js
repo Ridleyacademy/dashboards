@@ -11,6 +11,12 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v54', title: 'Calls leaderboard now credits verified declarations',
+      roles: ['calls', 'sales_manager', 'rep'], items: [
+      'Gross Income and the Overall Revenue leaderboard now include verified declared sales whose Sales Log row had no (or unmapped) Affiliate. Previously those sales were uncredited.',
+      'No double-counting: declarations that match a sale already attributed via affiliate are skipped.',
+      'Each rep row now tracks how many of their sales came from declaration credits (declarationCredits / declarationCreditsGI).',
+    ]},
     { version: 'v52', title: 'Filter persistence rewrite', items: [
       'Date range now correctly restores on Declarations (was stuck on This Week before).',
       'Switching dashboards no longer fires a second data fetch — fixes the Calls 0-calls / 600 k GI mismatch.',

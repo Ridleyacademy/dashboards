@@ -322,6 +322,40 @@ The install hint:
 
 ---
 
+## Calls dashboard sales attribution (read before touching the calls fn)
+
+The `calls` edge function aggregates sales from **two sources** for Gross
+Income and the Overall Revenue leaderboard. Don't break this:
+
+1. **Sales Log via Affiliate match.** Each `Sales Log` row whose
+   `Affiliate` is in some rep's `rep_mappings.sales_affiliates[]` is
+   attributed to that rep. This is the primary path.
+2. **Verified declarations as fallback (v13+).** For each row in
+   `sales_declarations` with `sales_check = 'Yes'` whose underlying sale
+   was NOT already attributed via path 1, the GI is credited to the
+   declaring rep (`rep_name`).
+
+Dedup key is `${date}|${email}|${price}`. Path 1 populates a
+`matchedSaleKeys` set; path 2 skips anything already in it. This means
+**a sale is counted once**, regardless of which path catches it.
+
+Why two paths? Some Sales Log rows arrive without an `Affiliate` value, or
+with one that isn't in any rep's affiliate list. Those sales are real but
+the system can't auto-attribute them. The rep declares the sale, an admin
+verifies it (`sales_check = 'Yes'` — set automatically by the
+`declarations` function when email + date + price match exactly), and the
+calls function picks it up via path 2.
+
+Each rep's stats include `declarationCredits` (count) and
+`declarationCreditsGI` (€) so the UI can show how much of a rep's GI
+came from declarations vs the affiliate path.
+
+**Rebills are excluded** in both paths. Don't add them.
+
+If you change the dedup key or the date filter for declarations, audit
+both paths together — they have to use the same key shape and the same
+date semantics or you'll get double-counts or gaps.
+
 ## Edge function conventions
 
 All edge functions:

@@ -11,6 +11,12 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v74', title: 'Duplicate detection in declarations + auto-assign',
+      roles: ['rep', 'sales_manager'], items: [
+      'Two declarations claiming the same sale (same email + date + amount): later ones now show as Maybe with reason "Duplicate declaration: also declared by X". Earliest claim keeps Yes and gets a hint of the conflict.',
+      'Auto-assign modal flags Sales Log duplicate rows (same email + price in scan range) with an amber ⚠ dup badge. Pre-checked toggle is OFF for affiliate-matched duplicates so admin reviews before crediting both.',
+      'Header counts how many Sales Log duplicate rows were seen in the scan range.',
+    ]},
     { version: 'v73', title: 'Declarations: clear message when no rep mapping', items: [
       'A rep whose Supabase user wasn\'t linked to a rep_mappings row would see a blank Declarations dashboard with no explanation. Now shows "No rep mapping configured for your account — ask an admin to link your account in Rep Mapping" so the next time it happens it\'s obvious.',
       'XSS-safe error rendering on the declarations table.',

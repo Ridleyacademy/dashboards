@@ -1199,6 +1199,7 @@ function showAutoAssignModal(preview, scope) {
           <div style="font-size:0.74rem;color:#7880a8;margin-top:3px;">
             ${scope.from} → ${scope.to}${scope.rep ? ' · rep=' + scope.rep : ''}${scope.prod ? ' · product=' + scope.prod : ''}
             ${preview.skippedMissing ? ' · ' + preview.skippedMissing + ' missing fields' : ''}
+            ${preview.salesLogDuplicateCount ? ' · <span style="color:#fbbf24;">⚠ ' + preview.salesLogDuplicateCount + ' Sales Log duplicate row' + (preview.salesLogDuplicateCount !== 1 ? 's' : '') + '</span>' : ''}
           </div>
         </div>
         <button id="aaClose" style="background:transparent;border:none;color:#7880a8;font-size:1.5rem;cursor:pointer;padding:0 8px;">×</button>
@@ -1229,9 +1230,9 @@ function showAutoAssignModal(preview, scope) {
                 </thead>
                 <tbody>
                   ${auto.map((s, i) => `
-                    <tr style="border-top:1px solid #1f2438;">
-                      <td style="padding:8px 10px;text-align:center;"><input type="checkbox" class="aa-auto-cb" data-idx="${i}" checked></td>
-                      <td style="padding:8px 10px;font-weight:600;color:#34d399;">${s.suggestedRep}</td>
+                    <tr style="border-top:1px solid #1f2438;${s.salesLogDuplicate ? 'background:rgba(251,191,36,0.05);' : ''}">
+                      <td style="padding:8px 10px;text-align:center;"><input type="checkbox" class="aa-auto-cb" data-idx="${i}"${s.salesLogDuplicate ? '' : ' checked'}></td>
+                      <td style="padding:8px 10px;font-weight:600;color:#34d399;">${s.suggestedRep}${s.salesLogDuplicate ? ' <span style="color:#fbbf24;font-weight:700;font-size:0.7rem;" title="Another Sales Log row in the scan range has the same email + price — possible double-charge">⚠ dup</span>' : ''}</td>
                       <td style="padding:8px 10px;color:#7880a8;">${s.date}</td>
                       <td style="padding:8px 10px;color:#7880a8;overflow:hidden;text-overflow:ellipsis;max-width:220px;white-space:nowrap;" title="${s.email}">${s.email}</td>
                       <td style="padding:8px 10px;color:#7880a8;overflow:hidden;text-overflow:ellipsis;max-width:200px;white-space:nowrap;" title="${s.product||''}">${s.product || '—'}</td>
@@ -1306,7 +1307,7 @@ function showAutoAssignModal(preview, scope) {
                 </thead>
                 <tbody>
                   ${unmap.map((s, i) => `
-                    <tr style="border-top:1px solid #1f2438;${s.existingRep ? 'background:rgba(251,191,36,0.04);' : ''}">
+                    <tr style="border-top:1px solid #1f2438;${(s.existingRep || s.salesLogDuplicate) ? 'background:rgba(251,191,36,0.05);' : ''}">
                       <td style="padding:8px 10px;text-align:center;"><input type="checkbox" class="aa-manual-cb" data-idx="${i}"></td>
                       <td style="padding:8px 10px;">
                         <select class="aa-manual-rep" data-idx="${i}" style="background:#0f1120;border:1px solid #1f2438;color:#eaecf8;border-radius:6px;padding:4px 6px;font-size:0.74rem;width:100%;max-width:160px;">
@@ -1314,6 +1315,7 @@ function showAutoAssignModal(preview, scope) {
                           ${allReps.map(r => `<option value="${r}">${r}</option>`).join('')}
                         </select>
                         ${s.existingRep ? `<div style="font-size:0.65rem;color:#fbbf24;margin-top:2px;">⚠ ${s.existingRep} already declared this</div>` : ''}
+                        ${s.salesLogDuplicate ? `<div style="font-size:0.65rem;color:#fbbf24;margin-top:2px;">⚠ Sales Log has another row with same email + price (possible double-charge)</div>` : ''}
                       </td>
                       <td style="padding:8px 10px;color:#7880a8;">${s.date}</td>
                       <td style="padding:8px 10px;color:#7880a8;overflow:hidden;text-overflow:ellipsis;max-width:220px;white-space:nowrap;" title="${s.email}">${s.email}</td>

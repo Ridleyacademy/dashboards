@@ -400,7 +400,7 @@ Mirror constraints in the Sales Dashboard SQL (`get_daily_stats`):
   `coalesce(trim(s."Status"), '') <> 'Rebill'`
 - `declared_extra` filters `coalesce(trim(sd.type), '') <> 'Rebill'`
 
-## Sales-check Maybe rules (v12 of declarations fn)
+## Sales-check Maybe rules (v13 of declarations fn)
 
 The `declarations` fn computes `sales_check` ('Yes' / 'Maybe' / 'No' /
 'Pending') for every declaration on the fly when `?api=log` is called.
@@ -415,6 +415,24 @@ Maybe is now used for two distinct cases:
 
 If a declaration has no `type` set, type-mismatch detection is skipped
 (no false positives on legacy data).
+
+3. **Cross-rep duplicate** (v13+) — when 2+ declarations share
+   `(date_closed, lower(email), sale_amount)` (i.e. multiple reps claim
+   the same sale), the **earliest by `created_at`** keeps its check
+   unchanged but gets a side-note `Also declared by X (this is the
+   earliest entry)`. **Every later claim** is downgraded to `Maybe`
+   with reason `Duplicate declaration: also declared by X (earlier
+   entry kept as the original)`. Reasons compose with type-mismatch
+   when both apply, separated by ` · `. The response also carries
+   `duplicate_count` per row.
+
+The auto-assign preview surfaces a parallel signal: each preview item
+carries `salesLogDuplicate: boolean` true if another Sales Log row in
+the scan range has the same `(date, lower(email), price)`. The modal
+flags those rows, leaves them **unchecked by default in the auto-matched
+section**, and shows a count in the header. Skipped if it's two
+unrelated buyers paying the same amount on the same day — they'll
+share the key but it's still worth a manual look.
 
 `buildSalesIndex` now stores Status alongside Date/Email/Price so
 `evaluate()` can do the comparison without a second query.

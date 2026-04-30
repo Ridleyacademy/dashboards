@@ -181,27 +181,50 @@ Default preset is **This Week (Thu–Wed)** on every dashboard.
 
 ## Release process (DO NOT SKIP)
 
-Every change needs four things, in this order:
+Every change needs five things, in this order:
 
-1. **Code changes** — edit the relevant files.
-2. **Bump `version.txt`** — format `YYYY-MM-DDTHH:MM:SSZ-v<N>-<short-slug>`.
+1. **Read `CLAUDE.md` and the relevant section of this file** before
+   touching code. The pitfalls list at the bottom exists because each
+   one was a real bug.
+2. **Code changes** — edit the relevant files.
+3. **Bump `version.txt`** — format `YYYY-MM-DDTHH:MM:SSZ-v<N>-<short-slug>`.
    This triggers the PWA cache-bust on next launch. Pick a new `v<N>`
    greater than the last one.
-3. **Add an entry to `changelog.js`** at the top of the `ENTRIES` array.
+4. **Add an entry to `changelog.js`** at the top of the `ENTRIES` array.
    The version field must be unique. Tag entries by audience:
    - omit `roles` → everyone
    - `roles: ['finance']` → only users with that role (or admin)
    - `adminOnly: true` → only admins
    Split a release into multiple entries if different parts target
    different audiences (see v50a/v50b).
-4. **Commit + push** to `main`. Cloudflare deploys in ~30s. The PWA
-   detects the new version and force-reloads.
+5. **Commit + push** to `main`. Three things happen automatically:
+   - Cloudflare deploys in ~30s
+   - The PWA detects the new version and force-reloads
+   - The git `post-commit` hook re-runs AST extraction on changed `.js`
+     files and rebuilds `graphify-out/graph.json` + `GRAPH_REPORT.md`
 
-If you skip step 3, users won't be told what changed.
+If you skip step 4, users won't be told what changed.
 
-If you skip step 2, the PWA serves stale cached assets and users see old
+If you skip step 3, the PWA serves stale cached assets and users see old
 behaviour. The `version.txt` mismatch is the only thing that triggers
 `nuclearVersionCheck()` in `pwa.js` to purge caches.
+
+### Updating the graph manually
+
+The post-commit hook covers code-only changes. For doc / HTML / image
+changes (or to refresh the Obsidian vault and wiki), run from the repo:
+
+```
+/graphify /tmp/dashboards --update
+```
+
+Then if the Obsidian vault layout changed, regenerate it:
+
+```
+$(cat graphify-out/.graphify_python) -c "..."  # see ARCHITECTURE notes
+```
+
+The vault is at `/Users/help/Documents/Obsidian/RidleyDashboards/`.
 
 ---
 

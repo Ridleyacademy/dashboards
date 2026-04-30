@@ -493,13 +493,13 @@
     <div class="daterange-wrap" id="daterangeWrap">
       <button class="daterange-btn" id="daterangeBtn">
         <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-        <span id="drLabel">Last 30 Days</span>
+        <span id="drLabel">This Week</span>
         <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
       </button>
       <div class="daterange-popup" id="daterangePopup">
         <div class="dr-presets">
-          <button class="dr-preset active" data-preset="last-30">Last 30 Days</button>
-          <button class="dr-preset" data-preset="this-week">This Week  (Thu – Wed)</button>
+          <button class="dr-preset" data-preset="last-30">Last 30 Days</button>
+          <button class="dr-preset active" data-preset="this-week">This Week (Thu – Wed)</button>
           <button class="dr-preset" data-preset="last-week">Last Week  (Thu – Wed)</button>
           <button class="dr-preset" data-preset="mtd">Month to Date</button>
         </div>
@@ -1623,7 +1623,7 @@ function getPresetRange(preset) {
   return { from: iso(today), to: iso(today) };
 }
 const DR_LABELS = { 'last-30': 'Last 30 Days', 'this-week': 'This Week', 'last-week': 'Last Week', 'mtd': 'Month to Date' };
-let drActivePreset = 'last-30';
+let drActivePreset = 'this-week';
 function drFmt(iso) {
   return new Date(iso + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
@@ -1638,7 +1638,7 @@ function drApplyPreset(preset, reload) {
   document.getElementById('daterangePopup').classList.remove('open');
   if (reload) drTriggerLoad();
 }
-drApplyPreset('last-30', false);
+drApplyPreset('this-week', false);
 document.getElementById('daterangeBtn').addEventListener('click', e => {
   e.stopPropagation();
   document.getElementById('daterangePopup').classList.toggle('open');

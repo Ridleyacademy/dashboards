@@ -138,6 +138,34 @@
   .kpi-grid { grid-template-columns: repeat(3, 1fr) !important; }
 }
 
+/* Date range popup on mobile — full-width, anchored under the topbar */
+@media (max-width: 768px) {
+  .topbar .daterange-popup,
+  header.topbar .daterange-popup,
+  #daterangePopup {
+    position: fixed !important;
+    top: auto !important;
+    left: 12px !important;
+    right: 12px !important;
+    width: auto !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+    margin: 0 !important;
+    padding: 14px !important;
+  }
+  .dr-presets, .dr-presets-vert { display: flex !important; flex-direction: column !important; gap: 4px !important; }
+  .dr-preset, .dr-preset-item {
+    width: 100% !important;
+    text-align: left !important;
+    padding: 11px 12px !important;
+    font-size: 0.84rem !important;
+  }
+  .dr-custom-row { flex-wrap: wrap !important; }
+  .dr-date-input { font-size: 0.86rem !important; padding: 10px 8px !important; }
+  .dr-apply { padding: 11px !important; font-size: 0.86rem !important; }
+}
+
 /* Dashboard picker dropdown — universally fix overflow on narrow viewports.
    Catches the variants used across pages: .nav-dropdown-menu (class),
    #navDropMenu / #navDropdownMenu (ids) and meta-ads's inline-styled menu. */

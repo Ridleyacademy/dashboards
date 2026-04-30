@@ -1,17 +1,12 @@
 // Shared client-side access guard.
-// Requires global `supa`. Defensive: never blocks the page loading; only filters/redirects.
+// Requires global `supa` and `window.RidleyPerms` (from permissions.js).
+// Defensive: never blocks the page loading; only filters/redirects.
 (function () {
   if (typeof supa === 'undefined') { console.warn('[access-guard] supa not found, skipping'); return; }
+  if (!window.RidleyPerms) { console.warn('[access-guard] RidleyPerms not loaded'); return; }
 
-  const PAGES = [
-    { href: 'home.html',         perms: null,                                       id: null },
-    { href: 'index.html',        perms: ['sales', 'sales_manager'],                 id: 'sales' },
-    { href: 'meta-ads.html',     perms: ['marketing'],                              id: 'meta' },
-    { href: 'performance.html',  perms: ['marketing'],                              id: 'performance' },
-    { href: 'income.html',       perms: ['finance', 'sales_manager'],               id: 'income' },
-    { href: 'calls.html',        perms: ['calls', 'sales_manager', 'rep'],          id: 'calls' },
-    { href: 'declarations.html', perms: ['rep', 'sales_manager'],                   id: 'declarations' },
-  ];
+  const RP = window.RidleyPerms;
+  const PAGES = RP.PAGES;
 
   // Cached archive list (Set of dashboard ids). Loaded lazily.
   const ADMIN_API = 'https://pojqljrhhtnigyrtzdzz.supabase.co/functions/v1/admin-api';
@@ -37,32 +32,14 @@
     return archivedIds;
   }
 
-  // If admin is impersonating another user, swap perms/is_admin client-side.
-  // This is UI-preview only — the JWT still belongs to the real admin, so any
-  // server-side queries continue to return admin-visible data.
-  function getImpersonation() {
-    try {
-      const raw = localStorage.getItem('impersonate-user');
-      return raw ? JSON.parse(raw) : null;
-    } catch (_) { return null; }
-  }
-  function permsOf(user) {
-    const imp = getImpersonation();
-    if (imp) return imp.permissions || [];
-    return user?.app_metadata?.permissions || [];
-  }
-  function isAdmin(user) {
-    const imp = getImpersonation();
-    if (imp) return imp.is_admin === true;
-    return user?.app_metadata?.is_admin === true;
-  }
-
+  // All identity + permission decisions defer to RidleyPerms (handles
+  // impersonation transparently).
+  function effOf(user) { return RP.effective(user); }
+  function isAdmin(user) { return effOf(user).is_admin; }
   function canAccess(pageDef, user) {
     if (!user) return false;
-    if (isAdmin(user)) return true;
-    if (!pageDef || pageDef.perms === null) return true;
-    const have = permsOf(user);
-    return pageDef.perms.some(p => have.includes(p));
+    if (!pageDef) return true;
+    return RP.canOpenWith(pageDef.href, effOf(user));
   }
 
   function currentPageFile() {
@@ -79,7 +56,8 @@
       const user = session?.user;
       if (!user) return; // login flow handles unauth
 
-      const userIsAdmin = isAdmin(user);
+      const eff = effOf(user);
+      const userIsAdmin = eff.is_admin;
       const archived = await getArchivedIds(session.access_token);
 
       const file = currentPageFile();

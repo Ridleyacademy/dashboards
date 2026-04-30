@@ -892,13 +892,14 @@ async function onAuthed(session) {
   const email = session.user.email || '';
   document.getElementById('userEmail').textContent = email;
   document.getElementById('userAvatar').textContent = (email[0] || 'U').toUpperCase();
-  // Role-based nav
-  const isAdmin = session.user.app_metadata?.is_admin ?? false;
-  const perms   = session.user.app_metadata?.permissions ?? [];
-  if (isAdmin || perms.includes('marketing')) {
-    document.getElementById('navDropdown').style.display = 'block';
+  // Page-level access guard (single source of truth: permissions.js)
+  if (!window.RidleyPerms.canOpen('index.html', session.user)) {
+    setState('denied'); return;
   }
-  if (isAdmin) {
+  const eff = window.RidleyPerms.effective(session.user);
+  // Picker is always available — access-guard hides items the user can't open.
+  document.getElementById('navDropdown').style.display = 'block';
+  if (eff.is_admin) {
     document.getElementById('adminBtn').style.display = 'inline-flex';
   }
   setState('dashboard');
@@ -1653,6 +1654,7 @@ document.getElementById('drApply').addEventListener('click', () => {
 initAuth();
 </script>
 <script src="forgot-password.js"></script>
+<script src="permissions.js"></script>
 <script src="access-guard.js"></script>
 <script src="loading-states.js"></script>
 <script src="pwa.js"></script>

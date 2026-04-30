@@ -685,17 +685,15 @@ async function initAuth() {
 
 async function onAuthed(session) {
   currentSession = session;
-  const appMeta = session.user.app_metadata || {};
-  const isAdmin = appMeta.is_admin === true;
-  const perms   = appMeta.permissions || [];
-  const hasRep          = perms.includes('rep');
-  const hasSalesManager = perms.includes('sales_manager');
-
-  if (!isAdmin && !hasRep && !hasSalesManager) {
+  // Page-level access (single source of truth: permissions.js)
+  if (!window.RidleyPerms.canOpen('declarations.html', session.user)) {
     setState('denied'); return;
   }
 
-  canSeeAll = isAdmin || hasSalesManager;
+  // Page-specific UX: managers + admins see every rep's declarations,
+  // rep-only users only their own.
+  const eff = window.RidleyPerms.effective(session.user);
+  canSeeAll = eff.is_admin || eff.permissions.includes('sales_manager');
   if (canSeeAll) {
     document.body.classList.add('can-see-all');
     document.getElementById('repFilter').style.display = 'block';
@@ -1258,6 +1256,7 @@ document.getElementById('setPwForm').addEventListener('submit', async e => {
 setState('loading');
 initAuth().catch(() => setState('login'));
 </script>
+<script src="permissions.js"></script>
 <script src="access-guard.js"></script>
 <script src="loading-states.js"></script>
 <script src="pwa.js"></script>

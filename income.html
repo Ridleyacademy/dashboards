@@ -949,10 +949,7 @@ async function onAuthed(session) {
     document.getElementById('userEmail').textContent = email;
     document.getElementById('userAvatar').textContent = (email[0] || 'U').toUpperCase();
 
-    const isAdmin = session.user.app_metadata?.is_admin ?? false;
-    const perms   = session.user.app_metadata?.permissions ?? [];
-
-    if (!isAdmin && !perms.includes('finance')) {
+    if (!window.RidleyPerms.canOpen('income.html', session.user)) {
       setState('denied');
       return;
     }
@@ -1813,7 +1810,8 @@ document.getElementById('logTableBody').addEventListener('click', e => {
 </script>
 
 <script src="forgot-password.js"></script>
-<script src="access-guard.js"></script>
+<script src="permissions.js"></script>
+  <script src="access-guard.js"></script>
 <script src="loading-states.js"></script>
 <script src="pwa.js"></script>
   <script src="ux.js"></script>

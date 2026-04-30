@@ -575,7 +575,8 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const INVITE_BASE    = SUPABASE_URL + "/functions/v1/invite";
 const ADMIN_API_BASE = SUPABASE_URL + "/functions/v1/admin-api";
 
-const AVAILABLE_PERMS = ['sales', 'marketing', 'finance', 'calls', 'rep', 'sales_manager'];
+// Use the central permission registry. Adding a new role = edit permissions.js.
+const AVAILABLE_PERMS = window.RidleyPerms.AVAILABLE_PERMS;
 
 const BOARDS = [
   {
@@ -734,17 +735,10 @@ async function loadArchiveList() {
   } catch(e) { archivedSet = new Set(); }
 }
 
+// Defer to the central registry — single source of truth for what each role
+// can open. Adding a role / changing a page's required roles = edit permissions.js.
 function permsAllow(b, isAdmin, perms) {
-  if (isAdmin) return true;
-  switch (b.permission) {
-    case 'both':       return perms.includes('marketing');
-    case 'sales':      return perms.includes('sales') || perms.includes('sales_manager');
-    case 'marketing':  return perms.includes('marketing');
-    case 'finance':    return perms.includes('finance') || perms.includes('sales_manager');
-    case 'calls':      return perms.includes('calls') || perms.includes('rep') || perms.includes('sales_manager');
-    case 'rep':        return perms.includes('rep') || perms.includes('sales_manager');
-    default:           return perms.includes(b.permission);
-  }
+  return window.RidleyPerms.canOpenWith(b.href, { is_admin: isAdmin, permissions: perms });
 }
 
 function renderBoards(isAdmin, perms) {
@@ -1439,6 +1433,7 @@ setState('loading');
 initAuth().catch(e => { console.error('Unhandled auth error:', e); setState('login'); });
 </script>
 <script src="forgot-password.js"></script>
+<script src="permissions.js"></script>
 <script src="access-guard.js"></script>
 <script src="loading-states.js"></script>
 <script src="pwa.js"></script>

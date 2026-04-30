@@ -528,10 +528,8 @@ async function onAuthed(session) {
   document.getElementById('userEmail').textContent = email;
   document.getElementById('userAvatar').textContent = (email[0] || 'U').toUpperCase();
 
-  // Role check
-  const perms = session.user.app_metadata?.permissions ?? [];
-  const isAdmin = session.user.app_metadata?.is_admin ?? false;
-  if (!isAdmin && !perms.includes('marketing')) {
+  // Role check (single source of truth: permissions.js)
+  if (!window.RidleyPerms.canOpen('meta-ads.html', session.user)) {
     setState('denied');
     return;
   }
@@ -866,6 +864,7 @@ setState('loading');
 initAuth();
 </script>
 <script src="forgot-password.js"></script>
+<script src="permissions.js"></script>
 <script src="access-guard.js"></script>
 <script src="loading-states.js"></script>
 <script src="pwa.js"></script>

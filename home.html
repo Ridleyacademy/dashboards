@@ -1104,8 +1104,13 @@ async function deleteUser(btn) {
 async function saveUser(btn) {
   const row = btn.closest('.user-row');
   const userId = btn.dataset.id;
-  const permissions = [...row.querySelectorAll('.perm-check')].filter(c=>c.checked).map(c=>c.dataset.perm);
-  const is_admin = row.querySelector('.admin-check').checked;
+  // The perm-select menu is portaled to <body>; use the back-reference
+  // from the .perm-select container to find its checkboxes.
+  const sel = row.querySelector('.perm-select');
+  const menu = sel?._permMenu || sel?.querySelector('.perm-select-menu');
+  const scope = menu || row;
+  const permissions = [...scope.querySelectorAll('.perm-check')].filter(c=>c.checked).map(c=>c.dataset.perm);
+  const is_admin = scope.querySelector('.admin-check').checked;
   const msg = document.getElementById('msg-' + userId);
   const roleEl = document.getElementById('role-' + userId);
 
@@ -1162,8 +1167,19 @@ function updatePermSummary(rootEl) {
   const sel = rootEl.classList.contains('perm-select') ? rootEl : rootEl.querySelector('.perm-select');
   if (!sel) return;
   const summary = sel.querySelector('.perm-select-summary');
-  const adminCb = sel.querySelector('.admin-check, #inviteAdminCheck');
-  const permCbs = [...sel.querySelectorAll('.perm-check, .invite-perm')];
+  // The menu is portaled to <body> after first open, so query both the
+  // .perm-select container AND its portaled menu.
+  const menu = sel._permMenu || sel.querySelector('.perm-select-menu');
+  const checkboxScopes = menu ? [sel, menu] : [sel];
+  let adminCb = null;
+  const permCbs = [];
+  checkboxScopes.forEach(scope => {
+    const a = scope.querySelector('.admin-check, #inviteAdminCheck');
+    if (a && !adminCb) adminCb = a;
+    scope.querySelectorAll('.perm-check, .invite-perm').forEach(c => {
+      if (!permCbs.includes(c)) permCbs.push(c);
+    });
+  });
   const checked = permCbs.filter(c => c.checked).map(c => c.dataset.perm);
   summary.classList.remove('has-value', 'is-admin');
   if (adminCb && adminCb.checked) {
@@ -1182,25 +1198,37 @@ function updatePermSummary(rootEl) {
 
 // Wire up open/close + summary refresh for every perm-select inside `scope`.
 function wirePermSelects(scope = document) {
+  // Clean up orphan portaled menus from previous renders. A menu is orphan
+  // if its anchoring .perm-select was removed from the DOM.
+  document.querySelectorAll('body > .perm-select-menu').forEach(m => {
+    if (!m._anchor || !m._anchor.isConnected) m.remove();
+  });
   scope.querySelectorAll('.perm-select').forEach(sel => {
     if (sel.dataset.wired) { updatePermSummary(sel); return; }
     sel.dataset.wired = '1';
     const btn  = sel.querySelector('.perm-select-btn');
     const menu = sel.querySelector('.perm-select-menu');
+    // Portal the menu to <body> so transformed/overflow ancestors can't
+    // clip or reframe it. Keep a back-reference so events still bubble to
+    // the .perm-select for `change` handling.
+    let portaled = false;
+    function ensurePortaled() {
+      if (portaled) return;
+      menu._anchor = sel;     // back-link so orphan cleanup can find us
+      document.body.appendChild(menu);
+      portaled = true;
+    }
     function positionMenu() {
       const r = btn.getBoundingClientRect();
       const margin = 8;
-      // Width: at least the button width, capped to viewport.
       const desiredWidth = Math.max(r.width, 220);
       const w = Math.min(desiredWidth, window.innerWidth - margin * 2);
       menu.style.width = w + 'px';
-      // Horizontal: anchor to button left, but clamp inside viewport.
       let left = r.left;
       if (left + w > window.innerWidth - margin) left = window.innerWidth - w - margin;
       if (left < margin) left = margin;
       menu.style.left = left + 'px';
-      // Vertical: open below by default; flip above if not enough space.
-      const menuH = Math.min(menu.scrollHeight + 12, 280);
+      const menuH = Math.min(menu.scrollHeight + 12, 320);
       const spaceBelow = window.innerHeight - r.bottom;
       if (spaceBelow < menuH + margin && r.top > menuH + margin) {
         menu.style.top = (r.top - menuH - 4) + 'px';
@@ -1212,11 +1240,15 @@ function wirePermSelects(scope = document) {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const willOpen = menu.hasAttribute('hidden');
-      // Close any other open ones first
       document.querySelectorAll('.perm-select.open').forEach(o => {
-        if (o !== sel) { o.classList.remove('open'); o.querySelector('.perm-select-menu').setAttribute('hidden',''); }
+        if (o !== sel) {
+          o.classList.remove('open');
+          const m = o._permMenu || o.querySelector('.perm-select-menu');
+          if (m) m.setAttribute('hidden','');
+        }
       });
       if (willOpen) {
+        ensurePortaled();
         menu.removeAttribute('hidden');
         sel.classList.add('open');
         positionMenu();
@@ -1225,19 +1257,25 @@ function wirePermSelects(scope = document) {
         sel.classList.remove('open');
       }
     });
-    // Reposition on scroll/resize while open
+    // Keep a reference back so the document-level close handler can find
+    // the portaled menu after we move it out.
+    sel._permMenu = menu;
     window.addEventListener('scroll', () => { if (sel.classList.contains('open')) positionMenu(); }, true);
     window.addEventListener('resize', () => { if (sel.classList.contains('open')) positionMenu(); });
     menu.addEventListener('click', (e) => e.stopPropagation());
-    sel.addEventListener('change', () => updatePermSummary(sel));
+    // Bubble change from the portaled menu back to the original .perm-select
+    // so updatePermSummary still fires.
+    menu.addEventListener('change', () => updatePermSummary(sel));
     updatePermSummary(sel);
   });
 }
-// Click outside closes any open menu
+// Click outside closes any open menu (the menu is portaled to body so
+// look it up via _permMenu first).
 document.addEventListener('click', () => {
   document.querySelectorAll('.perm-select.open').forEach(o => {
     o.classList.remove('open');
-    o.querySelector('.perm-select-menu').setAttribute('hidden','');
+    const m = o._permMenu || o.querySelector('.perm-select-menu');
+    if (m) m.setAttribute('hidden','');
   });
 });
 

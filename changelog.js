@@ -11,6 +11,12 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v55', title: 'Sales dashboard GI now credits verified declarations',
+      roles: ['sales', 'sales_manager'], items: [
+      'Daily Gross Income on the Sales Dashboard now includes verified declared sales whose buyer email was not in VSL leads (e.g. direct buyers).',
+      'No double-counting: declarations whose email is already in the lead cohort are skipped.',
+      'When a funnel filter is active, declarations are excluded (they have no funnel attribution).',
+    ]},
     { version: 'v54', title: 'Calls leaderboard now credits verified declarations',
       roles: ['calls', 'sales_manager', 'rep'], items: [
       'Gross Income and the Overall Revenue leaderboard now include verified declared sales whose Sales Log row had no (or unmapped) Affiliate. Previously those sales were uncredited.',

@@ -356,6 +356,46 @@ If you change the dedup key or the date filter for declarations, audit
 both paths together — they have to use the same key shape and the same
 date semantics or you'll get double-counts or gaps.
 
+## Sales dashboard GI attribution (read before touching get_daily_stats)
+
+The Sales Dashboard's daily GI comes from the SQL function
+`public.get_daily_stats` (in Supabase, called by the `dashboard` edge
+function via `?api=data`). Two-path attribution like the Calls function,
+but along a different dimension:
+
+1. **Lead-cohort path:** For each VSL lead in the date range, all Sales
+   Log rows with the same email count toward GI on the lead's cohort
+   day. Affiliate is NOT considered here.
+2. **Declared-extra path (v2 migration):** Verified declarations
+   (`sales_check = 'Yes'`) whose buyer email is **not** in the VSL lead
+   cohort get credited to the GI on `date_closed`. Dedupe key is
+   `(date_closed, lower(trim(email)), sale_amount)`.
+
+Why two paths? Some sales come from buyers who never went through the
+VSL funnel (direct purchases, manual closes), so their email isn't in
+`VSL leads data`. The lead-cohort path can't see them. Verified
+declarations fill that gap.
+
+Important constraints to preserve in any future change:
+
+- **Dedup is by email**, not by Sales Log id. The lead-cohort path joins
+  by email; the declared-extra path uses NOT EXISTS in `lead_cohort`.
+  Keep these consistent.
+- **Rebills excluded** in the declared-extra path (already excluded by
+  the lead-centric path's nature — there's nothing to refund credit for
+  a rebill).
+- **Funnel filter blocks declared-extra** entirely. Declarations have no
+  funnel attribution, so when a user filters by Funnel = "Artistic",
+  including funnel-agnostic declarations would skew the metric.
+- **Final SELECT uses `all_dates` UNION** (per_day_agg ∪ gi_agg ∪
+  closes_agg) instead of joining only off `per_day_agg`. This is needed
+  so dates that have ONLY declared GI (no leads) still appear in the
+  output. Don't revert to `from per_day_agg`.
+
+If you regenerate the function, base it on the migration
+`get_daily_stats_v2_credit_verified_declarations` — that's the canonical
+form.
+
 ## Edge function conventions
 
 All edge functions:

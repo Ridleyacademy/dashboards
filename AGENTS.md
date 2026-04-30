@@ -554,6 +554,43 @@ If you regenerate the function, base it on the migration
 It enforces both the verified-declaration credit AND the new-sales-only
 filter (Rebill excluded; PP kept).
 
+## Invite + set-password flow (v70+)
+
+Supabase invite emails redirect to `https://ridleyacademy.team/home`
+with one of two URL formats depending on the Supabase server's flow
+type:
+
+- **Legacy implicit:** `/home#access_token=…&refresh_token=…&type=invite`
+- **Newer PKCE:**      `/home?code=…&type=invite`
+
+`home.html` (and `index.html` as a fallback) detect invite/recovery
+from **both** hash and query:
+
+```js
+const _hashParams  = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+const _queryParams = new URLSearchParams(window.location.search);
+const _type = _hashParams.get('type') || _queryParams.get('type') || '';
+const isInviteLink   = _type === 'invite' || _type === 'signup';
+const isRecoveryLink = _type === 'recovery';
+```
+
+When detected, `setState('set-password')` immediately. `supabase-js`
+finishes the PKCE/implicit token exchange asynchronously; on success
+`onAuthStateChange` fires with the new session. The set-password form
+remains visible until the user submits — the form's submit handler
+calls `supa.auth.updateUser({ password })` then `onAuthed(session)`.
+
+Both pages have a 12s safety net so the boot screen never hangs
+forever.
+
+The invite edge function's `redirectTo` is `https://ridleyacademy.team/home`
+(NOT `/`). Going to `/` would land on `index.html` (Sales dashboard) —
+if the invitee can't open Sales, they'd hit "denied" right after
+setting their password. Home is universal.
+
+If you change the redirect URL, update the Supabase Auth settings'
+allowed redirect URLs list to include the new path.
+
 ## Audit log + sessions (v13 of admin-api fn)
 
 **`?api=activity` (admin only, GET)** now supports server-side filters:

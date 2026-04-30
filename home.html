@@ -79,11 +79,13 @@
   @keyframes spin { to { transform: rotate(360deg); } }
 
   /* ── State machine ────────────────────────────── */
-  body[data-state="loading"] #app, body[data-state="loading"] #login,
-  body[data-state="dashboard"] #login, body[data-state="dashboard"] #boot,
-  body[data-state="login"] #app, body[data-state="login"] #boot { display: none; }
+  body[data-state="loading"] #app, body[data-state="loading"] #login, body[data-state="loading"] #setPassword,
+  body[data-state="dashboard"] #login, body[data-state="dashboard"] #boot, body[data-state="dashboard"] #setPassword,
+  body[data-state="login"] #app, body[data-state="login"] #boot, body[data-state="login"] #setPassword,
+  body[data-state="set-password"] #app, body[data-state="set-password"] #login, body[data-state="set-password"] #boot { display: none; }
   body[data-state="loading"] #boot { display: flex; }
   body[data-state="login"]   #login { display: flex; }
+  body[data-state="set-password"] #setPassword { display: flex; }
   body[data-state="dashboard"] #app { display: block; }
 
   /* ── Topbar ───────────────────────────────────── */
@@ -398,6 +400,31 @@
         </div>
         <button type="submit" class="auth-btn" id="sendBtn">Sign In</button>
         <div class="auth-error" id="loginError"></div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Set password (invite / recovery) -->
+<div id="setPassword" class="full-center">
+  <div class="login-wrap">
+    <div class="login-logo" style="background:linear-gradient(135deg,#34d399,#10b981);">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+    </div>
+    <div class="login-card">
+      <h1>Set Your Password</h1>
+      <p class="sub">Choose a password to activate your account</p>
+      <form id="setPasswordForm">
+        <div class="input-group">
+          <label class="input-label" for="newPassword">New password</label>
+          <input class="auth-input" type="password" id="newPassword" placeholder="Min 8 characters" required minlength="8" autocomplete="new-password">
+        </div>
+        <div class="input-group">
+          <label class="input-label" for="confirmPassword">Confirm password</label>
+          <input class="auth-input" type="password" id="confirmPassword" placeholder="Repeat it" required minlength="8" autocomplete="new-password">
+        </div>
+        <button type="submit" class="auth-btn" id="setPasswordBtn" style="background:linear-gradient(135deg,#34d399,#10b981);box-shadow:0 4px 16px rgba(52,211,153,0.35);">Activate Account</button>
+        <div class="auth-error" id="setPasswordError"></div>
       </form>
     </div>
   </div>
@@ -761,7 +788,33 @@ document.getElementById('activityClearBtn')?.addEventListener('click', () => {
 });
 
 // ── Auth ──────────────────────────────────────────────────────
+// Detect invite/recovery from BOTH hash (legacy implicit flow) and query
+// (newer PKCE flow). detectSessionInUrl handles the token exchange async.
+const _hashParams  = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+const _queryParams = new URLSearchParams(window.location.search);
+function _authType() { return _hashParams.get('type') || _queryParams.get('type') || ''; }
+const isInviteLink   = _authType() === 'invite' || _authType() === 'signup';
+const isRecoveryLink = _authType() === 'recovery';
+
 async function initAuth() {
+  if (isInviteLink || isRecoveryLink) {
+    setState('set-password');
+    supa.auth.onAuthStateChange((_e, sess) => {
+      if (!sess) {
+        if (document.body.dataset.state === 'set-password') setState('login');
+        return;
+      }
+      // Stay on set-password until user submits a new one. Submit handler
+      // below calls onAuthed() after updateUser succeeds.
+      if (document.body.dataset.state === 'set-password') return;
+      onAuthed(sess);
+    });
+    setTimeout(() => {
+      if (document.body.dataset.state === 'loading') setState('login');
+    }, 12000);
+    return;
+  }
+
   // Safety net: if nothing resolves in 8s, drop to login
   const timeout = setTimeout(() => setState('login'), 8000);
   try {
@@ -1596,6 +1649,32 @@ document.getElementById('sendInviteBtn').addEventListener('click', async () => {
 });
 
 // ── Login ─────────────────────────────────────────────────────
+// Set-password (invite + recovery)
+document.getElementById('setPasswordForm')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const pw  = document.getElementById('newPassword').value;
+  const pw2 = document.getElementById('confirmPassword').value;
+  const err = document.getElementById('setPasswordError');
+  const btn = document.getElementById('setPasswordBtn');
+  err.textContent = '';
+  if (pw.length < 8) { err.textContent = 'Password must be at least 8 characters.'; return; }
+  if (pw !== pw2)    { err.textContent = "Passwords don't match."; return; }
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const { error } = await supa.auth.updateUser({ password: pw });
+    if (error) throw error;
+    // Clean the URL and proceed.
+    history.replaceState({}, '', window.location.pathname);
+    const { data: { session } } = await supa.auth.getSession();
+    if (session) onAuthed(session);
+    else setState('login');
+  } catch (e) {
+    err.textContent = e.message || 'Failed to set password.';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Activate Account';
+  }
+});
+
 document.getElementById('loginForm').addEventListener('submit', async e => {
   e.preventDefault();
   const email    = document.getElementById('email').value.trim();

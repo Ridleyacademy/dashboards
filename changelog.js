@@ -11,6 +11,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v70', title: 'Fix: invitees were stuck spinning, no password form', items: [
+      'Newer Supabase versions deliver invite links as ?code=xxx&type=invite (PKCE) instead of #access_token=...&type=invite (legacy hash). Detection only looked at the hash, so invitees never saw the set-password form.',
+      'Detection now checks both hash and query, with a 12s safety net so the boot screen never hangs.',
+      'Set-password form now also lives on home.html (was only on the Sales dashboard). Invite redirect points at /home so even reps without Sales access land somewhere they can use.',
+    ]},
     { version: 'v68', title: 'Sessions tab now shows who\'s actually live',
       adminOnly: true, items: [
       'Each open dashboard sends a heartbeat every 60s. Sessions tab marks anyone whose last heartbeat is < 90s as ● live.',

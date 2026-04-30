@@ -862,25 +862,59 @@ const supa = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 
 function setState(s) { document.body.dataset.state = s; }
 
-// Detect invite link (Supabase puts type=invite in URL hash after redirect)
-const _hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
-const isInviteLink = _hashParams.get('type') === 'invite';
+// Detect invite/recovery/signup link from BOTH the hash (implicit flow,
+// legacy) and the query string (PKCE flow, current default in newer
+// supabase-js). Also detect raw auth params so we never miss a callback.
+const _hashParams  = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+const _queryParams = new URLSearchParams(window.location.search);
+function _authType() {
+  return _hashParams.get('type') || _queryParams.get('type') || '';
+}
+const _hasAuthCallback = !!(
+  _hashParams.get('access_token') ||
+  _queryParams.get('code') ||
+  _queryParams.get('token_hash')
+);
+const isInviteLink   = _authType() === 'invite' || _authType() === 'signup';
+const isRecoveryLink = _authType() === 'recovery';
+const isAuthCallback = isInviteLink || isRecoveryLink || _hasAuthCallback;
 
 async function initAuth() {
-  if (isInviteLink) {
-    // Supabase auto-processes the hash token; wait for the session via onAuthStateChange
+  if (isInviteLink || isRecoveryLink) {
+    // Supabase processes the hash/query async; show the set-password form
+    // immediately and wait for the session via onAuthStateChange.
     setState('set-password');
     supa.auth.onAuthStateChange((_event, sess) => {
-      if (!sess) { setState('login'); return; }
-      // Still in invite flow — keep on set-password until user sets a password
-      if (isInviteLink && document.body.dataset.state === 'set-password') return;
+      if (!sess) {
+        // Token exchange failed. Drop to login so the user isn't stuck.
+        if (document.body.dataset.state === 'set-password') setState('login');
+        return;
+      }
+      // Stay on set-password until the user submits a new password. The
+      // form's submit handler calls onAuthed() after updateUser succeeds.
+      if (document.body.dataset.state === 'set-password') return;
       onAuthed(sess);
     });
+    // Safety net: if nothing happens within 12s, fall back to login.
+    setTimeout(() => {
+      if (document.body.dataset.state === 'loading') setState('login');
+    }, 12000);
     return;
   }
-  const { data: { session } } = await supa.auth.getSession();
-  if (session) { onAuthed(session); return; }
-  setState('login');
+  // 8s safety net so the boot screen never hangs forever.
+  const _safety = setTimeout(() => {
+    if (document.body.dataset.state === 'loading') setState('login');
+  }, 8000);
+  try {
+    const { data: { session } } = await supa.auth.getSession();
+    clearTimeout(_safety);
+    if (session) { onAuthed(session); return; }
+    setState('login');
+  } catch (e) {
+    clearTimeout(_safety);
+    console.error('Auth init error:', e);
+    setState('login');
+  }
   supa.auth.onAuthStateChange((_event, sess) => {
     if (sess) onAuthed(sess);
     else setState('login');

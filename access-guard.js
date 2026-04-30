@@ -95,7 +95,7 @@
           if (!d) return;
           const noPerm = !canAccess(d, user);
           const archivedHide = d.id && archived.has(d.id);
-          if (noPerm || archivedHide) el.style.display = 'none';
+          if (noPerm || archivedHide) el.style.setProperty('display', 'none', 'important');
         });
       };
       filterNow();

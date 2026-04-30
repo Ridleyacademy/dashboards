@@ -75,13 +75,14 @@
         }
       }
 
-      // Filter nav items — only run once.
+      // Filter nav items.
       // Archived dashboards are hidden from the picker for EVERYONE (including admins)
       // so the picker only shows currently-active boards. Admins manage archived
       // boards from the home page.
-      if (!didFilter) {
-        didFilter = true;
-        const items = document.querySelectorAll('.nav-dropdown-item, .nav-drop-item, [data-nav-link]');
+      // We re-run repeatedly via a MutationObserver below — because the shared
+      // nav-menu.js injects items async, the first pass may run before items exist.
+      const filterNow = () => {
+        const items = document.querySelectorAll('.nav-dropdown-item, .nav-drop-item, .nav-menu-link, [data-nav-link]');
         items.forEach(el => {
           const href = (el.getAttribute('href') || '').split('/').pop();
           const d = PAGES.find(p => p.href === href);
@@ -89,6 +90,18 @@
           const noPerm = !canAccess(d, user);
           const archivedHide = d.id && archived.has(d.id);
           if (noPerm || archivedHide) el.style.display = 'none';
+        });
+      };
+      filterNow();
+      // Also watch the dropdown menus for late-injected items
+      if (!didFilter) {
+        didFilter = true;
+        const menus = document.querySelectorAll('#navDropMenu, #navDropdownMenu, .nav-dropdown-menu');
+        menus.forEach(menu => {
+          const obs = new MutationObserver(() => filterNow());
+          obs.observe(menu, { childList: true, subtree: true });
+          // Auto-disconnect after 5s
+          setTimeout(() => obs.disconnect(), 5000);
         });
       }
     } catch (e) {

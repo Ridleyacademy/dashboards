@@ -736,6 +736,16 @@ const supa = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 });
 
 function setState(s) { document.body.dataset.state = s; }
+
+// Safe error-into-list helper. Builds the node via DOM so a maliciously
+// crafted error message can never inject HTML.
+function renderErrorInto(el, msg, sidePadPx) {
+  if (!el) return;
+  const div = document.createElement('div');
+  div.style.cssText = `color:var(--red);font-size:0.84rem;padding:12px ${Number(sidePadPx)||0}px;`;
+  div.textContent = String(msg || 'Failed');
+  el.replaceChildren(div);
+}
 let session_ = null;
 
 // ── Theme ─────────────────────────────────────────────────────
@@ -835,14 +845,13 @@ async function onAuthed(session) {
   try {
     session_ = session;
 
-    // Honour impersonation: when admin is "viewing as <user>", show that
-    // user's email, name, and permissions in the UI. Real session/JWT
-    // is still used for server calls.
-    let imp = null;
-    try { imp = JSON.parse(localStorage.getItem('impersonate-user') || 'null'); } catch (_) {}
-    const email   = imp?.email   || session.user.email || '';
-    const isAdmin = imp ? !!imp.is_admin     : (session.user.app_metadata?.is_admin ?? false);
-    const perms   = imp ? (imp.permissions || []) : (session.user.app_metadata?.permissions ?? []);
+    // Effective identity (handles impersonation transparently per the
+    // RBAC source-of-truth). Real session/JWT is still used for server
+    // calls — this only swaps what the UI shows.
+    const _eff   = window.RidleyPerms.effective(session.user);
+    const email   = _eff.email   || session.user.email || '';
+    const isAdmin = _eff.is_admin;
+    const perms   = _eff.permissions;
 
     document.getElementById('userEmail').textContent = email;
     document.getElementById('userAvatar').textContent = (email[0] || 'U').toUpperCase();
@@ -1035,7 +1044,7 @@ async function loadAdminUsers() {
     });
 
   } catch(err) {
-    list.innerHTML = `<div style="color:var(--red);font-size:0.84rem;padding:12px 0;">${err.message}</div>`;
+    renderErrorInto(list, err.message, 0);
   }
 }
 
@@ -1120,7 +1129,7 @@ async function loadActivity() {
     activityRows = j.rows || [];
     renderActivity();
   } catch(err) {
-    list.innerHTML = `<div style="color:var(--red);font-size:0.84rem;padding:12px 0;">${err.message}</div>`;
+    renderErrorInto(list, err.message, 0);
   }
 }
 
@@ -1162,7 +1171,7 @@ async function loadSessions() {
     if (!r.ok) throw new Error(j.error || 'Failed');
     renderSessions(j);
   } catch (err) {
-    list.innerHTML = `<div style="color:var(--red);font-size:0.84rem;padding:12px 0;">${err.message}</div>`;
+    renderErrorInto(list, err.message, 0);
   }
 }
 
@@ -1270,7 +1279,7 @@ async function loadRecentActivity() {
       </div>`;
     }).join('');
   } catch (err) {
-    list.innerHTML = `<div style="color:var(--red);font-size:0.84rem;padding:12px 16px;">${err.message}</div>`;
+    renderErrorInto(list, err.message, 16);
   }
 }
 
@@ -1858,7 +1867,7 @@ async function loadRepMappings() {
     });
 
   } catch(err) {
-    list.innerHTML = `<div style="color:var(--red);font-size:0.84rem;padding:12px 0;">${err.message}</div>`;
+    renderErrorInto(list, err.message, 0);
   }
 }
 

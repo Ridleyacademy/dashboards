@@ -11,6 +11,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v72', title: 'Bug audit fixes', adminOnly: true, items: [
+      'admin-api ?api=activity now sanitizes search inputs with double-quote PostgREST escaping. A comma in the search box no longer breaks the query (or in theory injects extra filters).',
+      'home admin error messages render via textContent now, so a malicious error string can never inject HTML.',
+      'home onAuthed reads the effective identity through RidleyPerms.effective() instead of duplicating impersonation logic.',
+    ]},
     { version: 'v71', title: 'Audit pass: every page now has auth-flow safety nets', items: [
       'meta-ads + performance dashboards added the same 8s safety net the others already had — boot screen never hangs forever.',
       'declarations: invite + recovery detection extended to handle the PKCE query-string flow (was hash only).',

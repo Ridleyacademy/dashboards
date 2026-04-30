@@ -85,7 +85,10 @@
   // Also do an initial check ~3s after load, in case there's a freshly deployed SW
   setTimeout(checkForUpdates, 3000);
 
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !('MSStream' in window);
+  const ua = navigator.userAgent;
+  const isIOS = /iPad|iPhone|iPod/.test(ua) && !('MSStream' in window);
+  // iOS Safari only — exclude Chrome/Firefox/Edge/etc on iOS (they can't install PWAs anyway)
+  const isIOSSafari = isIOS && /Safari/.test(ua) && !/(CriOS|FxiOS|EdgiOS|OPiOS|mercury|GSA)/.test(ua);
   const isStandalone =
     window.matchMedia?.('(display-mode: standalone)').matches ||
     window.navigator.standalone === true;
@@ -99,57 +102,19 @@
     document.querySelectorAll('[data-pwa-install]').forEach(el => el.style.display = '');
   });
 
-  // Show button if installable on iOS (no event, but it can be installed via Share)
+  // Only show install button on iOS Safari (mobile). Other browsers either
+  // don't support installation (iOS Chrome/FF) or have native install UI we
+  // don't need to duplicate.
   function maybeShowInstallButton() {
-    if (isStandalone) {
-      document.querySelectorAll('[data-pwa-install]').forEach(el => el.style.display = 'none');
-      return;
-    }
-    if (isIOS) {
-      // iOS Safari: show button always (manual install via Share)
-      document.querySelectorAll('[data-pwa-install]').forEach(el => el.style.display = '');
-    } else if (deferredPrompt) {
-      document.querySelectorAll('[data-pwa-install]').forEach(el => el.style.display = '');
-    } else {
-      // Wait for beforeinstallprompt
-      document.querySelectorAll('[data-pwa-install]').forEach(el => el.style.display = 'none');
-    }
+    const show = !isStandalone && isIOSSafari;
+    document.querySelectorAll('[data-pwa-install]').forEach(el => {
+      el.style.display = show ? '' : 'none';
+    });
   }
 
-  function showIOSModal() {
-    if (document.getElementById('pwaIOSModal')) return;
-    const m = document.createElement('div');
-    m.id = 'pwaIOSModal';
-    m.style.cssText = 'position:fixed;inset:0;background:rgba(8,9,18,0.85);backdrop-filter:blur(8px);z-index:10001;display:flex;align-items:center;justify-content:center;padding:24px;';
-    m.innerHTML = `
-      <div style="background:#13141f;border:1px solid #1f2438;border-radius:20px;padding:28px 22px;max-width:360px;width:100%;color:#eaecf8;font-family:-apple-system,BlinkMacSystemFont,'Inter',sans-serif;box-shadow:0 24px 60px rgba(0,0,0,0.6);">
-        <div style="text-align:center;margin-bottom:20px;">
-          <div style="width:54px;height:54px;background:#000;border-radius:14px;margin:0 auto 14px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:22px;color:#AC1818;">RA</div>
-          <div style="font-size:1.05rem;font-weight:800;letter-spacing:-0.02em;">Install Ridley</div>
-          <div style="font-size:0.78rem;color:#7880a8;margin-top:4px;">Two-tap install — works offline.</div>
-        </div>
-        <ol style="list-style:none;padding:0;margin:0 0 20px;">
-          <li style="display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px solid #1f2438;">
-            <div style="width:24px;height:24px;border-radius:50%;background:rgba(107,158,255,0.18);color:#6b9eff;font-size:0.78rem;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;">1</div>
-            <div style="font-size:0.84rem;line-height:1.45;">Tap the <span style="display:inline-block;vertical-align:middle;font-size:1.05rem;">⎙</span> <strong>Share</strong> button at the bottom of Safari.</div>
-          </li>
-          <li style="display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px solid #1f2438;">
-            <div style="width:24px;height:24px;border-radius:50%;background:rgba(107,158,255,0.18);color:#6b9eff;font-size:0.78rem;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;">2</div>
-            <div style="font-size:0.84rem;line-height:1.45;">Scroll and pick <strong>"Add to Home Screen"</strong>.</div>
-          </li>
-          <li style="display:flex;gap:12px;align-items:flex-start;padding:10px 0;">
-            <div style="width:24px;height:24px;border-radius:50%;background:rgba(52,211,153,0.18);color:#34d399;font-size:0.78rem;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;">3</div>
-            <div style="font-size:0.84rem;line-height:1.45;">Tap <strong>Add</strong> in the top right. Done!</div>
-          </li>
-        </ol>
-        <button id="pwaIOSClose" style="width:100%;background:linear-gradient(135deg,#AC1818,#7a0e0e);color:#fff;border:none;border-radius:12px;padding:13px;font-weight:700;font-size:0.92rem;cursor:pointer;">Got it</button>
-      </div>`;
-    document.body.appendChild(m);
-    m.addEventListener('click', (e) => { if (e.target === m) m.remove(); });
-    m.querySelector('#pwaIOSClose').addEventListener('click', () => m.remove());
-  }
-
-  window.showInstallPrompt = function () {
+  // iOS has no programmatic install API — the closest we can do is open the
+  // native Share sheet, which contains "Add to Home Screen". User taps once.
+  window.showInstallPrompt = async function () {
     if (isStandalone) return;
     if (deferredPrompt) {
       deferredPrompt.prompt();
@@ -157,11 +122,12 @@
         deferredPrompt = null;
         document.querySelectorAll('[data-pwa-install]').forEach(el => el.style.display = 'none');
       });
-    } else if (isIOS) {
-      showIOSModal();
-    } else {
-      // Edge case: no prompt yet, not iOS — show generic instruction
-      alert('Use your browser menu to install this app to your device.');
+      return;
+    }
+    if (isIOSSafari && navigator.share) {
+      try {
+        await navigator.share({ title: 'Ridleyacademy', url: window.location.origin + '/home.html' });
+      } catch (_) { /* user cancelled — fine */ }
     }
   };
 

@@ -1,6 +1,6 @@
 {
-  "name": "Ridley Academy Dashboards",
-  "short_name": "Ridley",
+  "name": "Ridleyacademy",
+  "short_name": "Ridleyacademy",
   "description": "Sales, calls, declarations, performance, and revenue dashboards for the Ridley Academy team.",
   "start_url": "/home.html",
   "scope": "/",

@@ -263,9 +263,9 @@
   .perm-select-caret { font-size: 0.7rem; color: var(--text-muted); transition: transform 0.14s; }
   .perm-select.open .perm-select-caret { transform: rotate(180deg); }
   .perm-select-menu {
-    position: absolute; top: calc(100% + 4px); left: 0; right: 0; min-width: 200px;
+    position: fixed; min-width: 200px; max-width: calc(100vw - 24px);
     background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
-    box-shadow: 0 12px 32px rgba(0,0,0,0.5); z-index: 50; padding: 6px;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.5); z-index: 1000; padding: 6px;
     max-height: 280px; overflow-y: auto;
   }
   .perm-select-opt {
@@ -1187,6 +1187,28 @@ function wirePermSelects(scope = document) {
     sel.dataset.wired = '1';
     const btn  = sel.querySelector('.perm-select-btn');
     const menu = sel.querySelector('.perm-select-menu');
+    function positionMenu() {
+      const r = btn.getBoundingClientRect();
+      const margin = 8;
+      // Width: at least the button width, capped to viewport.
+      const desiredWidth = Math.max(r.width, 220);
+      const w = Math.min(desiredWidth, window.innerWidth - margin * 2);
+      menu.style.width = w + 'px';
+      // Horizontal: anchor to button left, but clamp inside viewport.
+      let left = r.left;
+      if (left + w > window.innerWidth - margin) left = window.innerWidth - w - margin;
+      if (left < margin) left = margin;
+      menu.style.left = left + 'px';
+      // Vertical: open below by default; flip above if not enough space.
+      const menuH = Math.min(menu.scrollHeight + 12, 280);
+      const spaceBelow = window.innerHeight - r.bottom;
+      if (spaceBelow < menuH + margin && r.top > menuH + margin) {
+        menu.style.top = (r.top - menuH - 4) + 'px';
+      } else {
+        menu.style.top = (r.bottom + 4) + 'px';
+      }
+    }
+
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const willOpen = menu.hasAttribute('hidden');
@@ -1194,9 +1216,18 @@ function wirePermSelects(scope = document) {
       document.querySelectorAll('.perm-select.open').forEach(o => {
         if (o !== sel) { o.classList.remove('open'); o.querySelector('.perm-select-menu').setAttribute('hidden',''); }
       });
-      if (willOpen) { menu.removeAttribute('hidden'); sel.classList.add('open'); }
-      else { menu.setAttribute('hidden',''); sel.classList.remove('open'); }
+      if (willOpen) {
+        menu.removeAttribute('hidden');
+        sel.classList.add('open');
+        positionMenu();
+      } else {
+        menu.setAttribute('hidden','');
+        sel.classList.remove('open');
+      }
     });
+    // Reposition on scroll/resize while open
+    window.addEventListener('scroll', () => { if (sel.classList.contains('open')) positionMenu(); }, true);
+    window.addEventListener('resize', () => { if (sel.classList.contains('open')) positionMenu(); });
     menu.addEventListener('click', (e) => e.stopPropagation());
     sel.addEventListener('change', () => updatePermSummary(sel));
     updatePermSummary(sel);

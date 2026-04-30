@@ -615,6 +615,47 @@
         </div>
       </div>
 
+      <!-- End-of-Month Forecast (toggleable) -->
+      <details id="forecastZone" style="margin-bottom:24px;background:linear-gradient(135deg,rgba(52,211,153,0.06),rgba(107,158,255,0.04));border:1px solid rgba(52,211,153,0.25);border-radius:14px;overflow:hidden;">
+        <summary style="cursor:pointer;list-style:none;padding:14px 18px;display:flex;align-items:center;gap:12px;user-select:none;">
+          <span style="font-size:0.7rem;font-weight:800;text-transform:uppercase;letter-spacing:0.1em;color:var(--green);flex:1;">📈 End-of-Month Forecast</span>
+          <span id="forecastHeadline" style="font-size:0.78rem;color:var(--text-muted);font-weight:600;"></span>
+          <span class="forecast-caret" style="color:var(--green);font-size:0.7rem;transition:transform 0.15s;">▾</span>
+        </summary>
+        <div style="padding:8px 18px 18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;">
+          <div>
+            <div style="font-size:0.65rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-dim);margin-bottom:5px;">MTD Revenue</div>
+            <div id="fc-mtd" style="font-size:1.25rem;font-weight:800;letter-spacing:-0.02em;">—</div>
+            <div id="fc-mtd-sub" style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;">—</div>
+          </div>
+          <div>
+            <div style="font-size:0.65rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-dim);margin-bottom:5px;">Daily Pace</div>
+            <div id="fc-pace" style="font-size:1.25rem;font-weight:800;letter-spacing:-0.02em;">—</div>
+            <div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;">avg / day this month</div>
+          </div>
+          <div>
+            <div style="font-size:0.65rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-dim);margin-bottom:5px;">Forecast</div>
+            <div id="fc-projection" style="font-size:1.25rem;font-weight:800;letter-spacing:-0.02em;color:var(--green);">—</div>
+            <div id="fc-days" style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;">—</div>
+          </div>
+          <div>
+            <div style="font-size:0.65rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-dim);margin-bottom:5px;">Monthly Target</div>
+            <input type="number" id="fc-target" placeholder="e.g. 200000" min="0" step="1000"
+              style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:6px 10px;color:var(--text);font-size:0.95rem;font-weight:800;letter-spacing:-0.01em;outline:none;">
+            <div id="fc-vs-target" style="font-size:0.72rem;color:var(--text-muted);margin-top:4px;">Set a target to see progress</div>
+          </div>
+          <div style="grid-column:1/-1;">
+            <div id="fc-progress-wrap" style="display:none;background:var(--surface2);border-radius:999px;height:10px;overflow:hidden;border:1px solid var(--border);">
+              <div id="fc-progress" style="height:100%;width:0%;background:linear-gradient(90deg,var(--green),#6b9eff);transition:width 0.3s;"></div>
+            </div>
+          </div>
+        </div>
+      </details>
+      <style>
+        #forecastZone summary::-webkit-details-marker { display: none; }
+        #forecastZone[open] .forecast-caret { transform: rotate(180deg); }
+      </style>
+
       <!-- Charts -->
       <div class="sec-label">
         <span class="sec-label-text">Trends</span>
@@ -1019,6 +1060,8 @@ async function loadData() {
       }
       logData = await res.json();
       logRawData = Array.isArray(logData) ? logData : [];
+      // Flag possible duplicate sales (same email + same price within 5 min)
+      flagDuplicates(logRawData);
       renderLog();
     }
   } catch(e) {
@@ -1067,6 +1110,9 @@ function renderStats() {
   document.getElementById('kpi-total-rev').textContent   = fmtMoney(totalRev);
   document.getElementById('kpi-total-count').textContent = `${totalCnt.toLocaleString()} total transactions`;
 
+  // End-of-month forecast (uses any current-month days from `daily`)
+  renderForecast(daily || []);
+
   // Revenue chart
   renderRevenueChart(daily || []);
   renderIncomeBarChart(daily || []);
@@ -1085,6 +1131,108 @@ function renderStats() {
     renderBreakdownDoughnut(overall);
     document.getElementById('breakdownChartTitle').textContent = 'Revenue Split';
   }
+}
+
+// ── End-of-month forecast ────────────────────────────────────────
+const FORECAST_TARGET_KEY = 'ridley:income:monthlyTarget';
+
+function renderForecast(daily) {
+  const today = new Date();
+  const y = today.getFullYear(), m = today.getMonth();
+  const monthStart = new Date(y, m, 1);
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const dayOfMonth  = today.getDate();
+
+  // Pull only entries from the current month out of whatever range was loaded
+  const monthRows = (daily || []).filter(d => {
+    const dt = new Date(d.date + 'T00:00:00');
+    return dt.getFullYear() === y && dt.getMonth() === m && dt <= today;
+  });
+  const mtd = monthRows.reduce((s, d) =>
+    s + Number(d.sale || 0) + Number(d.rebill || 0) + Number(d.pp || 0), 0);
+  const daysCounted = monthRows.length || dayOfMonth;
+  const pace = daysCounted ? mtd / daysCounted : 0;
+  const projection = pace * daysInMonth;
+  const remaining  = daysInMonth - dayOfMonth;
+
+  const $ = id => document.getElementById(id);
+  const headline = $('forecastHeadline');
+  if (!monthRows.length && remaining < 0) {
+    headline.textContent = 'No current-month data in range';
+  } else {
+    headline.textContent = `On track for ${fmtMoney(projection)}`;
+  }
+  $('fc-mtd').textContent      = fmtMoney(mtd);
+  $('fc-mtd-sub').textContent  = `Day ${dayOfMonth} of ${daysInMonth}`;
+  $('fc-pace').textContent     = fmtMoney(pace);
+  $('fc-projection').textContent = fmtMoney(projection);
+  $('fc-days').textContent     = remaining > 0 ? `${remaining} day${remaining !== 1 ? 's' : ''} remaining` : 'Month complete';
+
+  // Target persistence + progress
+  const targetEl = $('fc-target');
+  if (!targetEl.dataset.wired) {
+    targetEl.dataset.wired = '1';
+    const stored = localStorage.getItem(FORECAST_TARGET_KEY);
+    if (stored) targetEl.value = stored;
+    targetEl.addEventListener('input', () => {
+      localStorage.setItem(FORECAST_TARGET_KEY, targetEl.value);
+      updateForecastTargetUI(mtd, projection);
+    });
+  }
+  updateForecastTargetUI(mtd, projection);
+}
+
+function updateForecastTargetUI(mtd, projection) {
+  const targetEl = document.getElementById('fc-target');
+  const target = Number(targetEl.value) || 0;
+  const wrap   = document.getElementById('fc-progress-wrap');
+  const bar    = document.getElementById('fc-progress');
+  const vs     = document.getElementById('fc-vs-target');
+  if (!target) {
+    wrap.style.display = 'none';
+    vs.textContent = 'Set a target to see progress';
+    vs.style.color = 'var(--text-muted)';
+    return;
+  }
+  wrap.style.display = 'block';
+  const pct = Math.min(100, (mtd / target) * 100);
+  bar.style.width = pct.toFixed(1) + '%';
+  const delta = projection - target;
+  if (delta >= 0) {
+    vs.innerHTML = `<span style="color:var(--green)">▲ Projected to beat target by ${fmtMoney(delta)}</span>`;
+  } else {
+    vs.innerHTML = `<span style="color:var(--red)">▼ Projected to miss target by ${fmtMoney(-delta)}</span>`;
+  }
+}
+
+// ── Duplicate sale detection ──────────────────────────────────────
+// Flags rows where the same email + same price recurs within 5 minutes.
+const DUPE_WINDOW_MS = 5 * 60 * 1000;
+function flagDuplicates(rows) {
+  const groups = new Map();
+  rows.forEach(r => {
+    const key = `${(r.Email || '').trim().toLowerCase()}|${Number(r.Price || 0)}`;
+    if (!key.startsWith('|')) {
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(r);
+    }
+    r._dupe = false;
+  });
+  let count = 0;
+  groups.forEach(group => {
+    if (group.length < 2) return;
+    // Sort by date and pair-check within window
+    const sorted = [...group].sort((a, b) => new Date(a.Date) - new Date(b.Date));
+    for (let i = 1; i < sorted.length; i++) {
+      const dt = new Date(sorted[i].Date) - new Date(sorted[i - 1].Date);
+      if (Math.abs(dt) <= DUPE_WINDOW_MS) {
+        sorted[i]._dupe = true;
+        sorted[i - 1]._dupe = true;
+      }
+    }
+  });
+  rows.forEach(r => { if (r._dupe) count++; });
+  return count;
 }
 
 function renderRevenueChart(daily) {
@@ -1456,7 +1604,9 @@ function renderLog(filter) {
   }
   rows = sortLog(rows);
 
-  document.getElementById('logCount').textContent = `${rows.length.toLocaleString()} row${rows.length !== 1 ? 's' : ''}`;
+  const dupeCount = rows.filter(r => r._dupe).length;
+  const dupeNote = dupeCount ? ` · <span style="color:var(--gold)" title="Same email + price within 5 min">⚠ ${dupeCount} possible duplicate${dupeCount !== 1 ? 's' : ''}</span>` : '';
+  document.getElementById('logCount').innerHTML = `${rows.length.toLocaleString()} row${rows.length !== 1 ? 's' : ''}${dupeNote}`;
 
   const tbody = document.getElementById('logTableBody');
   if (!rows.length) {
@@ -1465,8 +1615,8 @@ function renderLog(filter) {
   }
 
   const clip = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
-  tbody.innerHTML = rows.map(r => `<tr>
-    <td data-label="Date" style="white-space:nowrap;color:var(--text-muted);">${fmtDate(r.Date)}</td>
+  tbody.innerHTML = rows.map(r => `<tr${r._dupe ? ' style="background:rgba(251,191,36,0.05);"' : ''}>
+    <td data-label="Date" style="white-space:nowrap;color:var(--text-muted);">${r._dupe ? '<span title="Possible duplicate: same email + price within 5 min" style="color:var(--gold);margin-right:4px;">⚠</span>' : ''}${fmtDate(r.Date)}</td>
     <td class="td-main" data-label="Name" style="${clip}" title="${r.Name||''}">${r.Name || '—'}</td>
     <td data-label="Email" style="${clip}color:var(--text-muted);" title="${r.Email||''}">${r.Email || '—'}</td>
     <td data-label="Product" style="${clip}color:var(--text-muted);" title="${r.Product||''}">${r.Product || '—'}</td>
@@ -1813,6 +1963,8 @@ document.getElementById('logTableBody').addEventListener('click', e => {
 <script src="forgot-password.js"></script>
   <script src="access-guard.js"></script>
 <script src="loading-states.js"></script>
+<script src="theme.js"></script>
+<script src="changelog.js"></script>
 <script src="pwa.js"></script>
   <script src="ux.js"></script>
 <script src="filters.js"></script>

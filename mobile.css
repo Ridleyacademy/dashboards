@@ -443,6 +443,22 @@ header.topbar .nav-drop-item {
 }
 .topbar .nav-menu-link svg { flex-shrink: 0; }
 
+/* ── Skeleton loaders (used by loading-states.js) ───────────────── */
+.skel {
+  background: linear-gradient(90deg, var(--surface2,#1a1d2e) 0%, var(--surface3,#252939) 50%, var(--surface2,#1a1d2e) 100%);
+  background-size: 200% 100%;
+  animation: skel-shimmer 1.4s infinite;
+  border-radius: 6px;
+  display: inline-block;
+}
+@keyframes skel-shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+.skel-row  { height: 14px; }
+.skel-kpi  { height: 32px; width: 80%; margin-bottom: 6px; }
+.skel-sub  { height: 11px; width: 60%; }
+.skel-bar  { height: 220px; border-radius: 12px; }
+.skel-table-row { display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:12px; padding:12px 16px; border-bottom: 1px solid var(--border,#1f2438); }
+.skel-table-row .skel { height: 14px; }
+
 /* When running as an installed PWA (added to Home Screen), hide the Install
    button and any iOS install hint — they're irrelevant inside the app.
    The .pwa-standalone class is set by pwa.js (covers iOS where the

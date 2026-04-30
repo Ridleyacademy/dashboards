@@ -14,16 +14,22 @@
   ];
 
   // Cached archive list (Set of dashboard ids). Loaded lazily.
+  const ADMIN_API = 'https://pojqljrhhtnigyrtzdzz.supabase.co/functions/v1/admin-api';
   let archivedIds = null;
   async function getArchivedIds(token) {
     if (archivedIds !== null) return archivedIds;
     try {
-      const SUPABASE_URL = supa.supabaseUrl || (typeof window !== 'undefined' && window.SUPABASE_URL);
-      const url = (SUPABASE_URL || '').replace(/\/$/, '') + '/functions/v1/admin-api?api=dashboard-archive';
-      const r = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
-      if (!r.ok) { archivedIds = new Set(); return archivedIds; }
+      const r = await fetch(ADMIN_API + '?api=dashboard-archive', {
+        headers: { Authorization: 'Bearer ' + token }
+      });
+      if (!r.ok) {
+        console.warn('[access-guard] archive fetch failed:', r.status);
+        archivedIds = new Set();
+        return archivedIds;
+      }
       const j = await r.json();
       archivedIds = new Set(j.archived || []);
+      console.log('[access-guard] archived dashboards:', [...archivedIds]);
     } catch (e) {
       console.warn('[access-guard] could not load archive list:', e);
       archivedIds = new Set();

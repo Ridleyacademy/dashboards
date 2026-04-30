@@ -1,11 +1,23 @@
 // Cross-dashboard filter persistence.
-// - Saves the date range (preset OR custom from/to) in localStorage
-// - Auto-restores it on every dashboard so switching pages keeps the view
-// - Auto-wires: detects window.drApplyPreset and the #drApply custom-range
-//   button, no per-page edits needed.
+//
+// Two design rules:
+// 1. Save by listening for button clicks (event delegation), so we work
+//    regardless of which page-internal API renders the picker.
+// 2. Restore by triggering the button BEFORE auth resolves. That way the
+//    page's `if (currentSession) loadData()` check inside the click handler
+//    silently no-ops, and the eventual auth-complete loadData fires once,
+//    with the restored preset already active. No double-fetch race.
+//
+// Supports both naming conventions in use:
+//   - .dr-preset[data-preset="last-30"]   (calls/income/index/meta-ads/perf)
+//   - .dr-preset-item[data-p="last30"]    (declarations)
 (function () {
-  const KEY = 'ridley:dateRange';
-  let restoring = false;
+  // v2: schema unchanged but bumping resets stale values from the previous
+  // (drApplyPreset-wrapping) implementation that may have been saved with
+  // page-specific aliases.
+  const KEY = 'ridley:dateRange:v2';
+  // Clean up the v1 key so it doesn't sit there forever
+  try { localStorage.removeItem('ridley:dateRange'); } catch (_) {}
 
   function load() {
     try { return JSON.parse(localStorage.getItem(KEY) || 'null'); }
@@ -16,65 +28,54 @@
   }
 
   window.RidleyFilters = {
-    dateRange: {
-      load,
-      save,
-      clear: () => localStorage.removeItem(KEY),
-    },
+    dateRange: { load, save, clear: () => localStorage.removeItem(KEY) },
   };
 
-  function isoFmt(iso) {
-    return new Date(iso + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  // Normalize preset names so a value saved on one page works on another.
+  // We always save the canonical key (left side), and resolve to either form
+  // when restoring.
+  const PRESET_ALIASES = {
+    'last-30':   ['last-30', 'last30'],
+    'this-week': ['this-week'],
+    'last-week': ['last-week'],
+    'mtd':       ['mtd'],
+    'all':       ['all'],
+  };
+  function canonicalPreset(raw) {
+    if (!raw) return null;
+    if (raw === 'last30') return 'last-30';
+    return raw;
   }
 
-  function autoWire() {
-    if (typeof window.drApplyPreset !== 'function') return;
-
-    // Wrap drApplyPreset so every preset click saves
-    const origApply = window.drApplyPreset;
-    window.drApplyPreset = function (preset, reload) {
-      origApply(preset, reload);
-      if (!restoring) save({ preset, from: null, to: null });
-    };
-
-    // Wrap custom-range Apply button so manual ranges save too
-    const drApplyBtn = document.getElementById('drApply');
-    if (drApplyBtn) {
-      drApplyBtn.addEventListener('click', () => {
-        if (restoring) return;
-        const from = document.getElementById('dateFrom')?.value;
-        const to   = document.getElementById('dateTo')?.value;
-        if (from && to) save({ preset: null, from, to });
-      });
+  function findPresetButton(preset) {
+    const candidates = PRESET_ALIASES[preset] || [preset];
+    for (const v of candidates) {
+      const btn = document.querySelector(
+        `.dr-preset[data-preset="${v}"], .dr-preset-item[data-p="${v}"]`
+      );
+      if (btn) return btn;
     }
-
-    // Restore previously saved range, if any. Only re-apply if it differs
-    // from the page's default (this-week) so the default page load doesn't
-    // double-fetch.
-    const saved = load();
-    if (!saved) return;
-    if (saved.preset && saved.preset !== 'this-week') {
-      restoring = true;
-      origApply(saved.preset, true);
-      restoring = false;
-    } else if (!saved.preset && saved.from && saved.to) {
-      restoring = true;
-      const fromEl = document.getElementById('dateFrom');
-      const toEl   = document.getElementById('dateTo');
-      const lbl    = document.getElementById('drLabel');
-      if (fromEl && toEl && lbl) {
-        fromEl.value = saved.from;
-        toEl.value   = saved.to;
-        document.querySelectorAll('.dr-preset').forEach(b => b.classList.remove('active'));
-        lbl.textContent = `${isoFmt(saved.from)} – ${isoFmt(saved.to)}`;
-        if (typeof window.drTriggerLoad === 'function') window.drTriggerLoad();
-      }
-      restoring = false;
-    }
+    return null;
   }
+
+  // Save when user clicks a preset button anywhere. Event delegation means
+  // we don't care if the page rerenders the picker.
+  document.addEventListener('click', e => {
+    const btn = e.target.closest('.dr-preset, .dr-preset-item');
+    if (!btn) return;
+    const preset = canonicalPreset(btn.dataset.preset || btn.dataset.p);
+    if (preset) save({ preset, from: null, to: null });
+  }, true);
+
+  // Save when user picks a custom range via the Apply button.
+  document.addEventListener('click', e => {
+    if (!e.target.closest('#drApply')) return;
+    const from = document.getElementById('dateFrom')?.value;
+    const to   = document.getElementById('dateTo')?.value;
+    if (from && to) save({ preset: null, from, to });
+  }, true);
 
   // ── Per-page filter persistence ─────────────────────────────────
-  // Each saved value is namespaced as ridley:filter:<page>:<field>.
   function rememberSelect(el, key) {
     if (!el) return;
     el.addEventListener('change', () => {
@@ -83,7 +84,6 @@
     let saved = null;
     try { saved = localStorage.getItem(key); } catch (_) {}
     if (!saved) return;
-    // Options may populate asynchronously after auth — poll briefly.
     let tries = 0;
     (function tick() {
       const opt = [...el.options].find(o => o.value === saved);
@@ -98,40 +98,49 @@
     })();
   }
 
+  function restoreDateRange() {
+    const saved = load();
+    if (!saved) return;
+    if (saved.preset && saved.preset !== 'this-week') {
+      const btn = findPresetButton(saved.preset);
+      if (btn && !btn.classList.contains('active')) {
+        // Click triggers the page's existing handler. If auth has not yet
+        // completed, the handler's `if (currentSession) loadData()` check
+        // is a no-op and the eventual onAuthed runs loadData() once with
+        // the restored preset already applied.
+        btn.click();
+      }
+    } else if (!saved.preset && saved.from && saved.to) {
+      const fromEl = document.getElementById('dateFrom');
+      const toEl   = document.getElementById('dateTo');
+      const apply  = document.getElementById('drApply');
+      if (fromEl && toEl && apply) {
+        fromEl.value = saved.from;
+        toEl.value   = saved.to;
+        apply.click();
+      }
+    }
+  }
+
   function wirePageFilters() {
     const file = (window.location.pathname || '').split('/').pop() || '';
-
-    // Calls — rep selector (#repSelect)
-    if (file === 'calls.html') {
-      rememberSelect(document.getElementById('repSelect'), 'ridley:filter:calls:rep');
-    }
-
-    // Declarations — rep filter (#repFilter, only visible to admin / sales_manager)
-    if (file === 'declarations.html') {
-      rememberSelect(document.getElementById('repFilter'), 'ridley:filter:declarations:rep');
-    }
-
-    // Income — product tabs (.pill-tab[data-product])
+    if (file === 'calls.html')        rememberSelect(document.getElementById('repSelect'), 'ridley:filter:calls:rep');
+    if (file === 'declarations.html') rememberSelect(document.getElementById('repFilter'), 'ridley:filter:declarations:rep');
     if (file === 'income.html') {
-      const KEY = 'ridley:filter:income:product';
+      const KEY2 = 'ridley:filter:income:product';
       const tabsEl = document.getElementById('productTabs');
       if (tabsEl) {
-        tabsEl.addEventListener('click', (e) => {
+        tabsEl.addEventListener('click', e => {
           const btn = e.target.closest('.pill-tab');
-          if (btn?.dataset.product) {
-            try { localStorage.setItem(KEY, btn.dataset.product); } catch (_) {}
-          }
+          if (btn?.dataset.product) localStorage.setItem(KEY2, btn.dataset.product);
         });
         let saved = null;
-        try { saved = localStorage.getItem(KEY); } catch (_) {}
+        try { saved = localStorage.getItem(KEY2); } catch (_) {}
         if (saved && saved !== 'all') {
           let tries = 0;
           (function tick() {
             const btn = tabsEl.querySelector(`.pill-tab[data-product="${saved}"]`);
-            if (btn) {
-              if (!btn.classList.contains('active')) btn.click();
-              return;
-            }
+            if (btn) { if (!btn.classList.contains('active')) btn.click(); return; }
             if (tries++ < 30) setTimeout(tick, 200);
           })();
         }
@@ -139,14 +148,16 @@
     }
   }
 
-  // Run after the page's own pickers/init have set their defaults.
+  // Run as early as we can. The buttons exist after parse (they are static
+  // markup), so a small delay after DOMContentLoaded lets the page's own
+  // init click 'this-week' first; then we override only if needed.
   function init() {
-    autoWire();
+    restoreDateRange();
     wirePageFilters();
   }
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => setTimeout(init, 60));
+    document.addEventListener('DOMContentLoaded', () => setTimeout(init, 30));
   } else {
-    setTimeout(init, 60);
+    setTimeout(init, 30);
   }
 })();

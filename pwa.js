@@ -131,8 +131,8 @@
       st.id = 'pwaHintKf';
       st.textContent = `
         @keyframes pwaBounce { 0%,100% { transform: translateY(0); } 50% { transform: translateY(${top ? '-' : ''}10px); } }
-        @keyframes pwaFadeIn { from { opacity: 0; transform: translateX(-50%) scale(0.9); } to { opacity: 1; transform: translateX(-50%) scale(1); } }
-        #pwaIOSHint { animation: pwaFadeIn .25s ease-out both; }
+        @keyframes pwaFadeIn { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: scale(1); } }
+        #pwaIOSHint { animation: pwaFadeIn .25s ease-out both; transform-origin: bottom right; }
         #pwaIOSHint .pwa-arrow { animation: pwaBounce 1s ease-in-out infinite; }
       `;
       document.head.appendChild(st);
@@ -160,7 +160,7 @@
 
   // Auto-show the hint once on first iOS Safari visit so users don't even need
   // to find the Install button.
-  const HINT_KEY = 'pwa-ios-hint-shown-v2';
+  const HINT_KEY = 'pwa-ios-hint-shown-v3';
   function maybeAutoShowHint() {
     if (isStandalone) return;
     if (!isIOSSafari) return;

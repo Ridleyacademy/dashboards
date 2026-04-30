@@ -11,6 +11,12 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v67', title: 'Admin: audit-log filters + sessions + recent-activity widget',
+      adminOnly: true, items: [
+      'Activity log now filters server-side by actor email, action, date range, and free-text search. New "Clear filters" button.',
+      'New Sessions tab: every user sorted by last sign-in. Each row has a Force Logout button that invalidates their refresh tokens (they get kicked within ~1 h, sooner if their app refreshes).',
+      'Home dashboard now shows a "Recent Activity" widget with the last 10 events. View all → jumps to the full activity tab.',
+    ]},
     { version: 'v65', title: 'Fixed date picker going off-screen on laptop', items: [
       'The date picker popup was anchored to the right edge of its button — when the daterange button moved to the left of the topbar (second row), the popup extended off-screen.',
       'Now anchored left, capped at viewport width − 24px. Mobile behaviour unchanged.',

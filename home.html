@@ -456,6 +456,20 @@
       <div class="boards-grid" id="boardsGrid"></div>
     </div>
 
+    <!-- Recent activity widget (admin only) -->
+    <div class="admin-section" style="margin-top:32px;">
+      <div class="sec-label">
+        <span class="sec-label-text">Recent Activity</span>
+        <div class="sec-label-line"></div>
+        <a href="#" id="recentActivityViewAll" style="font-size:0.72rem;color:var(--text-muted);text-decoration:none;font-weight:600;margin-left:auto;">View all →</a>
+      </div>
+      <div id="recentActivityList" style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;">
+        <div class="skeleton" style="height:50px;"></div>
+        <div class="skeleton" style="height:50px;"></div>
+        <div class="skeleton" style="height:50px;"></div>
+      </div>
+    </div>
+
     <!-- Admin -->
     <div class="admin-section" id="adminSection" style="display:none;">
       <div class="sec-label">
@@ -481,6 +495,10 @@
           <button class="admin-tab" data-tab="activity">
             <svg class="admin-tab-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
             Activity
+          </button>
+          <button class="admin-tab" data-tab="sessions">
+            <svg class="admin-tab-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><path d="M8 11l4 4 4-4"/></svg>
+            Sessions
           </button>
         </div>
 
@@ -592,18 +610,38 @@
             <option value="declaration.create">Declarations · created</option>
             <option value="declaration.update">Declarations · edited</option>
             <option value="declaration.delete">Declarations · deleted</option>
+            <option value="declaration.auto_assign">Declarations · auto-assigned (batch)</option>
             <option value="declaration.auto_import">Declarations · auto-imported</option>
             <option value="user.invite">Users · invited</option>
             <option value="user.delete">Users · deleted</option>
             <option value="user.permissions_change">Users · permissions changed</option>
+            <option value="user.force_logout">Users · force-logged-out</option>
             <option value="dashboard.archive">Dashboard archived</option>
             <option value="dashboard.unarchive">Dashboard unarchived</option>
             <option value="rep_mapping.set">Rep mapping changed</option>
             <option value="rep_mapping.delete">Rep mapping deleted</option>
           </select>
-          <input id="activitySearch" class="auth-input" type="search" placeholder="Search actor / target…" style="max-width:240px;font-size:0.78rem;">
+          <input id="activityActor" class="auth-input" type="search" placeholder="Actor email contains…" style="max-width:200px;font-size:0.78rem;">
+          <input id="activityFrom" class="auth-input" type="date" style="max-width:150px;font-size:0.78rem;" title="From date">
+          <input id="activityTo"   class="auth-input" type="date" style="max-width:150px;font-size:0.78rem;" title="To date">
+          <input id="activitySearch" class="auth-input" type="search" placeholder="Search target / details…" style="max-width:200px;font-size:0.78rem;">
+          <button class="save-btn" id="activityClearBtn" style="font-size:0.7rem;">Clear filters</button>
         </div>
         <div id="activityList" style="padding:0 28px 24px;max-height:520px;overflow-y:auto;">
+          <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
+        </div>
+      </div>
+
+      <!-- Sessions pane -->
+      <div class="admin-pane" id="pane-sessions" style="padding:0;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:24px 28px 14px;">
+          <div>
+            <div style="font-size:0.78rem;font-weight:700;color:var(--text);">Sessions</div>
+            <div style="font-size:0.7rem;color:var(--text-dim);margin-top:3px;">Most recent sign-ins. <strong>Force logout</strong> invalidates a user's refresh tokens — they'll be kicked out within their access-token expiry (~1h), sooner if the page tries to refresh.</div>
+          </div>
+          <button class="save-btn" id="refreshSessionsBtn" style="font-size:0.7rem;">↻ Refresh</button>
+        </div>
+        <div id="sessionsList" style="padding:0 28px 24px;max-height:520px;overflow-y:auto;">
           <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
         </div>
       </div>
@@ -696,13 +734,31 @@ document.querySelectorAll('.admin-tab').forEach(tab => {
     if (tab.dataset.tab === 'users') loadAdminUsers();
     if (tab.dataset.tab === 'rep-map') loadRepMappings();
     if (tab.dataset.tab === 'activity') loadActivity();
+    if (tab.dataset.tab === 'sessions') loadSessions();
   });
 });
 
 document.getElementById('refreshUsersBtn').addEventListener('click', loadAdminUsers);
+// Wire "View all →" on the dashboard widget to scroll into Team
+// Management → Activity tab.
+document.getElementById('recentActivityViewAll')?.addEventListener('click', e => {
+  e.preventDefault();
+  document.querySelector('.admin-tab[data-tab="activity"]')?.click();
+  document.getElementById('adminSection')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+document.getElementById('refreshSessionsBtn')?.addEventListener('click', loadSessions);
 document.getElementById('refreshActivityBtn').addEventListener('click', loadActivity);
-document.getElementById('activityActionFilter').addEventListener('change', renderActivity);
-document.getElementById('activitySearch').addEventListener('input', renderActivity);
+document.getElementById('activityActionFilter').addEventListener('change', loadActivity);
+document.getElementById('activityActor').addEventListener('input', debouncedLoadActivity);
+document.getElementById('activityFrom').addEventListener('change', loadActivity);
+document.getElementById('activityTo').addEventListener('change', loadActivity);
+document.getElementById('activitySearch').addEventListener('input', debouncedLoadActivity);
+document.getElementById('activityClearBtn').addEventListener('click', () => {
+  ['activityActionFilter','activityActor','activityFrom','activityTo','activitySearch'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  loadActivity();
+});
 
 // ── Auth ──────────────────────────────────────────────────────
 async function initAuth() {
@@ -754,6 +810,7 @@ async function onAuthed(session) {
     // Admin gating via body class — CSS rules ensure the section can't render without it
     if (isAdmin) {
       document.body.classList.add('is-admin');
+      loadRecentActivity(); // home dashboard widget
     } else {
       document.body.classList.remove('is-admin');
     }
@@ -980,11 +1037,29 @@ function activityDescription(row) {
   return { meta, actor, target };
 }
 
+// Debounced server-side reload when filters change.
+let _activityDebounce = null;
+function debouncedLoadActivity() {
+  clearTimeout(_activityDebounce);
+  _activityDebounce = setTimeout(loadActivity, 250);
+}
+
 async function loadActivity() {
   const list = document.getElementById('activityList');
   list.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>';
   try {
-    const r = await fetch(ADMIN_API_BASE + '?api=activity&limit=200', {
+    const params = new URLSearchParams({ api: 'activity', limit: '300' });
+    const action = document.getElementById('activityActionFilter')?.value;
+    const actor  = document.getElementById('activityActor')?.value?.trim();
+    const from   = document.getElementById('activityFrom')?.value;
+    const to     = document.getElementById('activityTo')?.value;
+    const q      = document.getElementById('activitySearch')?.value?.trim();
+    if (action) params.set('action', action);
+    if (actor)  params.set('actor', actor);
+    if (from)   params.set('from', from);
+    if (to)     params.set('to', to);
+    if (q)      params.set('q', q);
+    const r = await fetch(ADMIN_API_BASE + '?' + params, {
       headers: { Authorization: 'Bearer ' + session_.access_token }
     });
     const j = await r.json();
@@ -998,14 +1073,7 @@ async function loadActivity() {
 
 function renderActivity() {
   const list = document.getElementById('activityList');
-  const actionFilter = document.getElementById('activityActionFilter').value;
-  const search = (document.getElementById('activitySearch').value || '').toLowerCase().trim();
-  let rows = activityRows;
-  if (actionFilter) rows = rows.filter(r => r.action === actionFilter);
-  if (search) rows = rows.filter(r => {
-    const blob = (r.actor_email + ' ' + (r.target_id||'') + ' ' + JSON.stringify(r.details||{})).toLowerCase();
-    return blob.includes(search);
-  });
+  const rows = activityRows; // already filtered server-side
 
   if (!rows.length) {
     list.innerHTML = `<div style="color:var(--text-dim);font-size:0.84rem;padding:24px 0;text-align:center;">No matching activity.</div>`;
@@ -1027,6 +1095,113 @@ function renderActivity() {
       </div>
     </div>`;
   }).join('');
+}
+
+// ── Sessions tab ─────────────────────────────────────────────
+async function loadSessions() {
+  const list = document.getElementById('sessionsList');
+  list.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>';
+  try {
+    const r = await fetch(ADMIN_API_BASE + '?api=sessions', {
+      headers: { Authorization: 'Bearer ' + session_.access_token }
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Failed');
+    renderSessions(j.rows || []);
+  } catch (err) {
+    list.innerHTML = `<div style="color:var(--red);font-size:0.84rem;padding:12px 0;">${err.message}</div>`;
+  }
+}
+
+function renderSessions(rows) {
+  const list = document.getElementById('sessionsList');
+  if (!rows.length) {
+    list.innerHTML = '<div style="color:var(--text-dim);font-size:0.84rem;padding:24px;text-align:center;">No users.</div>';
+    return;
+  }
+  const callerId = session_?.user?.id;
+  const now = Date.now();
+  list.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
+    <thead><tr style="border-bottom:1px solid var(--border);color:var(--text-dim);font-size:0.68rem;text-transform:uppercase;letter-spacing:0.06em;">
+      <th style="padding:10px 12px;text-align:left;">User</th>
+      <th style="padding:10px 12px;text-align:left;">Role</th>
+      <th style="padding:10px 12px;text-align:left;">Last sign-in</th>
+      <th style="padding:10px 12px;text-align:right;">Action</th>
+    </tr></thead><tbody>
+    ${rows.map(u => {
+      const isSelf = u.id === callerId;
+      const last = u.last_sign_in_at ? new Date(u.last_sign_in_at) : null;
+      const ageMin = last ? Math.round((now - last.getTime()) / 60000) : null;
+      const ageColor = ageMin === null ? 'var(--text-dim)' : ageMin < 5 ? '#34d399' : ageMin < 60 ? '#fbbf24' : 'var(--text-muted)';
+      const ageLbl = last ? formatActivityTime(u.last_sign_in_at) : 'Never';
+      const role = u.is_admin ? 'Admin' : (u.permissions?.length ? u.permissions.join(', ') : '—');
+      return `<tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:10px 12px;font-weight:600;">${u.email || u.id}${isSelf ? ' <span style="color:var(--text-dim);font-weight:500;font-size:0.7rem;">(you)</span>' : ''}</td>
+        <td style="padding:10px 12px;color:var(--text-muted);">${role}</td>
+        <td style="padding:10px 12px;color:${ageColor};">${ageLbl}${ageMin !== null && ageMin < 5 ? ' · <span style="color:#34d399;font-weight:700;">● live</span>' : ''}</td>
+        <td style="padding:10px 12px;text-align:right;">${isSelf ? '<span style="color:var(--text-dim);font-size:0.74rem;">—</span>' : `<button class="delete-btn force-logout-btn" data-id="${u.id}" data-email="${u.email||''}" style="background:rgba(251,191,36,0.10);border-color:rgba(251,191,36,0.3);color:#fbbf24;">Force logout</button>`}</td>
+      </tr>`;
+    }).join('')}
+  </tbody></table>`;
+  list.querySelectorAll('.force-logout-btn').forEach(btn => {
+    btn.addEventListener('click', () => forceLogoutUser(btn));
+  });
+}
+
+async function forceLogoutUser(btn) {
+  const userId = btn.dataset.id;
+  const email = btn.dataset.email || 'this user';
+  if (!confirm(`Force logout ${email}?\n\nTheir refresh tokens will be invalidated. They'll be kicked within their access-token expiry (~1 hour), sooner if their app tries to refresh.`)) return;
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = '⏳';
+  try {
+    const r = await fetch(ADMIN_API_BASE + '?api=force-logout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session_.access_token },
+      body: JSON.stringify({ userId }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Failed');
+    btn.textContent = '✓ Logged out';
+    btn.style.color = '#34d399';
+    btn.style.borderColor = 'rgba(52,211,153,0.5)';
+    setTimeout(() => loadSessions(), 1200);
+  } catch (err) {
+    alert('Force logout failed: ' + (err.message || err));
+    btn.disabled = false; btn.textContent = orig;
+  }
+}
+
+// ── Recent activity widget on dashboard ──────────────────────
+async function loadRecentActivity() {
+  const list = document.getElementById('recentActivityList');
+  if (!list) return;
+  try {
+    const r = await fetch(ADMIN_API_BASE + '?api=activity&limit=10', {
+      headers: { Authorization: 'Bearer ' + session_.access_token }
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Failed');
+    const rows = j.rows || [];
+    if (!rows.length) {
+      list.innerHTML = '<div style="color:var(--text-dim);font-size:0.84rem;padding:24px;text-align:center;">No activity yet.</div>';
+      return;
+    }
+    list.innerHTML = rows.map(r => {
+      const { meta, actor, target } = activityDescription(r);
+      return `<div style="display:flex;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border);align-items:center;">
+        <div style="width:28px;height:28px;flex-shrink:0;border-radius:50%;background:${meta.color}22;color:${meta.color};display:flex;align-items:center;justify-content:center;font-size:0.85rem;">${meta.icon}</div>
+        <div style="flex:1;min-width:0;font-size:0.8rem;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+          <span style="font-weight:600;">${actor}</span>
+          <span style="color:var(--text-muted);"> ${meta.label} </span>
+          <span style="font-weight:600;color:${meta.color};">${target||''}</span>
+        </div>
+        <div style="font-size:0.68rem;color:var(--text-dim);flex-shrink:0;">${formatActivityTime(r.ts)}</div>
+      </div>`;
+    }).join('');
+  } catch (err) {
+    list.innerHTML = `<div style="color:var(--red);font-size:0.84rem;padding:12px 16px;">${err.message}</div>`;
+  }
 }
 
 function formatLastLogin(iso) {

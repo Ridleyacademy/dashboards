@@ -554,6 +554,35 @@ If you regenerate the function, base it on the migration
 It enforces both the verified-declaration credit AND the new-sales-only
 filter (Rebill excluded; PP kept).
 
+## Audit log + sessions (v13 of admin-api fn)
+
+**`?api=activity` (admin only, GET)** now supports server-side filters:
+`actor` (substring match on `actor_email`), `action` (exact),
+`target` (substring of `target_type` / `target_id`), `from`/`to`
+(`YYYY-MM-DD`, applied to `ts`), `q` (free-text across actor_email +
+target + action + target_type), and `limit` (default 200, max 500).
+The home admin panel's filter inputs send these directly — don't move
+the filtering back to the client; the table can be huge.
+
+**`?api=sessions` (admin only, GET)** lists every user with
+`last_sign_in_at` (sorted desc). Returns `{ rows: [{ id, email,
+is_admin, permissions, last_sign_in_at, created_at, banned_until }] }`.
+The UI marks anyone signed in within the last 5 minutes as "● live"
+(green). 5–60 min as amber. Don't read this as a real-time presence
+signal — Supabase only updates `last_sign_in_at` on token refresh, so
+inactive sessions still look "live" until their access token expires.
+
+**`?api=force-logout` (admin only, POST `{ userId }`)** calls the
+Postgres function `public.force_logout_user(uuid)` which deletes the
+user's rows from `auth.refresh_tokens`. Honest scope: their existing
+**access token** stays valid until expiry (~1 h). They can't get a new
+one, so the app boots them within the hour, sooner if they reload.
+For an immediate kick, you'd need server-side JWT-blacklist machinery
+that doesn't exist here today.
+
+The Postgres function is `SECURITY DEFINER` and only `service_role`
+has `EXECUTE` on it. The edge function reaches it via `supa.rpc()`.
+
 ## Edge function conventions
 
 All edge functions:

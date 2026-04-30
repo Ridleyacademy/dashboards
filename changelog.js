@@ -11,6 +11,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v73', title: 'Declarations: clear message when no rep mapping', items: [
+      'A rep whose Supabase user wasn\'t linked to a rep_mappings row would see a blank Declarations dashboard with no explanation. Now shows "No rep mapping configured for your account — ask an admin to link your account in Rep Mapping" so the next time it happens it\'s obvious.',
+      'XSS-safe error rendering on the declarations table.',
+    ]},
     { version: 'v72', title: 'Bug audit fixes', adminOnly: true, items: [
       'admin-api ?api=activity now sanitizes search inputs with double-quote PostgREST escaping. A comma in the search box no longer breaks the query (or in theory injects extra filters).',
       'home admin error messages render via textContent now, so a malicious error string can never inject HTML.',

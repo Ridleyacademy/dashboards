@@ -15,13 +15,20 @@
     });
 
     // When the new SW takes over (after skipWaiting + claim), reload once to
-    // pick up fresh code & assets.
+    // pick up fresh code & assets. Defer if a "What's new" modal is up so we
+    // don't wipe it from under the user.
     let _reloading = false;
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
+    function safeReload() {
       if (_reloading) return;
+      if (window.__changelogModalOpen) {
+        // Try again every second until they close the modal
+        setTimeout(safeReload, 1000);
+        return;
+      }
       _reloading = true;
       window.location.reload();
-    });
+    }
+    navigator.serviceWorker.addEventListener('controllerchange', safeReload);
   }
 
   // Nuclear version check: bypasses SW entirely by going to the network
@@ -46,6 +53,12 @@
         return;
       }
       if (remote && remote !== local) {
+        // Defer the reload if the user is reading the "What's new" modal
+        if (window.__changelogModalOpen) {
+          console.log('[PWA] version mismatch — deferring reload, modal open');
+          setTimeout(nuclearVersionCheck, 1500);
+          return;
+        }
         console.log('[PWA] version mismatch — purging caches & reloading');
         try {
           const keys = await caches.keys();

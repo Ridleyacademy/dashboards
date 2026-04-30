@@ -7,24 +7,32 @@
   const SEEN_KEY = 'changelog-seen';
   // Newest first. Version is the major label only (without timestamp prefix);
   // the comparison uses array order, not string compare.
+  // Each entry can carry a `roles` array to restrict who sees it.
+  // Omit `roles` (or pass an empty array) to show to everyone.
+  // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
-    { version: 'v50', title: 'Income forecast + duplicate detection', items: [
-      'Income dashboard: new toggleable End-of-Month Forecast zone — predicts where the month will land based on current velocity.',
-      'Income table now flags possible duplicate sales (same email + same amount within 5 minutes).',
-      'Auto theme: theme button now cycles Light → Dark → Auto. Auto follows your OS setting.',
+    { version: 'v50a', title: 'Income forecast + duplicate detection',
+      roles: ['finance'], items: [
+      'New toggleable End-of-Month Forecast zone — predicts where the month will land based on current velocity.',
+      'Transaction log flags possible duplicate sales (same email + same amount within 5 minutes).',
+    ]},
+    { version: 'v50b', title: 'App polish', items: [
+      'Theme button now cycles Light → Dark → Auto. Auto follows your OS setting.',
       'Skeleton loaders during data fetch so the page structure is visible immediately.',
       'This "What\'s new" modal will pop up once after every release.',
     ]},
     { version: 'v48', title: 'Filter persistence', items: [
       'Date range, rep selector, and product tab now stay set when you switch dashboards.',
     ]},
-    { version: 'v46', title: 'Permissions & invites', items: [
+    { version: 'v46a', title: 'Permission system improvements', adminOnly: true, items: [
       'Permission picker is now a single multi-select dropdown.',
-      'Bulk invite mode in the admin Invite pane.',
+      'Bulk invite mode in the Invite pane.',
       'Send password reset email from each user row.',
-      '"View as" any user (admin only) to preview what they see.',
-      'Income no longer accessible to sales managers.',
-      'VSL Performance now correctly accessible to marketing + sales.',
+      '"View as" any user to preview what they see.',
+    ]},
+    { version: 'v46b', title: 'Access changes', items: [
+      'Income access now scoped to Finance only.',
+      'VSL Performance now correctly accessible to Marketing + Sales.',
     ]},
     { version: 'v40', title: 'Mobile + PWA polish', items: [
       'Pull-to-refresh inside the installed PWA.',
@@ -34,15 +42,29 @@
     ]},
   ];
 
-  function pickEntriesSince(seenVersion) {
-    if (!seenVersion) return ENTRIES.slice(0, 1); // first ever visit: show only the latest
-    const idx = ENTRIES.findIndex(e => e.version === seenVersion);
-    if (idx === -1) return ENTRIES.slice(0, 3); // unknown — show recent few
-    return ENTRIES.slice(0, idx); // everything newer than what they've seen
+  // Returns true if `entry` is relevant to the given effective user.
+  function entryAppliesTo(entry, eff) {
+    if (eff?.is_admin) return true; // admin sees everything
+    if (entry.adminOnly) return false;
+    if (!entry.roles || !entry.roles.length) return true;
+    const have = eff?.permissions || [];
+    return entry.roles.some(r => have.includes(r));
+  }
+
+  function pickEntriesSince(seenVersion, eff) {
+    let pool;
+    if (!seenVersion) pool = ENTRIES.slice(0, 4); // first visit: a few recent
+    else {
+      const idx = ENTRIES.findIndex(e => e.version === seenVersion);
+      pool = idx === -1 ? ENTRIES.slice(0, 4) : ENTRIES.slice(0, idx);
+    }
+    return pool.filter(e => entryAppliesTo(e, eff));
   }
 
   function show(entries) {
     if (document.getElementById('changelogModal')) return;
+    // Tell pwa.js to hold off on auto-reloads while this is up
+    window.__changelogModalOpen = true;
     const m = document.createElement('div');
     m.id = 'changelogModal';
     m.style.cssText = 'position:fixed;inset:0;background:rgba(8,9,18,0.78);backdrop-filter:blur(8px);z-index:10005;display:flex;align-items:center;justify-content:center;padding:20px;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;';
@@ -71,7 +93,18 @@
     m.addEventListener('click', e => { if (e.target === m) close(); });
     document.body.appendChild(m);
     document.getElementById('changelogClose').addEventListener('click', close);
-    function close() { m.remove(); }
+    function close() {
+      m.remove();
+      window.__changelogModalOpen = false;
+    }
+  }
+
+  async function getEffectiveUser() {
+    if (typeof supa === 'undefined' || !window.RidleyPerms) return null;
+    try {
+      const { data: { session } } = await supa.auth.getSession();
+      return window.RidleyPerms.effective(session?.user || null);
+    } catch (_) { return null; }
   }
 
   async function maybeShow() {
@@ -80,15 +113,26 @@
     let seen = '';
     try { seen = localStorage.getItem(SEEN_KEY) || ''; } catch (_) {}
     if (seen === latest) return;
-    const entries = pickEntriesSince(seen);
-    if (!entries.length) return;
+    // Wait for the session so we can filter entries by permission.
+    const eff = await getEffectiveUser();
+    if (!eff) return; // not signed in — skip until next visit
+    const entries = pickEntriesSince(seen, eff);
+    if (!entries.length) {
+      // Nothing relevant to this user — still mark as seen so we don't keep checking
+      try { localStorage.setItem(SEEN_KEY, latest); } catch (_) {}
+      return;
+    }
     show(entries);
     try { localStorage.setItem(SEEN_KEY, latest); } catch (_) {}
   }
 
+  // Delay enough to let pwa.js's first version-check + any service-worker
+  // takeover settle BEFORE we show the modal. Otherwise the modal would
+  // pop and then a controllerchange reload would wipe it away.
+  function start() { setTimeout(maybeShow, 4000); }
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => setTimeout(maybeShow, 800));
+    document.addEventListener('DOMContentLoaded', start);
   } else {
-    setTimeout(maybeShow, 800);
+    start();
   }
 })();

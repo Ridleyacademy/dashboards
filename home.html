@@ -9,6 +9,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dashboard Home</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="permissions.js"></script>
 <style>
   :root {
     --bg: #080a14;
@@ -1433,7 +1434,6 @@ setState('loading');
 initAuth().catch(e => { console.error('Unhandled auth error:', e); setState('login'); });
 </script>
 <script src="forgot-password.js"></script>
-<script src="permissions.js"></script>
 <script src="access-guard.js"></script>
 <script src="loading-states.js"></script>
 <script src="pwa.js"></script>

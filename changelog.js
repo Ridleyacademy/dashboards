@@ -11,6 +11,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v59', title: 'Income edit modal: pick the time, not just the date',
+      roles: ['finance', 'sales_manager'], items: [
+      'When editing or creating a transaction on the Income dashboard, the Date field is now a date+time picker.',
+      'Existing rows that only have a date keep working — they default to 00:00 in the picker.',
+    ]},
     { version: 'v58', title: 'Income edits auto-create rep declarations',
       roles: ['finance', 'sales_manager'], items: [
       'When you save a sale on the Income dashboard whose Affiliate maps to a rep, the system now auto-creates a verified declaration for that rep — but only if the rep does not already have one for that sale.',

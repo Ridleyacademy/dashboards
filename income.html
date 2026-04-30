@@ -803,8 +803,8 @@
     <input type="hidden" id="editId">
     <div class="modal-grid">
       <div class="modal-field">
-        <label class="modal-label">Date</label>
-        <input class="modal-input" type="date" id="editDate">
+        <label class="modal-label">Date &amp; Time</label>
+        <input class="modal-input" type="datetime-local" id="editDate" step="60">
       </div>
       <div class="modal-field">
         <label class="modal-label">Price ($)</label>
@@ -1830,7 +1830,27 @@ function openEditModal(row) {
 
     document.getElementById('editModalTitle').childNodes[1].textContent = isNew ? ' Add Transaction' : ' Edit Transaction';
     document.getElementById('editId').value        = row.id ?? '';
-    document.getElementById('editDate').value      = (row.Date || new Date().toISOString()).slice(0, 10);
+    // datetime-local expects "YYYY-MM-DDTHH:MM" (no seconds, no Z).
+    // Sales Log Date can come back as either "YYYY-MM-DD" (date only) or
+    // a full ISO/timestamp string. Default to current time on add.
+    (function () {
+      const raw = row.Date ? String(row.Date) : new Date().toISOString();
+      let val;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+        val = raw + 'T00:00';                    // legacy date-only row
+      } else {
+        // Format the underlying datetime in LOCAL time (since datetime-local
+        // is timezone-naïve). Use the existing date object.
+        const d = new Date(raw);
+        if (isNaN(d.getTime())) {
+          val = new Date().toISOString().slice(0, 16);
+        } else {
+          const pad = n => String(n).padStart(2, '0');
+          val = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        }
+      }
+      document.getElementById('editDate').value = val;
+    })();
     document.getElementById('editName').value      = row.Name || '';
     document.getElementById('editEmail').value     = row.Email || '';
     document.getElementById('editPrice').value     = row.Price ?? '';
@@ -1880,9 +1900,14 @@ document.getElementById('editSaveBtn').addEventListener('click', async () => {
   const errEl = document.getElementById('editErr');
   btn.disabled = true; btn.textContent = 'Saving…'; errEl.textContent = '';
 
+  // datetime-local gives "YYYY-MM-DDTHH:MM" with no seconds/zone. Postgres
+  // accepts that, but to keep timezone semantics explicit we convert to a
+  // local-time ISO with seconds (e.g. "2026-04-30T13:42:00"). Empty value -> null.
+  const __dtVal = document.getElementById('editDate').value || '';
+  const __dtIso = __dtVal ? (__dtVal.length === 16 ? __dtVal + ':00' : __dtVal) : null;
   const payload = {
     id:        editModalRow.id,
-    Date:      document.getElementById('editDate').value      || null,
+    Date:      __dtIso,
     Name:      document.getElementById('editName').value.trim() || null,
     Email:     document.getElementById('editEmail').value.trim() || null,
     Product:   document.getElementById('editProduct').value   || null,

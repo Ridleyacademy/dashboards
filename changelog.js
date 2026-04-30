@@ -11,6 +11,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v71', title: 'Audit pass: every page now has auth-flow safety nets', items: [
+      'meta-ads + performance dashboards added the same 8s safety net the others already had — boot screen never hangs forever.',
+      'declarations: invite + recovery detection extended to handle the PKCE query-string flow (was hash only).',
+      'forgot-password.js: same hash+query detection, and only shows its overlay when the page didn\'t already route to set-password — no more double prompts.',
+    ]},
     { version: 'v70', title: 'Fix: invitees were stuck spinning, no password form', items: [
       'Newer Supabase versions deliver invite links as ?code=xxx&type=invite (PKCE) instead of #access_token=...&type=invite (legacy hash). Detection only looked at the hash, so invitees never saw the set-password form.',
       'Detection now checks both hash and query, with a 12s safety net so the boot screen never hangs.',

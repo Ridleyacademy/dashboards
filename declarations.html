@@ -662,18 +662,24 @@ let sortDir        = 'desc';
 function setState(s) { document.body.dataset.state = s; }
 
 // ── Auth ──────────────────────────────────────────────────────────
-const _hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
-const isRecoveryLink = _hash.get('type') === 'recovery';
+// Detect invite/recovery from BOTH the hash (legacy implicit flow) and
+// the query string (newer PKCE flow).
+const _hashParams  = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+const _queryParams = new URLSearchParams(window.location.search);
+function _authType() { return _hashParams.get('type') || _queryParams.get('type') || ''; }
+const isInviteLink   = _authType() === 'invite' || _authType() === 'signup';
+const isRecoveryLink = _authType() === 'recovery';
 
 async function initAuth() {
-  if (isRecoveryLink) {
-    // Supabase will fire PASSWORD_RECOVERY via onAuthStateChange after processing the hash
+  if (isInviteLink || isRecoveryLink) {
     setState('setPw');
     supa.auth.onAuthStateChange((_e, sess) => {
-      // Stay on set-password screen until user submits new password
       if (document.body.dataset.state === 'setPw') return;
       if (sess) onAuthed(sess); else setState('login');
     });
+    setTimeout(() => {
+      if (document.body.dataset.state === 'loading') setState('login');
+    }, 12000);
     return;
   }
   const timeout = setTimeout(() => setState('login'), 8000);
@@ -683,7 +689,7 @@ async function initAuth() {
     if (error) throw error;
     if (session) { await onAuthed(session); return; }
     setState('login');
-  } catch(e) { clearTimeout(timeout); setState('login'); }
+  } catch(e) { clearTimeout(timeout); console.error('Auth init error:', e); setState('login'); }
   supa.auth.onAuthStateChange(async (_e, sess) => {
     if (sess) await onAuthed(sess); else setState('login');
   });

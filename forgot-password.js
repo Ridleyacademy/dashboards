@@ -142,12 +142,26 @@
     }
   });
 
-  // Detect recovery flow
-  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
-  if (hash.get('type') === 'recovery') {
-    showSetPw();
+  // Detect recovery flow from BOTH the URL hash (legacy implicit flow)
+  // and the query string (newer PKCE flow). Don't fight the page-level
+  // initAuth — only show this overlay if the page itself didn't already
+  // route the user into a set-password view (state="set-password" /
+  // "setPw"). Checked on a tiny delay to let the page's own init run first.
+  const _hash  = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+  const _query = new URLSearchParams(window.location.search);
+  const _type  = _hash.get('type') || _query.get('type') || '';
+  if (_type === 'recovery') {
+    setTimeout(() => {
+      const st = document.body.dataset.state || '';
+      // The page's own state machine handles set-password if it knows
+      // about recovery flow. Only show our overlay as a fallback.
+      if (st !== 'set-password' && st !== 'setPw') showSetPw();
+    }, 100);
     supa.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY') showSetPw();
+      if (event === 'PASSWORD_RECOVERY') {
+        const st = document.body.dataset.state || '';
+        if (st !== 'set-password' && st !== 'setPw') showSetPw();
+      }
     });
   }
 })();

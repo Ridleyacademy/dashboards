@@ -609,9 +609,21 @@ document.querySelectorAll('.funnel-tab').forEach(btn => {
 
 // ── Auth ────────────────────────────────────────────────────
 async function initAuth() {
-  const { data:{ session } } = await supa.auth.getSession();
-  if (session) { onAuthed(session); return; }
-  setState('login');
+  // 8s safety net so the boot screen never hangs forever.
+  const _safety = setTimeout(() => {
+    if (document.body.dataset.state === 'loading') setState('login');
+  }, 8000);
+  try {
+    const { data:{ session }, error } = await supa.auth.getSession();
+    clearTimeout(_safety);
+    if (error) throw error;
+    if (session) { onAuthed(session); return; }
+    setState('login');
+  } catch(e) {
+    clearTimeout(_safety);
+    console.error('Auth init error:', e);
+    setState('login');
+  }
   supa.auth.onAuthStateChange((_e, sess) => { if (sess) onAuthed(sess); else setState('login'); });
 }
 

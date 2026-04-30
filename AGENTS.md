@@ -554,6 +554,47 @@ If you regenerate the function, base it on the migration
 It enforces both the verified-declaration credit AND the new-sales-only
 filter (Rebill excluded; PP kept).
 
+## Auth flow checklist (every page that has a login form)
+
+When adding/touching auth on any dashboard page, ensure ALL of these are
+present. They prevent the "stuck on the spinner forever" class of bugs:
+
+1. **Detect invite/recovery from BOTH hash and query**:
+   ```js
+   const _hashParams  = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+   const _queryParams = new URLSearchParams(window.location.search);
+   const _type = _hashParams.get('type') || _queryParams.get('type') || '';
+   const isInviteLink   = _type === 'invite' || _type === 'signup';
+   const isRecoveryLink = _type === 'recovery';
+   ```
+   Hash-only detection misses PKCE invites (`?code=…&type=invite`).
+
+2. **8-second safety net** on the loading state, **12-second** on
+   set-password. If the state hasn't advanced past `loading`, force
+   `login`:
+   ```js
+   const _safety = setTimeout(() => {
+     if (document.body.dataset.state === 'loading') setState('login');
+   }, 8000);
+   ```
+
+3. **Try/catch around `await supa.auth.getSession()`**. Clear the safety
+   timer in both `try` and `catch`. The function can throw if the local
+   session token is malformed (rare but real).
+
+4. **Set-password form** if the page is part of the invite-redirect
+   chain. Currently `home.html` and `index.html` have one. Submit handler
+   calls `supa.auth.updateUser({ password })` then `onAuthed(session)`.
+
+5. **`onAuthStateChange` registered AFTER the safety net** — fires on
+   every refresh + the initial token exchange — so the page recovers if
+   getSession resolved to null but a session shows up later via PKCE.
+
+The invite edge function's `redirectTo` is `https://ridleyacademy.team/home`
+(NOT `/`). Going to `/` would land on `index.html` (Sales dashboard) —
+if the invitee can't open Sales, they'd hit "denied" right after
+setting their password. Home is universal.
+
 ## Invite + set-password flow (v70+)
 
 Supabase invite emails redirect to `https://ridleyacademy.team/home`

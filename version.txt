@@ -1,1 +1,1 @@
-2026-04-30T31:30:00Z-v29-install-ios-hint-toast
+2026-04-30T32:00:00Z-v30-install-animated-arrow-autoshow

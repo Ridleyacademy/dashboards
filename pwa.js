@@ -112,19 +112,59 @@
     });
   }
 
-  // Minimal hint pointing at Safari's Share button. iOS does not expose any
-  // API to trigger "Add to Home Screen" programmatically, and navigator.share
-  // only shows third-party share targets (not the AHS option). So this is as
-  // small as it gets: one-line tooltip pointing down at Safari's share button.
+  // Animated arrow pointing at Safari's Share button (bottom toolbar on
+  // iPhone, top on iPad). iOS exposes no API to trigger "Add to Home Screen"
+  // programmatically, so visual guidance is the best we can do.
+  // iPad shows the URL bar / share at the top; iPhone at the bottom.
+  function isIPad() {
+    return /iPad/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  }
+
   function showIOSHint() {
     if (document.getElementById('pwaIOSHint')) return;
+    const top = isIPad();
     const m = document.createElement('div');
     m.id = 'pwaIOSHint';
-    m.style.cssText = 'position:fixed;left:50%;bottom:64px;transform:translateX(-50%);background:#13141f;border:1px solid #1f2438;border-radius:14px;padding:12px 16px;color:#eaecf8;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;font-size:0.86rem;font-weight:600;line-height:1.35;z-index:10001;box-shadow:0 16px 40px rgba(0,0,0,0.55);max-width:88vw;text-align:center;';
-    m.innerHTML = 'Tap <svg style="vertical-align:-3px" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b9eff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg> Share, then <strong>Add to Home Screen</strong> ↓';
+    // Inject keyframes once
+    if (!document.getElementById('pwaHintKf')) {
+      const st = document.createElement('style');
+      st.id = 'pwaHintKf';
+      st.textContent = `
+        @keyframes pwaBounce { 0%,100% { transform: translateY(0); } 50% { transform: translateY(${top ? '-' : ''}10px); } }
+        @keyframes pwaFadeIn { from { opacity: 0; transform: translateX(-50%) scale(0.9); } to { opacity: 1; transform: translateX(-50%) scale(1); } }
+        #pwaIOSHint { animation: pwaFadeIn .25s ease-out both; }
+        #pwaIOSHint .pwa-arrow { animation: pwaBounce 1s ease-in-out infinite; }
+      `;
+      document.head.appendChild(st);
+    }
+    const anchor = top ? 'top:14px;' : 'bottom:14px;';
+    m.style.cssText = `position:fixed;left:50%;${anchor}transform:translateX(-50%);background:#13141f;border:1px solid #6b9eff;border-radius:16px;padding:14px 18px;color:#eaecf8;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;font-size:0.9rem;font-weight:600;line-height:1.35;z-index:10001;box-shadow:0 20px 50px rgba(0,0,0,0.6);max-width:90vw;text-align:center;display:flex;flex-direction:column;align-items:center;gap:8px;`;
+    // Arrow direction: down on iPhone (toward bottom toolbar), up on iPad (toward top toolbar)
+    const arrow = top
+      ? '<svg class="pwa-arrow" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#6b9eff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>'
+      : '<svg class="pwa-arrow" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#6b9eff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>';
+    const order = top
+      ? `<div>Tap <strong style="color:#6b9eff">Share</strong>, then <strong>Add to Home Screen</strong></div>${arrow}`
+      : `${arrow}<div>Tap <strong style="color:#6b9eff">Share</strong>, then <strong>Add to Home Screen</strong></div>`;
+    m.innerHTML = order;
     document.body.appendChild(m);
-    setTimeout(() => { m.style.transition = 'opacity .4s'; m.style.opacity = '0'; setTimeout(() => m.remove(), 400); }, 5000);
-    m.addEventListener('click', () => m.remove());
+    const dismiss = () => { m.style.transition = 'opacity .35s'; m.style.opacity = '0'; setTimeout(() => m.remove(), 350); };
+    setTimeout(dismiss, 7000);
+    m.addEventListener('click', dismiss);
+  }
+
+  // Auto-show the hint once on first iOS Safari visit so users don't even need
+  // to find the Install button.
+  const HINT_KEY = 'pwa-ios-hint-shown';
+  function maybeAutoShowHint() {
+    if (isStandalone) return;
+    if (!isIOSSafari) return;
+    if (localStorage.getItem(HINT_KEY)) return;
+    // Wait a beat so the page settles first
+    setTimeout(() => {
+      showIOSHint();
+      localStorage.setItem(HINT_KEY, '1');
+    }, 1500);
   }
 
   window.showInstallPrompt = function () {
@@ -147,9 +187,13 @@
     }
   });
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', maybeShowInstallButton);
-  } else {
+  function init() {
     maybeShowInstallButton();
+    maybeAutoShowHint();
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
   }
 })();

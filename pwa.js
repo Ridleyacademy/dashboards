@@ -93,6 +93,12 @@
     window.matchMedia?.('(display-mode: standalone)').matches ||
     window.navigator.standalone === true;
 
+  // Tag <html> so CSS can hide install UI even on iOS where the
+  // display-mode:standalone media query doesn't always match.
+  if (isStandalone) {
+    document.documentElement.classList.add('pwa-standalone');
+  }
+
   let deferredPrompt = null;
 
   // Capture Android/Desktop install prompt

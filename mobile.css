@@ -444,7 +444,13 @@ header.topbar .nav-drop-item {
 .topbar .nav-menu-link svg { flex-shrink: 0; }
 
 /* When running as an installed PWA (added to Home Screen), hide the Install
-   button and any iOS install hint — they're irrelevant inside the app. */
+   button and any iOS install hint — they're irrelevant inside the app.
+   The .pwa-standalone class is set by pwa.js (covers iOS where the
+   display-mode:standalone media query may not match). */
 @media (display-mode: standalone) {
   [data-pwa-install], #pwaIOSHint { display: none !important; }
+}
+html.pwa-standalone [data-pwa-install],
+html.pwa-standalone #pwaIOSHint {
+  display: none !important;
 }

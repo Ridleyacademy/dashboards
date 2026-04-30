@@ -442,3 +442,9 @@ header.topbar .nav-drop-item {
   transition: background 0.12s, color 0.12s !important;
 }
 .topbar .nav-menu-link svg { flex-shrink: 0; }
+
+/* When running as an installed PWA (added to Home Screen), hide the Install
+   button and any iOS install hint — they're irrelevant inside the app. */
+@media (display-mode: standalone) {
+  [data-pwa-install], #pwaIOSHint { display: none !important; }
+}

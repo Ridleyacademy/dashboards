@@ -1,11 +1,11 @@
 # Graph Report - .  (2026-04-30)
 
 ## Corpus Check
-- 10 files · ~10,757 words
+- 10 files · ~10,958 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 67 nodes · 89 edges · 10 communities detected
+- 67 nodes · 88 edges · 10 communities detected
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS
 - Token cost: 0 input · 0 output
 
@@ -26,10 +26,10 @@
 2. `effOf()` - 4 edges
 3. `effective()` - 4 edges
 4. `apply()` - 4 edges
-5. `restoreDateRange()` - 4 edges
-6. `maybeShow()` - 4 edges
-7. `canAccess()` - 3 edges
-8. `syncBtn()` - 3 edges
+5. `maybeShow()` - 4 edges
+6. `canAccess()` - 3 edges
+7. `syncBtn()` - 3 edges
+8. `restoreDateRange()` - 3 edges
 9. `wirePageFilters()` - 3 edges
 10. `init()` - 3 edges
 
@@ -47,8 +47,8 @@ Cohesion: 0.42
 Nodes (7): canAccess(), currentPageFile(), effOf(), enforce(), getArchivedIds(), isAdmin(), runWhenReady()
 
 ### Community 2 - "Community 2"
-Cohesion: 0.36
-Nodes (6): findPresetButton(), init(), load(), rememberSelect(), restoreDateRange(), wirePageFilters()
+Cohesion: 0.33
+Nodes (5): init(), load(), rememberSelect(), restoreDateRange(), wirePageFilters()
 
 ### Community 3 - "Community 3"
 Cohesion: 0.33

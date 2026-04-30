@@ -400,6 +400,41 @@ Mirror constraints in the Sales Dashboard SQL (`get_daily_stats`):
   `coalesce(trim(s."Status"), '') <> 'Rebill'`
 - `declared_extra` filters `coalesce(trim(sd.type), '') <> 'Rebill'`
 
+## Income edits auto-create rep declarations (v9 of income fn)
+
+When the Income dashboard updates or inserts a Sales Log row, the
+`income` edge function checks if the row's `Affiliate` matches a rep
+via `rep_mappings.sales_affiliates`. If so, AND no matching declaration
+exists yet for that rep+date+amount+email, it inserts a verified
+declaration on the rep's behalf:
+
+```ts
+{
+  rep_name:    <looked up from affiliate>,
+  date_closed: sale.Date.slice(0, 10),
+  email:       sale.Email,
+  sale_amount: sale.Price,
+  product:     sale.Product,
+  type:        statusToDeclType(sale.Status),  // Cash→Sale, PP→PP, Rebill→Rebill
+  sales_check: 'Yes',
+  note:        'Auto-created by system from Sales Log (verified affiliate match)',
+  user_id:     null,
+}
+```
+
+Skipped when:
+- `Status === 'Rebill'`
+- Affiliate is empty or unmapped
+- Email / Date / Price missing
+- A declaration already exists matching `(rep_name, date_closed, sale_amount, email)`
+
+Errors during the declaration insert are caught and **never fail the
+outer Sales Log update**. The income function returns
+`{ ok: true, declarationCreated, declarationReason }` so the client can
+verify what happened. The note string is the canonical marker for
+auto-created declarations — keep it stable so admins can filter the
+audit log by it.
+
 ## Sales dashboard GI attribution (read before touching get_daily_stats)
 
 The Sales Dashboard's daily GI comes from the SQL function

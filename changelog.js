@@ -11,6 +11,12 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v58', title: 'Income edits auto-create rep declarations',
+      roles: ['finance', 'sales_manager'], items: [
+      'When you save a sale on the Income dashboard whose Affiliate maps to a rep, the system now auto-creates a verified declaration for that rep — but only if the rep does not already have one for that sale.',
+      'Skipped for Rebills and for sales without an Affiliate or matching email/date/amount.',
+      'The note "Auto-created by system from Sales Log (verified affiliate match)" is set so it is distinguishable from manually-declared rows in the audit log.',
+    ]},
     { version: 'v57', title: 'Fixed Calls "no data" bug after switching dashboards', items: [
       'When you switched from one dashboard to another, Calls would show empty GI / leaderboard until you re-clicked the date preset.',
       'Caused by a race: the page would fire its first data fetch with the default range BEFORE filter restoration kicked in, then a second fetch raced against it. Sometimes the wrong response won.',

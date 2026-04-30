@@ -1,1 +1,1 @@
-2026-04-30T32:00:00Z-v30-install-animated-arrow-autoshow
+2026-04-30T32:30:00Z-v31-install-hint-bottom-right-three-dot

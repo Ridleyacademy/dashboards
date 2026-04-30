@@ -137,16 +137,21 @@
       `;
       document.head.appendChild(st);
     }
-    const anchor = top ? 'top:14px;' : 'bottom:14px;';
-    m.style.cssText = `position:fixed;left:50%;${anchor}transform:translateX(-50%);background:#13141f;border:1px solid #6b9eff;border-radius:16px;padding:14px 18px;color:#eaecf8;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;font-size:0.9rem;font-weight:600;line-height:1.35;z-index:10001;box-shadow:0 20px 50px rgba(0,0,0,0.6);max-width:90vw;text-align:center;display:flex;flex-direction:column;align-items:center;gap:8px;`;
-    // Arrow direction: down on iPhone (toward bottom toolbar), up on iPad (toward top toolbar)
-    const arrow = top
+    // iPhone: bouncing arrow anchored bottom-right pointing at the "⋯" / "AA" menu
+    //         in Safari's bottom toolbar.
+    // iPad:   anchored top-right pointing at the share/menu icon in the top bar.
+    if (top) {
+      m.style.cssText = `position:fixed;top:14px;right:14px;background:#13141f;border:1px solid #6b9eff;border-radius:16px;padding:14px 16px;color:#eaecf8;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;font-size:0.88rem;font-weight:600;line-height:1.35;z-index:10001;box-shadow:0 20px 50px rgba(0,0,0,0.6);max-width:90vw;text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:8px;`;
+    } else {
+      m.style.cssText = `position:fixed;bottom:14px;right:14px;background:#13141f;border:1px solid #6b9eff;border-radius:16px;padding:14px 16px;color:#eaecf8;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;font-size:0.88rem;font-weight:600;line-height:1.35;z-index:10001;box-shadow:0 20px 50px rgba(0,0,0,0.6);max-width:90vw;text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:8px;`;
+    }
+    // Arrow direction: down on iPhone (points at "⋯" in bottom-right toolbar),
+    // up on iPad (points at share icon in top-right).
+    const arrowSVG = top
       ? '<svg class="pwa-arrow" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#6b9eff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>'
       : '<svg class="pwa-arrow" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#6b9eff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>';
-    const order = top
-      ? `<div>Tap <strong style="color:#6b9eff">Share</strong>, then <strong>Add to Home Screen</strong></div>${arrow}`
-      : `${arrow}<div>Tap <strong style="color:#6b9eff">Share</strong>, then <strong>Add to Home Screen</strong></div>`;
-    m.innerHTML = order;
+    const text = `<div style="text-align:right">Tap <strong style="color:#6b9eff">⋯</strong> → <strong style="color:#6b9eff">Share</strong> → <strong>Add to Home Screen</strong></div>`;
+    m.innerHTML = top ? `${text}${arrowSVG}` : `${text}${arrowSVG}`;
     document.body.appendChild(m);
     const dismiss = () => { m.style.transition = 'opacity .35s'; m.style.opacity = '0'; setTimeout(() => m.remove(), 350); };
     setTimeout(dismiss, 7000);
@@ -155,7 +160,7 @@
 
   // Auto-show the hint once on first iOS Safari visit so users don't even need
   // to find the Install button.
-  const HINT_KEY = 'pwa-ios-hint-shown';
+  const HINT_KEY = 'pwa-ios-hint-shown-v2';
   function maybeAutoShowHint() {
     if (isStandalone) return;
     if (!isIOSSafari) return;

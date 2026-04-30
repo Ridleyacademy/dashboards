@@ -1,1 +1,1 @@
-2026-04-30T34:30:00Z-v35-pwa-standalone-class-ios
+2026-04-30T35:00:00Z-v36-pull-to-refresh-haptics

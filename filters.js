@@ -73,10 +73,80 @@
     }
   }
 
-  // Run after the page's own date-picker init has set the default.
+  // ── Per-page filter persistence ─────────────────────────────────
+  // Each saved value is namespaced as ridley:filter:<page>:<field>.
+  function rememberSelect(el, key) {
+    if (!el) return;
+    el.addEventListener('change', () => {
+      try { localStorage.setItem(key, el.value); } catch (_) {}
+    });
+    let saved = null;
+    try { saved = localStorage.getItem(key); } catch (_) {}
+    if (!saved) return;
+    // Options may populate asynchronously after auth — poll briefly.
+    let tries = 0;
+    (function tick() {
+      const opt = [...el.options].find(o => o.value === saved);
+      if (opt) {
+        if (el.value !== saved) {
+          el.value = saved;
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        return;
+      }
+      if (tries++ < 30) setTimeout(tick, 200);
+    })();
+  }
+
+  function wirePageFilters() {
+    const file = (window.location.pathname || '').split('/').pop() || '';
+
+    // Calls — rep selector (#repSelect)
+    if (file === 'calls.html') {
+      rememberSelect(document.getElementById('repSelect'), 'ridley:filter:calls:rep');
+    }
+
+    // Declarations — rep filter (#repFilter, only visible to admin / sales_manager)
+    if (file === 'declarations.html') {
+      rememberSelect(document.getElementById('repFilter'), 'ridley:filter:declarations:rep');
+    }
+
+    // Income — product tabs (.pill-tab[data-product])
+    if (file === 'income.html') {
+      const KEY = 'ridley:filter:income:product';
+      const tabsEl = document.getElementById('productTabs');
+      if (tabsEl) {
+        tabsEl.addEventListener('click', (e) => {
+          const btn = e.target.closest('.pill-tab');
+          if (btn?.dataset.product) {
+            try { localStorage.setItem(KEY, btn.dataset.product); } catch (_) {}
+          }
+        });
+        let saved = null;
+        try { saved = localStorage.getItem(KEY); } catch (_) {}
+        if (saved && saved !== 'all') {
+          let tries = 0;
+          (function tick() {
+            const btn = tabsEl.querySelector(`.pill-tab[data-product="${saved}"]`);
+            if (btn) {
+              if (!btn.classList.contains('active')) btn.click();
+              return;
+            }
+            if (tries++ < 30) setTimeout(tick, 200);
+          })();
+        }
+      }
+    }
+  }
+
+  // Run after the page's own pickers/init have set their defaults.
+  function init() {
+    autoWire();
+    wirePageFilters();
+  }
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => setTimeout(autoWire, 60));
+    document.addEventListener('DOMContentLoaded', () => setTimeout(init, 60));
   } else {
-    setTimeout(autoWire, 60);
+    setTimeout(init, 60);
   }
 })();

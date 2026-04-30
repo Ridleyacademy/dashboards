@@ -37,8 +37,25 @@
     return archivedIds;
   }
 
-  function permsOf(user) { return user?.app_metadata?.permissions || []; }
-  function isAdmin(user) { return user?.app_metadata?.is_admin === true; }
+  // If admin is impersonating another user, swap perms/is_admin client-side.
+  // This is UI-preview only — the JWT still belongs to the real admin, so any
+  // server-side queries continue to return admin-visible data.
+  function getImpersonation() {
+    try {
+      const raw = localStorage.getItem('impersonate-user');
+      return raw ? JSON.parse(raw) : null;
+    } catch (_) { return null; }
+  }
+  function permsOf(user) {
+    const imp = getImpersonation();
+    if (imp) return imp.permissions || [];
+    return user?.app_metadata?.permissions || [];
+  }
+  function isAdmin(user) {
+    const imp = getImpersonation();
+    if (imp) return imp.is_admin === true;
+    return user?.app_metadata?.is_admin === true;
+  }
 
   function canAccess(pageDef, user) {
     if (!user) return false;

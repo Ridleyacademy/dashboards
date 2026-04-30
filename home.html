@@ -261,6 +261,8 @@
   .save-msg { font-size: 0.7rem; min-width: 40px; text-align: center; }
   .delete-btn { background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.25); border-radius: 9px; color: #f87171; font-size: 0.72rem; font-weight: 700; padding: 6px 12px; cursor: pointer; transition: all 0.14s; white-space: nowrap; flex-shrink: 0; }
   .delete-btn:hover { background: rgba(248,113,113,0.16); border-color: rgba(248,113,113,0.5); }
+  .impersonate-btn { background: rgba(251,191,36,0.10); border: 1px solid rgba(251,191,36,0.3); border-radius: 9px; color: #fbbf24; font-size: 0.72rem; font-weight: 700; padding: 6px 12px; cursor: pointer; transition: all 0.14s; white-space: nowrap; flex-shrink: 0; }
+  .impersonate-btn:hover { background: rgba(251,191,36,0.18); border-color: rgba(251,191,36,0.55); }
   .delete-btn:disabled { opacity: 0.5; cursor: not-allowed; }
   .user-meta { font-size: 0.66rem; color: var(--text-dim); margin-top: 3px; line-height: 1.4; }
   .user-meta-stale { color: #fbbf24; }
@@ -859,6 +861,7 @@ async function loadAdminUsers() {
           </label>
         </div>
         <button class="save-btn" data-id="${u.id}">Save</button>
+        ${isSelf ? '' : `<button class="impersonate-btn" data-id="${u.id}" data-email="${u.email||''}" data-admin="${u.is_admin?1:0}" data-perms="${(u.permissions||[]).join(',')}" title="See the app as this user">View as</button>`}
         ${isSelf ? '' : `<button class="delete-btn" data-id="${u.id}" data-email="${u.email||''}">Delete</button>`}
         <span class="save-msg" id="msg-${u.id}"></span>
       </div>`;
@@ -869,6 +872,17 @@ async function loadAdminUsers() {
     });
     list.querySelectorAll('.delete-btn').forEach(btn => {
       btn.addEventListener('click', () => deleteUser(btn));
+    });
+    list.querySelectorAll('.impersonate-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const perms = btn.dataset.perms ? btn.dataset.perms.split(',').filter(Boolean) : [];
+        window.uxImpersonate({
+          id: btn.dataset.id,
+          email: btn.dataset.email,
+          is_admin: btn.dataset.admin === '1',
+          permissions: perms,
+        });
+      });
     });
 
   } catch(err) {

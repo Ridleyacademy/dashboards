@@ -400,6 +400,29 @@ Mirror constraints in the Sales Dashboard SQL (`get_daily_stats`):
   `coalesce(trim(s."Status"), '') <> 'Rebill'`
 - `declared_extra` filters `coalesce(trim(sd.type), '') <> 'Rebill'`
 
+## Sales-check Maybe rules (v12 of declarations fn)
+
+The `declarations` fn computes `sales_check` ('Yes' / 'Maybe' / 'No' /
+'Pending') for every declaration on the fly when `?api=log` is called.
+Maybe is now used for two distinct cases:
+
+1. **Near match** — email matches a Sales Log row but date or price are
+   off (within 3 days / $5). Reason format: `Closest sale: …`.
+2. **Type mismatch** — email + date + price are an EXACT match but the
+   declaration's `type` field doesn't match the Sales Log Status's
+   derived type (`Cash`/null → `Sale`, `PP` → `PP`, `Rebill` → `Rebill`).
+   Reason: `Type mismatch: declared as X but sale was Y (status=Z)`.
+
+If a declaration has no `type` set, type-mismatch detection is skipped
+(no false positives on legacy data).
+
+`buildSalesIndex` now stores Status alongside Date/Email/Price so
+`evaluate()` can do the comparison without a second query.
+
+`computeSingleCheck()` (used on insert/update so the dashboard can
+echo the new check immediately) takes an optional `declType` parameter
+and applies the same rule.
+
 ## Bulk auto-assign from Sales Log (v10 of declarations fn)
 
 Two-step preview/commit flow with three endpoints, all **admin only**:

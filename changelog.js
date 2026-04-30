@@ -11,6 +11,12 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v64', title: 'Maybe-check now flags type mismatches',
+      roles: ['rep', 'sales_manager'], items: [
+      'A declaration whose email + date + price exactly matches a Sales Log row but whose type doesn\'t (e.g. you said Rebill but the sale was PP) is now marked as Maybe instead of Yes.',
+      'The reason column shows: "Type mismatch: declared as X but sale was Y".',
+      'Edit the declaration\'s type to switch back to a clean Yes.',
+    ]},
     { version: 'v63', title: 'Auto-assign now shows already-declared sales',
       adminOnly: true, items: [
       'Bug: a $99 PP sale on the 28th wasn\'t showing because Chicca had already declared it as type=Rebill — silently skipped.',

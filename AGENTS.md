@@ -400,6 +400,26 @@ Mirror constraints in the Sales Dashboard SQL (`get_daily_stats`):
   `coalesce(trim(s."Status"), '') <> 'Rebill'`
 - `declared_extra` filters `coalesce(trim(sd.type), '') <> 'Rebill'`
 
+## Bulk auto-assign from Sales Log (v8 of declarations fn)
+
+`POST /functions/v1/declarations?api=auto-assign&from=…&to=…[&rep=…][&product=…]` —
+**admin only**. Scans `Sales Log` within the date range and creates
+verified declarations for any sale whose `Affiliate` maps to a rep but
+no matching declaration exists.
+
+- Honours optional `rep` (matched against `rep_mappings.calls_name`) and
+  `product` (exact `Sales Log.Product` match) filters.
+- Same dedup key + skip rules as the per-row auto-create in the income
+  function: rep_name + date + amount + email; rebills excluded; missing
+  email/date/price excluded; unmapped affiliates excluded.
+- Note: `'Auto-assigned by admin from Sales Log'` (different from the
+  income fn's `'Auto-created by system from Sales Log (verified
+  affiliate match)'` so admins can tell apart batch vs per-row inserts
+  in the audit log).
+- Each batch is logged via `activity_log` with action
+  `declaration.auto_assign` and full counts + 10 sample inserts.
+- The declarations dashboard's button only appears when `is_admin`.
+
 ## Income edits auto-create rep declarations (v9 of income fn)
 
 When the Income dashboard updates or inserts a Sales Log row, the

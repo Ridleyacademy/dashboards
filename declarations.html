@@ -510,7 +510,12 @@
           <option value="">All Reps</option>
         </select>
         <div class="row-count-badge" id="rowCount">—</div>
-        <button class="tbtn tbtn-primary" id="addBtn" style="margin-left:auto;">
+        <button class="tbtn tbtn-ghost" id="autoAssignBtn"
+          style="display:none;margin-left:auto;background:rgba(251,191,36,0.10);border-color:rgba(251,191,36,0.3);color:#fbbf24;"
+          title="Scan Sales Log for the selected date range and create verified declarations for any sale whose Affiliate maps to a rep but doesn't already have one">
+          ⚡ Auto-assign from Sales Log
+        </button>
+        <button class="tbtn tbtn-primary" id="addBtn">
           <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           Declare Sale
         </button>
@@ -695,6 +700,10 @@ async function onAuthed(session) {
   // rep-only users only their own.
   const eff = window.RidleyPerms.effective(session.user);
   canSeeAll = eff.is_admin || eff.permissions.includes('sales_manager');
+  // Admin-only: bulk auto-assign from Sales Log (within current date range)
+  if (eff.is_admin) {
+    document.getElementById('autoAssignBtn').style.display = '';
+  }
   if (canSeeAll) {
     document.body.classList.add('can-see-all');
     document.getElementById('repFilter').style.display = 'block';
@@ -1110,6 +1119,50 @@ document.getElementById('declTable').addEventListener('click', e => {
   if (sortCol === col) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
   else { sortCol = col; sortDir = 'asc'; }
   renderTable();
+});
+
+// Auto-assign from Sales Log (admin only). Respects current date range,
+// rep filter, and product filter — only those filters that aren't "All".
+document.getElementById('autoAssignBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('autoAssignBtn');
+  const from = document.getElementById('drFrom').value;
+  const to   = document.getElementById('drTo').value;
+  const rep  = document.getElementById('repFilter').value || '';
+  const prod = document.getElementById('productFilter').value || '';
+  if (!from || !to) { alert('Pick a date range first.'); return; }
+  const scopeBits = [`${from} → ${to}`];
+  if (rep)  scopeBits.push(`rep=${rep}`);
+  if (prod) scopeBits.push(`product=${prod}`);
+  if (!confirm(`Scan Sales Log for ${scopeBits.join(', ')} and create verified declarations for any sale whose Affiliate maps to a rep but doesn't already have one?\n\nRebills are skipped.`)) return;
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '⏳ Scanning…';
+  try {
+    const params = new URLSearchParams({ api: 'auto-assign', from, to });
+    if (rep)  params.set('rep', rep);
+    if (prod) params.set('product', prod);
+    const r = await fetch(DECL_BASE + '?' + params.toString(), {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + currentSession.access_token },
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+    const lines = [
+      `✓ Created ${j.created} declaration${j.created !== 1 ? 's' : ''}`,
+      j.skippedExisting    ? `${j.skippedExisting} already had a declaration`        : '',
+      j.skippedNoRep       ? `${j.skippedNoRep} had no rep-mapped affiliate`         : '',
+      j.skippedRebill      ? `${j.skippedRebill} were rebills (excluded)`            : '',
+      j.skippedMissing     ? `${j.skippedMissing} were missing email/date/price`     : '',
+      j.errors             ? `${j.errors} insert errors (see console)`               : '',
+    ].filter(Boolean);
+    alert(lines.join('\n'));
+    if (j.created > 0) await loadData();
+  } catch (e) {
+    alert('Auto-assign failed: ' + (e.message || e));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
+  }
 });
 
 document.getElementById('searchBox').addEventListener('input', () => renderTable());

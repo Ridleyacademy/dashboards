@@ -11,6 +11,13 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v60', title: 'Auto-assign declarations from Sales Log',
+      adminOnly: true, items: [
+      'New "⚡ Auto-assign from Sales Log" button on the Declarations dashboard (admin only).',
+      'Scans Sales Log within the current date range, rep filter, and product filter; creates verified declarations for any sale whose Affiliate maps to a rep but does not already have one.',
+      'Skips Rebills, sales without a rep-mapped affiliate, and sales missing email/date/price.',
+      'Audit log records each batch with counts and 10 sample inserts under action declaration.auto_assign.',
+    ]},
     { version: 'v59', title: 'Income edit modal: pick the time, not just the date',
       roles: ['finance', 'sales_manager'], items: [
       'When editing or creating a transaction on the Income dashboard, the Date field is now a date+time picker.',

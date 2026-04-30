@@ -177,6 +177,32 @@ caused mismatched data on Calls.
 
 Default preset is **This Week (Thu–Wed)** on every dashboard.
 
+### Init-time preset restoration (v57+)
+
+Each page's first `drApplyPreset(...)` (or `applyPreset(...)` on
+declarations) **reads `localStorage['ridley:dateRange:v2']` directly**
+to decide which preset to apply. This avoids the race where filters.js
+firing a button click after the page's `onAuthed → loadData()` could
+result in two competing fetches and the wrong response winning.
+
+If you add a new dashboard, follow this pattern at the top of the
+date-picker init:
+
+```js
+(function(){
+  var __p = 'this-week';
+  try {
+    var __s = JSON.parse(localStorage.getItem('ridley:dateRange:v2') || 'null');
+    if (__s && __s.preset && ['this-week','last-week','mtd','last-30'].indexOf(__s.preset) >= 0) __p = __s.preset;
+  } catch (_) {}
+  drApplyPreset(__p, false);
+})();
+```
+
+Don't replace the body with a single `drApplyPreset(saved, false)` —
+unknown saved values must fall back to `this-week` (e.g. `'all'` is only
+valid on declarations). Keep the whitelist.
+
 ---
 
 ## Release process (DO NOT SKIP)

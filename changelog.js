@@ -11,6 +11,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v57', title: 'Fixed Calls "no data" bug after switching dashboards', items: [
+      'When you switched from one dashboard to another, Calls would show empty GI / leaderboard until you re-clicked the date preset.',
+      'Caused by a race: the page would fire its first data fetch with the default range BEFORE filter restoration kicked in, then a second fetch raced against it. Sometimes the wrong response won.',
+      'Fix: pages now read the saved preset at init time, so there is only ever ONE data fetch with the correct range from the start.',
+    ]},
     { version: 'v56', title: 'GI now excludes Rebills only (PP still counts)',
       roles: ['sales', 'sales_manager', 'calls', 'rep'], items: [
       'Sales Dashboard GI: was silently including 831 Rebill rows. Now excludes Rebill status only — Cash, PP, and untyped sales still count.',

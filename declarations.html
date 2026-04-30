@@ -1140,7 +1140,7 @@ document.getElementById('drApply').addEventListener('click', () => {
 });
 
 // Default to this week (Thu – Wed)
-applyPreset('this-week');
+(function(){var __p='this-week';try{var __s=JSON.parse(localStorage.getItem('ridley:dateRange:v2')||'null');if(__s&&__s.preset){var __m={'last-30':'last30','this-week':'this-week','last-week':'last-week','mtd':'mtd','all':'all'};if(__m[__s.preset])__p=__m[__s.preset];}}catch(_){};applyPreset(__p);})();
 
 document.getElementById('loginForm').addEventListener('submit', async e => {
   e.preventDefault();

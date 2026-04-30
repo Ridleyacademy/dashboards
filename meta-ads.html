@@ -839,7 +839,7 @@ function drApplyPreset(preset, reload) {
   document.getElementById('daterangePopup').classList.remove('open');
   if (reload) drTriggerLoad();
 }
-drApplyPreset('this-week', false);
+(function(){var __p='this-week';try{var __s=JSON.parse(localStorage.getItem('ridley:dateRange:v2')||'null');if(__s&&__s.preset&&['this-week','last-week','mtd','last-30'].indexOf(__s.preset)>=0)__p=__s.preset;}catch(_){};drApplyPreset(__p,false);})();
 document.getElementById('daterangeBtn').addEventListener('click', e => {
   e.stopPropagation();
   document.getElementById('daterangePopup').classList.toggle('open');

@@ -101,16 +101,11 @@
   function restoreDateRange() {
     const saved = load();
     if (!saved) return;
-    if (saved.preset && saved.preset !== 'this-week') {
-      const btn = findPresetButton(saved.preset);
-      if (btn && !btn.classList.contains('active')) {
-        // Click triggers the page's existing handler. If auth has not yet
-        // completed, the handler's `if (currentSession) loadData()` check
-        // is a no-op and the eventual onAuthed runs loadData() once with
-        // the restored preset already applied.
-        btn.click();
-      }
-    } else if (!saved.preset && saved.from && saved.to) {
+    // Preset restoration is now handled by the PAGE itself reading
+    // localStorage at init time (avoids the loadData race). We only
+    // handle custom from/to ranges here, since those need the page's
+    // drApply button click to apply.
+    if (!saved.preset && saved.from && saved.to) {
       const fromEl = document.getElementById('dateFrom');
       const toEl   = document.getElementById('dateTo');
       const apply  = document.getElementById('drApply');

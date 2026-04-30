@@ -219,6 +219,9 @@
   .invite-btn { background: linear-gradient(135deg, var(--blue), #4a7de0); border: none; border-radius: 12px; padding: 13px 20px; color: #fff; font-size: 0.82rem; font-weight: 700; cursor: pointer; white-space: nowrap; transition: all 0.15s; }
   .invite-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(107,158,255,0.35); }
   .invite-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+  .invite-mode-btn { background: var(--surface2, #141728); border: 1px solid var(--border, #1f2438); border-radius: 10px; padding: 8px 16px; color: var(--text-muted, #7880a8); font-size: 0.78rem; font-weight: 700; cursor: pointer; transition: all 0.15s; }
+  .invite-mode-btn:hover { color: var(--text); border-color: var(--blue); }
+  .invite-mode-btn.active { background: var(--blue-bg, rgba(107,158,255,0.12)); color: var(--blue); border-color: var(--blue); }
   .feedback { font-size: 0.78rem; margin-top: 10px; min-height: 1.2em; }
 
   /* Users pane */
@@ -447,12 +450,21 @@
         <div class="admin-pane active" id="pane-invite">
           <div class="invite-layout">
             <p class="invite-desc">Send a secure invitation email. The recipient will receive a link to set their password and access the workspace with the permissions you choose below.</p>
-            <div class="invite-row">
+            <div style="display:flex;gap:8px;margin-bottom:12px;">
+              <button type="button" class="invite-mode-btn active" data-mode="single" id="inviteModeSingle">Single</button>
+              <button type="button" class="invite-mode-btn" data-mode="bulk" id="inviteModeBulk">Bulk</button>
+            </div>
+            <div class="invite-row" id="inviteSingleRow">
               <input class="auth-input" type="email" id="inviteEmail" placeholder="teammate@company.com" autocomplete="off">
               <button class="invite-btn" id="sendInviteBtn">Send Invite</button>
             </div>
+            <div id="inviteBulkRow" style="display:none;">
+              <textarea class="auth-input" id="inviteBulkEmails" rows="5" placeholder="one@company.com&#10;two@company.com&#10;three@company.com" style="resize:vertical;min-height:110px;font-family:inherit;"></textarea>
+              <div style="font-size:0.72rem;color:var(--text-muted);margin-top:6px;">Separate emails with new lines, commas, or spaces. All invitees share the same permissions selected below.</div>
+              <button class="invite-btn" id="sendBulkInviteBtn" style="margin-top:10px;width:100%;">Send Bulk Invites</button>
+            </div>
             <div style="margin-top:18px;">
-              <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:10px;">Permissions for this user</div>
+              <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:10px;">Permissions for these users</div>
               <div id="invitePerms" class="user-perms" style="gap:6px;"></div>
             </div>
             <div class="feedback" id="inviteFeedback"></div>
@@ -1053,6 +1065,83 @@ function renderInvitePerms() {
     </label>`;
 }
 renderInvitePerms();
+
+// Mode toggle (single vs bulk)
+document.getElementById('inviteModeSingle').addEventListener('click', () => setInviteMode('single'));
+document.getElementById('inviteModeBulk').addEventListener('click', () => setInviteMode('bulk'));
+function setInviteMode(mode) {
+  document.querySelectorAll('.invite-mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+  document.getElementById('inviteSingleRow').style.display = mode === 'single' ? '' : 'none';
+  document.getElementById('inviteBulkRow').style.display   = mode === 'bulk'   ? '' : 'none';
+  document.getElementById('inviteFeedback').textContent = '';
+}
+
+// Parse a textarea into a clean unique email list
+function parseEmailList(raw) {
+  const parts = raw.split(/[\s,;]+/).map(s => s.trim()).filter(Boolean);
+  const seen = new Set();
+  const valid = [], invalid = [];
+  for (const p of parts) {
+    const lower = p.toLowerCase();
+    if (seen.has(lower)) continue;
+    seen.add(lower);
+    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p)) valid.push(p);
+    else invalid.push(p);
+  }
+  return { valid, invalid };
+}
+
+// Bulk invite handler
+document.getElementById('sendBulkInviteBtn').addEventListener('click', async () => {
+  const raw = document.getElementById('inviteBulkEmails').value;
+  const feedback = document.getElementById('inviteFeedback');
+  const btn = document.getElementById('sendBulkInviteBtn');
+  feedback.textContent = '';
+  const { valid, invalid } = parseEmailList(raw);
+  if (valid.length === 0) {
+    feedback.style.color = 'var(--red)';
+    feedback.textContent = 'Add at least one valid email.';
+    return;
+  }
+  const permissions = [...document.querySelectorAll('.invite-perm')].filter(c=>c.checked).map(c=>c.dataset.perm);
+  const is_admin    = document.getElementById('inviteAdminCheck')?.checked === true;
+  if (!is_admin && permissions.length === 0) {
+    feedback.style.color = 'var(--red)';
+    feedback.textContent = 'Pick at least one permission (or check admin).';
+    return;
+  }
+  btn.disabled = true;
+  const ok = [], fail = [];
+  for (let i = 0; i < valid.length; i++) {
+    btn.textContent = `Sending ${i+1}/${valid.length}…`;
+    try {
+      const res = await fetch(INVITE_BASE, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session_.access_token },
+        body: JSON.stringify({ email: valid[i], permissions, is_admin }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'failed');
+      ok.push(valid[i]);
+    } catch (err) {
+      fail.push({ email: valid[i], error: err.message });
+    }
+  }
+  // Build summary
+  const lines = [];
+  if (ok.length)      lines.push(`✓ Sent to ${ok.length}: ${ok.join(', ')}`);
+  if (fail.length)    lines.push(`✗ Failed (${fail.length}): ${fail.map(f => `${f.email} (${f.error})`).join(', ')}`);
+  if (invalid.length) lines.push(`⚠ Skipped invalid: ${invalid.join(', ')}`);
+  feedback.style.color = fail.length ? 'var(--red)' : 'var(--green)';
+  feedback.innerHTML = lines.map(l => `<div>${l}</div>`).join('');
+  if (ok.length === valid.length) {
+    document.getElementById('inviteBulkEmails').value = '';
+    document.querySelectorAll('.invite-perm').forEach(c => c.checked = false);
+    if (document.getElementById('inviteAdminCheck')) document.getElementById('inviteAdminCheck').checked = false;
+  }
+  btn.disabled = false;
+  btn.textContent = 'Send Bulk Invites';
+});
 
 document.getElementById('sendInviteBtn').addEventListener('click', async () => {
   const emailVal = document.getElementById('inviteEmail').value.trim();

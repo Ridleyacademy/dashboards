@@ -246,6 +246,38 @@
   .user-email { font-size: 0.81rem; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
   .user-role { font-size: 0.68rem; color: var(--text-dim); margin-top: 2px; }
   .user-perms { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  /* ── Multi-select permission picker ─────────────────────────── */
+  .perm-select { position: relative; min-width: 180px; }
+  .perm-select-btn {
+    width: 100%; min-height: 34px;
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 9px;
+    color: var(--text); padding: 6px 10px; font-size: 0.76rem; font-weight: 600;
+    cursor: pointer; transition: border-color 0.14s, background 0.14s; text-align: left;
+  }
+  .perm-select-btn:hover { border-color: var(--border-light); }
+  .perm-select.open .perm-select-btn { border-color: var(--blue); }
+  .perm-select-summary { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-muted); }
+  .perm-select-summary.has-value { color: var(--text); }
+  .perm-select-summary.is-admin { color: var(--purple); font-weight: 700; }
+  .perm-select-caret { font-size: 0.7rem; color: var(--text-muted); transition: transform 0.14s; }
+  .perm-select.open .perm-select-caret { transform: rotate(180deg); }
+  .perm-select-menu {
+    position: absolute; top: calc(100% + 4px); left: 0; right: 0; min-width: 200px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.5); z-index: 50; padding: 6px;
+    max-height: 280px; overflow-y: auto;
+  }
+  .perm-select-opt {
+    display: flex; align-items: center; gap: 9px;
+    padding: 8px 10px; border-radius: 7px; cursor: pointer;
+    font-size: 0.78rem; color: var(--text); transition: background 0.1s;
+  }
+  .perm-select-opt:hover { background: var(--surface2); }
+  .perm-select-opt input[type="checkbox"] { width: 14px; height: 14px; cursor: pointer; accent-color: var(--blue); flex-shrink: 0; }
+  .perm-select-opt.admin-opt { color: var(--purple); font-weight: 700; }
+  .perm-select-opt.admin-opt input { accent-color: var(--purple); }
+  .perm-select-divider { height: 1px; background: var(--border); margin: 5px 4px; }
   .perm-chip {
     display: flex; align-items: center; gap: 5px; padding: 5px 10px;
     background: var(--surface3); border: 1px solid var(--border); border-radius: 8px;
@@ -853,15 +885,7 @@ async function loadAdminUsers() {
           <div class="user-meta ${lastLogin.cls}">${lastLogin.text}</div>
         </div>
         <div class="user-perms">
-          ${AVAILABLE_PERMS.map(p => `
-            <label class="perm-chip">
-              <input type="checkbox" class="perm-check" data-perm="${p}" ${(u.permissions||[]).includes(p)?'checked':''}>
-              ${p}
-            </label>`).join('')}
-          <label class="perm-chip admin-chip">
-            <input type="checkbox" class="admin-check" ${u.is_admin?'checked':''}>
-            admin
-          </label>
+          ${permSelectHTML({ checked: u.permissions || [], isAdmin: !!u.is_admin })}
         </div>
         <button class="save-btn" data-id="${u.id}">Save</button>
         ${u.email ? `<button class="reset-btn" data-id="${u.id}" data-email="${u.email}" title="Email this user a password reset link">Reset password</button>` : ''}
@@ -871,6 +895,7 @@ async function loadAdminUsers() {
       </div>`;
     }).join('');
 
+    wirePermSelects(list);
     list.querySelectorAll('.save-btn').forEach(btn => {
       btn.addEventListener('click', () => saveUser(btn));
     });
@@ -1097,18 +1122,94 @@ async function saveUser(btn) {
   }
 }
 
+// ── Permission multi-select widget ────────────────────────────
+// Renders a dropdown that holds the same checkboxes the rest of the code
+// already queries (.perm-check / .admin-check, or .invite-perm / #inviteAdminCheck
+// when prefix === 'invite'). Drop-in replacement for the old chip strip.
+function permSelectHTML({ checked = [], isAdmin = false, prefix = '' } = {}) {
+  const permClass  = prefix === 'invite' ? 'invite-perm' : 'perm-check';
+  const adminAttr  = prefix === 'invite' ? 'id="inviteAdminCheck"' : 'class="admin-check"';
+  const opts = AVAILABLE_PERMS.map(p => `
+    <label class="perm-select-opt">
+      <input type="checkbox" class="${permClass}" data-perm="${p}" ${checked.includes(p) ? 'checked' : ''}>
+      <span>${p}</span>
+    </label>`).join('');
+  return `
+    <div class="perm-select">
+      <button type="button" class="perm-select-btn">
+        <span class="perm-select-summary">No permissions</span>
+        <span class="perm-select-caret">▾</span>
+      </button>
+      <div class="perm-select-menu" hidden>
+        ${opts}
+        <div class="perm-select-divider"></div>
+        <label class="perm-select-opt admin-opt">
+          <input type="checkbox" ${adminAttr} ${isAdmin ? 'checked' : ''}>
+          <span>admin (full access)</span>
+        </label>
+      </div>
+    </div>`;
+}
+
+function updatePermSummary(rootEl) {
+  const sel = rootEl.classList.contains('perm-select') ? rootEl : rootEl.querySelector('.perm-select');
+  if (!sel) return;
+  const summary = sel.querySelector('.perm-select-summary');
+  const adminCb = sel.querySelector('.admin-check, #inviteAdminCheck');
+  const permCbs = [...sel.querySelectorAll('.perm-check, .invite-perm')];
+  const checked = permCbs.filter(c => c.checked).map(c => c.dataset.perm);
+  summary.classList.remove('has-value', 'is-admin');
+  if (adminCb && adminCb.checked) {
+    summary.textContent = 'Admin (all access)';
+    summary.classList.add('is-admin');
+  } else if (checked.length === 0) {
+    summary.textContent = 'No permissions';
+  } else if (checked.length <= 2) {
+    summary.textContent = checked.join(', ');
+    summary.classList.add('has-value');
+  } else {
+    summary.textContent = `${checked.slice(0, 2).join(', ')} +${checked.length - 2} more`;
+    summary.classList.add('has-value');
+  }
+}
+
+// Wire up open/close + summary refresh for every perm-select inside `scope`.
+function wirePermSelects(scope = document) {
+  scope.querySelectorAll('.perm-select').forEach(sel => {
+    if (sel.dataset.wired) { updatePermSummary(sel); return; }
+    sel.dataset.wired = '1';
+    const btn  = sel.querySelector('.perm-select-btn');
+    const menu = sel.querySelector('.perm-select-menu');
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const willOpen = menu.hasAttribute('hidden');
+      // Close any other open ones first
+      document.querySelectorAll('.perm-select.open').forEach(o => {
+        if (o !== sel) { o.classList.remove('open'); o.querySelector('.perm-select-menu').setAttribute('hidden',''); }
+      });
+      if (willOpen) { menu.removeAttribute('hidden'); sel.classList.add('open'); }
+      else { menu.setAttribute('hidden',''); sel.classList.remove('open'); }
+    });
+    menu.addEventListener('click', (e) => e.stopPropagation());
+    sel.addEventListener('change', () => updatePermSummary(sel));
+    updatePermSummary(sel);
+  });
+}
+// Click outside closes any open menu
+document.addEventListener('click', () => {
+  document.querySelectorAll('.perm-select.open').forEach(o => {
+    o.classList.remove('open');
+    o.querySelector('.perm-select-menu').setAttribute('hidden','');
+  });
+});
+
 // ── Invite ────────────────────────────────────────────────────
-// Render the invite permission chips
+// Render the invite permission picker (multi-select dropdown)
 function renderInvitePerms() {
   const el = document.getElementById('invitePerms');
   if (!el) return;
-  el.innerHTML = AVAILABLE_PERMS.map(p => `
-    <label class="perm-chip">
-      <input type="checkbox" class="invite-perm" data-perm="${p}">${p}
-    </label>`).join('') + `
-    <label class="perm-chip admin-chip">
-      <input type="checkbox" id="inviteAdminCheck">admin
-    </label>`;
+  el.innerHTML = permSelectHTML({ checked: [], isAdmin: false, prefix: 'invite' });
+  wirePermSelects(el);
 }
 renderInvitePerms();
 

@@ -11,6 +11,14 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v52', title: 'Filter persistence rewrite', items: [
+      'Date range now correctly restores on Declarations (was stuck on This Week before).',
+      'Switching dashboards no longer fires a second data fetch — fixes the Calls 0-calls / 600 k GI mismatch.',
+    ]},
+    { version: 'v51', title: 'Whats-new modal improvements', items: [
+      'Modal no longer disappears when the app auto-reloads — pwa.js defers reloads while the modal is open.',
+      'Entries are now filtered by your role, so you only see whats relevant to you.',
+    ]},
     { version: 'v50a', title: 'Income forecast + duplicate detection',
       roles: ['finance'], items: [
       'New toggleable End-of-Month Forecast zone — predicts where the month will land based on current velocity.',

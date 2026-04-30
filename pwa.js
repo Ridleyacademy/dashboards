@@ -112,9 +112,22 @@
     });
   }
 
-  // iOS has no programmatic install API — the closest we can do is open the
-  // native Share sheet, which contains "Add to Home Screen". User taps once.
-  window.showInstallPrompt = async function () {
+  // Minimal hint pointing at Safari's Share button. iOS does not expose any
+  // API to trigger "Add to Home Screen" programmatically, and navigator.share
+  // only shows third-party share targets (not the AHS option). So this is as
+  // small as it gets: one-line tooltip pointing down at Safari's share button.
+  function showIOSHint() {
+    if (document.getElementById('pwaIOSHint')) return;
+    const m = document.createElement('div');
+    m.id = 'pwaIOSHint';
+    m.style.cssText = 'position:fixed;left:50%;bottom:64px;transform:translateX(-50%);background:#13141f;border:1px solid #1f2438;border-radius:14px;padding:12px 16px;color:#eaecf8;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;font-size:0.86rem;font-weight:600;line-height:1.35;z-index:10001;box-shadow:0 16px 40px rgba(0,0,0,0.55);max-width:88vw;text-align:center;';
+    m.innerHTML = 'Tap <svg style="vertical-align:-3px" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b9eff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg> Share, then <strong>Add to Home Screen</strong> ↓';
+    document.body.appendChild(m);
+    setTimeout(() => { m.style.transition = 'opacity .4s'; m.style.opacity = '0'; setTimeout(() => m.remove(), 400); }, 5000);
+    m.addEventListener('click', () => m.remove());
+  }
+
+  window.showInstallPrompt = function () {
     if (isStandalone) return;
     if (deferredPrompt) {
       deferredPrompt.prompt();
@@ -124,11 +137,7 @@
       });
       return;
     }
-    if (isIOSSafari && navigator.share) {
-      try {
-        await navigator.share({ title: 'Ridleyacademy', url: window.location.origin + '/home.html' });
-      } catch (_) { /* user cancelled — fine */ }
-    }
+    if (isIOSSafari) showIOSHint();
   };
 
   document.addEventListener('click', (e) => {

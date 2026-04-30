@@ -11,6 +11,12 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v63', title: 'Auto-assign now shows already-declared sales',
+      adminOnly: true, items: [
+      'Bug: a $99 PP sale on the 28th wasn\'t showing because Chicca had already declared it as type=Rebill — silently skipped.',
+      'Fix: the modal now has a third "📋 Already declared" section listing every sale that was skipped because a declaration already exists.',
+      'Type mismatches (Sales Log status ≠ declaration type) are highlighted in amber and the section auto-expands when there are any. Edit the declaration directly to fix.',
+    ]},
     { version: 'v62', title: 'Auto-assign now opens a preview modal',
       adminOnly: true, items: [
       'Clicking ⚡ Auto-assign opens a custom modal listing every sale that would be added.',

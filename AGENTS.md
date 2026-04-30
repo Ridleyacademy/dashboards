@@ -413,9 +413,16 @@ Two-step preview/commit flow with three endpoints, all **admin only**:
     carries `existingRep` (null, or the rep that has already declared
     the same email+date+amount under another rep). The UI surfaces
     these for manual rep assignment.
+  - `alreadyDeclared: [...]` — sales whose declaration already exists
+    (under the auto-matched rep, or under wantRep if filter active).
+    Each carries `existingDeclId`, `existingRep`, `existingType`,
+    `existingCheck`, and `typeMismatch` (true when Sales Log Status's
+    derived type ≠ existing decl's type — e.g. Status='PP' but decl
+    type='Rebill'). The UI shows a collapsed read-only section, and
+    auto-expands when any mismatches exist.
   - `allReps: [...]` — full list of `rep_mappings.calls_name` for the
     manual-assign dropdown.
-  - `skippedExisting`, `skippedMissing` — counts.
+  - `skippedMissing` — count of sales skipped for missing required fields.
 - `POST /declarations?api=auto-assign-commit` body:
   `{ assignments: [{ rep_name, date, email, name, product, price, status, platform, source }] }`
   Inserts each assignment with the standard dedup check

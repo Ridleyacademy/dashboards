@@ -1157,10 +1157,12 @@ function showAutoAssignModal(preview, scope) {
   const old = document.getElementById('aaModal');
   if (old) old.remove();
 
-  const auto    = preview.autoMatched || [];
-  const unmap   = preview.unmapped    || [];
-  const allReps = preview.allReps     || [];
+  const auto    = preview.autoMatched     || [];
+  const unmap   = preview.unmapped        || [];
+  const already = preview.alreadyDeclared || [];
+  const allReps = preview.allReps         || [];
   const fmtMoney = n => '$' + Number(n || 0).toLocaleString();
+  const mismatchCount = already.filter(x => x.typeMismatch).length;
 
   const m = document.createElement('div');
   m.id = 'aaModal';
@@ -1172,8 +1174,7 @@ function showAutoAssignModal(preview, scope) {
           <div style="font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;">⚡ Auto-assign from Sales Log</div>
           <div style="font-size:0.74rem;color:#7880a8;margin-top:3px;">
             ${scope.from} → ${scope.to}${scope.rep ? ' · rep=' + scope.rep : ''}${scope.prod ? ' · product=' + scope.prod : ''}
-            ${preview.skippedExisting ? ' · ' + preview.skippedExisting + ' already declared' : ''}
-            ${preview.skippedMissing  ? ' · ' + preview.skippedMissing  + ' missing fields'   : ''}
+            ${preview.skippedMissing ? ' · ' + preview.skippedMissing + ' missing fields' : ''}
           </div>
         </div>
         <button id="aaClose" style="background:transparent;border:none;color:#7880a8;font-size:1.5rem;cursor:pointer;padding:0 8px;">×</button>
@@ -1217,6 +1218,46 @@ function showAutoAssignModal(preview, scope) {
               </table>
             </div>`}
         </div>
+
+        <!-- Already-declared section (read-only) -->
+        ${already.length > 0 ? `
+        <details style="margin-bottom:18px;" ${mismatchCount > 0 ? 'open' : ''}>
+          <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+            <span style="font-size:0.72rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:#7880a8;">
+              📋 Already declared · ${already.length}
+              ${mismatchCount > 0 ? `<span style="background:rgba(251,191,36,0.18);color:#fbbf24;padding:2px 8px;border-radius:999px;font-size:0.65rem;margin-left:6px;">⚠ ${mismatchCount} type mismatch${mismatchCount !== 1 ? 'es' : ''}</span>` : ''}
+            </span>
+            <span style="font-size:0.72rem;color:#7880a8;">Skipped — already in declarations. Click to expand.</span>
+          </summary>
+          <div style="border:1px solid #1f2438;border-radius:10px;overflow:hidden;margin-top:8px;">
+            <table style="width:100%;border-collapse:collapse;font-size:0.78rem;">
+              <thead style="background:#0f1120;color:#7880a8;font-size:0.68rem;text-transform:uppercase;letter-spacing:0.06em;">
+                <tr>
+                  <th style="padding:8px 10px;text-align:left;">Decl rep</th>
+                  <th style="padding:8px 10px;text-align:left;">Date</th>
+                  <th style="padding:8px 10px;text-align:left;">Email</th>
+                  <th style="padding:8px 10px;text-align:right;">Price</th>
+                  <th style="padding:8px 10px;text-align:left;">Sale type</th>
+                  <th style="padding:8px 10px;text-align:left;">Decl type</th>
+                  <th style="padding:8px 10px;text-align:left;">Check</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${already.map(s => `
+                  <tr style="border-top:1px solid #1f2438;${s.typeMismatch ? 'background:rgba(251,191,36,0.05);' : ''}">
+                    <td style="padding:8px 10px;font-weight:600;">${s.existingRep || '—'}</td>
+                    <td style="padding:8px 10px;color:#7880a8;">${s.date}</td>
+                    <td style="padding:8px 10px;color:#7880a8;overflow:hidden;text-overflow:ellipsis;max-width:200px;white-space:nowrap;" title="${s.email}">${s.email}</td>
+                    <td style="padding:8px 10px;text-align:right;">${fmtMoney(s.price)}</td>
+                    <td style="padding:8px 10px;color:#eaecf8;">${s.type}</td>
+                    <td style="padding:8px 10px;color:${s.typeMismatch ? '#fbbf24' : '#7880a8'};font-weight:${s.typeMismatch ? '700' : '500'};">${s.existingType || '—'}${s.typeMismatch ? ' ⚠' : ''}</td>
+                    <td style="padding:8px 10px;color:#7880a8;">${s.existingCheck || '—'}</td>
+                  </tr>`).join('')}
+              </tbody>
+            </table>
+            ${mismatchCount > 0 ? '<div style="padding:8px 12px;font-size:0.72rem;color:#7880a8;background:rgba(251,191,36,0.04);border-top:1px solid #1f2438;">⚠ Decl type doesn\'t match the Sales Log Status. Edit those declarations directly to fix.</div>' : ''}
+          </div>
+        </details>` : ''}
 
         <!-- Unmapped section -->
         <div>

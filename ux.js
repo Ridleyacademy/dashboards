@@ -148,9 +148,36 @@
   };
   window.uxClearImpersonation = clearImpersonation;
 
+  function applyImpersonationToUI(imp) {
+    // Overwrite any obvious "current user" UI bits so every page reflects the
+    // impersonated identity, not the real admin. We poll briefly because some
+    // dashboards set these values asynchronously after auth resolves.
+    const targets = ['userEmail', 'userPillEmail', 'userPill', 'currentUserEmail', 'firstName', 'userName'];
+    const initials = (imp.email[0] || 'U').toUpperCase();
+    let tries = 0;
+    const tick = () => {
+      targets.forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (id === 'firstName') {
+          const name = imp.email.split('@')[0].split(/[._]/)[0];
+          el.textContent = name.charAt(0).toUpperCase() + name.slice(1);
+        } else {
+          el.textContent = imp.email;
+        }
+      });
+      const av = document.getElementById('userAvatar');
+      if (av) av.textContent = initials;
+      tries++;
+      if (tries < 20) setTimeout(tick, 250);
+    };
+    tick();
+  }
+
   function renderImpersonationBanner() {
     const imp = getImpersonation();
     if (!imp) return;
+    applyImpersonationToUI(imp);
     if (document.getElementById('uxImpBanner')) return;
     const b = document.createElement('div');
     b.id = 'uxImpBanner';

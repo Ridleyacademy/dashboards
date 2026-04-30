@@ -681,7 +681,15 @@ async function initAuth() {
 async function onAuthed(session) {
   try {
     session_ = session;
-    const email = session.user.email || '';
+
+    // Honour impersonation: when admin is "viewing as <user>", show that
+    // user's email, name, and permissions in the UI. Real session/JWT
+    // is still used for server calls.
+    let imp = null;
+    try { imp = JSON.parse(localStorage.getItem('impersonate-user') || 'null'); } catch (_) {}
+    const email   = imp?.email   || session.user.email || '';
+    const isAdmin = imp ? !!imp.is_admin     : (session.user.app_metadata?.is_admin ?? false);
+    const perms   = imp ? (imp.permissions || []) : (session.user.app_metadata?.permissions ?? []);
 
     document.getElementById('userEmail').textContent = email;
     document.getElementById('userAvatar').textContent = (email[0] || 'U').toUpperCase();
@@ -695,9 +703,6 @@ async function onAuthed(session) {
 
     // Date
     document.getElementById('fullDate').textContent = now.toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric', year:'numeric' });
-
-    const isAdmin = session.user.app_metadata?.is_admin ?? false;
-    const perms   = session.user.app_metadata?.permissions ?? [];
 
     await loadArchiveList();
     renderBoards(isAdmin, perms);

@@ -747,13 +747,13 @@ document.getElementById('recentActivityViewAll')?.addEventListener('click', e =>
   document.getElementById('adminSection')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 document.getElementById('refreshSessionsBtn')?.addEventListener('click', loadSessions);
-document.getElementById('refreshActivityBtn').addEventListener('click', loadActivity);
-document.getElementById('activityActionFilter').addEventListener('change', loadActivity);
-document.getElementById('activityActor').addEventListener('input', debouncedLoadActivity);
-document.getElementById('activityFrom').addEventListener('change', loadActivity);
-document.getElementById('activityTo').addEventListener('change', loadActivity);
-document.getElementById('activitySearch').addEventListener('input', debouncedLoadActivity);
-document.getElementById('activityClearBtn').addEventListener('click', () => {
+document.getElementById('refreshActivityBtn')?.addEventListener('click', loadActivity);
+document.getElementById('activityActionFilter')?.addEventListener('change', loadActivity);
+document.getElementById('activityActor')?.addEventListener('input', debouncedLoadActivity);
+document.getElementById('activityFrom')?.addEventListener('change', loadActivity);
+document.getElementById('activityTo')?.addEventListener('change', loadActivity);
+document.getElementById('activitySearch')?.addEventListener('input', debouncedLoadActivity);
+document.getElementById('activityClearBtn')?.addEventListener('click', () => {
   ['activityActionFilter','activityActor','activityFrom','activityTo','activitySearch'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });

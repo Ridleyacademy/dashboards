@@ -1,11 +1,11 @@
 # Graph Report - .  (2026-04-30)
 
 ## Corpus Check
-- 10 files · ~12,602 words
+- 10 files · ~12,926 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 67 nodes · 88 edges · 10 communities detected
+- 70 nodes · 92 edges · 10 communities detected
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS
 - Token cost: 0 input · 0 output
 
@@ -39,8 +39,8 @@
 ## Communities
 
 ### Community 0 - "Community 0"
-Cohesion: 0.25
-Nodes (6): applyImpersonationToUI(), decorateKPIs(), getImpersonation(), injectTooltipStyles(), renderImpersonationBanner(), watchKPIs()
+Cohesion: 0.2
+Nodes (8): applyImpersonationToUI(), decorateKPIs(), getImpersonation(), injectTooltipStyles(), presenceTick(), renderImpersonationBanner(), startPresence(), watchKPIs()
 
 ### Community 1 - "Community 1"
 Cohesion: 0.42

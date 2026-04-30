@@ -138,6 +138,20 @@
   .kpi-grid { grid-template-columns: repeat(3, 1fr) !important; }
 }
 
+/* Date range popup on desktop/laptop — anchor to the LEFT of the
+   daterange-wrap (the button is on the left of the topbar's second row,
+   so right:0 from the per-page CSS would push the popup off-screen left
+   on smaller laptops). Clamp to viewport with max-width. */
+@media (min-width: 769px) {
+  .topbar .daterange-popup,
+  header.topbar .daterange-popup,
+  #daterangePopup {
+    left: 0 !important;
+    right: auto !important;
+    max-width: calc(100vw - 24px) !important;
+  }
+}
+
 /* Date range popup on mobile — full-width, anchored under the topbar */
 @media (max-width: 768px) {
   .topbar .daterange-popup,

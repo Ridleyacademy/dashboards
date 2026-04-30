@@ -11,6 +11,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v65', title: 'Fixed date picker going off-screen on laptop', items: [
+      'The date picker popup was anchored to the right edge of its button — when the daterange button moved to the left of the topbar (second row), the popup extended off-screen.',
+      'Now anchored left, capped at viewport width − 24px. Mobile behaviour unchanged.',
+    ]},
     { version: 'v64', title: 'Maybe-check now flags type mismatches',
       roles: ['rep', 'sales_manager'], items: [
       'A declaration whose email + date + price exactly matches a Sales Log row but whose type doesn\'t (e.g. you said Rebill but the sale was PP) is now marked as Maybe instead of Yes.',

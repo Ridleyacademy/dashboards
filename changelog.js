@@ -11,6 +11,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v61', title: 'Auto-create declarations now includes Rebills',
+      adminOnly: true, items: [
+      'Both the per-row income auto-create and the bulk auto-assign on declarations now create declarations for Rebill rows too (with type=Rebill).',
+      'GI and the Overall Revenue leaderboard still exclude Rebills server-side, so this is purely about giving admins a complete per-rep audit trail.',
+    ]},
     { version: 'v60', title: 'Auto-assign declarations from Sales Log',
       adminOnly: true, items: [
       'New "⚡ Auto-assign from Sales Log" button on the Declarations dashboard (admin only).',

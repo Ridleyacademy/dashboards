@@ -1133,7 +1133,7 @@ document.getElementById('autoAssignBtn').addEventListener('click', async () => {
   const scopeBits = [`${from} → ${to}`];
   if (rep)  scopeBits.push(`rep=${rep}`);
   if (prod) scopeBits.push(`product=${prod}`);
-  if (!confirm(`Scan Sales Log for ${scopeBits.join(', ')} and create verified declarations for any sale whose Affiliate maps to a rep but doesn't already have one?\n\nRebills are skipped.`)) return;
+  if (!confirm(`Scan Sales Log for ${scopeBits.join(', ')} and create verified declarations for any sale whose Affiliate maps to a rep but doesn't already have one?\n\nRebills are included (their declarations get type='Rebill' and are excluded from GI/leaderboard server-side).`)) return;
   const original = btn.textContent;
   btn.disabled = true;
   btn.textContent = '⏳ Scanning…';
@@ -1151,7 +1151,6 @@ document.getElementById('autoAssignBtn').addEventListener('click', async () => {
       `✓ Created ${j.created} declaration${j.created !== 1 ? 's' : ''}`,
       j.skippedExisting    ? `${j.skippedExisting} already had a declaration`        : '',
       j.skippedNoRep       ? `${j.skippedNoRep} had no rep-mapped affiliate`         : '',
-      j.skippedRebill      ? `${j.skippedRebill} were rebills (excluded)`            : '',
       j.skippedMissing     ? `${j.skippedMissing} were missing email/date/price`     : '',
       j.errors             ? `${j.errors} insert errors (see console)`               : '',
     ].filter(Boolean);

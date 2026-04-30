@@ -410,8 +410,10 @@ no matching declaration exists.
 - Honours optional `rep` (matched against `rep_mappings.calls_name`) and
   `product` (exact `Sales Log.Product` match) filters.
 - Same dedup key + skip rules as the per-row auto-create in the income
-  function: rep_name + date + amount + email; rebills excluded; missing
-  email/date/price excluded; unmapped affiliates excluded.
+  function: rep_name + date + amount + email; missing email/date/price
+  excluded; unmapped affiliates excluded. **Rebills ARE included** (v9+):
+  they get a `type='Rebill'` declaration. Safe because the calls
+  aggregation excludes `type=Rebill` from GI/leaderboard server-side.
 - Note: `'Auto-assigned by admin from Sales Log'` (different from the
   income fn's `'Auto-created by system from Sales Log (verified
   affiliate match)'` so admins can tell apart batch vs per-row inserts
@@ -443,10 +445,13 @@ declaration on the rep's behalf:
 ```
 
 Skipped when:
-- `Status === 'Rebill'`
 - Affiliate is empty or unmapped
 - Email / Date / Price missing
 - A declaration already exists matching `(rep_name, date_closed, sale_amount, email)`
+
+Rebills ARE included (v10+) — they get `type='Rebill'` declarations.
+Safe because the calls aggregation already excludes `type=Rebill` from
+GI/leaderboard.
 
 Errors during the declaration insert are caught and **never fail the
 outer Sales Log update**. The income function returns

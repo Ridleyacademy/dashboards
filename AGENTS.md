@@ -564,13 +564,29 @@ target + action + target_type), and `limit` (default 200, max 500).
 The home admin panel's filter inputs send these directly — don't move
 the filtering back to the client; the table can be huge.
 
-**`?api=sessions` (admin only, GET)** lists every user with
-`last_sign_in_at` (sorted desc). Returns `{ rows: [{ id, email,
-is_admin, permissions, last_sign_in_at, created_at, banned_until }] }`.
-The UI marks anyone signed in within the last 5 minutes as "● live"
-(green). 5–60 min as amber. Don't read this as a real-time presence
-signal — Supabase only updates `last_sign_in_at` on token refresh, so
-inactive sessions still look "live" until their access token expires.
+**`?api=sessions` (admin only, GET)** lists every user with their
+presence state. Returns `{ rows: [{ id, email, is_admin, permissions,
+last_sign_in_at, created_at, last_seen, user_agent, is_live }],
+liveCount, generated_at }`. Sorted live-first, then by most recent
+presence.
+
+**Presence is heartbeat-driven.** Every dashboard page calls
+`public.touch_user_presence()` every ~60s while visible (in `ux.js`).
+The RPC upserts the caller's row in `public.user_presence` setting
+`last_seen = now()`. The sessions endpoint joins this — `is_live` is
+true when `last_seen` is within 90s. This is a **real** signal (not a
+heuristic on `last_sign_in_at`).
+
+Tradeoffs / gotchas:
+- A user who closes the tab without signing out stops pinging; within
+  90s they drop off the live list.
+- A user with a stale tab they never open won't show as live — correct.
+- Heartbeat fires on visibility change too, so just switching back to
+  the tab updates presence immediately.
+- `force-logout` deletes the user's presence row so they drop off live
+  instantly (in addition to revoking refresh tokens).
+- The Sessions tab UI auto-refreshes every 30s while it's the active
+  admin tab.
 
 **`?api=force-logout` (admin only, POST `{ userId }`)** calls the
 Postgres function `public.force_logout_user(uuid)` which deletes the

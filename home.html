@@ -1107,38 +1107,55 @@ async function loadSessions() {
     });
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || 'Failed');
-    renderSessions(j.rows || []);
+    renderSessions(j);
   } catch (err) {
     list.innerHTML = `<div style="color:var(--red);font-size:0.84rem;padding:12px 0;">${err.message}</div>`;
   }
 }
 
-function renderSessions(rows) {
+// Auto-refresh sessions every 30s while the tab is active
+let _sessionsAutoTimer = null;
+function startSessionsAutoRefresh() {
+  if (_sessionsAutoTimer) return;
+  _sessionsAutoTimer = setInterval(() => {
+    if (document.querySelector('.admin-tab[data-tab="sessions"]')?.classList.contains('active')) {
+      loadSessions();
+    }
+  }, 30000);
+}
+startSessionsAutoRefresh();
+
+function renderSessions(payload) {
   const list = document.getElementById('sessionsList');
+  const rows = payload?.rows || [];
+  const liveCount = payload?.liveCount ?? 0;
   if (!rows.length) {
     list.innerHTML = '<div style="color:var(--text-dim);font-size:0.84rem;padding:24px;text-align:center;">No users.</div>';
     return;
   }
   const callerId = session_?.user?.id;
   const now = Date.now();
-  list.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
+  const liveBanner = `<div style="padding:10px 14px;background:rgba(52,211,153,0.06);border-bottom:1px solid var(--border);font-size:0.78rem;color:var(--text-muted);"><span style="color:#34d399;font-weight:700;">● ${liveCount}</span> ${liveCount === 1 ? 'user is' : 'users are'} live right now ${liveCount > 0 ? '<span style="color:var(--text-dim);">— pinged in the last 90s</span>' : ''}</div>`;
+  list.innerHTML = liveBanner + `<table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
     <thead><tr style="border-bottom:1px solid var(--border);color:var(--text-dim);font-size:0.68rem;text-transform:uppercase;letter-spacing:0.06em;">
       <th style="padding:10px 12px;text-align:left;">User</th>
       <th style="padding:10px 12px;text-align:left;">Role</th>
+      <th style="padding:10px 12px;text-align:left;">Last seen</th>
       <th style="padding:10px 12px;text-align:left;">Last sign-in</th>
       <th style="padding:10px 12px;text-align:right;">Action</th>
     </tr></thead><tbody>
     ${rows.map(u => {
       const isSelf = u.id === callerId;
-      const last = u.last_sign_in_at ? new Date(u.last_sign_in_at) : null;
-      const ageMin = last ? Math.round((now - last.getTime()) / 60000) : null;
-      const ageColor = ageMin === null ? 'var(--text-dim)' : ageMin < 5 ? '#34d399' : ageMin < 60 ? '#fbbf24' : 'var(--text-muted)';
-      const ageLbl = last ? formatActivityTime(u.last_sign_in_at) : 'Never';
       const role = u.is_admin ? 'Admin' : (u.permissions?.length ? u.permissions.join(', ') : '—');
-      return `<tr style="border-bottom:1px solid var(--border);">
+      const lastSeenMs = u.last_seen ? Date.parse(u.last_seen) : 0;
+      const lastSeenLbl = lastSeenMs ? formatActivityTime(u.last_seen) : '<span style="color:var(--text-dim);">—</span>';
+      const liveDot = u.is_live ? '<span style="color:#34d399;font-weight:700;">● live</span>' : '';
+      const lastSignLbl = u.last_sign_in_at ? formatActivityTime(u.last_sign_in_at) : 'Never';
+      return `<tr style="border-bottom:1px solid var(--border);${u.is_live ? 'background:rgba(52,211,153,0.04);' : ''}">
         <td style="padding:10px 12px;font-weight:600;">${u.email || u.id}${isSelf ? ' <span style="color:var(--text-dim);font-weight:500;font-size:0.7rem;">(you)</span>' : ''}</td>
         <td style="padding:10px 12px;color:var(--text-muted);">${role}</td>
-        <td style="padding:10px 12px;color:${ageColor};">${ageLbl}${ageMin !== null && ageMin < 5 ? ' · <span style="color:#34d399;font-weight:700;">● live</span>' : ''}</td>
+        <td style="padding:10px 12px;">${liveDot ? liveDot + ' · ' : ''}${lastSeenLbl}</td>
+        <td style="padding:10px 12px;color:var(--text-muted);">${lastSignLbl}</td>
         <td style="padding:10px 12px;text-align:right;">${isSelf ? '<span style="color:var(--text-dim);font-size:0.74rem;">—</span>' : `<button class="delete-btn force-logout-btn" data-id="${u.id}" data-email="${u.email||''}" style="background:rgba(251,191,36,0.10);border-color:rgba(251,191,36,0.3);color:#fbbf24;">Force logout</button>`}</td>
       </tr>`;
     }).join('')}

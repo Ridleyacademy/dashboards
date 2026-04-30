@@ -191,11 +191,42 @@
     document.getElementById('uxImpExit').addEventListener('click', clearImpersonation);
   }
 
+  // ── Presence heartbeat ───────────────────────────────────────────
+  // Pings public.touch_user_presence() every 60s while the tab is
+  // visible, so the admin Sessions tab can show a truthful "● live"
+  // signal (vs the unreliable last_sign_in_at, which only updates on
+  // token refresh).
+  let _presenceTimer = null;
+  async function presenceTick() {
+    try {
+      if (typeof supa === 'undefined') return;
+      const { data: { session } } = await supa.auth.getSession();
+      if (!session) return;
+      await supa.rpc('touch_user_presence', { p_user_agent: navigator.userAgent || null });
+    } catch (_) { /* non-fatal */ }
+  }
+  function startPresence() {
+    if (_presenceTimer) return;
+    presenceTick();
+    _presenceTimer = setInterval(() => {
+      // Only ping while the document is visible.
+      if (document.visibilityState === 'visible') presenceTick();
+    }, 60000);
+  }
+  function stopPresence() {
+    if (_presenceTimer) { clearInterval(_presenceTimer); _presenceTimer = null; }
+  }
+  // Fire on load and whenever the tab becomes visible (post-bg).
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') presenceTick();
+  });
+
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => { watchKPIs(); renderImpersonationBanner(); });
+    document.addEventListener('DOMContentLoaded', () => { watchKPIs(); renderImpersonationBanner(); startPresence(); });
   } else {
     watchKPIs();
     renderImpersonationBanner();
+    startPresence();
   }
 
   // ---------- Haptics ----------

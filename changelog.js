@@ -11,6 +11,13 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v68', title: 'Sessions tab now shows who\'s actually live',
+      adminOnly: true, items: [
+      'Each open dashboard sends a heartbeat every 60s. Sessions tab marks anyone whose last heartbeat is < 90s as ● live.',
+      'Banner at the top of the tab counts how many users are live right now.',
+      'Tab auto-refreshes every 30s while open.',
+      'Force-logout also clears the user\'s presence so they immediately stop showing as live.',
+    ]},
     { version: 'v67', title: 'Admin: audit-log filters + sessions + recent-activity widget',
       adminOnly: true, items: [
       'Activity log now filters server-side by actor email, action, date range, and free-text search. New "Clear filters" button.',

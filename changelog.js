@@ -11,6 +11,12 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v56', title: 'GI now excludes Rebills only (PP still counts)',
+      roles: ['sales', 'sales_manager', 'calls', 'rep'], items: [
+      'Sales Dashboard GI: was silently including 831 Rebill rows. Now excludes Rebill status only — Cash, PP, and untyped sales still count.',
+      'Calls leaderboard / Overall Revenue: same rule (was already excluding Rebill, kept PP). Verified declarations of type Rebill are now also excluded.',
+      'Payment Plan installments are kept as new sales by your decision.',
+    ]},
     { version: 'v55', title: 'Sales dashboard GI now credits verified declarations',
       roles: ['sales', 'sales_manager'], items: [
       'Daily Gross Income on the Sales Dashboard now includes verified declared sales whose buyer email was not in VSL leads (e.g. direct buyers).',

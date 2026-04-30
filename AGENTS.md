@@ -356,6 +356,24 @@ If you change the dedup key or the date filter for declarations, audit
 both paths together — they have to use the same key shape and the same
 date semantics or you'll get double-counts or gaps.
 
+### "New sales only" rule (v15+)
+
+GI and the Overall Revenue leaderboard count **new sales only**:
+
+- **Sales Log Status**: exclude `'Rebill'`. **Keep** `'Cash'`, `'PP'`, and
+  null/empty (treated as new sales). This is in `EXCLUDED_SALE_STATUSES`.
+- **Declaration `type`**: exclude `'Rebill'`. Keep `'Sale'` and `'PP'`.
+  This is in `EXCLUDED_DECL_TYPES`.
+
+The user's decision: **PP installments count as new sales** for the GI /
+leaderboard. Don't second-guess this — it was a deliberate call. If
+they later want PP excluded, just add `'PP'` to both Sets.
+
+Mirror constraints in the Sales Dashboard SQL (`get_daily_stats`):
+- `lead_sales` and `lead_first_close` filter
+  `coalesce(trim(s."Status"), '') <> 'Rebill'`
+- `declared_extra` filters `coalesce(trim(sd.type), '') <> 'Rebill'`
+
 ## Sales dashboard GI attribution (read before touching get_daily_stats)
 
 The Sales Dashboard's daily GI comes from the SQL function
@@ -393,8 +411,9 @@ Important constraints to preserve in any future change:
   output. Don't revert to `from per_day_agg`.
 
 If you regenerate the function, base it on the migration
-`get_daily_stats_v2_credit_verified_declarations` — that's the canonical
-form.
+`get_daily_stats_v3_exclude_rebills_only` — that's the canonical form.
+It enforces both the verified-declaration credit AND the new-sales-only
+filter (Rebill excluded; PP kept).
 
 ## Edge function conventions
 

@@ -150,7 +150,8 @@
     const arrowSVG = top
       ? '<svg class="pwa-arrow" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#6b9eff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>'
       : '<svg class="pwa-arrow" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#6b9eff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>';
-    const text = `<div style="text-align:right">Tap <strong style="color:#6b9eff">⋯</strong> → <strong style="color:#6b9eff">Share</strong> → <strong>Add to Home Screen</strong></div>`;
+    const shareIcon = '<svg style="vertical-align:-3px;margin-left:2px" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6b9eff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>';
+    const text = `<div style="text-align:right">Tap <strong style="color:#6b9eff">⋯</strong> → <strong style="color:#6b9eff">Share</strong>${shareIcon} → scroll down → <strong>Add to Home Screen</strong></div>`;
     m.innerHTML = top ? `${text}${arrowSVG}` : `${text}${arrowSVG}`;
     document.body.appendChild(m);
     const dismiss = () => { m.style.transition = 'opacity .35s'; m.style.opacity = '0'; setTimeout(() => m.remove(), 350); };
@@ -160,7 +161,7 @@
 
   // Auto-show the hint once on first iOS Safari visit so users don't even need
   // to find the Install button.
-  const HINT_KEY = 'pwa-ios-hint-shown-v3';
+  const HINT_KEY = 'pwa-ios-hint-shown-v4';
   function maybeAutoShowHint() {
     if (isStandalone) return;
     if (!isIOSSafari) return;

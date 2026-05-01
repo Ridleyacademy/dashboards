@@ -11,6 +11,14 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v98', title: 'Mentorship: My-students filter, Coach overview, duplicates',
+      roles: ['mentorship', 'sales_manager', 'coach'], items: [
+      'New filter chips above the student list: All / Mine / Stale (>30d) / Duplicates. Each chip shows a live count.',
+      '"Mine" filters to students whose Coach field matches your first name or email. Coach-only users land here by default.',
+      '"Stale" surfaces onboarded students with no assignment received in the last 30 days (so coaches see who needs attention).',
+      'Duplicate detection: students with the same email or name are auto-flagged with a ⎘ dup badge on the row.',
+      '📊 Overview button — swap the profile pane for a coach overview table: name, status, level, module, coach status, days-since-last-assignment, last Zoom, alerts. Sorted stalest first. Click any row to jump back to the profile.',
+    ]},
     { version: 'v97', title: 'Mentorship: new Coach section on each student',
       roles: ['mentorship', 'sales_manager', 'coach'], items: [
       'New Coach section in the student profile with 9 fields the coach updates: Level, Masterclass level, Current module, Coach status (All good / Needs attention), Last assignment sent, Last assignment received, Last Zoom, Concern, Goal.',

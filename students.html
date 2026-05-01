@@ -136,6 +136,49 @@
     overflow: hidden; display: flex; flex-direction: column; max-height: 80vh;
   }
   .student-list-head { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+  .student-list-filterbar {
+    display: flex; gap: 6px; flex-wrap: wrap; padding: 10px 14px 0; border-bottom: 0;
+  }
+  .list-filter-chip {
+    background: var(--surface2); border: 1px solid var(--border); color: var(--text-muted);
+    border-radius: 999px; padding: 4px 10px; font-size: 0.7rem; font-weight: 700; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 5px; user-select: none;
+    transition: border-color 0.12s, color 0.12s;
+  }
+  .list-filter-chip:hover { color: var(--text); border-color: var(--border-light); }
+  .list-filter-chip.active { background: rgba(52,211,153,0.15); border-color: #34d399; color: #34d399; }
+  .list-filter-chip .chip-count {
+    background: rgba(120,128,168,0.18); color: var(--text-dim);
+    border-radius: 999px; padding: 0 6px; font-size: 0.62rem; font-weight: 800;
+  }
+  .list-filter-chip.active .chip-count { background: rgba(52,211,153,0.3); color: #0b0c14; }
+
+  /* Overview pane (replaces profile when toggled on) */
+  .overview-pane {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px;
+    display: flex; flex-direction: column; min-height: 0; overflow: hidden;
+  }
+  .overview-head {
+    display: flex; align-items: center; gap: 10px; padding-bottom: 14px; border-bottom: 1px solid var(--border); margin-bottom: 12px;
+  }
+  .overview-title { font-size: 1.05rem; font-weight: 800; letter-spacing: -0.02em; flex: 1; }
+  .overview-table-wrap { overflow: auto; flex: 1; }
+  table.overview-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  table.overview-table th {
+    text-align: left; padding: 8px 10px; font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--text-dim); background: var(--surface2); position: sticky; top: 0; border-bottom: 1px solid var(--border);
+  }
+  table.overview-table td { padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  table.overview-table tr.row-clickable { cursor: pointer; }
+  table.overview-table tr.row-clickable:hover { background: var(--surface2); }
+  .ov-pill { font-size: 0.68rem; padding: 1px 8px; border-radius: 999px; font-weight: 700; }
+  .ov-recency-fresh { background: rgba(52,211,153,0.18); color: #34d399; }
+  .ov-recency-warn  { background: rgba(251,191,36,0.18); color: #fbbf24; }
+  .ov-recency-stale { background: rgba(248,113,113,0.18); color: #f87171; }
+  .ov-recency-none  { background: rgba(120,128,168,0.18); color: var(--text-dim); }
   .student-list-search {
     flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 9px;
     padding: 8px 12px; font-size: 0.84rem; color: var(--text); outline: none;
@@ -404,6 +447,13 @@
     <div class="crm-layout">
       <!-- List -->
       <div class="student-list-card">
+        <div class="student-list-filterbar" id="listFilterBar">
+          <button class="list-filter-chip active" data-filter="all">All <span class="chip-count" id="cnt-all">0</span></button>
+          <button class="list-filter-chip" data-filter="mine" id="chip-mine">Mine <span class="chip-count" id="cnt-mine">0</span></button>
+          <button class="list-filter-chip" data-filter="stale">Stale <span class="chip-count" id="cnt-stale">0</span></button>
+          <button class="list-filter-chip" data-filter="duplicates">Duplicates <span class="chip-count" id="cnt-duplicates">0</span></button>
+          <button class="list-filter-chip" id="overviewToggleBtn" style="margin-left:auto;" title="Coach overview — table view">📊 Overview</button>
+        </div>
         <div class="student-list-head">
           <input class="student-list-search" id="studentSearch" type="search" placeholder="Search name, email, mentor…">
           <button class="student-list-add" id="addStudentBtn">+ New</button>
@@ -480,6 +530,16 @@ async function onAuthed(session) {
     setState('denied'); return;
   }
   setState('dashboard');
+  // For coach-only users (no admin / mentorship / sales_manager), default the
+  // sidebar filter to "Mine" so they land on their own students.
+  const am = session.user.app_metadata || {};
+  const isAdmin = am.is_admin === true;
+  const ps = Array.isArray(am.permissions) ? am.permissions : [];
+  const isCoachOnly = !isAdmin && ps.includes('coach') && !ps.includes('mentorship') && !ps.includes('sales_manager');
+  if (isCoachOnly) {
+    listFilter = 'mine';
+    document.querySelectorAll('#listFilterBar [data-filter]').forEach(b => b.classList.toggle('active', b.dataset.filter === 'mine'));
+  }
   loadMentors();
   loadCoaches();
   await loadStudents();
@@ -551,9 +611,72 @@ async function loadCoaches() {
   } catch (_) { /* non-fatal */ }
 }
 
+// ── Filter state ─────────────────────────────────────────────
+let listFilter   = 'all';            // 'all' | 'mine' | 'stale' | 'duplicates'
+let overviewMode = false;
+const STALE_DAYS = 30;
+
+function _myCoachIdentities() {
+  const fn = (currentSession?.user?.user_metadata?.first_name || '').toLowerCase().trim();
+  const em = (currentSession?.user?.email || '').toLowerCase().trim();
+  const out = new Set();
+  if (fn) out.add(fn);
+  if (em) out.add(em);
+  return out;
+}
+function _isMine(s, mineSet) {
+  const c = (s.coach || '').toLowerCase().trim();
+  if (!c) return false;
+  return mineSet.has(c);
+}
+function _staleDaysSince(s) {
+  // Returns ∞ if no last_assignment_received; else days since then.
+  if (!s.last_assignment_received) return Infinity;
+  const d = new Date(String(s.last_assignment_received).slice(0, 10) + 'T00:00:00Z').getTime();
+  if (!Number.isFinite(d)) return Infinity;
+  return Math.floor((Date.now() - d) / 86400000);
+}
+function _isStale(s) {
+  // "Stale" = student is onboarded (lifecycle has started) but no recent
+  // assignment received. New + not-onboarded students are NOT stale.
+  if (!s.student_onboarded_date) return false;
+  if (s.derived_status === 'Expired' || s.derived_status === 'Paused') return false;
+  return _staleDaysSince(s) > STALE_DAYS;
+}
+function _computeDuplicateIds(allStudents) {
+  const byEmail = new Map();
+  const byName  = new Map();
+  for (const s of allStudents) {
+    const e = (s.email || '').toLowerCase().trim();
+    const n = (s.name  || '').toLowerCase().trim();
+    if (e) { if (!byEmail.has(e)) byEmail.set(e, []); byEmail.get(e).push(s.id); }
+    if (n) { if (!byName.has(n))  byName.set(n,  []); byName.get(n).push(s.id);  }
+  }
+  const dups = new Set();
+  for (const ids of byEmail.values()) if (ids.length > 1) ids.forEach(id => dups.add(id));
+  for (const ids of byName.values())  if (ids.length > 1) ids.forEach(id => dups.add(id));
+  return dups;
+}
+let _dupCache = new Set();
+
+function _updateChipCounts() {
+  const mineSet = _myCoachIdentities();
+  document.getElementById('cnt-all').textContent        = String(students.length);
+  document.getElementById('cnt-mine').textContent       = String(students.filter(s => _isMine(s, mineSet)).length);
+  document.getElementById('cnt-stale').textContent      = String(students.filter(_isStale).length);
+  document.getElementById('cnt-duplicates').textContent = String(_dupCache.size);
+}
+
 function renderStudentList() {
   const list = document.getElementById('studentList');
   const q = (document.getElementById('studentSearch').value || '').toLowerCase().trim();
+  // Recompute duplicate set whenever students change.
+  _dupCache = _computeDuplicateIds(students);
+  _updateChipCounts();
+
+  // If overview mode is on, render the table instead of the list.
+  if (overviewMode) renderOverviewPane();
+
   let rows = students;
   // Date range filter on joined_at. "All Time" sentinel range is wide
   // enough to include every realistic joined_at value, AND students with
@@ -567,6 +690,12 @@ function renderStudentList() {
       return d >= drFrom && d <= drTo;
     });
   }
+  // Apply chip filter.
+  const mineSet = _myCoachIdentities();
+  if (listFilter === 'mine')       rows = rows.filter(s => _isMine(s, mineSet));
+  else if (listFilter === 'stale') rows = rows.filter(_isStale);
+  else if (listFilter === 'duplicates') rows = rows.filter(s => _dupCache.has(s.id));
+
   if (q) rows = rows.filter(s =>
     (s.name || '').toLowerCase().includes(q) ||
     (s.email || '').toLowerCase().includes(q) ||
@@ -603,6 +732,7 @@ function renderStudentList() {
     if (s.verified)        tinyBadges.push('<span class="badge ver" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;">✓</span>');
     if (s.open_alerts_count) tinyBadges.push(`<span class="badge exp" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;" title="${s.open_alerts_count} unresolved alert${s.open_alerts_count !== 1 ? 's' : ''}">⚠ ${s.open_alerts_count}</span>`);
     if (s.derived_status === 'Paused') tinyBadges.push('<span class="badge win" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;" title="Paused">⏸</span>');
+    if (_dupCache.has(s.id)) tinyBadges.push('<span class="badge exp" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;background:rgba(167,139,250,0.18);color:#a78bfa;" title="Possible duplicate of another student (same email or name)">⎘ dup</span>');
     if (tinyBadges.length) nameEl.insertAdjacentHTML('beforeend', tinyBadges.join(''));
     const metaParts = [];
     // Use computed status (Active/Expired/etc.) instead of free-text status
@@ -625,6 +755,124 @@ function renderStudentList() {
 document.getElementById('studentSearch').addEventListener('input', renderStudentList);
 document.getElementById('refreshBtn').addEventListener('click', loadStudents);
 document.getElementById('addStudentBtn').addEventListener('click', () => openStudent(null));
+
+// Filter chips
+document.querySelectorAll('#listFilterBar [data-filter]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    listFilter = btn.dataset.filter;
+    document.querySelectorAll('#listFilterBar [data-filter]').forEach(b => b.classList.toggle('active', b.dataset.filter === listFilter));
+    renderStudentList();
+  });
+});
+
+// Overview toggle
+document.getElementById('overviewToggleBtn').addEventListener('click', () => {
+  overviewMode = !overviewMode;
+  document.getElementById('overviewToggleBtn').classList.toggle('active', overviewMode);
+  if (overviewMode) renderOverviewPane();
+  else {
+    // Restore the regular profile pane (re-render whatever is selected).
+    if (currentStudent && currentStudent.id) renderProfile();
+    else {
+      const card = document.getElementById('profileCard');
+      card.className = 'profile-card';
+      card.id = 'profileCard';
+      card.innerHTML = `<div class="profile-empty"><div class="profile-empty-icon">👈</div><div>Pick a student from the list, or click <strong>+ New</strong> to add one.</div></div>`;
+    }
+  }
+});
+
+function renderOverviewPane() {
+  const card = document.getElementById('profileCard');
+  // Build same filtered set as the sidebar list (search + chip + date range).
+  const q = (document.getElementById('studentSearch').value || '').toLowerCase().trim();
+  let rows = students.slice();
+  const wideRange = drFrom === '0001-01-01' && drTo === '9999-12-31';
+  if (!wideRange) rows = rows.filter(s => !s.joined_at || (String(s.joined_at).slice(0,10) >= drFrom && String(s.joined_at).slice(0,10) <= drTo));
+  const mineSet = _myCoachIdentities();
+  if (listFilter === 'mine')            rows = rows.filter(s => _isMine(s, mineSet));
+  else if (listFilter === 'stale')      rows = rows.filter(_isStale);
+  else if (listFilter === 'duplicates') rows = rows.filter(s => _dupCache.has(s.id));
+  if (q) rows = rows.filter(s =>
+    (s.name||'').toLowerCase().includes(q) || (s.email||'').toLowerCase().includes(q) ||
+    (s.coach||'').toLowerCase().includes(q) || (s.product||'').toLowerCase().includes(q));
+
+  // Sort: stalest first (most days since last assignment), then by name.
+  rows.sort((a, b) => {
+    const da = _staleDaysSince(a), db = _staleDaysSince(b);
+    if (da !== db) return db - da;
+    return (a.name || '').localeCompare(b.name || '');
+  });
+
+  // Recency pill helper
+  const recencyHtml = (s) => {
+    const d = _staleDaysSince(s);
+    if (d === Infinity) return '<span class="ov-pill ov-recency-none">—</span>';
+    if (d <= 7)   return `<span class="ov-pill ov-recency-fresh">${d}d ago</span>`;
+    if (d <= 30)  return `<span class="ov-pill ov-recency-warn">${d}d ago</span>`;
+    return                `<span class="ov-pill ov-recency-stale">${d}d ago</span>`;
+  };
+
+  const filterLabel = ({all:'All students',mine:'My students',stale:`Stale (>${STALE_DAYS}d)`,duplicates:'Duplicates'})[listFilter];
+
+  card.className = 'overview-pane';
+  card.innerHTML = `
+    <div class="overview-head">
+      <div>
+        <div class="overview-title">📊 Coach overview</div>
+        <div style="font-size:0.74rem;color:var(--text-muted);margin-top:2px;">${filterLabel} — ${rows.length} student${rows.length !== 1 ? 's' : ''} · sorted by stalest first</div>
+      </div>
+    </div>
+    <div class="overview-table-wrap">
+      ${rows.length === 0 ? '<div style="padding:32px;text-align:center;color:var(--text-muted);font-size:0.86rem;">No students match the current filters.</div>' : `
+      <table class="overview-table">
+        <thead><tr>
+          <th>Name</th>
+          <th>Status</th>
+          <th>Coach</th>
+          <th>Level</th>
+          <th>Module</th>
+          <th>Coach status</th>
+          <th>Last assignment</th>
+          <th>Last Zoom</th>
+          <th>Alerts</th>
+        </tr></thead>
+        <tbody id="ovBody"></tbody>
+      </table>`}
+    </div>`;
+
+  if (rows.length === 0) return;
+  const body = document.getElementById('ovBody');
+  for (const s of rows) {
+    const tr = document.createElement('tr');
+    tr.className = 'row-clickable';
+    tr.dataset.id = s.id;
+    tr.innerHTML = `
+      <td><span class="ov-name"></span>${_dupCache.has(s.id) ? ' <span class="badge exp" style="font-size:0.55rem;padding:1px 6px;background:rgba(167,139,250,0.18);color:#a78bfa;" title="Possible duplicate">⎘</span>' : ''}</td>
+      <td><span class="status-dot status-derived-${(s.derived_status||'Notonboarded').replace(/\s/g,'')}"></span> <span class="ov-status"></span></td>
+      <td><span class="ov-coach"></span></td>
+      <td><span class="ov-level"></span></td>
+      <td><span class="ov-module"></span></td>
+      <td><span class="ov-coachstatus"></span></td>
+      <td>${recencyHtml(s)}</td>
+      <td><span class="ov-zoom"></span></td>
+      <td>${s.open_alerts_count ? `<span class="ov-pill ov-recency-stale">⚠ ${s.open_alerts_count}</span>` : ''}</td>`;
+    tr.querySelector('.ov-name').textContent        = s.name || '(unnamed)';
+    tr.querySelector('.ov-status').textContent      = s.derived_status || s.status || '';
+    tr.querySelector('.ov-coach').textContent       = s.coach || '—';
+    tr.querySelector('.ov-level').textContent       = s.level || '—';
+    tr.querySelector('.ov-module').textContent      = s.current_module || '—';
+    tr.querySelector('.ov-coachstatus').textContent = s.coach_status || '—';
+    tr.querySelector('.ov-zoom').textContent        = s.last_zoom_date ? String(s.last_zoom_date).slice(0,10) : '—';
+    tr.addEventListener('click', () => {
+      // Switch back to profile view and open the student.
+      overviewMode = false;
+      document.getElementById('overviewToggleBtn').classList.remove('active');
+      openStudent(s.id);
+    });
+    body.appendChild(tr);
+  }
+}
 
 // ── Date picker (filters by joined_at) ────────────────────────
 function isoDate(d) { return d.toISOString().slice(0, 10); }
@@ -1235,6 +1483,8 @@ async function deleteResign(id) {
 
 function renderProfile() {
   const card = document.getElementById('profileCard');
+  // Reset class in case we were just in overview mode.
+  card.className = 'profile-card';
   if (!currentStudent) {
     card.innerHTML = '<div class="profile-empty">Pick a student from the list to see their profile.</div>';
     return;

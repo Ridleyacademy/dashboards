@@ -11,6 +11,13 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v80', title: 'Mentorship: pauses + automatic expiring/expired',
+      roles: ['mentorship', 'sales_manager'], items: [
+      'Expired / Expiring soon is now computed automatically from student onboarded date + months count + total paused days. The manual checkbox is gone.',
+      'Pauses are a list now. Each profile has its own Pauses table — click + Add pause to record one. Leave the End date blank for ongoing pauses; the lifecycle calculator freezes time while a pause is active.',
+      'Header badges show: ● Active / ⚠ Expiring soon (Xd left) / ⚠ Expired (Xd ago) / ⏸ Paused. Plus the computed end date and total paused days.',
+      'Sidebar list shows the same derived status + days left at a glance.',
+    ]},
     { version: 'v79', title: 'Mentorship CRM matches the Routing Form',
       roles: ['mentorship', 'sales_manager'], items: [
       'Profile now mirrors every column from the Super Mentorship Routing Form sheet — REG, 1st & last purchase dates, months count, welcome call/zoom/survey/video, coach + circle + onboarded date, pause start/end/notes, end date + 9-month survey, winning student + winning data, turnover + REG assigned + resign date, Kat\'s notes, last activity, expired flag, verified flag.',

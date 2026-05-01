@@ -503,18 +503,26 @@ function renderStudentList() {
     // Use textContent for user-supplied data
     const nameEl = div.querySelector('.student-row-name');
     nameEl.textContent = s.name || '(unnamed)';
-    // Inline mini-badges next to name
+    // Inline mini-badges next to name. Derived lifecycle wins over manual flags.
     const tinyBadges = [];
     if (s.winning_student) tinyBadges.push('<span class="badge win" style="font-size:0.55rem;padding:1px 6px;margin-left:6px;vertical-align:middle;">★</span>');
     if (s.verified)        tinyBadges.push('<span class="badge ver" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;">✓</span>');
-    if (s.expired)         tinyBadges.push('<span class="badge exp" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;">⚠</span>');
+    if (s.derived_status === 'Expired')       tinyBadges.push('<span class="badge exp" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;" title="Expired">⚠</span>');
+    else if (s.derived_status === 'Expiring soon') tinyBadges.push('<span class="badge win" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;" title="Expiring soon">⚠</span>');
+    else if (s.derived_status === 'Paused')   tinyBadges.push('<span class="badge win" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;" title="Paused">⏸</span>');
     if (tinyBadges.length) nameEl.insertAdjacentHTML('beforeend', tinyBadges.join(''));
     const metaParts = [];
-    if (s.status)                  metaParts.push(s.status);
+    // Use computed status (Active/Expired/etc.) instead of free-text status
+    if (s.derived_status)          metaParts.push(s.derived_status);
+    else if (s.status)             metaParts.push(s.status);
     const coach = s.coach || s.mentor;
     if (coach)                     metaParts.push('· ' + coach);
-    if (s.months_count != null)    metaParts.push('· ' + s.months_count + 'mo');
-    if (!coach && s.email)         metaParts.push('· ' + s.email);
+    if (s.days_left != null && s.derived_status !== 'Not onboarded') {
+      const dl = s.days_left;
+      metaParts.push('· ' + (dl >= 0 ? `${dl}d left` : `${Math.abs(dl)}d ago`));
+    } else if (s.months_count != null) {
+      metaParts.push('· ' + s.months_count + 'mo');
+    }
     div.querySelector('.meta-text').textContent = metaParts.join(' ');
     div.addEventListener('click', () => openStudent(s.id));
     list.appendChild(div);
@@ -594,9 +602,11 @@ document.getElementById('drApply').addEventListener('click', () => {
 });
 
 // ── Profile ────────────────────────────────────────────────────
+let currentPauses = []; // pauses for the currently-selected student
 async function openStudent(id) {
   if (id === null) {
     currentStudent = { id: null, name: '', status: 'Active', metadata: {} };
+    currentPauses = [];
     renderProfile();
     renderStudentList();
     return;
@@ -608,6 +618,7 @@ async function openStudent(id) {
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || 'Failed');
     currentStudent = j.row || null;
+    currentPauses = Array.isArray(j.pauses) ? j.pauses : [];
     renderProfile();
     renderStudentList();
   } catch (e) {
@@ -647,13 +658,10 @@ const SECTIONS = [
     { k: 'student_onboarded_date', label: 'Student onboarded date',      type: 'date' },
     { k: 'notes',                  label: 'Coaching notes',              type: 'textarea', full: true },
   ]],
-  ['Pause', [
-    { k: 'pause_start',  label: 'Start pause', type: 'date' },
-    { k: 'pause_end',    label: 'End pause',   type: 'date' },
-    { k: 'pause_notes',  label: 'Pause notes', type: 'textarea', full: true },
-  ]],
+  // Pauses get their own custom widget (multiple rows). Section title still
+  // appears via SECTION_RENDERERS below.
   ['Lifecycle', [
-    { k: 'end_date',                 label: 'End date',           type: 'date' },
+    { k: 'end_date',                 label: 'Manual end date (override)', type: 'date' },
     { k: 'survey_9month_submitted',  label: '9-month survey submitted', type: 'checkbox' },
     { k: 'winning_student',          label: 'Winning student',    type: 'checkbox' },
     { k: 'winning_data',             label: 'Winning data',       type: 'textarea', full: true },
@@ -666,7 +674,6 @@ const SECTIONS = [
   ['Admin', [
     { k: 'kat_notes',          label: "Kat's notes",         type: 'textarea', full: true },
     { k: 'last_activity_date', label: 'Last activity date',  type: 'date' },
-    { k: 'expired',            label: 'Expired or expiring soon', type: 'checkbox' },
     { k: 'verified',           label: 'Verified',            type: 'checkbox' },
   ]],
 ];
@@ -699,6 +706,136 @@ function _buildField(field, value) {
   </div>`;
 }
 
+function _buildPausesPanel() {
+  const sorted = [...currentPauses].sort((a, b) =>
+    String(b.start_date || '').localeCompare(String(a.start_date || '')));
+  const rows = sorted.map(p => {
+    const isActive = !p.end_date;
+    const days = isActive
+      ? '∞ ongoing'
+      : (() => {
+          const ms = Date.parse(p.end_date) - Date.parse(p.start_date);
+          const d = Math.max(0, Math.round(ms / 86400000));
+          return d + 'd';
+        })();
+    return `<tr data-pause-id="${p.id}" ${isActive ? 'style="background:rgba(251,191,36,0.06);"' : ''}>
+      <td style="padding:6px 8px;"><input type="date" class="field-input pause-start" value="${p.start_date || ''}" data-pid="${p.id}"></td>
+      <td style="padding:6px 8px;"><input type="date" class="field-input pause-end"   value="${p.end_date   || ''}" data-pid="${p.id}" placeholder="ongoing"></td>
+      <td style="padding:6px 8px;"><input type="text" class="field-input pause-notes" value="" data-pid="${p.id}" placeholder="Notes"></td>
+      <td style="padding:6px 8px;color:#7880a8;font-size:0.78rem;white-space:nowrap;">${days}${isActive ? ' <span style="color:#fbbf24;font-weight:700;">⏸ active</span>' : ''}</td>
+      <td style="padding:6px 8px;text-align:right;"><button class="profile-delete pause-del" data-pid="${p.id}" style="padding:4px 10px;font-size:0.72rem;">✕</button></td>
+    </tr>`;
+  }).join('');
+  return `
+    <div class="profile-section">
+      <div class="profile-section-head">
+        <div class="profile-section-title">Pauses</div>
+        <div class="profile-section-line"></div>
+        <button class="profile-save" id="addPauseBtn" style="padding:6px 14px;font-size:0.78rem;">+ Add pause</button>
+      </div>
+      ${currentPauses.length === 0
+        ? '<div style="padding:12px;color:var(--text-muted);font-size:0.84rem;background:var(--surface2);border-radius:10px;">No pauses yet. The student\'s lifecycle is computed straight from their onboarded date + months count.</div>'
+        : `<div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+            <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
+              <thead style="background:var(--surface2);color:var(--text-dim);font-size:0.66rem;text-transform:uppercase;letter-spacing:0.06em;">
+                <tr>
+                  <th style="padding:8px;text-align:left;">Start</th>
+                  <th style="padding:8px;text-align:left;">End <span style="color:var(--text-dim);text-transform:none;font-weight:400;">(blank = ongoing)</span></th>
+                  <th style="padding:8px;text-align:left;">Notes</th>
+                  <th style="padding:8px;text-align:left;">Length</th>
+                  <th style="padding:8px;text-align:right;">&nbsp;</th>
+                </tr>
+              </thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>`}
+    </div>`;
+}
+
+function _wirePauses() {
+  // Populate notes (kept out of innerHTML for safety)
+  for (const p of currentPauses) {
+    const el = document.querySelector(`.pause-notes[data-pid="${p.id}"]`);
+    if (el) el.value = p.notes || '';
+  }
+  // Save on change/blur
+  ['pause-start', 'pause-end', 'pause-notes'].forEach(cls => {
+    document.querySelectorAll('.' + cls).forEach(el => {
+      el.addEventListener('change', () => savePauseField(el));
+    });
+  });
+  document.querySelectorAll('.pause-del').forEach(btn => {
+    btn.addEventListener('click', () => deletePause(Number(btn.dataset.pid)));
+  });
+  const addBtn = document.getElementById('addPauseBtn');
+  if (addBtn) addBtn.addEventListener('click', addPause);
+}
+
+async function savePauseField(el) {
+  const id = Number(el.dataset.pid);
+  const fieldKey = el.classList.contains('pause-start') ? 'start_date'
+                  : el.classList.contains('pause-end')  ? 'end_date'
+                  : 'notes';
+  const body = { id };
+  body[fieldKey] = el.value || null;
+  if (fieldKey === 'start_date' && !body[fieldKey]) {
+    alert('A pause needs a start date.');
+    // Reload to revert
+    const sid = currentStudent?.id; if (sid) await openStudent(sid);
+    return;
+  }
+  try {
+    const r = await fetch(STUDENTS_BASE + '?api=update-pause', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
+      body: JSON.stringify(body),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Failed');
+    // Reload so derived lifecycle refreshes
+    if (currentStudent?.id) {
+      await openStudent(currentStudent.id);
+      await loadStudents();
+    }
+  } catch (e) { alert('Pause save failed: ' + (e.message || e)); }
+}
+
+async function addPause() {
+  if (!currentStudent || !currentStudent.id) {
+    alert('Save the student first, then add pauses.');
+    return;
+  }
+  const start = prompt('Pause start date (YYYY-MM-DD)?\nLeave end blank in the form afterwards if the pause is ongoing.');
+  if (!start) return;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(start)) { alert('Use YYYY-MM-DD format.'); return; }
+  try {
+    const r = await fetch(STUDENTS_BASE + '?api=add-pause', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
+      body: JSON.stringify({ studentId: currentStudent.id, start_date: start }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Failed');
+    await openStudent(currentStudent.id);
+    await loadStudents();
+  } catch (e) { alert('Add pause failed: ' + (e.message || e)); }
+}
+
+async function deletePause(id) {
+  if (!confirm('Delete this pause?')) return;
+  try {
+    const r = await fetch(STUDENTS_BASE + '?api=delete-pause', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
+      body: JSON.stringify({ id }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Failed');
+    await openStudent(currentStudent.id);
+    await loadStudents();
+  } catch (e) { alert('Delete pause failed: ' + (e.message || e)); }
+}
+
 function renderProfile() {
   const card = document.getElementById('profileCard');
   if (!currentStudent) {
@@ -709,24 +846,43 @@ function renderProfile() {
   const isNew = !s.id;
   const initials = (s.name || '?').split(/\s+/).map(p => p[0] || '').join('').slice(0, 2).toUpperCase() || '?';
 
-  // Build sections
-  const sectionsHtml = SECTIONS.map(([title, fields]) => `
-    <div class="profile-section">
-      <div class="profile-section-head">
-        <div class="profile-section-title">${title}</div>
-        <div class="profile-section-line"></div>
-      </div>
-      <div class="profile-grid">
-        ${fields.map(f => _buildField(f, s[f.k])).join('')}
-      </div>
-    </div>
-  `).join('');
+  // Build sections (with the Pauses panel slipping in between Coaching
+  // and Lifecycle so the lifecycle date can reference it).
+  const sectionsHtml = SECTIONS.map(([title, fields]) => {
+    const grid = `
+      <div class="profile-section">
+        <div class="profile-section-head">
+          <div class="profile-section-title">${title}</div>
+          <div class="profile-section-line"></div>
+        </div>
+        <div class="profile-grid">
+          ${fields.map(f => _buildField(f, s[f.k])).join('')}
+        </div>
+      </div>`;
+    if (title === 'Coaching') {
+      return grid + (isNew ? '' : _buildPausesPanel());
+    }
+    return grid;
+  }).join('');
 
-  // Status badges in header
+  // Status badges in header — computed lifecycle is the source of truth.
   const badges = [];
+  const ds = s.derived_status || 'Not onboarded';
+  const dsClass = ds === 'Active' ? 'ver' : ds === 'Expiring soon' ? 'win' : ds === 'Expired' ? 'exp' : ds === 'Paused' ? 'win' : 'exp';
+  const dsLabel = ds === 'Active' ? '● Active'
+    : ds === 'Expiring soon' ? `⚠ Expiring soon (${s.days_left}d left)`
+    : ds === 'Expired'       ? `⚠ Expired (${Math.abs(s.days_left || 0)}d ago)`
+    : ds === 'Paused'        ? '⏸ Paused'
+    : 'Not onboarded';
+  badges.push(`<span class="badge ${dsClass}">${dsLabel}</span>`);
+  if (s.effective_end_date) {
+    badges.push(`<span class="badge ver" style="background:rgba(120,128,168,0.18);color:#7880a8;">Ends ${s.effective_end_date}</span>`);
+  }
+  if (s.paused_days_total) {
+    badges.push(`<span class="badge ver" style="background:rgba(120,128,168,0.18);color:#7880a8;">${s.paused_days_total}d paused total</span>`);
+  }
   if (s.winning_student)  badges.push('<span class="badge win">★ Winning</span>');
   if (s.verified)         badges.push('<span class="badge ver">✓ Verified</span>');
-  if (s.expired)          badges.push('<span class="badge exp">⚠ Expiring</span>');
 
   card.innerHTML = `
     <div class="profile-head">
@@ -813,6 +969,7 @@ function renderProfile() {
 
   document.getElementById('prof-save').addEventListener('click', saveStudent);
   if (!isNew) document.getElementById('prof-delete').addEventListener('click', deleteStudent);
+  if (!isNew) _wirePauses();
 }
 
 async function saveStudent() {

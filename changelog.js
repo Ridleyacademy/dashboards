@@ -11,6 +11,12 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v88', title: 'Mentorship: turnover log replaces "Turnover to REG"',
+      roles: ['mentorship', 'sales_manager'], items: [
+      'Removed the "Turnover to REG" section and the standalone Coaching notes textbox (use 📝 Notes instead).',
+      'New 🔄 Turnover button at the top of each profile. Pick a rep (autocompletes from the mentors list, or type a new name) + add a note + optional date.',
+      'Each turnover is logged with who recorded it and when. Existing reg_assigned values were migrated to turnover entries on first deploy.',
+    ]},
     { version: 'v87', title: 'Mentorship: collapsible sections + coach notes',
       roles: ['mentorship', 'sales_manager'], items: [
       'Every section in a student profile is now collapsible — click the section header to fold it. Open/closed state is remembered per-browser.',

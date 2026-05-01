@@ -11,6 +11,12 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v87', title: 'Mentorship: collapsible sections + coach notes',
+      roles: ['mentorship', 'sales_manager'], items: [
+      'Every section in a student profile is now collapsible — click the section header to fold it. Open/closed state is remembered per-browser.',
+      'New 📝 Notes button at the top of each profile (next to 🔔 Alerts and 🏆 Wins). Log session notes, observations, follow-ups; each note has an optional date and tracks who wrote it.',
+      'Notes count badge turns purple when the student has any logged notes.',
+    ]},
     { version: 'v85', title: 'Mentorship: service alerts',
       roles: ['mentorship', 'sales_manager'], items: [
       'Each student now has a Service Alerts system. ⚠ + Alert button at the top of the profile opens a modal to log a title + details for an unresolved issue.',

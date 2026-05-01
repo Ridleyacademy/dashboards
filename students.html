@@ -236,13 +236,42 @@
   }
   .win-badge.has-any { background: #fbbf24; color: #0b0c14; }
 
+  .note-btn-list {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text-muted); border-radius: 10px; padding: 9px 14px; font-weight: 700; cursor: pointer; font-size: 0.82rem;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .note-btn-list:hover { color: var(--text); border-color: var(--border-light); }
+  .note-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 18px; height: 18px; padding: 0 5px; font-size: 0.68rem; font-weight: 800;
+    border-radius: 999px; background: var(--surface3); color: var(--text-dim);
+  }
+  .note-badge.has-any { background: #a78bfa; color: #0b0c14; }
+
   .profile-section { margin-top: 22px; }
+  /* Collapsible: each section is a <details>. Click the head to toggle. */
+  details.profile-section > summary {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 10px;
+    padding-bottom: 6px; border-bottom: 1px solid var(--border);
+    cursor: pointer; list-style: none; user-select: none;
+    transition: opacity 0.12s;
+  }
+  details.profile-section > summary::-webkit-details-marker { display: none; }
+  details.profile-section > summary:hover { opacity: 0.85; }
+  .profile-section-title { font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--green); }
+  .profile-section-line { flex: 1; }
+  .profile-section-caret {
+    color: var(--text-dim); font-size: 0.7rem;
+    transition: transform 0.15s; flex-shrink: 0;
+  }
+  details.profile-section[open] > summary .profile-section-caret { transform: rotate(180deg); }
+  details.profile-section:not([open]) > summary { margin-bottom: 0; }
+  /* Match for the legacy non-details rendering used elsewhere if any */
   .profile-section-head {
     display: flex; align-items: center; gap: 12px; margin-bottom: 10px;
     padding-bottom: 6px; border-bottom: 1px solid var(--border);
   }
-  .profile-section-title { font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--green); }
-  .profile-section-line { flex: 1; }
 
   .field-checkbox {
     display: flex; align-items: center; gap: 9px;
@@ -639,10 +668,11 @@ let currentPauses = [];
 let currentResigns = [];
 let currentAlerts = [];
 let currentWins   = [];
+let currentCoachNotes = [];
 async function openStudent(id) {
   if (id === null) {
     currentStudent = { id: null, name: '', status: 'Active', metadata: {} };
-    currentPauses = []; currentResigns = []; currentAlerts = []; currentWins = [];
+    currentPauses = []; currentResigns = []; currentAlerts = []; currentWins = []; currentCoachNotes = [];
     renderProfile();
     renderStudentList();
     return;
@@ -658,6 +688,7 @@ async function openStudent(id) {
     currentResigns = Array.isArray(j.resigns) ? j.resigns : [];
     currentAlerts  = Array.isArray(j.alerts)  ? j.alerts  : [];
     currentWins    = Array.isArray(j.wins)    ? j.wins    : [];
+    currentCoachNotes = Array.isArray(j.coach_notes) ? j.coach_notes : [];
     renderProfile();
     renderStudentList();
   } catch (e) {
@@ -742,7 +773,7 @@ function _buildField(field, value) {
   </div>`;
 }
 
-function _buildPausesPanel() {
+function _buildPausesPanel(_section, _openAttr) {
   const sorted = [...currentPauses].sort((a, b) =>
     String(b.start_date || '').localeCompare(String(a.start_date || '')));
   const rows = sorted.map(p => {
@@ -762,30 +793,27 @@ function _buildPausesPanel() {
       <td style="padding:6px 8px;text-align:right;"><button class="profile-delete pause-del" data-pid="${p.id}" style="padding:4px 10px;font-size:0.72rem;">✕</button></td>
     </tr>`;
   }).join('');
-  return `
-    <div class="profile-section">
-      <div class="profile-section-head">
-        <div class="profile-section-title">Pauses</div>
-        <div class="profile-section-line"></div>
-        <button class="profile-save" id="addPauseBtn" style="padding:6px 14px;font-size:0.78rem;">+ Add pause</button>
-      </div>
-      ${currentPauses.length === 0
-        ? '<div style="padding:12px;color:var(--text-muted);font-size:0.84rem;background:var(--surface2);border-radius:10px;">No pauses yet. The student\'s lifecycle is computed straight from their onboarded date + months count.</div>'
-        : `<div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;">
-            <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
-              <thead style="background:var(--surface2);color:var(--text-dim);font-size:0.66rem;text-transform:uppercase;letter-spacing:0.06em;">
-                <tr>
-                  <th style="padding:8px;text-align:left;">Start</th>
-                  <th style="padding:8px;text-align:left;">End <span style="color:var(--text-dim);text-transform:none;font-weight:400;">(blank = ongoing)</span></th>
-                  <th style="padding:8px;text-align:left;">Notes</th>
-                  <th style="padding:8px;text-align:left;">Length</th>
-                  <th style="padding:8px;text-align:right;">&nbsp;</th>
-                </tr>
-              </thead>
-              <tbody>${rows}</tbody>
-            </table>
-          </div>`}
-    </div>`;
+  const inner = `
+    <div style="display:flex;justify-content:flex-end;margin-bottom:8px;">
+      <button class="profile-save" id="addPauseBtn" style="padding:6px 14px;font-size:0.78rem;">+ Add pause</button>
+    </div>
+    ${currentPauses.length === 0
+      ? '<div style="padding:12px;color:var(--text-muted);font-size:0.84rem;background:var(--surface2);border-radius:10px;">No pauses yet. The student\'s lifecycle is computed straight from their onboarded date + months count.</div>'
+      : `<div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+          <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
+            <thead style="background:var(--surface2);color:var(--text-dim);font-size:0.66rem;text-transform:uppercase;letter-spacing:0.06em;">
+              <tr>
+                <th style="padding:8px;text-align:left;">Start</th>
+                <th style="padding:8px;text-align:left;">End <span style="color:var(--text-dim);text-transform:none;font-weight:400;">(blank = ongoing)</span></th>
+                <th style="padding:8px;text-align:left;">Notes</th>
+                <th style="padding:8px;text-align:left;">Length</th>
+                <th style="padding:8px;text-align:right;">&nbsp;</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>`}`;
+  return _section('Pauses', inner);
 }
 
 function _wirePauses() {
@@ -927,7 +955,7 @@ async function deletePause(id) {
   } catch (e) { alert('Delete pause failed: ' + (e.message || e)); }
 }
 
-function _buildResignsPanel() {
+function _buildResignsPanel(_section, _openAttr) {
   const fmtMoney = n => n == null ? '—' : '$' + Number(n).toLocaleString();
   const sorted = [...currentResigns].sort((a, b) =>
     String(b.resign_date || '').localeCompare(String(a.resign_date || '')));
@@ -940,30 +968,31 @@ function _buildResignsPanel() {
       <td style="padding:6px 8px;"><input type="text"   class="field-input resign-notes"  value="" data-rid="${r.id}" placeholder="Notes"></td>
       <td style="padding:6px 8px;text-align:right;"><button class="profile-delete resign-del" data-rid="${r.id}" style="padding:4px 10px;font-size:0.72rem;">✕</button></td>
     </tr>`).join('');
-  return `
-    <div class="profile-section">
-      <div class="profile-section-head">
-        <div class="profile-section-title">Resigns ${totalAdded ? `<span style="color:var(--text-muted);font-weight:600;text-transform:none;letter-spacing:0;font-size:0.72rem;margin-left:8px;">+${totalAdded} months total</span>` : ''}</div>
-        <div class="profile-section-line"></div>
-        <button class="profile-save" id="addResignBtn" style="padding:6px 14px;font-size:0.78rem;">+ Add resign</button>
-      </div>
-      ${currentResigns.length === 0
-        ? '<div style="padding:12px;color:var(--text-muted);font-size:0.84rem;background:var(--surface2);border-radius:10px;">No resigns yet. Each resign extends the course duration by the number of months you specify.</div>'
-        : `<div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;">
-            <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
-              <thead style="background:var(--surface2);color:var(--text-dim);font-size:0.66rem;text-transform:uppercase;letter-spacing:0.06em;">
-                <tr>
-                  <th style="padding:8px;text-align:left;">Date</th>
-                  <th style="padding:8px;text-align:left;">Months added</th>
-                  <th style="padding:8px;text-align:left;">Amount</th>
-                  <th style="padding:8px;text-align:left;">Notes</th>
-                  <th style="padding:8px;text-align:right;">&nbsp;</th>
-                </tr>
-              </thead>
-              <tbody>${rows}</tbody>
-            </table>
-          </div>`}
-    </div>`;
+  const title = `Resigns${totalAdded ? `<span style="color:var(--text-muted);font-weight:600;text-transform:none;letter-spacing:0;font-size:0.72rem;margin-left:8px;">+${totalAdded} months total</span>` : ''}`;
+  const inner = `
+    <div style="display:flex;justify-content:flex-end;margin-bottom:8px;">
+      <button class="profile-save" id="addResignBtn" style="padding:6px 14px;font-size:0.78rem;">+ Add resign</button>
+    </div>
+    ${currentResigns.length === 0
+      ? '<div style="padding:12px;color:var(--text-muted);font-size:0.84rem;background:var(--surface2);border-radius:10px;">No resigns yet. Each resign extends the course duration by the number of months you specify.</div>'
+      : `<div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+          <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
+            <thead style="background:var(--surface2);color:var(--text-dim);font-size:0.66rem;text-transform:uppercase;letter-spacing:0.06em;">
+              <tr>
+                <th style="padding:8px;text-align:left;">Date</th>
+                <th style="padding:8px;text-align:left;">Months added</th>
+                <th style="padding:8px;text-align:left;">Amount</th>
+                <th style="padding:8px;text-align:left;">Notes</th>
+                <th style="padding:8px;text-align:right;">&nbsp;</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>`}`;
+  // Inline title HTML uses the simple section helper, manual replace because
+  // we need raw HTML (the totalAdded chip) inside the title cell.
+  const html = _section(title, inner);
+  return html;
 }
 
 function _wireResigns() {
@@ -1124,26 +1153,27 @@ function renderProfile() {
   const isNew = !s.id;
   const initials = (s.name || '?').split(/\s+/).map(p => p[0] || '').join('').slice(0, 2).toUpperCase() || '?';
 
-  // Build sections (with the Pauses panel slipping in between Coaching
-  // and Lifecycle so the lifecycle date can reference it).
+  // Read collapsed state from localStorage so toggles persist across loads.
+  const collapsed = (() => {
+    try { return new Set(JSON.parse(localStorage.getItem('crm-collapsed-sections') || '[]')); }
+    catch { return new Set(); }
+  })();
+  const _openAttr = (title) => collapsed.has(title) ? '' : 'open';
+  const _section = (title, innerHTML) => `
+    <details class="profile-section" data-section="${title}" ${_openAttr(title)}>
+      <summary>
+        <div class="profile-section-title">${title}</div>
+        <div class="profile-section-line"></div>
+        <span class="profile-section-caret">▾</span>
+      </summary>
+      ${innerHTML}
+    </details>`;
   const sectionsHtml = SECTIONS.map(([title, fields]) => {
-    const grid = `
-      <div class="profile-section">
-        <div class="profile-section-head">
-          <div class="profile-section-title">${title}</div>
-          <div class="profile-section-line"></div>
-        </div>
-        <div class="profile-grid">
-          ${fields.map(f => _buildField(f, s[f.k])).join('')}
-        </div>
-      </div>`;
-    if (title === 'Purchase') {
-      return grid + (isNew ? '' : _buildResignsPanel());
-    }
-    if (title === 'Coaching') {
-      return grid + (isNew ? '' : _buildPausesPanel());
-    }
-    return grid;
+    const grid = `<div class="profile-grid">${fields.map(f => _buildField(f, s[f.k])).join('')}</div>`;
+    let html = _section(title, grid);
+    if (title === 'Purchase' && !isNew) html += _buildResignsPanel(_section, _openAttr);
+    if (title === 'Coaching' && !isNew) html += _buildPausesPanel(_section, _openAttr);
+    return html;
   }).join('');
 
   // Status badges in header — computed lifecycle is the source of truth.
@@ -1183,6 +1213,9 @@ function renderProfile() {
           </button>
           <button class="win-btn-list" id="prof-list-wins" title="Wins for this student">
             🏆 Wins <span class="win-badge${currentWins.length>0?' has-any':''}">${currentWins.length}</span>
+          </button>
+          <button class="note-btn-list" id="prof-list-notes" title="Coach notes for this student">
+            📝 Notes <span class="note-badge${currentCoachNotes.length>0?' has-any':''}">${currentCoachNotes.length}</span>
           </button>` : ''}
         <button class="profile-save" id="prof-save">${isNew ? 'Create' : 'Save'}</button>
         ${!isNew ? '<button class="profile-delete" id="prof-delete">Delete</button>' : ''}
@@ -1265,7 +1298,18 @@ function renderProfile() {
     _wireResigns();
     document.getElementById('prof-list-alerts')?.addEventListener('click', openAlertsHistoryModal);
     document.getElementById('prof-list-wins')?.addEventListener('click', openWinsHistoryModal);
+    document.getElementById('prof-list-notes')?.addEventListener('click', openCoachNotesHistoryModal);
   }
+  // Persist collapse state per section title
+  card.querySelectorAll('details.profile-section').forEach(d => {
+    d.addEventListener('toggle', () => {
+      let s; try { s = new Set(JSON.parse(localStorage.getItem('crm-collapsed-sections') || '[]')); } catch { s = new Set(); }
+      const t = d.dataset.section;
+      if (!t) return;
+      if (d.open) s.delete(t); else s.add(t);
+      localStorage.setItem('crm-collapsed-sections', JSON.stringify([...s]));
+    });
+  });
 }
 
 // ── Wins ───────────────────────────────────────────────────────
@@ -1400,6 +1444,145 @@ async function deleteWin(id) {
     await openStudent(currentStudent.id);
     await loadStudents();
     if (document.getElementById('winListModal')) renderWinList();
+  } catch (e) { alert('Delete failed: ' + (e.message || e)); }
+}
+
+// ── Coach Notes ───────────────────────────────────────────────
+function openAddCoachNoteModal() {
+  if (!currentStudent || !currentStudent.id) return;
+  document.getElementById('noteAddModal')?.remove();
+  const today = new Date().toISOString().slice(0, 10);
+  const m = document.createElement('div');
+  m.id = 'noteAddModal';
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(8,9,18,0.78);backdrop-filter:blur(8px);z-index:10006;display:flex;align-items:center;justify-content:center;padding:20px;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;';
+  m.innerHTML = `
+    <div style="background:#13141f;border:1px solid #1f2438;border-radius:18px;padding:24px 26px;max-width:460px;width:100%;color:#eaecf8;box-shadow:0 24px 60px rgba(0,0,0,0.55);">
+      <div style="font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;margin-bottom:4px;">📝 Add a coach note</div>
+      <div style="font-size:0.78rem;color:#7880a8;margin-bottom:18px;">Session notes, observations, follow-ups — anything coach-relevant.</div>
+      <div class="field" style="margin-bottom:12px;">
+        <div class="field-label">Note *</div>
+        <textarea class="field-textarea" id="noteModalText" placeholder="What happened in the session?" style="min-height:140px;" required></textarea>
+      </div>
+      <div class="field" style="margin-bottom:18px;">
+        <div class="field-label">Date <span style="text-transform:none;font-weight:500;color:var(--text-dim);">(optional)</span></div>
+        <input class="field-input" type="date" id="noteModalDate" value="${today}">
+      </div>
+      <div id="noteAddErr" style="color:var(--red);font-size:0.78rem;min-height:1em;margin-bottom:8px;"></div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button id="noteAddCancel" style="background:transparent;border:1px solid #1f2438;color:#7880a8;border-radius:9px;padding:8px 16px;font-weight:700;cursor:pointer;">Cancel</button>
+        <button id="noteAddSave" class="profile-save" style="padding:8px 18px;background:linear-gradient(135deg,#a78bfa,#6b9eff);color:#0b0c14;">Save note</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  function close() { m.remove(); }
+  document.getElementById('noteAddCancel').addEventListener('click', close);
+  m.addEventListener('click', e => { if (e.target === m) close(); });
+  function onKey(e) { if (e.key === 'Escape') { close(); document.removeEventListener('keydown', onKey); } }
+  document.addEventListener('keydown', onKey);
+  const textEl = document.getElementById('noteModalText');
+  const dateEl = document.getElementById('noteModalDate');
+  const errEl  = document.getElementById('noteAddErr');
+  const saveBtn = document.getElementById('noteAddSave');
+  textEl.focus();
+  saveBtn.addEventListener('click', async () => {
+    errEl.textContent = '';
+    const text = textEl.value.trim();
+    if (!text) { errEl.textContent = 'A note is required.'; return; }
+    saveBtn.disabled = true; saveBtn.textContent = 'Saving…';
+    try {
+      const r = await fetch(STUDENTS_BASE + '?api=add-coach-note', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
+        body: JSON.stringify({ studentId: currentStudent.id, text, note_date: dateEl.value || null }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'Failed');
+      close();
+      await openStudent(currentStudent.id);
+      await loadStudents();
+      if (document.getElementById('noteListModal')) renderCoachNoteList();
+    } catch (e) {
+      errEl.textContent = e.message || 'Failed';
+      saveBtn.disabled = false; saveBtn.textContent = 'Save note';
+    }
+  });
+}
+
+function openCoachNotesHistoryModal() {
+  if (!currentStudent || !currentStudent.id) return;
+  document.getElementById('noteListModal')?.remove();
+  const m = document.createElement('div');
+  m.id = 'noteListModal';
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(8,9,18,0.78);backdrop-filter:blur(8px);z-index:10005;display:flex;align-items:center;justify-content:center;padding:20px;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;';
+  m.innerHTML = `
+    <div style="background:#13141f;border:1px solid #1f2438;border-radius:18px;max-width:640px;width:100%;max-height:85vh;display:flex;flex-direction:column;color:#eaecf8;box-shadow:0 24px 60px rgba(0,0,0,0.55);overflow:hidden;">
+      <div style="padding:18px 22px;border-bottom:1px solid #1f2438;display:flex;align-items:center;gap:10px;">
+        <div style="flex:1;">
+          <div style="font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;">📝 Coach notes for ${currentStudent.name || ''}</div>
+          <div style="font-size:0.74rem;color:#7880a8;margin-top:3px;" id="noteListCount"></div>
+        </div>
+        <button class="profile-save" id="noteListAdd" style="padding:7px 14px;font-size:0.78rem;background:linear-gradient(135deg,#a78bfa,#6b9eff);color:#0b0c14;">+ Add note</button>
+        <button id="noteListClose" style="background:transparent;border:none;color:#7880a8;font-size:1.5rem;cursor:pointer;padding:0 8px;">×</button>
+      </div>
+      <div id="noteListBody" style="flex:1;overflow-y:auto;padding:14px 22px;"></div>
+    </div>`;
+  document.body.appendChild(m);
+  function close() { m.remove(); }
+  document.getElementById('noteListClose').addEventListener('click', close);
+  document.getElementById('noteListAdd').addEventListener('click', () => openAddCoachNoteModal());
+  m.addEventListener('click', e => { if (e.target === m) close(); });
+  function onKey(e) { if (e.key === 'Escape') { close(); document.removeEventListener('keydown', onKey); } }
+  document.addEventListener('keydown', onKey);
+  renderCoachNoteList();
+}
+
+function renderCoachNoteList() {
+  const body = document.getElementById('noteListBody');
+  const cnt  = document.getElementById('noteListCount');
+  if (!body) return;
+  if (cnt) cnt.textContent = `${currentCoachNotes.length} note${currentCoachNotes.length !== 1 ? 's' : ''}`;
+  if (!currentCoachNotes.length) {
+    body.innerHTML = '<div style="padding:32px;text-align:center;color:#7880a8;font-size:0.86rem;">No coach notes yet. Click + Add note to log the first one.</div>';
+    return;
+  }
+  // Sort newest first by note_date, then created_at
+  const sorted = [...currentCoachNotes].sort((a, b) => {
+    const ad = a.note_date || a.created_at || '';
+    const bd = b.note_date || b.created_at || '';
+    return bd.localeCompare(ad);
+  });
+  body.innerHTML = sorted.map(n => {
+    const created = n.created_at ? new Date(n.created_at).toLocaleString() : '';
+    return `<div class="note-row" data-nid="${n.id}" style="border:1px solid rgba(167,139,250,0.35);border-radius:12px;padding:14px;margin-bottom:12px;background:rgba(167,139,250,0.05);">
+      <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:8px;">
+        <div class="note-text-cell" style="flex:1;font-weight:500;font-size:0.92rem;line-height:1.5;white-space:pre-wrap;"></div>
+        <button class="profile-delete note-del" data-nid="${n.id}" style="padding:4px 10px;font-size:0.72rem;flex-shrink:0;">✕</button>
+      </div>
+      <div style="font-size:0.7rem;color:#7880a8;">${n.note_date ? '📅 ' + n.note_date + ' · ' : ''}Logged ${created}${n.created_by_email ? ' by ' + n.created_by_email : ''}</div>
+    </div>`;
+  }).join('');
+  for (const n of sorted) {
+    const cell = body.querySelector(`.note-row[data-nid="${n.id}"] .note-text-cell`);
+    if (cell) cell.textContent = n.text || '';
+  }
+  body.querySelectorAll('.note-del').forEach(btn => {
+    btn.addEventListener('click', () => deleteCoachNote(Number(btn.dataset.nid)));
+  });
+}
+
+async function deleteCoachNote(id) {
+  if (!confirm('Delete this note?')) return;
+  try {
+    const r = await fetch(STUDENTS_BASE + '?api=delete-coach-note', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
+      body: JSON.stringify({ id }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Failed');
+    await openStudent(currentStudent.id);
+    await loadStudents();
+    if (document.getElementById('noteListModal')) renderCoachNoteList();
   } catch (e) { alert('Delete failed: ' + (e.message || e)); }
 }
 

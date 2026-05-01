@@ -791,12 +791,9 @@ const SECTIONS = [
     { k: 'welcome_zoom_confirmed', label: 'Welcome Zoom w/ Stephen',    type: 'checkbox' },
     { k: 'survey_submitted_date',  label: 'Survey submitted',           type: 'date' },
     { k: 'video_submitted_date',   label: 'Video submitted',            type: 'date' },
-  ]],
-  ['Coaching', [
-    { k: 'coach',                  label: 'Coach',                       type: 'select', opts: 'mentors' },
-    { k: 'circle_created',         label: 'Circle created',              type: 'checkbox' },
-    { k: 'first_coach_assignment', label: '1st coach assignment',        type: 'text' },
-    { k: 'student_onboarded_date', label: 'Student onboarded date',      type: 'date' },
+    { k: 'coach',                  label: 'Coach',                      type: 'select', opts: 'mentors' },
+    { k: 'circle_created',         label: 'Circle created',             type: 'checkbox' },
+    { k: 'student_onboarded_date', label: 'Student onboarded date',     type: 'date' },
   ]],
   // Pauses get their own custom widget (multiple rows). Section title still
   // appears via SECTION_RENDERERS below.
@@ -1237,7 +1234,7 @@ function renderProfile() {
     const grid = `<div class="profile-grid">${fields.map(f => _buildField(f, s[f.k])).join('')}</div>`;
     let html = _section(title, grid);
     if (title === 'Purchase' && !isNew) html += _buildResignsPanel(_section, _openAttr);
-    if (title === 'Coaching' && !isNew) html += _buildPausesPanel(_section, _openAttr);
+    if (title === 'Onboarding' && !isNew) html += _buildPausesPanel(_section, _openAttr);
     return html;
   }).join('');
 

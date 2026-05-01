@@ -11,6 +11,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v93', title: 'Mentorship: consolidate Onboarding section',
+      roles: ['mentorship', 'sales_manager'], items: [
+      'Removed the 1st coach assignment field.',
+      'Coach, Circle created, and Student onboarded date moved into Onboarding. The Coaching section is gone (Pauses panel now lives under Onboarding).',
+    ]},
     { version: 'v92', title: 'Mentorship: + Rep notes + I/C notes; remove REG/Kat textareas',
       roles: ['mentorship', 'sales_manager'], items: [
       'Two new log types under the 📋 Logs button: 🧑‍💼 Rep notes (from REGs/sales reps) and 🎯 I/C notes (initial-call notes).',

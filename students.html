@@ -68,6 +68,41 @@
   .spinner { width: 40px; height: 40px; border: 3px solid var(--border); border-top-color: var(--green); border-radius: 50%; animation: spin 0.7s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
+  /* Date Range Picker (matches the other dashboards) */
+  .daterange-wrap { position: relative; }
+  .daterange-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 6px 11px; font-size: 0.74rem; color: var(--text-muted); cursor: pointer;
+    transition: all 0.15s; white-space: nowrap; font-weight: 600; font-family: inherit;
+  }
+  .daterange-btn:hover { border-color: var(--border-light); color: var(--text); }
+  .daterange-popup {
+    display: none; position: absolute; top: calc(100% + 8px); right: 0;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+    padding: 14px; min-width: 270px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.03) inset;
+    z-index: 500;
+  }
+  .daterange-popup.open { display: block; }
+  .dr-presets { display: flex; flex-direction: column; gap: 2px; }
+  .dr-preset {
+    display: block; width: 100%; text-align: left; background: none; border: none;
+    padding: 9px 12px; border-radius: 9px; font-size: 0.8rem; font-weight: 600;
+    color: var(--text-muted); cursor: pointer; transition: all 0.12s; font-family: inherit;
+  }
+  .dr-preset:hover { background: var(--surface2); color: var(--text); }
+  .dr-preset.active { background: var(--green-bg); color: var(--green); }
+  .dr-divider { height: 1px; background: var(--border); margin: 10px 0; }
+  .dr-custom-label { font-size: 0.64rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-dim); margin-bottom: 8px; }
+  .dr-custom-row { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
+  .dr-date-input { flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 7px 8px; color: var(--text); font-size: 0.73rem; outline: none; color-scheme: dark; min-width: 0; }
+  .dr-date-input:focus { border-color: var(--green); }
+  body.light .dr-date-input { color-scheme: light; }
+  .dr-sep { color: var(--text-dim); font-size: 0.7rem; flex-shrink: 0; }
+  .dr-apply { width: 100%; background: linear-gradient(135deg,#34d399,#10b981); border: none; border-radius: 8px; padding: 8px; color: #0b0c14; font-size: 0.78rem; font-weight: 800; cursor: pointer; }
+  .dr-apply:hover { opacity: 0.9; }
+
   /* Topbar */
   .topbar {
     display: flex; align-items: center; gap: 10px; padding: 12px 32px;
@@ -216,7 +251,30 @@
     </div>
     <div class="topbar-brand" style="order:1;">Mentorship CRM</div>
 
-    <div class="daterange-wrap" style="order:10;visibility:hidden;width:0;"></div>
+    <div class="daterange-wrap" id="daterangeWrap" style="order:10;">
+      <button class="daterange-btn" id="daterangeBtn">
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <span id="drLabel">All Time</span>
+        <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="daterange-popup" id="daterangePopup">
+        <div class="dr-presets">
+          <button class="dr-preset active" data-preset="all">All Time</button>
+          <button class="dr-preset" data-preset="last-30">Last 30 Days</button>
+          <button class="dr-preset" data-preset="this-week">This Week (Thu – Wed)</button>
+          <button class="dr-preset" data-preset="last-week">Last Week (Thu – Wed)</button>
+          <button class="dr-preset" data-preset="mtd">Month to Date</button>
+        </div>
+        <div class="dr-divider"></div>
+        <div class="dr-custom-label">Custom Range (joined date)</div>
+        <div class="dr-custom-row">
+          <input type="date" class="dr-date-input" id="dateFrom">
+          <span class="dr-sep">→</span>
+          <input type="date" class="dr-date-input" id="dateTo">
+        </div>
+        <button class="dr-apply" id="drApply">Apply</button>
+      </div>
+    </div>
 
     <button class="tbtn tbtn-ghost" id="refreshBtn" style="order:20;" title="Refresh">↻</button>
     <button class="tbtn tbtn-ghost" id="themeBtn" style="order:30;font-size:1rem;padding:5px 10px;" title="Theme">☀️</button>
@@ -376,6 +434,18 @@ function renderStudentList() {
   const list = document.getElementById('studentList');
   const q = (document.getElementById('studentSearch').value || '').toLowerCase().trim();
   let rows = students;
+  // Date range filter on joined_at. "All Time" sentinel range is wide
+  // enough to include every realistic joined_at value, AND students with
+  // no joined_at set are always shown (dateless rows shouldn't disappear
+  // because of a date filter).
+  const wideRange = drFrom === '0001-01-01' && drTo === '9999-12-31';
+  if (!wideRange) {
+    rows = rows.filter(s => {
+      if (!s.joined_at) return true;
+      const d = String(s.joined_at).slice(0, 10);
+      return d >= drFrom && d <= drTo;
+    });
+  }
   if (q) rows = rows.filter(s =>
     (s.name || '').toLowerCase().includes(q) ||
     (s.email || '').toLowerCase().includes(q) ||
@@ -417,6 +487,74 @@ function renderStudentList() {
 document.getElementById('studentSearch').addEventListener('input', renderStudentList);
 document.getElementById('refreshBtn').addEventListener('click', loadStudents);
 document.getElementById('addStudentBtn').addEventListener('click', () => openStudent(null));
+
+// ── Date picker (filters by joined_at) ────────────────────────
+function isoDate(d) { return d.toISOString().slice(0, 10); }
+function getPresetRange(preset) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  if (preset === 'all') return { from: '0001-01-01', to: '9999-12-31' };
+  if (preset === 'last-30') {
+    const f = new Date(today); f.setDate(today.getDate() - 29);
+    return { from: isoDate(f), to: isoDate(today) };
+  }
+  if (preset === 'mtd') {
+    const f = new Date(today.getFullYear(), today.getMonth(), 1);
+    return { from: isoDate(f), to: isoDate(today) };
+  }
+  // Thu-Wed weekly slot used across the app
+  function weekRange(offsetWeeks) {
+    const dow = today.getDay();             // 0 Sun .. 6 Sat
+    // Days back to most recent Thursday
+    const daysBackToThu = (dow >= 4) ? (dow - 4) : (dow + 3);
+    const thu = new Date(today); thu.setDate(today.getDate() - daysBackToThu - 7 * offsetWeeks);
+    const wed = new Date(thu);   wed.setDate(thu.getDate() + 6);
+    return { from: isoDate(thu), to: isoDate(wed) };
+  }
+  if (preset === 'this-week') return weekRange(0);
+  if (preset === 'last-week') return weekRange(1);
+  return { from: '0001-01-01', to: '9999-12-31' };
+}
+const DR_LABELS = { 'all': 'All Time', 'last-30': 'Last 30 Days', 'this-week': 'This Week', 'last-week': 'Last Week', 'mtd': 'Month to Date' };
+let drActivePreset = 'all';
+let drFrom = '0001-01-01', drTo = '9999-12-31';
+function drApplyPreset(preset, reload) {
+  const r = getPresetRange(preset);
+  drActivePreset = preset; drFrom = r.from; drTo = r.to;
+  document.getElementById('dateFrom').value = preset === 'all' ? '' : r.from;
+  document.getElementById('dateTo').value   = preset === 'all' ? '' : r.to;
+  document.querySelectorAll('.dr-preset').forEach(b => b.classList.toggle('active', b.dataset.preset === preset));
+  document.getElementById('drLabel').textContent = DR_LABELS[preset] || preset;
+  document.getElementById('daterangePopup').classList.remove('open');
+  if (reload) renderStudentList();
+}
+// Self-init: read saved preset (filters.js persists across dashboards).
+(function(){
+  let p = 'all';
+  try {
+    const s = JSON.parse(localStorage.getItem('ridley:dateRange:v2') || 'null');
+    if (s && s.preset && ['all','this-week','last-week','mtd','last-30'].indexOf(s.preset) >= 0) p = s.preset;
+  } catch (_) {}
+  drApplyPreset(p, false);
+})();
+document.getElementById('daterangeBtn').addEventListener('click', e => {
+  e.stopPropagation();
+  document.getElementById('daterangePopup').classList.toggle('open');
+});
+document.getElementById('daterangePopup').addEventListener('click', e => e.stopPropagation());
+document.addEventListener('click', () => document.getElementById('daterangePopup').classList.remove('open'));
+document.querySelectorAll('.dr-preset').forEach(btn => {
+  btn.addEventListener('click', () => drApplyPreset(btn.dataset.preset, true));
+});
+document.getElementById('drApply').addEventListener('click', () => {
+  const f = document.getElementById('dateFrom').value;
+  const t = document.getElementById('dateTo').value;
+  if (!f || !t) return;
+  drActivePreset = null; drFrom = f; drTo = t;
+  document.querySelectorAll('.dr-preset').forEach(b => b.classList.remove('active'));
+  document.getElementById('drLabel').textContent = `${f} → ${t}`;
+  document.getElementById('daterangePopup').classList.remove('open');
+  renderStudentList();
+});
 
 // ── Profile ────────────────────────────────────────────────────
 async function openStudent(id) {

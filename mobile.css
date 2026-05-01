@@ -1,6 +1,23 @@
 /* Shared mobile responsiveness for dashboard pages.
    At <768px, wide tables collapse into card-stack views and topbars wrap. */
 
+/* ── Unified topbar logo + user pill colors ───────────────────────
+   Every dashboard must show the SAME gradient on the topbar logo and the
+   user-pill avatar. Per-page overrides used to vary by theme; this rule
+   applies on every page (mobile.css is loaded everywhere). The shadow
+   matches the blue half of the gradient. */
+.topbar .topbar-logo,
+.topbar-logo {
+  background: linear-gradient(135deg, #6b9eff, #a78bfa) !important;
+  box-shadow: 0 0 14px rgba(107,158,255,0.35) !important;
+}
+.topbar .user-pill-av,
+.user-pill-av {
+  background: linear-gradient(135deg, #6b9eff, #a78bfa) !important;
+  color: #fff !important;
+}
+
+
 @media (max-width: 768px) {
 
   /* Prevent any element from causing horizontal page scroll */

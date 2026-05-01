@@ -11,6 +11,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v76', title: 'Unified topbar across every page', items: [
+      'The topbar logo gradient and the user-pill avatar were per-page (cyan-blue on Calls, gold-green on Income, etc.). Every dashboard now uses the same blue→purple gradient. Same banner everywhere.',
+    ]},
     { version: 'v75', title: 'New dashboard: Mentorship CRM',
       roles: ['mentorship', 'sales_manager'], items: [
       'New "Mentorship Students" dashboard for the mentorship program. Searchable list of students; click a name to open their profile.',

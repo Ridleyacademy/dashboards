@@ -273,7 +273,7 @@ The vault is at `/Users/help/Documents/Obsidian/RidleyDashboards/`.
 
 ---
 
-## Topbar uniformity (the user cares about this a lot)
+## Topbar uniformity (the user cares about this a lot, repeat offender)
 
 Every dashboard topbar must look identical: logo, brand title, then on a
 **second line** the buttons in this exact order — daterange, refresh,
@@ -286,6 +286,18 @@ The CSS that enforces this lives in `mobile.css`:
 
 If buttons start moving across pages, you broke this. Don't override
 `order` or `flex-shrink` on any topbar button without thinking.
+
+**Logo + user-pill avatar gradient must be identical on every page**
+(v76+). The unified gradient is enforced in `mobile.css`:
+```css
+.topbar-logo, .user-pill-av {
+  background: linear-gradient(135deg, #6b9eff, #a78bfa) !important;
+}
+```
+Don't add a per-page `background:` override on either of these
+selectors — your override will lose to the `!important` and the user
+will get annoyed (again) that the new dashboard has a different
+header.
 
 ---
 

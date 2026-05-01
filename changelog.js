@@ -11,6 +11,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v90', title: 'Mentorship: unsaved-changes guard',
+      roles: ['mentorship', 'sales_manager'], items: [
+      'If you edit a student profile and click another student, sign out, or reload the tab, you now get a Save / Leave without saving / Cancel prompt before losing your work.',
+    ]},
     { version: 'v88', title: 'Mentorship: turnover log replaces "Turnover to REG"',
       roles: ['mentorship', 'sales_manager'], items: [
       'Removed the "Turnover to REG" section and the standalone Coaching notes textbox (use 📝 Notes instead).',

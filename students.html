@@ -499,6 +499,12 @@ document.getElementById('loginForm').addEventListener('submit', async e => {
 });
 
 document.getElementById('signOutBtn').addEventListener('click', async () => {
+  if (profileDirty) {
+    const choice = await confirmLeaveUnsaved();
+    if (choice === 'cancel') return;
+    if (choice === 'save') { const ok = await saveStudent(); if (!ok) return; }
+  }
+  profileDirty = false;
   await supa.auth.signOut(); setState('login');
 });
 document.getElementById('deniedSignOutBtn').addEventListener('click', async () => {
@@ -683,10 +689,57 @@ let currentAlerts = [];
 let currentWins   = [];
 let currentCoachNotes = [];
 let currentTurnovers  = [];
+let profileDirty = false;
+
+// Show a 3-way "save / leave without saving / cancel" modal. Resolves to
+// 'save' | 'leave' | 'cancel'.
+function confirmLeaveUnsaved() {
+  return new Promise((resolve) => {
+    document.getElementById('leaveConfirmModal')?.remove();
+    const m = document.createElement('div');
+    m.id = 'leaveConfirmModal';
+    m.style.cssText = 'position:fixed;inset:0;background:rgba(8,9,18,0.78);backdrop-filter:blur(8px);z-index:10020;display:flex;align-items:center;justify-content:center;padding:20px;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;';
+    m.innerHTML = `
+      <div style="background:#13141f;border:1px solid #1f2438;border-radius:18px;padding:24px 26px;max-width:440px;width:100%;color:#eaecf8;box-shadow:0 24px 60px rgba(0,0,0,0.55);">
+        <div style="font-size:1.05rem;font-weight:800;letter-spacing:-0.02em;margin-bottom:6px;">Unsaved changes</div>
+        <div style="font-size:0.85rem;color:#c2c8e0;line-height:1.5;margin-bottom:18px;">You have unsaved changes on this student. Save them, or leave without saving?</div>
+        <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">
+          <button data-act="cancel" style="background:transparent;border:1px solid #1f2438;color:#7880a8;border-radius:9px;padding:8px 16px;font-weight:700;cursor:pointer;">Cancel</button>
+          <button data-act="leave"  style="background:rgba(248,113,113,0.12);border:1px solid rgba(248,113,113,0.4);color:#f87171;border-radius:9px;padding:8px 16px;font-weight:700;cursor:pointer;">Leave without saving</button>
+          <button data-act="save" class="profile-save" style="padding:8px 18px;">Save</button>
+        </div>
+      </div>`;
+    document.body.appendChild(m);
+    function done(v) { document.removeEventListener('keydown', onKey); m.remove(); resolve(v); }
+    function onKey(e) { if (e.key === 'Escape') done('cancel'); }
+    m.addEventListener('click', (e) => {
+      if (e.target === m) return done('cancel');
+      const act = e.target.closest('[data-act]')?.dataset.act;
+      if (act) done(act);
+    });
+    document.addEventListener('keydown', onKey);
+  });
+}
+
+// Browser-level warning on hard reload / tab close while dirty.
+window.addEventListener('beforeunload', (e) => {
+  if (profileDirty) { e.preventDefault(); e.returnValue = ''; }
+});
 async function openStudent(id) {
+  // Unsaved-changes guard: only prompt when navigating to a *different* student
+  // (or the "new student" form) — re-loading the same student after a save or
+  // a sub-record mutation must not prompt.
+  const sameStudent = (id != null && currentStudent && currentStudent.id === id);
+  if (profileDirty && !sameStudent) {
+    const choice = await confirmLeaveUnsaved();
+    if (choice === 'cancel') return;
+    if (choice === 'save')   { const ok = await saveStudent(); if (!ok) return; }
+    profileDirty = false;
+  }
   if (id === null) {
     currentStudent = { id: null, name: '', status: 'Active', metadata: {} };
     currentPauses = []; currentResigns = []; currentAlerts = []; currentWins = []; currentCoachNotes = []; currentTurnovers = [];
+    profileDirty = false;
     renderProfile();
     renderStudentList();
     return;
@@ -704,6 +757,7 @@ async function openStudent(id) {
     currentWins    = Array.isArray(j.wins)    ? j.wins    : [];
     currentCoachNotes = Array.isArray(j.coach_notes) ? j.coach_notes : [];
     currentTurnovers  = Array.isArray(j.turnovers)   ? j.turnovers   : [];
+    profileDirty = false;
     renderProfile();
     renderStudentList();
   } catch (e) {
@@ -1301,6 +1355,13 @@ function renderProfile() {
   }
 
   document.getElementById('prof-save').addEventListener('click', saveStudent);
+  // Track dirty state on any field input/change inside the profile card.
+  const dirtyHandler = (e) => {
+    const t = e.target;
+    if (t && t.id && t.id.startsWith('f-')) profileDirty = true;
+  };
+  card.addEventListener('input',  dirtyHandler);
+  card.addEventListener('change', dirtyHandler);
   if (!isNew) document.getElementById('prof-delete').addEventListener('click', deleteStudent);
   if (!isNew) {
     _wirePauses();
@@ -1932,9 +1993,10 @@ async function saveStudent() {
   }
   if (!payload.name) {
     msg.textContent = 'Name is required'; msg.style.color = 'var(--red)';
-    return;
+    return false;
   }
   btn.disabled = true; btn.textContent = 'Saving…';
+  let ok = false;
   try {
     const r = await fetch(STUDENTS_BASE + '?api=upsert', {
       method: 'POST',
@@ -1944,9 +2006,11 @@ async function saveStudent() {
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || 'Failed');
     currentStudent.id = j.id;
+    profileDirty = false;
     msg.textContent = '✓ Saved'; msg.style.color = 'var(--green)';
     await loadStudents();
     await openStudent(j.id);
+    ok = true;
   } catch (e) {
     msg.textContent = e.message || 'Failed';
     msg.style.color = 'var(--red)';
@@ -1955,6 +2019,7 @@ async function saveStudent() {
     btn.textContent = currentStudent && currentStudent.id ? 'Save' : 'Create';
     setTimeout(() => { msg.textContent = ''; }, 4000);
   }
+  return ok;
 }
 
 async function deleteStudent() {

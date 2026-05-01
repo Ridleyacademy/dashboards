@@ -5,45 +5,45 @@
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 117 nodes · 161 edges · 16 communities detected
-- Extraction: 97% EXTRACTED · 3% INFERRED · 0% AMBIGUOUS · INFERRED: 5 edges (avg confidence: 0.8)
+- 115 nodes · 157 edges · 16 communities detected
+- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 2 edges (avg confidence: 0.75)
 - Token cost: 0 input · 0 output
 
 ## Community Hubs (Navigation)
-- [[_COMMUNITY_Impersonation + KPI tooltips (ux.js)|Impersonation + KPI tooltips (ux.js)]]
-- [[_COMMUNITY_Mentorship CRM — coach permission + progress|Mentorship CRM — coach permission + progress]]
-- [[_COMMUNITY_Mentorship CRM — students schema + Logs|Mentorship CRM — students schema + Logs]]
+- [[_COMMUNITY_Impersonation + KPI tooltips|Impersonation + KPI tooltips]]
+- [[_COMMUNITY_Mentorship CRM — coach + progress|Mentorship CRM — coach + progress]]
+- [[_COMMUNITY_Mentorship CRM — schema + Logs|Mentorship CRM — schema + Logs]]
 - [[_COMMUNITY_Access guard|Access guard]]
-- [[_COMMUNITY_PWA install + version check|PWA install + version check]]
 - [[_COMMUNITY_Cross-page filter persistence|Cross-page filter persistence]]
-- [[_COMMUNITY_Auth gate — invite + first-name + activated|Auth gate — invite + first-name + activated]]
+- [[_COMMUNITY_PWA install + version check|PWA install + version check]]
+- [[_COMMUNITY_Auth gate (first-name + activated)|Auth gate (first-name + activated)]]
 - [[_COMMUNITY_Changelog modal|Changelog modal]]
-- [[_COMMUNITY_Release process + auto graph rebuild|Release process + auto graph rebuild]]
-- [[_COMMUNITY_Theme cycle|Theme cycle]]
-- [[_COMMUNITY_RBAC source of truth (permissions.js)|RBAC source of truth (permissions.js)]]
+- [[_COMMUNITY_RBAC source of truth|RBAC source of truth]]
+- [[_COMMUNITY_RBAC source of truth|RBAC source of truth]]
+- [[_COMMUNITY_PWA install + version check|PWA install + version check]]
 - [[_COMMUNITY_Skeleton loading states|Skeleton loading states]]
 - [[_COMMUNITY_Service worker|Service worker]]
-- [[_COMMUNITY_Other edge functions (callsdashboarddeclarationsincome)|Other edge functions (calls/dashboard/declarations/income)]]
+- [[_COMMUNITY_Other edge functions|Other edge functions]]
 - [[_COMMUNITY_Nav menu picker|Nav menu picker]]
 - [[_COMMUNITY_Meta Ads edge function|Meta Ads edge function]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `students edge function` - 13 edges
 2. `students.html (Mentorship CRM page)` - 8 edges
-3. `permissions.js (RBAC source of truth)` - 7 edges
-4. `enforce()` - 6 edges
+3. `enforce()` - 6 edges
+4. `permissions.js (RBAC source of truth)` - 6 edges
 5. `Logs button (chooser modal)` - 6 edges
 6. `AGENTS.md (Agent Guide)` - 5 edges
-7. `CLAUDE.md (Claude Instructions)` - 5 edges
-8. `coach permission (v94+)` - 5 edges
-9. `first_name + activation gate (v95+)` - 5 edges
+7. `coach permission (v94+)` - 5 edges
+8. `first_name + activation gate (v95+)` - 5 edges
+9. `CLAUDE.md (Claude Instructions)` - 5 edges
 10. `effOf()` - 4 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `God nodes (canOpen, effective, enforce)` --semantically_similar_to--> `RidleyPerms.canOpen()`  [INFERRED] [semantically similar]
-  graphify-out/GRAPH_REPORT.md → AGENTS.md
-- `God nodes (canOpen, effective, enforce)` --semantically_similar_to--> `RidleyPerms.effective()`  [INFERRED] [semantically similar]
-  graphify-out/GRAPH_REPORT.md → AGENTS.md
+- `CLAUDE.md (Claude Instructions)` --references--> `RidleyPerms.canOpen()`  [EXTRACTED]
+  CLAUDE.md → AGENTS.md
+- `CLAUDE.md (Claude Instructions)` --references--> `RidleyPerms.effective()`  [EXTRACTED]
+  CLAUDE.md → AGENTS.md
 - `CLAUDE.md (Claude Instructions)` --references--> `4-step release process`  [EXTRACTED]
   CLAUDE.md → AGENTS.md
 - `CLAUDE.md (Claude Instructions)` --references--> `AGENTS.md (Agent Guide)`  [EXTRACTED]
@@ -58,15 +58,15 @@
 
 ## Communities
 
-### Community 0 - "Impersonation + KPI tooltips (ux.js)"
+### Community 0 - "Impersonation + KPI tooltips"
 Cohesion: 0.2
 Nodes (8): applyImpersonationToUI(), decorateKPIs(), getImpersonation(), injectTooltipStyles(), presenceTick(), renderImpersonationBanner(), startPresence(), watchKPIs()
 
-### Community 1 - "Mentorship CRM — coach permission + progress"
-Cohesion: 0.25
-Nodes (14): AVAILABLE_PERMS list, RidleyPerms.canOpen(), Coach Overview toggle, coach permission (v94+), Coach progress fields (v97+), students ?api=coaches, RidleyPerms.effective(), AGENTS.md (Agent Guide) (+6 more)
+### Community 1 - "Mentorship CRM — coach + progress"
+Cohesion: 0.27
+Nodes (13): AVAILABLE_PERMS list, RidleyPerms.canOpen(), Coach Overview toggle, coach permission (v94+), Coach progress fields (v97+), students ?api=coaches, RidleyPerms.effective(), AGENTS.md (Agent Guide) (+5 more)
 
-### Community 2 - "Mentorship CRM — students schema + Logs"
+### Community 2 - "Mentorship CRM — schema + Logs"
 Cohesion: 0.26
 Nodes (12): mentorship_alerts table, mentorship_coach_notes, mentorship_ic_notes (I-C notes), computeLifecycle (server-side), Logs button (chooser modal), mentorship_students table, mentorship_pauses table, mentorship_rep_notes (+4 more)
 
@@ -74,15 +74,15 @@ Nodes (12): mentorship_alerts table, mentorship_coach_notes, mentorship_ic_notes
 Cohesion: 0.42
 Nodes (7): canAccess(), currentPageFile(), effOf(), enforce(), getArchivedIds(), isAdmin(), runWhenReady()
 
-### Community 4 - "PWA install + version check"
-Cohesion: 0.33
-Nodes (7): checkForUpdates(), init(), isIPad(), maybeAutoShowHint(), maybeShowInstallButton(), nuclearVersionCheck(), showIOSHint()
-
-### Community 5 - "Cross-page filter persistence"
+### Community 4 - "Cross-page filter persistence"
 Cohesion: 0.33
 Nodes (5): init(), load(), rememberSelect(), restoreDateRange(), wirePageFilters()
 
-### Community 6 - "Auth gate — invite + first-name + activated"
+### Community 5 - "PWA install + version check"
+Cohesion: 0.33
+Nodes (7): checkForUpdates(), init(), isIPad(), maybeAutoShowHint(), maybeShowInstallButton(), nuclearVersionCheck(), showIOSHint()
+
+### Community 6 - "Auth gate (first-name + activated)"
 Cohesion: 0.28
 Nodes (9): user_metadata.activated flag, admin-api edge function, admin-api ?api=set-permissions, admin-api ?api=users, first_name + activation gate (v95+), invite edge function, New invitee flow, Legacy user flow (+1 more)
 
@@ -90,17 +90,17 @@ Nodes (9): user_metadata.activated flag, admin-api edge function, admin-api ?api
 Cohesion: 0.43
 Nodes (4): getEffectiveUser(), maybeShow(), pickEntriesSince(), show()
 
-### Community 8 - "Release process + auto graph rebuild"
-Cohesion: 0.38
-Nodes (5): changelog.js (ENTRIES), git post-commit graphify hook, pwa.js / nuclearVersionCheck, 4-step release process, CLAUDE.md release reminder
-
-### Community 9 - "Theme cycle"
+### Community 8 - "RBAC source of truth"
 Cohesion: 0.67
 Nodes (5): apply(), bootstrap(), effective(), osPrefersLight(), syncBtn()
 
-### Community 10 - "RBAC source of truth (permissions.js)"
+### Community 9 - "RBAC source of truth"
 Cohesion: 0.6
 Nodes (5): canOpen(), canOpenWith(), effective(), impersonation(), pageDef()
+
+### Community 10 - "PWA install + version check"
+Cohesion: 0.47
+Nodes (5): changelog.js (ENTRIES), git post-commit graphify hook, pwa.js / nuclearVersionCheck, 4-step release process, CLAUDE.md release reminder
 
 ### Community 11 - "Skeleton loading states"
 Cohesion: 0.5
@@ -110,7 +110,7 @@ Nodes (0):
 Cohesion: 0.5
 Nodes (0): 
 
-### Community 13 - "Other edge functions (calls/dashboard/declarations/income)"
+### Community 13 - "Other edge functions"
 Cohesion: 0.5
 Nodes (4): calls edge function, dashboard edge function, declarations edge function, income edge function
 
@@ -133,11 +133,11 @@ Nodes (1): meta-ads edge function
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `AGENTS.md (Agent Guide)` connect `Mentorship CRM — coach permission + progress` to `Mentorship CRM — students schema + Logs`, `Auth gate — invite + first-name + activated`?**
-  _High betweenness centrality (0.072) - this node is a cross-community bridge._
-- **Why does `students edge function` connect `Mentorship CRM — students schema + Logs` to `Mentorship CRM — coach permission + progress`?**
-  _High betweenness centrality (0.051) - this node is a cross-community bridge._
-- **Why does `first_name + activation gate (v95+)` connect `Auth gate — invite + first-name + activated` to `Mentorship CRM — coach permission + progress`?**
-  _High betweenness centrality (0.043) - this node is a cross-community bridge._
+- **Why does `AGENTS.md (Agent Guide)` connect `Mentorship CRM — coach + progress` to `Mentorship CRM — schema + Logs`, `Auth gate (first-name + activated)`?**
+  _High betweenness centrality (0.068) - this node is a cross-community bridge._
+- **Why does `students edge function` connect `Mentorship CRM — schema + Logs` to `Mentorship CRM — coach + progress`?**
+  _High betweenness centrality (0.050) - this node is a cross-community bridge._
+- **Why does `first_name + activation gate (v95+)` connect `Auth gate (first-name + activated)` to `Mentorship CRM — coach + progress`?**
+  _High betweenness centrality (0.042) - this node is a cross-community bridge._
 - **What connects `dashboard edge function`, `calls edge function`, `income edge function` to the rest of the system?**
   _9 weakly-connected nodes found - possible documentation gaps or missing edges._

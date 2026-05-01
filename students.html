@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mentorship Students</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="permissions.js"></script>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#000000">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Ridleyacademy">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="mobile.css">
+
+<style>
+  :root {
+    --bg: #080a14;
+    --surface: #0f1120; --surface2: #141728; --surface3: #191e30;
+    --border: #1f2438; --border-light: #272d45;
+    --text: #eaecf8; --text-muted: #7880a8; --text-dim: #3e4668;
+    --blue: #6b9eff; --blue-glow: rgba(107,158,255,0.3); --blue-bg: rgba(107,158,255,0.1);
+    --green: #34d399; --green-glow: rgba(52,211,153,0.3); --green-bg: rgba(52,211,153,0.1);
+    --gold: #fbbf24; --gold-bg: rgba(251,191,36,0.1);
+    --red: #f87171; --red-bg: rgba(248,113,113,0.1);
+    --purple: #a78bfa; --purple-bg: rgba(167,139,250,0.1);
+  }
+  body.light {
+    --bg: #f0f2fa; --surface: #ffffff; --surface2: #f5f6fc; --surface3: #eceef8;
+    --border: #dde1f2; --border-light: #ccd1e8;
+    --text: #0f1220; --text-muted: #525b82; --text-dim: #9099be;
+  }
+  body.light .topbar { background: rgba(255,255,255,0.9); }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg); color: var(--text); min-height: 100vh; -webkit-font-smoothing: antialiased;
+    position: relative; overflow-x: hidden;
+  }
+
+  body[data-state="loading"] #app, body[data-state="loading"] #login, body[data-state="loading"] #denied,
+  body[data-state="dashboard"] #login, body[data-state="dashboard"] #boot, body[data-state="dashboard"] #denied,
+  body[data-state="login"] #app, body[data-state="login"] #boot, body[data-state="login"] #denied,
+  body[data-state="denied"] #app, body[data-state="denied"] #boot, body[data-state="denied"] #login { display: none; }
+  body[data-state="loading"] #boot { display: flex; }
+  body[data-state="login"] #login { display: flex; }
+  body[data-state="denied"] #denied { display: flex; }
+  body[data-state="dashboard"] #app { display: block; }
+
+  .full-center { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .login-wrap { width: 100%; max-width: 420px; }
+  .login-logo { width: 56px; height: 56px; border-radius: 16px; margin: 0 auto 24px; background: linear-gradient(135deg,#34d399,#10b981); display: flex; align-items: center; justify-content: center; }
+  .login-card { background: var(--surface); border: 1px solid var(--border); border-radius: 24px; padding: 40px 36px; box-shadow: 0 32px 80px rgba(0,0,0,0.6); }
+  .login-card h1 { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.03em; text-align: center; margin-bottom: 4px; }
+  .login-card .sub { color: var(--text-muted); font-size: 0.84rem; text-align: center; margin-bottom: 28px; }
+  .input-group { margin-bottom: 12px; }
+  .input-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-muted); margin-bottom: 6px; display: block; }
+  .auth-input { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 13px 16px; color: var(--text); font-size: 0.92rem; outline: none; }
+  .auth-input:focus { border-color: var(--green); box-shadow: 0 0 0 3px var(--green-bg); }
+  .auth-btn { width: 100%; margin-top: 8px; background: linear-gradient(135deg,#34d399,#10b981); border: none; border-radius: 12px; padding: 14px; color: #0b0c14; font-size: 0.92rem; font-weight: 800; cursor: pointer; }
+  .auth-error { color: var(--red); font-size: 0.78rem; margin-top: 10px; min-height: 1em; text-align: center; }
+  .spinner { width: 40px; height: 40px; border: 3px solid var(--border); border-top-color: var(--green); border-radius: 50%; animation: spin 0.7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Topbar */
+  .topbar {
+    display: flex; align-items: center; gap: 10px; padding: 12px 32px;
+    background: rgba(8,10,20,0.85); backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100;
+    flex-wrap: wrap;
+  }
+  .topbar-logo { width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0; background: linear-gradient(135deg,#34d399,#10b981); display: flex; align-items: center; justify-content: center; }
+  .topbar-brand { font-size: 0.9rem; font-weight: 700; letter-spacing: -0.02em; }
+  .topbar-spacer { flex: 1; }
+  .tbtn { border: none; border-radius: 8px; padding: 6px 12px; font-size: 0.74rem; font-weight: 600; cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 5px; }
+  .tbtn-ghost { background: var(--surface2); color: var(--text-muted); border: 1px solid var(--border); }
+  .tbtn-ghost:hover { color: var(--text); border-color: var(--border-light); }
+  .tbtn-primary { background: linear-gradient(135deg,#34d399,#10b981); color: #0b0c14; }
+  .user-pill { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 4px 14px 4px 4px; }
+  .user-pill-av { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; background: linear-gradient(135deg,#34d399,#10b981); color: #0b0c14; font-size: 0.62rem; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+  .user-pill-email { font-size: 0.73rem; color: var(--text-muted); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* Page */
+  .page { padding: 28px 32px; max-width: 1400px; margin: 0 auto; }
+  .sec-label { display: flex; align-items: center; gap: 14px; margin: 24px 0 14px; }
+  .sec-label-text { font-size: 0.66rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-dim); }
+  .sec-label-line { flex: 1; height: 1px; background: var(--border); }
+
+  /* Layout: 320px sidebar + content */
+  .crm-layout { display: grid; grid-template-columns: 340px 1fr; gap: 18px; }
+  @media(max-width:880px) { .crm-layout { grid-template-columns: 1fr; } }
+
+  .student-list-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    overflow: hidden; display: flex; flex-direction: column; max-height: 80vh;
+  }
+  .student-list-head { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+  .student-list-search {
+    flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 9px;
+    padding: 8px 12px; font-size: 0.84rem; color: var(--text); outline: none;
+  }
+  .student-list-search:focus { border-color: var(--green); }
+  .student-list-add {
+    background: linear-gradient(135deg,#34d399,#10b981); color: #0b0c14;
+    border: none; border-radius: 9px; padding: 8px 12px; font-weight: 800; cursor: pointer; font-size: 0.84rem;
+  }
+  .student-list-body { overflow-y: auto; flex: 1; }
+  .student-row {
+    padding: 12px 16px; border-bottom: 1px solid var(--border); cursor: pointer;
+    display: flex; align-items: center; gap: 12px; transition: background 0.1s;
+  }
+  .student-row:hover { background: var(--surface2); }
+  .student-row.active { background: rgba(52,211,153,0.08); border-left: 3px solid var(--green); padding-left: 13px; }
+  .student-av { width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0; background: var(--surface2); color: var(--text); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.84rem; }
+  .student-row.active .student-av { background: linear-gradient(135deg,#34d399,#10b981); color: #0b0c14; }
+  .student-row-info { flex: 1; min-width: 0; }
+  .student-row-name { font-size: 0.88rem; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .student-row-meta { font-size: 0.7rem; color: var(--text-muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .status-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 4px; }
+  .status-Active { background: #34d399; }
+  .status-Paused { background: #fbbf24; }
+  .status-Graduated { background: #6b9eff; }
+  .status-Cancelled { background: #f87171; }
+  .status-Lead { background: #a78bfa; }
+
+  .student-list-empty { padding: 32px 16px; color: var(--text-muted); font-size: 0.84rem; text-align: center; }
+
+  /* Profile */
+  .profile-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    padding: 24px 24px;
+  }
+  .profile-empty { padding: 60px 30px; text-align: center; color: var(--text-muted); font-size: 0.92rem; }
+  .profile-empty-icon { width: 56px; height: 56px; margin: 0 auto 14px; border-radius: 16px; background: var(--surface2); display: flex; align-items: center; justify-content: center; color: var(--text-dim); }
+  .profile-head { display: flex; align-items: center; gap: 16px; margin-bottom: 22px; padding-bottom: 18px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .profile-av { width: 56px; height: 56px; border-radius: 16px; background: linear-gradient(135deg,#34d399,#10b981); color: #0b0c14; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; font-weight: 900; flex-shrink: 0; }
+  .profile-title { flex: 1; min-width: 200px; }
+  .profile-name { font-size: 1.4rem; font-weight: 800; letter-spacing: -0.02em; }
+  .profile-sub { color: var(--text-muted); font-size: 0.82rem; margin-top: 3px; }
+  .profile-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .profile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 18px; }
+  @media(max-width:600px) { .profile-grid { grid-template-columns: 1fr; } }
+  .field { }
+  .field-label { font-size: 0.66rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); margin-bottom: 6px; }
+  .field-input, .field-select, .field-textarea {
+    width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 9px 12px; color: var(--text); font-size: 0.88rem; outline: none; font-family: inherit;
+  }
+  .field-input:focus, .field-select:focus, .field-textarea:focus { border-color: var(--green); }
+  .field-textarea { min-height: 110px; resize: vertical; }
+  .field-full { grid-column: 1 / -1; }
+
+  .profile-save {
+    background: linear-gradient(135deg,#34d399,#10b981); color: #0b0c14;
+    border: none; border-radius: 10px; padding: 10px 22px; font-weight: 800; cursor: pointer;
+  }
+  .profile-save:disabled { opacity: 0.5; cursor: not-allowed; }
+  .profile-delete {
+    background: rgba(248,113,113,0.1); border: 1px solid rgba(248,113,113,0.3);
+    color: var(--red); border-radius: 10px; padding: 10px 16px; font-weight: 700; cursor: pointer;
+  }
+  .profile-delete:hover { background: rgba(248,113,113,0.18); }
+  .profile-msg { font-size: 0.78rem; min-height: 1em; margin-left: 8px; align-self: center; }
+</style>
+</head>
+<body data-state="loading">
+
+<!-- Boot -->
+<div id="boot" class="full-center"><div class="spinner"></div></div>
+
+<!-- Login -->
+<div id="login" class="full-center">
+  <div class="login-wrap">
+    <div class="login-logo">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0b0c14" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    </div>
+    <div class="login-card">
+      <h1>Welcome back</h1>
+      <p class="sub">Sign in to access the mentorship CRM</p>
+      <form id="loginForm">
+        <div class="input-group">
+          <label class="input-label" for="email">Email</label>
+          <input class="auth-input" type="email" id="email" required autocomplete="email">
+        </div>
+        <div class="input-group">
+          <label class="input-label" for="password">Password</label>
+          <input class="auth-input" type="password" id="password" required autocomplete="current-password">
+        </div>
+        <button type="submit" class="auth-btn" id="sendBtn">Sign In</button>
+        <div class="auth-error" id="loginError"></div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Denied -->
+<div id="denied" class="full-center">
+  <div style="text-align:center;max-width:420px;">
+    <h2 style="font-size:1.4rem;margin-bottom:8px;">Access Denied</h2>
+    <p style="color:var(--text-muted);margin-bottom:18px;">You don't have permission to view the Mentorship CRM.</p>
+    <button class="tbtn tbtn-ghost" id="deniedSignOutBtn">Sign Out</button>
+  </div>
+</div>
+
+<!-- App -->
+<div id="app">
+  <header class="topbar">
+    <div class="topbar-logo" style="order:0;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0b0c14" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+    </div>
+    <div class="topbar-brand" style="order:1;">Mentorship CRM</div>
+
+    <div class="daterange-wrap" style="order:10;visibility:hidden;width:0;"></div>
+
+    <button class="tbtn tbtn-ghost" id="refreshBtn" style="order:20;" title="Refresh">↻</button>
+    <button class="tbtn tbtn-ghost" id="themeBtn" style="order:30;font-size:1rem;padding:5px 10px;" title="Theme">☀️</button>
+
+    <div class="nav-dropdown" id="navDropdown" style="order:40;position:relative;">
+      <button class="tbtn tbtn-ghost" id="navDropdownBtn">Dashboards ▾</button>
+      <div class="nav-dropdown-menu" id="navDropMenu" style="display:none;position:absolute;top:100%;right:0;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:6px;margin-top:6px;min-width:200px;z-index:200;"></div>
+    </div>
+
+    <div class="user-pill" style="order:50;">
+      <div class="user-pill-av" id="userAvatar">U</div>
+      <div class="user-pill-email" id="userEmail">…</div>
+    </div>
+    <button class="tbtn tbtn-ghost" id="signOutBtn" style="order:60;">Sign Out</button>
+  </header>
+
+  <div class="page">
+    <div class="sec-label">
+      <span class="sec-label-text">Students</span>
+      <div class="sec-label-line"></div>
+      <span style="font-size:0.72rem;color:var(--text-muted);" id="studentTotalCount">—</span>
+    </div>
+
+    <div class="crm-layout">
+      <!-- List -->
+      <div class="student-list-card">
+        <div class="student-list-head">
+          <input class="student-list-search" id="studentSearch" type="search" placeholder="Search name, email, mentor…">
+          <button class="student-list-add" id="addStudentBtn">+ New</button>
+        </div>
+        <div class="student-list-body" id="studentList">
+          <div class="student-list-empty">Loading…</div>
+        </div>
+      </div>
+
+      <!-- Profile -->
+      <div class="profile-card" id="profileCard">
+        <div class="profile-empty">
+          <div class="profile-empty-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          </div>
+          <div>Pick a student from the list to see their profile.</div>
+          <div style="font-size:0.78rem;color:var(--text-dim);margin-top:6px;">Or click <strong>+ New</strong> to add one.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL      = "https://pojqljrhhtnigyrtzdzz.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBvanFsanJoaHRuaWd5cnR6ZHp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTA3ODMsImV4cCI6MjA5MTM4Njc4M30.PcSBDqOzbiZxZ7IAs5efqx0gsAlAG0cj3GqUOkAmxos";
+const STUDENTS_BASE = SUPABASE_URL + '/functions/v1/students';
+const supa = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: true, detectSessionInUrl: true, autoRefreshToken: true } });
+
+function setState(s) { document.body.dataset.state = s; }
+let currentSession = null;
+let students = [];
+let currentStudent = null;     // full row when one is selected
+let mentors = [];
+const STATUSES = ['Active', 'Paused', 'Graduated', 'Cancelled', 'Lead'];
+
+// ── Theme (handled by theme.js but we keep the button working) ──
+const savedTheme = localStorage.getItem('theme') || 'dark';
+if (savedTheme === 'light') document.body.classList.add('light');
+function syncThemeBtn() {
+  const btn = document.getElementById('themeBtn');
+  if (btn) btn.textContent = document.body.classList.contains('light') ? '🌙' : '☀️';
+}
+syncThemeBtn();
+
+// ── Auth ───────────────────────────────────────────────────────
+async function initAuth() {
+  const _safety = setTimeout(() => {
+    if (document.body.dataset.state === 'loading') setState('login');
+  }, 8000);
+  try {
+    const { data: { session }, error } = await supa.auth.getSession();
+    clearTimeout(_safety);
+    if (error) throw error;
+    if (session) { await onAuthed(session); return; }
+    setState('login');
+  } catch(e) {
+    clearTimeout(_safety);
+    console.error('Auth init error:', e);
+    setState('login');
+  }
+  supa.auth.onAuthStateChange(async (_e, sess) => {
+    if (sess) await onAuthed(sess); else setState('login');
+  });
+}
+
+async function onAuthed(session) {
+  currentSession = session;
+  const email = session.user.email || '';
+  document.getElementById('userEmail').textContent = email;
+  document.getElementById('userAvatar').textContent = (email[0] || 'U').toUpperCase();
+  if (!window.RidleyPerms.canOpen('students.html', session.user)) {
+    setState('denied'); return;
+  }
+  setState('dashboard');
+  loadMentors();
+  await loadStudents();
+}
+
+document.getElementById('loginForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const email = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  const err = document.getElementById('loginError');
+  const btn = document.getElementById('sendBtn');
+  err.textContent = ''; btn.disabled = true; btn.textContent = 'Signing in…';
+  try {
+    const { data, error } = await supa.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+    onAuthed(data.session);
+  } catch(e) { err.textContent = e.message || 'Invalid credentials'; }
+  finally { btn.disabled = false; btn.textContent = 'Sign In'; }
+});
+
+document.getElementById('signOutBtn').addEventListener('click', async () => {
+  await supa.auth.signOut(); setState('login');
+});
+document.getElementById('deniedSignOutBtn').addEventListener('click', async () => {
+  await supa.auth.signOut(); setState('login');
+});
+
+// ── Data ───────────────────────────────────────────────────────
+async function loadStudents() {
+  const list = document.getElementById('studentList');
+  list.innerHTML = '<div class="student-list-empty">Loading…</div>';
+  try {
+    const r = await fetch(STUDENTS_BASE + '?api=list', { headers: { Authorization: 'Bearer ' + currentSession.access_token } });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Failed');
+    students = j.rows || [];
+    renderStudentList();
+  } catch (e) {
+    list.innerHTML = '';
+    const div = document.createElement('div');
+    div.className = 'student-list-empty';
+    div.style.color = 'var(--red)';
+    div.textContent = e.message || 'Failed to load';
+    list.appendChild(div);
+  }
+}
+
+async function loadMentors() {
+  try {
+    const r = await fetch(STUDENTS_BASE + '?api=mentors', { headers: { Authorization: 'Bearer ' + currentSession.access_token } });
+    const j = await r.json();
+    if (r.ok) mentors = j.mentors || [];
+  } catch (_) { /* non-fatal */ }
+}
+
+function renderStudentList() {
+  const list = document.getElementById('studentList');
+  const q = (document.getElementById('studentSearch').value || '').toLowerCase().trim();
+  let rows = students;
+  if (q) rows = rows.filter(s =>
+    (s.name || '').toLowerCase().includes(q) ||
+    (s.email || '').toLowerCase().includes(q) ||
+    (s.mentor || '').toLowerCase().includes(q) ||
+    (s.product || '').toLowerCase().includes(q)
+  );
+  document.getElementById('studentTotalCount').textContent =
+    rows.length === students.length
+      ? `${students.length} total`
+      : `${rows.length} of ${students.length}`;
+  if (!rows.length) {
+    list.innerHTML = `<div class="student-list-empty">${students.length ? 'No matches.' : 'No students yet — click + New to add the first one.'}</div>`;
+    return;
+  }
+  list.innerHTML = '';
+  for (const s of rows) {
+    const initials = (s.name || '?').split(/\s+/).map(p => p[0] || '').join('').slice(0, 2).toUpperCase();
+    const div = document.createElement('div');
+    div.className = 'student-row' + (currentStudent && currentStudent.id === s.id ? ' active' : '');
+    div.dataset.id = s.id;
+    div.innerHTML = `
+      <div class="student-av">${initials}</div>
+      <div class="student-row-info">
+        <div class="student-row-name"></div>
+        <div class="student-row-meta"><span class="status-dot status-${(s.status||'Active').replace(/\s/g,'')}"></span><span class="meta-text"></span></div>
+      </div>`;
+    // Use textContent for user-supplied data
+    div.querySelector('.student-row-name').textContent = s.name || '(unnamed)';
+    const metaParts = [];
+    if (s.status) metaParts.push(s.status);
+    if (s.mentor) metaParts.push('· ' + s.mentor);
+    else if (s.email) metaParts.push('· ' + s.email);
+    div.querySelector('.meta-text').textContent = metaParts.join(' ');
+    div.addEventListener('click', () => openStudent(s.id));
+    list.appendChild(div);
+  }
+}
+
+document.getElementById('studentSearch').addEventListener('input', renderStudentList);
+document.getElementById('refreshBtn').addEventListener('click', loadStudents);
+document.getElementById('addStudentBtn').addEventListener('click', () => openStudent(null));
+
+// ── Profile ────────────────────────────────────────────────────
+async function openStudent(id) {
+  if (id === null) {
+    currentStudent = { id: null, name: '', status: 'Active', metadata: {} };
+    renderProfile();
+    renderStudentList();
+    return;
+  }
+  try {
+    const r = await fetch(STUDENTS_BASE + '?api=get&id=' + encodeURIComponent(id), {
+      headers: { Authorization: 'Bearer ' + currentSession.access_token }
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Failed');
+    currentStudent = j.row || null;
+    renderProfile();
+    renderStudentList();
+  } catch (e) {
+    alert('Failed to load student: ' + (e.message || e));
+  }
+}
+
+function renderProfile() {
+  const card = document.getElementById('profileCard');
+  if (!currentStudent) {
+    card.innerHTML = '<div class="profile-empty">Pick a student from the list to see their profile.</div>';
+    return;
+  }
+  const s = currentStudent;
+  const isNew = !s.id;
+  const initials = (s.name || '?').split(/\s+/).map(p => p[0] || '').join('').slice(0, 2).toUpperCase() || '?';
+
+  card.innerHTML = `
+    <div class="profile-head">
+      <div class="profile-av" id="prof-av">${initials}</div>
+      <div class="profile-title">
+        <div class="profile-name" id="prof-display-name">${isNew ? 'New student' : ''}</div>
+        <div class="profile-sub" id="prof-sub"></div>
+      </div>
+      <div class="profile-actions">
+        <button class="profile-save" id="prof-save">${isNew ? 'Create' : 'Save'}</button>
+        ${!isNew ? '<button class="profile-delete" id="prof-delete">Delete</button>' : ''}
+        <span class="profile-msg" id="prof-msg"></span>
+      </div>
+    </div>
+    <div class="profile-grid">
+      <div class="field field-full">
+        <div class="field-label">Name *</div>
+        <input class="field-input" id="f-name" type="text" placeholder="Full name" required>
+      </div>
+      <div class="field">
+        <div class="field-label">Email</div>
+        <input class="field-input" id="f-email" type="email" placeholder="student@example.com">
+      </div>
+      <div class="field">
+        <div class="field-label">Phone</div>
+        <input class="field-input" id="f-phone" type="text" placeholder="+1 555…">
+      </div>
+      <div class="field">
+        <div class="field-label">Status</div>
+        <select class="field-select" id="f-status">
+          ${STATUSES.map(st => `<option value="${st}">${st}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field">
+        <div class="field-label">Mentor</div>
+        <select class="field-select" id="f-mentor">
+          <option value="">— None —</option>
+          ${mentors.map(m => `<option value="${m}">${m}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field">
+        <div class="field-label">Product</div>
+        <input class="field-input" id="f-product" type="text" placeholder="e.g. Private Mentorship">
+      </div>
+      <div class="field">
+        <div class="field-label">Joined</div>
+        <input class="field-input" id="f-joined" type="date">
+      </div>
+      <div class="field">
+        <div class="field-label">Graduated</div>
+        <input class="field-input" id="f-graduated" type="date">
+      </div>
+      <div class="field field-full">
+        <div class="field-label">Notes</div>
+        <textarea class="field-textarea" id="f-notes" placeholder="Anything to remember about this student…"></textarea>
+      </div>
+    </div>
+  `;
+
+  // Populate (textContent / value — never innerHTML for user data)
+  document.getElementById('f-name').value     = s.name || '';
+  document.getElementById('f-email').value    = s.email || '';
+  document.getElementById('f-phone').value    = s.phone || '';
+  document.getElementById('f-status').value   = STATUSES.includes(s.status) ? s.status : 'Active';
+  document.getElementById('f-product').value  = s.product || '';
+  document.getElementById('f-joined').value   = (s.joined_at || '').slice(0, 10);
+  document.getElementById('f-graduated').value= (s.graduated_at || '').slice(0, 10);
+  document.getElementById('f-notes').value    = s.notes || '';
+  // Mentor select: ensure we add the saved mentor as an option even if the
+  // rep_mappings list doesn't include it (legacy data).
+  const mentorSel = document.getElementById('f-mentor');
+  if (s.mentor && !mentors.includes(s.mentor)) {
+    const opt = document.createElement('option'); opt.value = s.mentor; opt.textContent = s.mentor;
+    mentorSel.appendChild(opt);
+  }
+  mentorSel.value = s.mentor || '';
+
+  if (!isNew) {
+    document.getElementById('prof-display-name').textContent = s.name || '(unnamed)';
+    const subParts = [];
+    if (s.status) subParts.push(s.status);
+    if (s.mentor) subParts.push('Mentor: ' + s.mentor);
+    if (s.email)  subParts.push(s.email);
+    document.getElementById('prof-sub').textContent = subParts.join(' · ');
+  } else {
+    document.getElementById('prof-sub').textContent = 'Fill the form below and click Create.';
+  }
+
+  document.getElementById('f-name').addEventListener('input', () => {
+    const n = document.getElementById('f-name').value || '?';
+    document.getElementById('prof-av').textContent = n.split(/\s+/).map(p => p[0] || '').join('').slice(0, 2).toUpperCase() || '?';
+    if (!isNew) document.getElementById('prof-display-name').textContent = n;
+  });
+  document.getElementById('prof-save').addEventListener('click', saveStudent);
+  if (!isNew) document.getElementById('prof-delete').addEventListener('click', deleteStudent);
+}
+
+async function saveStudent() {
+  const btn = document.getElementById('prof-save');
+  const msg = document.getElementById('prof-msg');
+  msg.textContent = ''; msg.style.color = '';
+  const payload = {
+    id:           currentStudent.id || undefined,
+    name:         document.getElementById('f-name').value.trim(),
+    email:        document.getElementById('f-email').value.trim(),
+    phone:        document.getElementById('f-phone').value.trim(),
+    status:       document.getElementById('f-status').value,
+    mentor:       document.getElementById('f-mentor').value || null,
+    product:      document.getElementById('f-product').value.trim(),
+    joined_at:    document.getElementById('f-joined').value || null,
+    graduated_at: document.getElementById('f-graduated').value || null,
+    notes:        document.getElementById('f-notes').value,
+  };
+  if (!payload.name) {
+    msg.textContent = 'Name is required'; msg.style.color = 'var(--red)';
+    return;
+  }
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const r = await fetch(STUDENTS_BASE + '?api=upsert', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
+      body: JSON.stringify(payload),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Failed');
+    currentStudent.id = j.id;
+    msg.textContent = '✓ Saved'; msg.style.color = 'var(--green)';
+    await loadStudents();
+    await openStudent(j.id);
+  } catch (e) {
+    msg.textContent = e.message || 'Failed';
+    msg.style.color = 'var(--red)';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = currentStudent && currentStudent.id ? 'Save' : 'Create';
+    setTimeout(() => { msg.textContent = ''; }, 4000);
+  }
+}
+
+async function deleteStudent() {
+  if (!currentStudent || !currentStudent.id) return;
+  if (!confirm(`Delete ${currentStudent.name}? This can't be undone.`)) return;
+  try {
+    const r = await fetch(STUDENTS_BASE + '?api=delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
+      body: JSON.stringify({ id: currentStudent.id }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Failed');
+    currentStudent = null;
+    await loadStudents();
+    renderProfile();
+  } catch (e) {
+    alert('Delete failed: ' + (e.message || e));
+  }
+}
+
+// ── Picker dropdown ────────────────────────────────────────────
+document.getElementById('navDropdownBtn').addEventListener('click', e => {
+  e.stopPropagation();
+  const m = document.getElementById('navDropMenu');
+  m.style.display = m.style.display === 'none' ? 'block' : 'none';
+});
+document.addEventListener('click', () => {
+  const m = document.getElementById('navDropMenu');
+  if (m) m.style.display = 'none';
+});
+
+setState('loading');
+initAuth().catch(e => { console.error('Unhandled auth error:', e); setState('login'); });
+</script>
+
+<script src="forgot-password.js"></script>
+<script src="access-guard.js"></script>
+<script src="loading-states.js"></script>
+<script src="theme.js"></script>
+<script src="changelog.js"></script>
+<script src="pwa.js"></script>
+<script src="ux.js"></script>
+<script src="filters.js"></script>
+<script src="nav-menu.js"></script>
+</body>
+</html>

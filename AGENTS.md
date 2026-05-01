@@ -45,6 +45,7 @@ first try.
 | `income.html`       | Income                    | `finance` |
 | `calls.html`        | Calls                     | `calls`, `sales_manager`, `rep` |
 | `declarations.html` | Declarations              | `rep`, `sales_manager` |
+| `students.html`     | Mentorship CRM            | `mentorship`, `sales_manager` |
 
 `is_admin: true` overrides every check.
 
@@ -93,7 +94,7 @@ escalate themselves.
 
 ### Available roles
 
-`sales`, `marketing`, `finance`, `calls`, `rep`, `sales_manager`
+`sales`, `marketing`, `finance`, `calls`, `rep`, `sales_manager`, `mentorship`
 
 Plus the boolean `is_admin: true` which is a separate, all-overriding flag.
 

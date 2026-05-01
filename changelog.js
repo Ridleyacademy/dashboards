@@ -11,6 +11,12 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v75', title: 'New dashboard: Mentorship CRM',
+      roles: ['mentorship', 'sales_manager'], items: [
+      'New "Mentorship Students" dashboard for the mentorship program. Searchable list of students; click a name to open their profile.',
+      'Profile fields: name, email, phone, status (Active / Paused / Graduated / Cancelled / Lead), mentor (from rep mappings), product, joined / graduated dates, notes.',
+      'New "mentorship" permission. Admin and Sales Manager also have access.',
+    ]},
     { version: 'v74', title: 'Duplicate detection in declarations + auto-assign',
       roles: ['rep', 'sales_manager'], items: [
       'Two declarations claiming the same sale (same email + date + amount): later ones now show as Maybe with reason "Duplicate declaration: also declared by X". Earliest claim keeps Yes and gets a hint of the conflict.',

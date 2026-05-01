@@ -11,6 +11,13 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v82', title: 'Mentorship: resigns extend course duration',
+      roles: ['mentorship', 'sales_manager'], items: [
+      'New Resigns panel per student. Click + Add resign → modal with date / months added / amount / notes.',
+      'Each resign adds N months to the lifecycle. Effective end date and Active / Expiring / Expired status update automatically.',
+      'Last purchase date field is gone — any imported value was migrated to a resign entry on first deploy.',
+      'Profile header now shows +Xmo from resigns when extensions are present.',
+    ]},
     { version: 'v80', title: 'Mentorship: pauses + automatic expiring/expired',
       roles: ['mentorship', 'sales_manager'], items: [
       'Expired / Expiring soon is now computed automatically from student onboarded date + months count + total paused days. The manual checkbox is gone.',

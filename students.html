@@ -602,11 +602,12 @@ document.getElementById('drApply').addEventListener('click', () => {
 });
 
 // ── Profile ────────────────────────────────────────────────────
-let currentPauses = []; // pauses for the currently-selected student
+let currentPauses = [];   // pauses for the currently-selected student
+let currentResigns = [];  // resigns (course extensions)
 async function openStudent(id) {
   if (id === null) {
     currentStudent = { id: null, name: '', status: 'Active', metadata: {} };
-    currentPauses = [];
+    currentPauses = []; currentResigns = [];
     renderProfile();
     renderStudentList();
     return;
@@ -618,7 +619,8 @@ async function openStudent(id) {
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || 'Failed');
     currentStudent = j.row || null;
-    currentPauses = Array.isArray(j.pauses) ? j.pauses : [];
+    currentPauses  = Array.isArray(j.pauses)  ? j.pauses  : [];
+    currentResigns = Array.isArray(j.resigns) ? j.resigns : [];
     renderProfile();
     renderStudentList();
   } catch (e) {
@@ -640,9 +642,8 @@ const SECTIONS = [
     { k: 'product', label: 'Product',         type: 'text', placeholder: 'e.g. Private Mentorship' },
   ]],
   ['Purchase', [
-    { k: 'first_purchase_date', label: '1st purchase date',  type: 'date' },
-    { k: 'last_purchase_date',  label: 'Last purchase date', type: 'date' },
-    { k: 'months_count',        label: 'How many months',    type: 'number' },
+    { k: 'first_purchase_date', label: '1st purchase date',          type: 'date' },
+    { k: 'months_count',        label: 'How many months (initial)',  type: 'number' },
   ]],
   ['Onboarding', [
     { k: 'reg_notes',              label: 'REG notes',                  type: 'textarea', full: true },
@@ -891,6 +892,193 @@ async function deletePause(id) {
   } catch (e) { alert('Delete pause failed: ' + (e.message || e)); }
 }
 
+function _buildResignsPanel() {
+  const fmtMoney = n => n == null ? '—' : '$' + Number(n).toLocaleString();
+  const sorted = [...currentResigns].sort((a, b) =>
+    String(b.resign_date || '').localeCompare(String(a.resign_date || '')));
+  const totalAdded = sorted.reduce((s, r) => s + (Number(r.months_added) || 0), 0);
+  const rows = sorted.map(r => `
+    <tr data-resign-id="${r.id}">
+      <td style="padding:6px 8px;"><input type="date"   class="field-input resign-date"   value="${r.resign_date || ''}" data-rid="${r.id}"></td>
+      <td style="padding:6px 8px;"><input type="number" class="field-input resign-months" value="${r.months_added || 0}" data-rid="${r.id}" min="1" step="1" style="max-width:90px;"></td>
+      <td style="padding:6px 8px;"><input type="number" class="field-input resign-amount" value="${r.amount != null ? r.amount : ''}" data-rid="${r.id}" min="0" step="0.01" placeholder="(optional)" style="max-width:120px;"></td>
+      <td style="padding:6px 8px;"><input type="text"   class="field-input resign-notes"  value="" data-rid="${r.id}" placeholder="Notes"></td>
+      <td style="padding:6px 8px;text-align:right;"><button class="profile-delete resign-del" data-rid="${r.id}" style="padding:4px 10px;font-size:0.72rem;">✕</button></td>
+    </tr>`).join('');
+  return `
+    <div class="profile-section">
+      <div class="profile-section-head">
+        <div class="profile-section-title">Resigns ${totalAdded ? `<span style="color:var(--text-muted);font-weight:600;text-transform:none;letter-spacing:0;font-size:0.72rem;margin-left:8px;">+${totalAdded} months total</span>` : ''}</div>
+        <div class="profile-section-line"></div>
+        <button class="profile-save" id="addResignBtn" style="padding:6px 14px;font-size:0.78rem;">+ Add resign</button>
+      </div>
+      ${currentResigns.length === 0
+        ? '<div style="padding:12px;color:var(--text-muted);font-size:0.84rem;background:var(--surface2);border-radius:10px;">No resigns yet. Each resign extends the course duration by the number of months you specify.</div>'
+        : `<div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+            <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
+              <thead style="background:var(--surface2);color:var(--text-dim);font-size:0.66rem;text-transform:uppercase;letter-spacing:0.06em;">
+                <tr>
+                  <th style="padding:8px;text-align:left;">Date</th>
+                  <th style="padding:8px;text-align:left;">Months added</th>
+                  <th style="padding:8px;text-align:left;">Amount</th>
+                  <th style="padding:8px;text-align:left;">Notes</th>
+                  <th style="padding:8px;text-align:right;">&nbsp;</th>
+                </tr>
+              </thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>`}
+    </div>`;
+}
+
+function _wireResigns() {
+  // Populate notes via .value (user-supplied — never innerHTML)
+  for (const r of currentResigns) {
+    const el = document.querySelector(`.resign-notes[data-rid="${r.id}"]`);
+    if (el) el.value = r.notes || '';
+  }
+  ['resign-date','resign-months','resign-amount','resign-notes'].forEach(cls => {
+    document.querySelectorAll('.' + cls).forEach(el => {
+      el.addEventListener('change', () => saveResignField(el));
+    });
+  });
+  document.querySelectorAll('.resign-del').forEach(btn => {
+    btn.addEventListener('click', () => deleteResign(Number(btn.dataset.rid)));
+  });
+  const addBtn = document.getElementById('addResignBtn');
+  if (addBtn) addBtn.addEventListener('click', addResign);
+}
+
+async function saveResignField(el) {
+  const id = Number(el.dataset.rid);
+  const fieldKey = el.classList.contains('resign-date')   ? 'resign_date'
+                  : el.classList.contains('resign-months') ? 'months_added'
+                  : el.classList.contains('resign-amount') ? 'amount'
+                  : 'notes';
+  const body = { id };
+  if (fieldKey === 'months_added') {
+    const v = Number(el.value); if (!v || v <= 0) { alert('Months must be a positive number.'); return; }
+    body[fieldKey] = v;
+  } else if (fieldKey === 'amount') {
+    body[fieldKey] = el.value === '' ? null : Number(el.value);
+  } else {
+    body[fieldKey] = el.value || null;
+    if (fieldKey === 'resign_date' && !body[fieldKey]) {
+      alert('A resign needs a date.');
+      if (currentStudent?.id) await openStudent(currentStudent.id);
+      return;
+    }
+  }
+  try {
+    const r = await fetch(STUDENTS_BASE + '?api=update-resign', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
+      body: JSON.stringify(body),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Failed');
+    if (currentStudent?.id) {
+      await openStudent(currentStudent.id);
+      await loadStudents();
+    }
+  } catch (e) { alert('Resign save failed: ' + (e.message || e)); }
+}
+
+function addResign() {
+  if (!currentStudent || !currentStudent.id) {
+    alert('Save the student first, then add resigns.');
+    return;
+  }
+  document.getElementById('resignModal')?.remove();
+  const today = new Date().toISOString().slice(0, 10);
+  const defaultMonths = Number(currentStudent.months_count) || 12;
+  const m = document.createElement('div');
+  m.id = 'resignModal';
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(8,9,18,0.78);backdrop-filter:blur(8px);z-index:10005;display:flex;align-items:center;justify-content:center;padding:20px;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;';
+  m.innerHTML = `
+    <div style="background:#13141f;border:1px solid #1f2438;border-radius:18px;padding:24px 26px;max-width:440px;width:100%;color:#eaecf8;box-shadow:0 24px 60px rgba(0,0,0,0.55);">
+      <div style="font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;margin-bottom:4px;">Add a resign</div>
+      <div style="font-size:0.78rem;color:#7880a8;margin-bottom:18px;">Extends the course by the number of months you choose. The student's effective end date moves out automatically.</div>
+      <div class="field" style="margin-bottom:12px;">
+        <div class="field-label">Resign date *</div>
+        <input class="field-input" type="date" id="resignModalDate" value="${today}" required>
+      </div>
+      <div class="field" style="margin-bottom:12px;">
+        <div class="field-label">Months added *</div>
+        <input class="field-input" type="number" id="resignModalMonths" value="${defaultMonths}" min="1" step="1" required>
+      </div>
+      <div class="field" style="margin-bottom:12px;">
+        <div class="field-label">Amount paid <span style="text-transform:none;font-weight:500;color:var(--text-dim);">(optional)</span></div>
+        <input class="field-input" type="number" id="resignModalAmount" min="0" step="0.01" placeholder="e.g. 1500">
+      </div>
+      <div class="field" style="margin-bottom:18px;">
+        <div class="field-label">Notes</div>
+        <textarea class="field-textarea" id="resignModalNotes" placeholder="Plan / instalments / anything to remember…" style="min-height:80px;"></textarea>
+      </div>
+      <div id="resignModalErr" style="color:var(--red);font-size:0.78rem;min-height:1em;margin-bottom:8px;"></div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button id="resignModalCancel" style="background:transparent;border:1px solid #1f2438;color:#7880a8;border-radius:9px;padding:8px 16px;font-weight:700;cursor:pointer;">Cancel</button>
+        <button id="resignModalSave" class="profile-save" style="padding:8px 18px;">Save resign</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(m);
+  function close() { m.remove(); }
+  document.getElementById('resignModalCancel').addEventListener('click', close);
+  m.addEventListener('click', e => { if (e.target === m) close(); });
+  function onKey(e) { if (e.key === 'Escape') { close(); document.removeEventListener('keydown', onKey); } }
+  document.addEventListener('keydown', onKey);
+
+  const dateEl  = document.getElementById('resignModalDate');
+  const monEl   = document.getElementById('resignModalMonths');
+  const amtEl   = document.getElementById('resignModalAmount');
+  const notesEl = document.getElementById('resignModalNotes');
+  const errEl   = document.getElementById('resignModalErr');
+  const saveBtn = document.getElementById('resignModalSave');
+  dateEl.focus();
+
+  saveBtn.addEventListener('click', async () => {
+    errEl.textContent = '';
+    const resign_date = dateEl.value;
+    const months_added = Number(monEl.value);
+    const amount = amtEl.value === '' ? null : Number(amtEl.value);
+    const notes = notesEl.value.trim() || null;
+    if (!resign_date) { errEl.textContent = 'Resign date is required.'; return; }
+    if (!months_added || months_added <= 0) { errEl.textContent = 'Months added must be a positive number.'; return; }
+    saveBtn.disabled = true; saveBtn.textContent = 'Saving…';
+    try {
+      const r = await fetch(STUDENTS_BASE + '?api=add-resign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
+        body: JSON.stringify({ studentId: currentStudent.id, resign_date, months_added, amount, notes }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'Failed');
+      close();
+      await openStudent(currentStudent.id);
+      await loadStudents();
+    } catch (e) {
+      errEl.textContent = e.message || 'Failed';
+      saveBtn.disabled = false; saveBtn.textContent = 'Save resign';
+    }
+  });
+}
+
+async function deleteResign(id) {
+  if (!confirm('Delete this resign? The course duration will shrink back accordingly.')) return;
+  try {
+    const r = await fetch(STUDENTS_BASE + '?api=delete-resign', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
+      body: JSON.stringify({ id }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Failed');
+    await openStudent(currentStudent.id);
+    await loadStudents();
+  } catch (e) { alert('Delete resign failed: ' + (e.message || e)); }
+}
+
 function renderProfile() {
   const card = document.getElementById('profileCard');
   if (!currentStudent) {
@@ -915,7 +1103,7 @@ function renderProfile() {
         </div>
       </div>`;
     if (title === 'Coaching') {
-      return grid + (isNew ? '' : _buildPausesPanel());
+      return grid + (isNew ? '' : _buildPausesPanel() + _buildResignsPanel());
     }
     return grid;
   }).join('');
@@ -935,6 +1123,9 @@ function renderProfile() {
   }
   if (s.paused_days_total) {
     badges.push(`<span class="badge ver" style="background:rgba(120,128,168,0.18);color:#7880a8;">${s.paused_days_total}d paused total</span>`);
+  }
+  if (s.resign_months_added) {
+    badges.push(`<span class="badge ver" style="background:rgba(167,139,250,0.18);color:#a78bfa;">+${s.resign_months_added}mo from resigns</span>`);
   }
   if (s.winning_student)  badges.push('<span class="badge win">★ Winning</span>');
   if (s.verified)         badges.push('<span class="badge ver">✓ Verified</span>');
@@ -1024,7 +1215,7 @@ function renderProfile() {
 
   document.getElementById('prof-save').addEventListener('click', saveStudent);
   if (!isNew) document.getElementById('prof-delete').addEventListener('click', deleteStudent);
-  if (!isNew) _wirePauses();
+  if (!isNew) { _wirePauses(); _wireResigns(); }
 }
 
 async function saveStudent() {

@@ -276,8 +276,11 @@
       </div>
     </div>
 
-    <button class="tbtn tbtn-ghost" id="refreshBtn" style="order:20;" title="Refresh">↻</button>
-    <button class="tbtn tbtn-ghost" id="themeBtn" style="order:30;font-size:1rem;padding:5px 10px;" title="Theme">☀️</button>
+    <button class="tbtn tbtn-ghost" id="refreshBtn" style="order:20;" title="Refresh data">
+      <svg id="refreshIcon" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+      Refresh
+    </button>
+    <button class="tbtn tbtn-ghost" id="themeBtn" style="order:30;font-size:1rem;padding:5px 10px;" title="Toggle theme"></button>
 
     <div class="nav-dropdown" id="navDropdown" style="order:40;position:relative;">
       <button class="tbtn tbtn-ghost" id="navDropdownBtn">Dashboards ▾</button>
@@ -288,7 +291,10 @@
       <div class="user-pill-av" id="userAvatar">U</div>
       <div class="user-pill-email" id="userEmail">…</div>
     </div>
-    <button class="tbtn tbtn-ghost" id="signOutBtn" style="order:60;">Sign Out</button>
+    <button class="tbtn tbtn-ghost" id="signOutBtn" style="order:60;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      Sign Out
+    </button>
   </header>
 
   <div class="page">

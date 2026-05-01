@@ -1102,8 +1102,11 @@ function renderProfile() {
           ${fields.map(f => _buildField(f, s[f.k])).join('')}
         </div>
       </div>`;
+    if (title === 'Purchase') {
+      return grid + (isNew ? '' : _buildResignsPanel());
+    }
     if (title === 'Coaching') {
-      return grid + (isNew ? '' : _buildPausesPanel() + _buildResignsPanel());
+      return grid + (isNew ? '' : _buildPausesPanel());
     }
     return grid;
   }).join('');

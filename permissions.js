@@ -4,7 +4,7 @@
 // Adding a new role or page = edit ONLY this file. Per-page guards just call
 // RidleyPerms.canOpen(href, user) and trust the result.
 (function () {
-  const AVAILABLE_PERMS = ['sales', 'marketing', 'finance', 'calls', 'rep', 'sales_manager', 'mentorship'];
+  const AVAILABLE_PERMS = ['sales', 'marketing', 'finance', 'calls', 'rep', 'sales_manager', 'mentorship', 'coach'];
 
   // Page → which roles grant access. `is_admin: true` always wins.
   // `roles: '*'` means anyone signed in.

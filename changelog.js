@@ -11,6 +11,14 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v94', title: 'Coach permission + first names + Coach field type',
+      items: [
+      'New "coach" permission in the role list. Users with this permission appear in the Coach picker on the Mentorship CRM.',
+      'Manage Users (admin): each user row now has a First name field. Edit + Save persists it to the user record.',
+      'Invite form: optional First name field — pre-fills the new user\'s account before they activate.',
+      'Activate Account screen now asks for First name alongside the new password and confirmation.',
+      'Mentorship CRM Coach field is now a free-text input with autocomplete from coaches — type any name even if the coach doesn\'t have an account yet.',
+    ]},
     { version: 'v93', title: 'Mentorship: consolidate Onboarding section',
       roles: ['mentorship', 'sales_manager'], items: [
       'Removed the 1st coach assignment field.',

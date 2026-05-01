@@ -438,6 +438,7 @@ let currentSession = null;
 let students = [];
 let currentStudent = null;     // full row when one is selected
 let mentors = [];
+let coaches = [];
 const STATUSES = ['Active', 'Paused', 'Graduated', 'Cancelled', 'Lead'];
 
 // ── Theme (handled by theme.js but we keep the button working) ──
@@ -480,6 +481,7 @@ async function onAuthed(session) {
   }
   setState('dashboard');
   loadMentors();
+  loadCoaches();
   await loadStudents();
 }
 
@@ -536,6 +538,16 @@ async function loadMentors() {
     const r = await fetch(STUDENTS_BASE + '?api=mentors', { headers: { Authorization: 'Bearer ' + currentSession.access_token } });
     const j = await r.json();
     if (r.ok) mentors = j.mentors || [];
+  } catch (_) { /* non-fatal */ }
+}
+async function loadCoaches() {
+  try {
+    const r = await fetch(STUDENTS_BASE + '?api=coaches', { headers: { Authorization: 'Bearer ' + currentSession.access_token } });
+    const j = await r.json();
+    if (r.ok) {
+      // Show first_name when present, otherwise email; both are valid coach identifiers.
+      coaches = (j.coaches || []).map(c => c.first_name || c.email).filter(Boolean);
+    }
   } catch (_) { /* non-fatal */ }
 }
 
@@ -791,7 +803,7 @@ const SECTIONS = [
     { k: 'welcome_zoom_confirmed', label: 'Welcome Zoom w/ Stephen',    type: 'checkbox' },
     { k: 'survey_submitted_date',  label: 'Survey submitted',           type: 'date' },
     { k: 'video_submitted_date',   label: 'Video submitted',            type: 'date' },
-    { k: 'coach',                  label: 'Coach',                      type: 'select', opts: 'mentors' },
+    { k: 'coach',                  label: 'Coach',                      type: 'datalist', opts: 'coaches', placeholder: 'Type a coach name…' },
     { k: 'circle_created',         label: 'Circle created',             type: 'checkbox' },
     { k: 'student_onboarded_date', label: 'Student onboarded date',     type: 'date' },
   ]],
@@ -824,6 +836,11 @@ function _buildField(field, value) {
       if (field.opts !== 'mentors') optHtml = '<option value=""></option>' + optHtml;
     }
     inner = `<select class="field-select" id="${id}" data-key="${field.k}">${optHtml}</select>`;
+  } else if (field.type === 'datalist') {
+    const opts = field.opts === 'coaches' ? coaches : (Array.isArray(field.opts) ? field.opts : []);
+    const dlId = 'dl-' + field.k;
+    const optHtml = (opts || []).map(o => `<option value="${String(o).replace(/"/g,'&quot;')}"></option>`).join('');
+    inner = `<input class="field-input" type="text" id="${id}" data-key="${field.k}" list="${dlId}"${field.placeholder ? ` placeholder="${field.placeholder}"` : ''}><datalist id="${dlId}">${optHtml}</datalist>`;
   } else if (field.type === 'textarea') {
     inner = `<textarea class="field-textarea" id="${id}" data-key="${field.k}"></textarea>`;
   } else {

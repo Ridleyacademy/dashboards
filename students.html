@@ -809,6 +809,17 @@ const SECTIONS = [
   ]],
   // Pauses get their own custom widget (multiple rows). Section title still
   // appears via SECTION_RENDERERS below.
+  ['Coach', [
+    { k: 'level',                  label: 'Level',                      type: 'select',   opts: ['Beginner', 'Intermediate', 'Advanced'] },
+    { k: 'masterclass_level',      label: 'Masterclass level',          type: 'select',   opts: ['Introduction', 'Level 1', 'Level 2', 'Level 3', 'Level 4', 'Level 5', 'Level 6', 'Level 7', 'Level 8', 'Level 9', 'Level 10'] },
+    { k: 'current_module',         label: 'Current module',             type: 'text',     placeholder: 'e.g. Module 5' },
+    { k: 'coach_status',           label: 'Coach status',               type: 'select',   opts: ['All good', 'Needs attention'] },
+    { k: 'last_assignment_sent',     label: 'Last assignment sent',     type: 'date' },
+    { k: 'last_assignment_received', label: 'Last assignment received', type: 'date' },
+    { k: 'last_zoom_date',         label: 'Last Zoom',                  type: 'date' },
+    { k: 'concern',                label: 'Concern',                    type: 'textarea', full: true, placeholder: 'Practice constraints, problem areas…' },
+    { k: 'goal',                   label: 'Goal',                       type: 'textarea', full: true, placeholder: 'What are they working toward?' },
+  ]],
   ['Lifecycle', [
     { k: 'end_date',                 label: 'Manual end date (override)', type: 'date' },
     { k: 'survey_9month_submitted',  label: '9-month survey submitted',   type: 'checkbox' },

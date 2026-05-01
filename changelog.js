@@ -11,6 +11,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v97', title: 'Mentorship: new Coach section on each student',
+      roles: ['mentorship', 'sales_manager', 'coach'], items: [
+      'New Coach section in the student profile with 9 fields the coach updates: Level, Masterclass level, Current module, Coach status (All good / Needs attention), Last assignment sent, Last assignment received, Last Zoom, Concern, Goal.',
+      'Mentorship CRM is now visible to users with the new coach permission too (previously mentorship + sales_manager only).',
+    ]},
     { version: 'v96', title: 'Fix: new invitees were skipping the password step',
       items: [
       'The legacy-vs-new-user detection used last_sign_in_at, but Supabase sets that as soon as the invite link is clicked — so brand new invitees were getting the first-name-only screen and skipping password creation.',

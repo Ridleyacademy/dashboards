@@ -16,7 +16,7 @@
     { href: 'income.html',       id: 'income',       roles: ['finance'] },
     { href: 'calls.html',        id: 'calls',        roles: ['calls', 'sales_manager', 'rep'] },
     { href: 'declarations.html', id: 'declarations', roles: ['rep', 'sales_manager'] },
-    { href: 'students.html',     id: 'students',     roles: ['mentorship', 'sales_manager'] },
+    { href: 'students.html',     id: 'students',     roles: ['mentorship', 'sales_manager', 'coach'] },
   ];
 
   // Resolve impersonation: when an admin "Views as" another user, all UI

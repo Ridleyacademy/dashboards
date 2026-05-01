@@ -157,12 +157,13 @@
   .student-row-info { flex: 1; min-width: 0; }
   .student-row-name { font-size: 0.88rem; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .student-row-meta { font-size: 0.7rem; color: var(--text-muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .status-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 4px; }
-  .status-Active { background: #34d399; }
-  .status-Paused { background: #fbbf24; }
-  .status-Graduated { background: #6b9eff; }
-  .status-Cancelled { background: #f87171; }
-  .status-Lead { background: #a78bfa; }
+  .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; flex-shrink: 0; }
+  /* Driven by derived_status (computed lifecycle), not by the free-text status field. */
+  .status-derived-Active        { background: #34d399; }                         /* green   */
+  .status-derived-Expiringsoon  { background: #fbbf24; }                         /* amber   */
+  .status-derived-Expired       { background: #f87171; }                         /* red     */
+  .status-derived-Paused        { background: #a78bfa; }                         /* purple  */
+  .status-derived-Notonboarded  { background: #f59e0b; box-shadow: 0 0 0 2px rgba(245,158,11,0.18); } /* orange */
 
   .student-list-empty { padding: 32px 16px; color: var(--text-muted); font-size: 0.84rem; text-align: center; }
 
@@ -498,7 +499,7 @@ function renderStudentList() {
       <div class="student-av">${initials}</div>
       <div class="student-row-info">
         <div class="student-row-name"></div>
-        <div class="student-row-meta"><span class="status-dot status-${(s.status||'Active').replace(/\s/g,'')}"></span><span class="meta-text"></span></div>
+        <div class="student-row-meta"><span class="status-dot status-derived-${(s.derived_status||'Notonboarded').replace(/\s/g,'')}"></span><span class="meta-text"></span></div>
       </div>`;
     // Use textContent for user-supplied data
     const nameEl = div.querySelector('.student-row-name');

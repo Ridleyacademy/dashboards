@@ -204,6 +204,25 @@
   .profile-delete:hover { background: rgba(248,113,113,0.18); }
   .profile-msg { font-size: 0.78rem; min-height: 1em; margin-left: 8px; align-self: center; }
 
+  /* Alert buttons (top of profile card) */
+  .alert-btn-add {
+    background: rgba(248,113,113,0.12); border: 1px solid rgba(248,113,113,0.3);
+    color: #f87171; border-radius: 10px; padding: 9px 14px; font-weight: 700; cursor: pointer; font-size: 0.82rem;
+  }
+  .alert-btn-add:hover { background: rgba(248,113,113,0.2); border-color: rgba(248,113,113,0.5); }
+  .alert-btn-list {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text-muted); border-radius: 10px; padding: 9px 14px; font-weight: 700; cursor: pointer; font-size: 0.82rem;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .alert-btn-list:hover { color: var(--text); border-color: var(--border-light); }
+  .alert-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 18px; height: 18px; padding: 0 5px; font-size: 0.68rem; font-weight: 800;
+    border-radius: 999px; background: var(--surface3); color: var(--text-dim);
+  }
+  .alert-badge.has-open { background: #f87171; color: #0b0c14; }
+
   .profile-section { margin-top: 22px; }
   .profile-section-head {
     display: flex; align-items: center; gap: 12px; margin-bottom: 10px;
@@ -504,13 +523,13 @@ function renderStudentList() {
     // Use textContent for user-supplied data
     const nameEl = div.querySelector('.student-row-name');
     nameEl.textContent = s.name || '(unnamed)';
-    // Inline mini-badges next to name. Derived lifecycle wins over manual flags.
+    // Inline mini-badges next to name. ⚠ now means "has open alerts" — the
+    // dot color carries lifecycle status (Expired = red dot etc.).
     const tinyBadges = [];
     if (s.winning_student) tinyBadges.push('<span class="badge win" style="font-size:0.55rem;padding:1px 6px;margin-left:6px;vertical-align:middle;">★</span>');
     if (s.verified)        tinyBadges.push('<span class="badge ver" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;">✓</span>');
-    if (s.derived_status === 'Expired')       tinyBadges.push('<span class="badge exp" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;" title="Expired">⚠</span>');
-    else if (s.derived_status === 'Expiring soon') tinyBadges.push('<span class="badge win" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;" title="Expiring soon">⚠</span>');
-    else if (s.derived_status === 'Paused')   tinyBadges.push('<span class="badge win" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;" title="Paused">⏸</span>');
+    if (s.open_alerts_count) tinyBadges.push(`<span class="badge exp" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;" title="${s.open_alerts_count} unresolved alert${s.open_alerts_count !== 1 ? 's' : ''}">⚠ ${s.open_alerts_count}</span>`);
+    if (s.derived_status === 'Paused') tinyBadges.push('<span class="badge win" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;" title="Paused">⏸</span>');
     if (tinyBadges.length) nameEl.insertAdjacentHTML('beforeend', tinyBadges.join(''));
     const metaParts = [];
     // Use computed status (Active/Expired/etc.) instead of free-text status
@@ -603,12 +622,13 @@ document.getElementById('drApply').addEventListener('click', () => {
 });
 
 // ── Profile ────────────────────────────────────────────────────
-let currentPauses = [];   // pauses for the currently-selected student
-let currentResigns = [];  // resigns (course extensions)
+let currentPauses = [];
+let currentResigns = [];
+let currentAlerts = [];   // [{id, title, description, status, created_at, created_by_email, resolved_at, resolved_by_email, resolution_note}]
 async function openStudent(id) {
   if (id === null) {
     currentStudent = { id: null, name: '', status: 'Active', metadata: {} };
-    currentPauses = []; currentResigns = [];
+    currentPauses = []; currentResigns = []; currentAlerts = [];
     renderProfile();
     renderStudentList();
     return;
@@ -622,6 +642,7 @@ async function openStudent(id) {
     currentStudent = j.row || null;
     currentPauses  = Array.isArray(j.pauses)  ? j.pauses  : [];
     currentResigns = Array.isArray(j.resigns) ? j.resigns : [];
+    currentAlerts  = Array.isArray(j.alerts)  ? j.alerts  : [];
     renderProfile();
     renderStudentList();
   } catch (e) {
@@ -1143,6 +1164,11 @@ function renderProfile() {
         <div class="badges" id="prof-badges">${badges.join('')}</div>
       </div>
       <div class="profile-actions">
+        ${!isNew ? `
+          <button class="alert-btn-add"  id="prof-add-alert"  title="Open a new service alert for this student">⚠ + Alert</button>
+          <button class="alert-btn-list" id="prof-list-alerts" title="View all alerts (open + resolved) for this student">
+            🔔 Alerts <span class="alert-badge${(currentAlerts.filter(a=>a.status==='open').length>0)?' has-open':''}" id="prof-alert-count">${currentAlerts.filter(a=>a.status==='open').length}</span>
+          </button>` : ''}
         <button class="profile-save" id="prof-save">${isNew ? 'Create' : 'Save'}</button>
         ${!isNew ? '<button class="profile-delete" id="prof-delete">Delete</button>' : ''}
         <span class="profile-msg" id="prof-msg"></span>
@@ -1219,7 +1245,174 @@ function renderProfile() {
 
   document.getElementById('prof-save').addEventListener('click', saveStudent);
   if (!isNew) document.getElementById('prof-delete').addEventListener('click', deleteStudent);
-  if (!isNew) { _wirePauses(); _wireResigns(); }
+  if (!isNew) {
+    _wirePauses();
+    _wireResigns();
+    document.getElementById('prof-add-alert')?.addEventListener('click', openAddAlertModal);
+    document.getElementById('prof-list-alerts')?.addEventListener('click', openAlertsHistoryModal);
+  }
+}
+
+// ── Alerts ─────────────────────────────────────────────────────
+function openAddAlertModal() {
+  if (!currentStudent || !currentStudent.id) return;
+  document.getElementById('alertAddModal')?.remove();
+  const m = document.createElement('div');
+  m.id = 'alertAddModal';
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(8,9,18,0.78);backdrop-filter:blur(8px);z-index:10005;display:flex;align-items:center;justify-content:center;padding:20px;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;';
+  m.innerHTML = `
+    <div style="background:#13141f;border:1px solid #1f2438;border-radius:18px;padding:24px 26px;max-width:460px;width:100%;color:#eaecf8;box-shadow:0 24px 60px rgba(0,0,0,0.55);">
+      <div style="font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;margin-bottom:4px;">⚠ Open a service alert</div>
+      <div style="font-size:0.78rem;color:#7880a8;margin-bottom:18px;">Track an unresolved issue for this student. Resolve it later with a note explaining what was done.</div>
+      <div class="field" style="margin-bottom:12px;">
+        <div class="field-label">Title *</div>
+        <input class="field-input" type="text" id="alertModalTitle" placeholder="e.g. Refund pending, missed welcome call…" required>
+      </div>
+      <div class="field" style="margin-bottom:18px;">
+        <div class="field-label">Details</div>
+        <textarea class="field-textarea" id="alertModalDesc" placeholder="Context, history, what needs to happen…" style="min-height:110px;"></textarea>
+      </div>
+      <div id="alertAddErr" style="color:var(--red);font-size:0.78rem;min-height:1em;margin-bottom:8px;"></div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button id="alertAddCancel" style="background:transparent;border:1px solid #1f2438;color:#7880a8;border-radius:9px;padding:8px 16px;font-weight:700;cursor:pointer;">Cancel</button>
+        <button id="alertAddSave" class="alert-btn-add" style="padding:8px 18px;">Open alert</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  function close() { m.remove(); }
+  document.getElementById('alertAddCancel').addEventListener('click', close);
+  m.addEventListener('click', e => { if (e.target === m) close(); });
+  function onKey(e) { if (e.key === 'Escape') { close(); document.removeEventListener('keydown', onKey); } }
+  document.addEventListener('keydown', onKey);
+  const titleEl = document.getElementById('alertModalTitle');
+  const descEl  = document.getElementById('alertModalDesc');
+  const errEl   = document.getElementById('alertAddErr');
+  const saveBtn = document.getElementById('alertAddSave');
+  titleEl.focus();
+  saveBtn.addEventListener('click', async () => {
+    errEl.textContent = '';
+    const title = titleEl.value.trim();
+    if (!title) { errEl.textContent = 'Title is required.'; return; }
+    saveBtn.disabled = true; saveBtn.textContent = 'Opening…';
+    try {
+      const r = await fetch(STUDENTS_BASE + '?api=add-alert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
+        body: JSON.stringify({ studentId: currentStudent.id, title, description: descEl.value.trim() || null }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'Failed');
+      close();
+      await openStudent(currentStudent.id);
+      await loadStudents();
+    } catch (e) {
+      errEl.textContent = e.message || 'Failed';
+      saveBtn.disabled = false; saveBtn.textContent = 'Open alert';
+    }
+  });
+}
+
+function openAlertsHistoryModal() {
+  if (!currentStudent || !currentStudent.id) return;
+  document.getElementById('alertListModal')?.remove();
+  const m = document.createElement('div');
+  m.id = 'alertListModal';
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(8,9,18,0.78);backdrop-filter:blur(8px);z-index:10005;display:flex;align-items:center;justify-content:center;padding:20px;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;';
+  const openCount     = currentAlerts.filter(a => a.status === 'open').length;
+  const resolvedCount = currentAlerts.length - openCount;
+  m.innerHTML = `
+    <div style="background:#13141f;border:1px solid #1f2438;border-radius:18px;max-width:640px;width:100%;max-height:85vh;display:flex;flex-direction:column;color:#eaecf8;box-shadow:0 24px 60px rgba(0,0,0,0.55);overflow:hidden;">
+      <div style="padding:18px 22px;border-bottom:1px solid #1f2438;display:flex;align-items:center;gap:10px;">
+        <div style="flex:1;">
+          <div style="font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;">🔔 Alerts for ${currentStudent.name || ''}</div>
+          <div style="font-size:0.74rem;color:#7880a8;margin-top:3px;">${openCount} open · ${resolvedCount} resolved</div>
+        </div>
+        <button class="alert-btn-add" id="alertListAdd" style="padding:7px 14px;font-size:0.78rem;">+ Open alert</button>
+        <button id="alertListClose" style="background:transparent;border:none;color:#7880a8;font-size:1.5rem;cursor:pointer;padding:0 8px;">×</button>
+      </div>
+      <div id="alertListBody" style="flex:1;overflow-y:auto;padding:14px 22px;"></div>
+    </div>`;
+  document.body.appendChild(m);
+  function close() { m.remove(); }
+  document.getElementById('alertListClose').addEventListener('click', close);
+  document.getElementById('alertListAdd').addEventListener('click', () => { close(); openAddAlertModal(); });
+  m.addEventListener('click', e => { if (e.target === m) close(); });
+  function onKey(e) { if (e.key === 'Escape') { close(); document.removeEventListener('keydown', onKey); } }
+  document.addEventListener('keydown', onKey);
+  renderAlertList();
+}
+
+function renderAlertList() {
+  const body = document.getElementById('alertListBody');
+  if (!body) return;
+  if (!currentAlerts.length) {
+    body.innerHTML = '<div style="padding:32px;text-align:center;color:#7880a8;font-size:0.86rem;">No alerts yet.</div>';
+    return;
+  }
+  // Open first, then resolved by most-recent
+  const sorted = [...currentAlerts].sort((a, b) => {
+    if (a.status !== b.status) return a.status === 'open' ? -1 : 1;
+    return String(b.created_at || '').localeCompare(String(a.created_at || ''));
+  });
+  body.innerHTML = sorted.map(a => {
+    const isOpen = a.status === 'open';
+    const created = a.created_at ? new Date(a.created_at).toLocaleString() : '';
+    const resolved = a.resolved_at ? new Date(a.resolved_at).toLocaleString() : '';
+    return `
+      <div class="alert-row" data-aid="${a.id}" style="border:1px solid ${isOpen ? 'rgba(248,113,113,0.35)' : '#1f2438'};border-radius:12px;padding:14px;margin-bottom:12px;background:${isOpen ? 'rgba(248,113,113,0.04)' : 'transparent'};">
+        <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:8px;">
+          <div style="font-weight:800;font-size:0.92rem;flex:1;" class="alert-title-cell"></div>
+          <span class="badge ${isOpen ? 'exp' : 'ver'}" style="font-size:0.6rem;">${isOpen ? '⚠ OPEN' : '✓ RESOLVED'}</span>
+        </div>
+        ${a.description ? `<div class="alert-desc-cell" style="color:#cbd1ee;font-size:0.84rem;line-height:1.5;margin-bottom:8px;white-space:pre-wrap;"></div>` : ''}
+        <div style="font-size:0.7rem;color:#7880a8;">Opened ${created}${a.created_by_email ? ' by ' + a.created_by_email : ''}</div>
+        ${!isOpen ? `
+          <div style="margin-top:10px;padding-top:10px;border-top:1px solid #1f2438;">
+            <div style="font-size:0.66rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:#34d399;margin-bottom:4px;">Resolution</div>
+            <div class="alert-resnote-cell" style="color:#cbd1ee;font-size:0.84rem;line-height:1.5;white-space:pre-wrap;"></div>
+            <div style="font-size:0.7rem;color:#7880a8;margin-top:6px;">Resolved ${resolved}${a.resolved_by_email ? ' by ' + a.resolved_by_email : ''}</div>
+          </div>` : ''}
+        ${isOpen ? `
+          <div style="margin-top:12px;display:flex;gap:8px;align-items:flex-start;flex-direction:column;">
+            <textarea class="field-textarea alert-resolve-note" data-aid="${a.id}" placeholder="Explain how this was resolved (required)…" style="min-height:60px;width:100%;"></textarea>
+            <div style="display:flex;gap:8px;width:100%;">
+              <button class="profile-save alert-resolve-btn" data-aid="${a.id}" style="padding:7px 14px;font-size:0.78rem;">✓ Resolve</button>
+            </div>
+          </div>` : ''}
+      </div>`;
+  }).join('');
+  // Fill user-supplied content via textContent to dodge any HTML in title/desc/note
+  for (const a of sorted) {
+    const row = body.querySelector(`.alert-row[data-aid="${a.id}"]`); if (!row) continue;
+    row.querySelector('.alert-title-cell').textContent = a.title || '';
+    const dc = row.querySelector('.alert-desc-cell');
+    if (dc) dc.textContent = a.description || '';
+    const rc = row.querySelector('.alert-resnote-cell');
+    if (rc) rc.textContent = a.resolution_note || '';
+  }
+  body.querySelectorAll('.alert-resolve-btn').forEach(btn => {
+    btn.addEventListener('click', () => resolveAlert(Number(btn.dataset.aid)));
+  });
+}
+
+async function resolveAlert(id) {
+  const note = (document.querySelector(`.alert-resolve-note[data-aid="${id}"]`)?.value || '').trim();
+  if (!note) { alert('A resolution note is required.'); return; }
+  try {
+    const r = await fetch(STUDENTS_BASE + '?api=resolve-alert', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
+      body: JSON.stringify({ id, resolution_note: note }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Failed');
+    // Reload student so currentAlerts refreshes, then re-render the modal contents
+    await openStudent(currentStudent.id);
+    await loadStudents();
+    if (document.getElementById('alertListModal')) renderAlertList();
+  } catch (e) {
+    alert('Failed to resolve: ' + (e.message || e));
+  }
 }
 
 async function saveStudent() {

@@ -11,6 +11,13 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v85', title: 'Mentorship: service alerts',
+      roles: ['mentorship', 'sales_manager'], items: [
+      'Each student now has a Service Alerts system. ⚠ + Alert button at the top of the profile opens a modal to log a title + details for an unresolved issue.',
+      '🔔 Alerts (N) button shows the count of unresolved alerts. Click to see the full history (open + resolved).',
+      'Resolving an alert requires a resolution note. Resolved alerts stay in the list with the original details + the resolution + who resolved it and when.',
+      'Sidebar ⚠ icon repurposed: now means "has unresolved alerts" (the dot color already shows expired/active/etc).',
+    ]},
     { version: 'v82', title: 'Mentorship: resigns extend course duration',
       roles: ['mentorship', 'sales_manager'], items: [
       'New Resigns panel per student. Click + Add resign → modal with date / months added / amount / notes.',

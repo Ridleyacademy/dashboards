@@ -11,6 +11,12 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v92', title: 'Mentorship: + Rep notes + I/C notes; remove REG/Kat textareas',
+      roles: ['mentorship', 'sales_manager'], items: [
+      'Two new log types under the 📋 Logs button: 🧑‍💼 Rep notes (from REGs/sales reps) and 🎯 I/C notes (initial-call notes).',
+      'Removed the REG notes and Kat\'s notes textareas from the profile. Any existing data was migrated into Rep notes entries (tagged "Migrated from …").',
+      'Logs chooser now shows 5 cards (Wins / Coach notes / Rep notes / I/C notes / Turnovers) with per-type counts.',
+    ]},
     { version: 'v91', title: 'Mentorship: one Logs button + turnover results',
       roles: ['mentorship', 'sales_manager'], items: [
       'The 🏆 Wins / 📝 Notes / 🔄 Turnover buttons are now consolidated into one 📋 Logs button at the top of each profile.',

@@ -223,6 +223,19 @@
   }
   .alert-badge.has-open { background: #f87171; color: #0b0c14; }
 
+  .win-btn-list {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text-muted); border-radius: 10px; padding: 9px 14px; font-weight: 700; cursor: pointer; font-size: 0.82rem;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .win-btn-list:hover { color: var(--text); border-color: var(--border-light); }
+  .win-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 18px; height: 18px; padding: 0 5px; font-size: 0.68rem; font-weight: 800;
+    border-radius: 999px; background: var(--surface3); color: var(--text-dim);
+  }
+  .win-badge.has-any { background: #fbbf24; color: #0b0c14; }
+
   .profile-section { margin-top: 22px; }
   .profile-section-head {
     display: flex; align-items: center; gap: 12px; margin-bottom: 10px;
@@ -526,7 +539,7 @@ function renderStudentList() {
     // Inline mini-badges next to name. ⚠ now means "has open alerts" — the
     // dot color carries lifecycle status (Expired = red dot etc.).
     const tinyBadges = [];
-    if (s.winning_student) tinyBadges.push('<span class="badge win" style="font-size:0.55rem;padding:1px 6px;margin-left:6px;vertical-align:middle;">★</span>');
+    if (s.wins_count) tinyBadges.push(`<span class="badge win" style="font-size:0.55rem;padding:1px 6px;margin-left:6px;vertical-align:middle;" title="${s.wins_count} win${s.wins_count !== 1 ? 's' : ''}">★ ${s.wins_count}</span>`);
     if (s.verified)        tinyBadges.push('<span class="badge ver" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;">✓</span>');
     if (s.open_alerts_count) tinyBadges.push(`<span class="badge exp" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;" title="${s.open_alerts_count} unresolved alert${s.open_alerts_count !== 1 ? 's' : ''}">⚠ ${s.open_alerts_count}</span>`);
     if (s.derived_status === 'Paused') tinyBadges.push('<span class="badge win" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;" title="Paused">⏸</span>');
@@ -624,11 +637,12 @@ document.getElementById('drApply').addEventListener('click', () => {
 // ── Profile ────────────────────────────────────────────────────
 let currentPauses = [];
 let currentResigns = [];
-let currentAlerts = [];   // [{id, title, description, status, created_at, created_by_email, resolved_at, resolved_by_email, resolution_note}]
+let currentAlerts = [];
+let currentWins   = [];
 async function openStudent(id) {
   if (id === null) {
     currentStudent = { id: null, name: '', status: 'Active', metadata: {} };
-    currentPauses = []; currentResigns = []; currentAlerts = [];
+    currentPauses = []; currentResigns = []; currentAlerts = []; currentWins = [];
     renderProfile();
     renderStudentList();
     return;
@@ -643,6 +657,7 @@ async function openStudent(id) {
     currentPauses  = Array.isArray(j.pauses)  ? j.pauses  : [];
     currentResigns = Array.isArray(j.resigns) ? j.resigns : [];
     currentAlerts  = Array.isArray(j.alerts)  ? j.alerts  : [];
+    currentWins    = Array.isArray(j.wins)    ? j.wins    : [];
     renderProfile();
     renderStudentList();
   } catch (e) {
@@ -685,9 +700,7 @@ const SECTIONS = [
   // appears via SECTION_RENDERERS below.
   ['Lifecycle', [
     { k: 'end_date',                 label: 'Manual end date (override)', type: 'date' },
-    { k: 'survey_9month_submitted',  label: '9-month survey submitted', type: 'checkbox' },
-    { k: 'winning_student',          label: 'Winning student',    type: 'checkbox' },
-    { k: 'winning_data',             label: 'Winning data',       type: 'textarea', full: true },
+    { k: 'survey_9month_submitted',  label: '9-month survey submitted',   type: 'checkbox' },
   ]],
   ['Turnover to REG', [
     { k: 'turn_over_to_reg', label: 'Turn over to REG', type: 'checkbox' },
@@ -1152,7 +1165,7 @@ function renderProfile() {
   if (s.resign_months_added) {
     badges.push(`<span class="badge ver" style="background:rgba(167,139,250,0.18);color:#a78bfa;">+${s.resign_months_added}mo from resigns</span>`);
   }
-  if (s.winning_student)  badges.push('<span class="badge win">★ Winning</span>');
+  if (currentWins.length) badges.push(`<span class="badge win">★ ${currentWins.length} win${currentWins.length !== 1 ? 's' : ''}</span>`);
   if (s.verified)         badges.push('<span class="badge ver">✓ Verified</span>');
 
   card.innerHTML = `
@@ -1165,9 +1178,11 @@ function renderProfile() {
       </div>
       <div class="profile-actions">
         ${!isNew ? `
-          <button class="alert-btn-add"  id="prof-add-alert"  title="Open a new service alert for this student">⚠ + Alert</button>
-          <button class="alert-btn-list" id="prof-list-alerts" title="View all alerts (open + resolved) for this student">
-            🔔 Alerts <span class="alert-badge${(currentAlerts.filter(a=>a.status==='open').length>0)?' has-open':''}" id="prof-alert-count">${currentAlerts.filter(a=>a.status==='open').length}</span>
+          <button class="alert-btn-list" id="prof-list-alerts" title="Service alerts for this student (open + resolved history)">
+            🔔 Alerts <span class="alert-badge${(currentAlerts.filter(a=>a.status==='open').length>0)?' has-open':''}">${currentAlerts.filter(a=>a.status==='open').length}</span>
+          </button>
+          <button class="win-btn-list" id="prof-list-wins" title="Wins for this student">
+            🏆 Wins <span class="win-badge${currentWins.length>0?' has-any':''}">${currentWins.length}</span>
           </button>` : ''}
         <button class="profile-save" id="prof-save">${isNew ? 'Create' : 'Save'}</button>
         ${!isNew ? '<button class="profile-delete" id="prof-delete">Delete</button>' : ''}
@@ -1248,9 +1263,144 @@ function renderProfile() {
   if (!isNew) {
     _wirePauses();
     _wireResigns();
-    document.getElementById('prof-add-alert')?.addEventListener('click', openAddAlertModal);
     document.getElementById('prof-list-alerts')?.addEventListener('click', openAlertsHistoryModal);
+    document.getElementById('prof-list-wins')?.addEventListener('click', openWinsHistoryModal);
   }
+}
+
+// ── Wins ───────────────────────────────────────────────────────
+function openAddWinModal() {
+  if (!currentStudent || !currentStudent.id) return;
+  document.getElementById('winAddModal')?.remove();
+  const today = new Date().toISOString().slice(0, 10);
+  const m = document.createElement('div');
+  m.id = 'winAddModal';
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(8,9,18,0.78);backdrop-filter:blur(8px);z-index:10006;display:flex;align-items:center;justify-content:center;padding:20px;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;';
+  m.innerHTML = `
+    <div style="background:#13141f;border:1px solid #1f2438;border-radius:18px;padding:24px 26px;max-width:460px;width:100%;color:#eaecf8;box-shadow:0 24px 60px rgba(0,0,0,0.55);">
+      <div style="font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;margin-bottom:4px;">🏆 Add a win</div>
+      <div style="font-size:0.78rem;color:#7880a8;margin-bottom:18px;">Anything worth celebrating: first gig, audition, milestone, breakthrough.</div>
+      <div class="field" style="margin-bottom:12px;">
+        <div class="field-label">Win *</div>
+        <textarea class="field-textarea" id="winModalText" placeholder="What did they accomplish?" style="min-height:100px;" required></textarea>
+      </div>
+      <div class="field" style="margin-bottom:18px;">
+        <div class="field-label">Date <span style="text-transform:none;font-weight:500;color:var(--text-dim);">(optional)</span></div>
+        <input class="field-input" type="date" id="winModalDate" value="${today}">
+      </div>
+      <div id="winAddErr" style="color:var(--red);font-size:0.78rem;min-height:1em;margin-bottom:8px;"></div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button id="winAddCancel" style="background:transparent;border:1px solid #1f2438;color:#7880a8;border-radius:9px;padding:8px 16px;font-weight:700;cursor:pointer;">Cancel</button>
+        <button id="winAddSave" class="profile-save" style="padding:8px 18px;background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#0b0c14;">Log win</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  function close() { m.remove(); }
+  document.getElementById('winAddCancel').addEventListener('click', close);
+  m.addEventListener('click', e => { if (e.target === m) close(); });
+  function onKey(e) { if (e.key === 'Escape') { close(); document.removeEventListener('keydown', onKey); } }
+  document.addEventListener('keydown', onKey);
+  const textEl = document.getElementById('winModalText');
+  const dateEl = document.getElementById('winModalDate');
+  const errEl  = document.getElementById('winAddErr');
+  const saveBtn = document.getElementById('winAddSave');
+  textEl.focus();
+  saveBtn.addEventListener('click', async () => {
+    errEl.textContent = '';
+    const text = textEl.value.trim();
+    if (!text) { errEl.textContent = 'A win description is required.'; return; }
+    saveBtn.disabled = true; saveBtn.textContent = 'Saving…';
+    try {
+      const r = await fetch(STUDENTS_BASE + '?api=add-win', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
+        body: JSON.stringify({ studentId: currentStudent.id, text, win_date: dateEl.value || null }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'Failed');
+      close();
+      await openStudent(currentStudent.id);
+      await loadStudents();
+      // If wins history modal is open, re-render it
+      if (document.getElementById('winListModal')) renderWinList();
+    } catch (e) {
+      errEl.textContent = e.message || 'Failed';
+      saveBtn.disabled = false; saveBtn.textContent = 'Log win';
+    }
+  });
+}
+
+function openWinsHistoryModal() {
+  if (!currentStudent || !currentStudent.id) return;
+  document.getElementById('winListModal')?.remove();
+  const m = document.createElement('div');
+  m.id = 'winListModal';
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(8,9,18,0.78);backdrop-filter:blur(8px);z-index:10005;display:flex;align-items:center;justify-content:center;padding:20px;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;';
+  m.innerHTML = `
+    <div style="background:#13141f;border:1px solid #1f2438;border-radius:18px;max-width:640px;width:100%;max-height:85vh;display:flex;flex-direction:column;color:#eaecf8;box-shadow:0 24px 60px rgba(0,0,0,0.55);overflow:hidden;">
+      <div style="padding:18px 22px;border-bottom:1px solid #1f2438;display:flex;align-items:center;gap:10px;">
+        <div style="flex:1;">
+          <div style="font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;">🏆 Wins for ${currentStudent.name || ''}</div>
+          <div style="font-size:0.74rem;color:#7880a8;margin-top:3px;" id="winListCount"></div>
+        </div>
+        <button class="profile-save" id="winListAdd" style="padding:7px 14px;font-size:0.78rem;background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#0b0c14;">+ Add win</button>
+        <button id="winListClose" style="background:transparent;border:none;color:#7880a8;font-size:1.5rem;cursor:pointer;padding:0 8px;">×</button>
+      </div>
+      <div id="winListBody" style="flex:1;overflow-y:auto;padding:14px 22px;"></div>
+    </div>`;
+  document.body.appendChild(m);
+  function close() { m.remove(); }
+  document.getElementById('winListClose').addEventListener('click', close);
+  document.getElementById('winListAdd').addEventListener('click', () => openAddWinModal());
+  m.addEventListener('click', e => { if (e.target === m) close(); });
+  function onKey(e) { if (e.key === 'Escape') { close(); document.removeEventListener('keydown', onKey); } }
+  document.addEventListener('keydown', onKey);
+  renderWinList();
+}
+
+function renderWinList() {
+  const body = document.getElementById('winListBody');
+  const cnt  = document.getElementById('winListCount');
+  if (!body) return;
+  if (cnt) cnt.textContent = `${currentWins.length} win${currentWins.length !== 1 ? 's' : ''}`;
+  if (!currentWins.length) {
+    body.innerHTML = '<div style="padding:32px;text-align:center;color:#7880a8;font-size:0.86rem;">No wins yet. Click + Add win to log the first one.</div>';
+    return;
+  }
+  body.innerHTML = currentWins.map(w => {
+    const created = w.created_at ? new Date(w.created_at).toLocaleString() : '';
+    return `<div class="win-row" data-wid="${w.id}" style="border:1px solid rgba(251,191,36,0.35);border-radius:12px;padding:14px;margin-bottom:12px;background:rgba(251,191,36,0.04);">
+      <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:8px;">
+        <div class="win-text-cell" style="flex:1;font-weight:600;font-size:0.92rem;line-height:1.5;white-space:pre-wrap;"></div>
+        <button class="profile-delete win-del" data-wid="${w.id}" style="padding:4px 10px;font-size:0.72rem;flex-shrink:0;">✕</button>
+      </div>
+      <div style="font-size:0.7rem;color:#7880a8;">${w.win_date ? '📅 ' + w.win_date + ' · ' : ''}Logged ${created}${w.created_by_email ? ' by ' + w.created_by_email : ''}</div>
+    </div>`;
+  }).join('');
+  // Fill text via textContent so user input can never inject HTML
+  for (const w of currentWins) {
+    const cell = body.querySelector(`.win-row[data-wid="${w.id}"] .win-text-cell`);
+    if (cell) cell.textContent = w.text || '';
+  }
+  body.querySelectorAll('.win-del').forEach(btn => {
+    btn.addEventListener('click', () => deleteWin(Number(btn.dataset.wid)));
+  });
+}
+
+async function deleteWin(id) {
+  if (!confirm('Delete this win?')) return;
+  try {
+    const r = await fetch(STUDENTS_BASE + '?api=delete-win', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
+      body: JSON.stringify({ id }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Failed');
+    await openStudent(currentStudent.id);
+    await loadStudents();
+    if (document.getElementById('winListModal')) renderWinList();
+  } catch (e) { alert('Delete failed: ' + (e.message || e)); }
 }
 
 // ── Alerts ─────────────────────────────────────────────────────

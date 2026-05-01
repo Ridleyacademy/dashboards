@@ -859,6 +859,40 @@ async function initAuth() {
 
 async function onAuthed(session) {
   try {
+    // Hard gate: every authenticated user must have a first_name.
+    // If they don't, force them through the Activate Account screen.
+    // Legacy users (already signed in before, password already set) only
+    // need to fill first name — we hide the password fields for them.
+    const fn = session?.user?.user_metadata?.first_name;
+    if (!fn || !String(fn).trim()) {
+      session_ = session;
+      setState('set-password');
+      const fnInput = document.getElementById('newFirstName');
+      const pwGroup  = document.getElementById('newPassword')?.closest('.input-group');
+      const pwGroup2 = document.getElementById('confirmPassword')?.closest('.input-group');
+      const titleEl  = document.querySelector('#setPassword h1');
+      const subEl    = document.querySelector('#setPassword .sub');
+      const submitBtn = document.getElementById('setPasswordBtn');
+      // If the user has signed in before (legacy account), they already have
+      // a password — only require first name. Detect via last_sign_in_at.
+      const isLegacy = !!session?.user?.last_sign_in_at && !isInviteLink && !isRecoveryLink;
+      if (isLegacy) {
+        if (pwGroup)  pwGroup.style.display  = 'none';
+        if (pwGroup2) pwGroup2.style.display = 'none';
+        if (titleEl) titleEl.textContent = 'Tell us your first name';
+        if (subEl)   subEl.textContent = "We'd like to know how to address you.";
+        if (submitBtn) submitBtn.textContent = 'Save';
+        document.getElementById('newPassword').required = false;
+        document.getElementById('confirmPassword').required = false;
+      } else {
+        if (pwGroup)  pwGroup.style.display  = '';
+        if (pwGroup2) pwGroup2.style.display = '';
+        document.getElementById('newPassword').required = true;
+        document.getElementById('confirmPassword').required = true;
+      }
+      if (fnInput) { fnInput.value = ''; setTimeout(() => fnInput.focus(), 50); }
+      return;
+    }
     session_ = session;
 
     // Effective identity (handles impersonation transparently per the
@@ -1685,18 +1719,25 @@ document.getElementById('sendInviteBtn').addEventListener('click', async () => {
 // Set-password (invite + recovery)
 document.getElementById('setPasswordForm')?.addEventListener('submit', async (e) => {
   e.preventDefault();
-  const pw  = document.getElementById('newPassword').value;
-  const pw2 = document.getElementById('confirmPassword').value;
+  const pwEl  = document.getElementById('newPassword');
+  const pw2El = document.getElementById('confirmPassword');
+  const pwGroupHidden = pwEl?.closest('.input-group')?.style.display === 'none';
+  const pw  = pwEl ? pwEl.value : '';
+  const pw2 = pw2El ? pw2El.value : '';
   const fn  = document.getElementById('newFirstName')?.value.trim() || '';
   const err = document.getElementById('setPasswordError');
   const btn = document.getElementById('setPasswordBtn');
   err.textContent = '';
-  if (!fn)           { err.textContent = 'Please enter your first name.'; return; }
-  if (pw.length < 8) { err.textContent = 'Password must be at least 8 characters.'; return; }
-  if (pw !== pw2)    { err.textContent = "Passwords don't match."; return; }
+  if (!fn) { err.textContent = 'Please enter your first name.'; return; }
+  if (!pwGroupHidden) {
+    if (pw.length < 8) { err.textContent = 'Password must be at least 8 characters.'; return; }
+    if (pw !== pw2)    { err.textContent = "Passwords don't match."; return; }
+  }
   btn.disabled = true; btn.textContent = 'Saving…';
   try {
-    const { error } = await supa.auth.updateUser({ password: pw, data: { first_name: fn } });
+    const update = { data: { first_name: fn } };
+    if (!pwGroupHidden) update.password = pw;
+    const { error } = await supa.auth.updateUser(update);
     if (error) throw error;
     // Clean the URL and proceed.
     history.replaceState({}, '', window.location.pathname);

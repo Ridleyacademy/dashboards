@@ -11,6 +11,12 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v95', title: 'Force first-name set before app access',
+      items: [
+      'Every authenticated user must now have a first name set. If yours is missing, you\'ll be bumped to a small screen to enter it before reaching the app — even on a normal email/password sign-in.',
+      'Legacy users (who already had a password) only see the first-name field — no need to re-enter the password.',
+      'New invitees still get the full Activate Account flow (first name + new password + confirm).',
+    ]},
     { version: 'v94', title: 'Coach permission + first names + Coach field type',
       items: [
       'New "coach" permission in the role list. Users with this permission appear in the Coach picker on the Mentorship CRM.',

@@ -873,9 +873,12 @@ async function onAuthed(session) {
       const titleEl  = document.querySelector('#setPassword h1');
       const subEl    = document.querySelector('#setPassword .sub');
       const submitBtn = document.getElementById('setPasswordBtn');
-      // If the user has signed in before (legacy account), they already have
-      // a password — only require first name. Detect via last_sign_in_at.
-      const isLegacy = !!session?.user?.last_sign_in_at && !isInviteLink && !isRecoveryLink;
+      // Legacy accounts (existing pre-first_name users) have already set a
+      // password — they only need to fill first name. We detect this with an
+      // explicit `activated` flag in user_metadata; a one-shot SQL backfilled
+      // it for all pre-existing users. New invitees never have activated=true
+      // until they finish this exact form, so they MUST fill the password too.
+      const isLegacy = session?.user?.user_metadata?.activated === true;
       if (isLegacy) {
         if (pwGroup)  pwGroup.style.display  = 'none';
         if (pwGroup2) pwGroup2.style.display = 'none';
@@ -1735,7 +1738,7 @@ document.getElementById('setPasswordForm')?.addEventListener('submit', async (e)
   }
   btn.disabled = true; btn.textContent = 'Saving…';
   try {
-    const update = { data: { first_name: fn } };
+    const update = { data: { first_name: fn, activated: true } };
     if (!pwGroupHidden) update.password = pw;
     const { error } = await supa.auth.updateUser(update);
     if (error) throw error;

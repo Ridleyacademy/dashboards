@@ -11,6 +11,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v96', title: 'Fix: new invitees were skipping the password step',
+      items: [
+      'The legacy-vs-new-user detection used last_sign_in_at, but Supabase sets that as soon as the invite link is clicked — so brand new invitees were getting the first-name-only screen and skipping password creation.',
+      'Replaced with an explicit user_metadata.activated flag. Backfilled true for all existing users via SQL. New invitees see activated=false until they complete the form, so they always have to set a password.',
+    ]},
     { version: 'v95', title: 'Force first-name set before app access',
       items: [
       'Every authenticated user must now have a first name set. If yours is missing, you\'ll be bumped to a small screen to enter it before reaching the app — even on a normal email/password sign-in.',

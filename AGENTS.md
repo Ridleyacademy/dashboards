@@ -27,7 +27,7 @@ first try.
 - **Auth + DB:** Supabase (project ref `pojqljrhhtnigyrtzdzz`)
 - **Edge functions:** Deno, in Supabase. Source-of-truth lives in the
   Supabase dashboard, not this repo. Names: `dashboard`, `meta-ads`,
-  `calls`, `income`, `declarations`, `invite`, `admin-api`
+  `calls`, `income`, `declarations`, `invite`, `admin-api`, `students`
 - **Client libs (CDN, no install):** `@supabase/supabase-js@2`, `chart.js@4`
 - **PWA:** custom service worker (`sw.js`) + `manifest.json`. Installable on
   iOS via Add to Home Screen.
@@ -45,7 +45,7 @@ first try.
 | `income.html`       | Income                    | `finance` |
 | `calls.html`        | Calls                     | `calls`, `sales_manager`, `rep` |
 | `declarations.html` | Declarations              | `rep`, `sales_manager` |
-| `students.html`     | Mentorship CRM            | `mentorship`, `sales_manager` |
+| `students.html`     | Mentorship CRM            | `mentorship`, `sales_manager`, `coach` |
 
 `is_admin: true` overrides every check.
 
@@ -94,9 +94,14 @@ escalate themselves.
 
 ### Available roles
 
-`sales`, `marketing`, `finance`, `calls`, `rep`, `sales_manager`, `mentorship`
+`sales`, `marketing`, `finance`, `calls`, `rep`, `sales_manager`, `mentorship`, `coach`
 
 Plus the boolean `is_admin: true` which is a separate, all-overriding flag.
+
+The `coach` permission (v94+) gates Mentorship CRM access for individual
+coaches AND drives the Coach picker in students.html (users tagged with
+`coach` show up in the dropdown). The students edge fn's `?api=coaches`
+returns this list.
 
 ### The single source of truth
 
@@ -111,6 +116,7 @@ const PAGES = [
   { href: 'income.html',       id: 'income',       roles: ['finance'] },
   { href: 'calls.html',        id: 'calls',        roles: ['calls','sales_manager','rep'] },
   { href: 'declarations.html', id: 'declarations', roles: ['rep','sales_manager'] },
+  { href: 'students.html',     id: 'students',     roles: ['mentorship','sales_manager','coach'] },
 ];
 ```
 
@@ -721,6 +727,173 @@ Edge function source-of-truth lives in the Supabase dashboard, not this
 repo. Track changes in `changelog.js` like normal.
 
 ---
+
+## First-name + activation gate (v95+)
+
+Every authenticated user must have `user_metadata.first_name` set before
+they can reach any dashboard. `home.html`'s `onAuthed()` enforces this —
+if first_name is missing it bumps the user to the Activate Account screen
+and refuses to render the app.
+
+Two modes on that screen:
+
+- **New invitee (activated ≠ true):** first name + new password + confirm.
+  Submit writes `{ password, data: { first_name, activated: true } }`.
+- **Legacy user (activated = true but first_name missing):** first-name-only.
+  Password fields are hidden, only `first_name` is written. No password reset.
+
+The legacy/new distinction is `user_metadata.activated === true`.
+**Don't fall back to `last_sign_in_at` for this** — Supabase sets
+`last_sign_in_at` the moment a magic-link is clicked, so a brand-new
+invitee already has it set. Using it caused new invitees to see the
+legacy (no-password) flow and bypass password creation. The fix in v96
+was the explicit `activated` flag plus a one-shot SQL backfill setting
+`activated = true` for every existing user with non-null
+`last_sign_in_at`.
+
+The invite edge function (`invite` v14+) accepts an optional
+`first_name` field which seeds `user_metadata` before the user activates,
+so it's pre-filled on the Activate screen. The admin-api `?api=users` /
+`?api=set-permissions` (v16+) also read/write `first_name` so admins
+can edit it from the Manage Users panel.
+
+## Mentorship CRM (students.html + students edge fn)
+
+A standalone CRM for the Super Mentorship program. Models the original
+"SUPER MENTORSHIP ROUTING FORM" Google Sheet plus the per-coach working
+tracker. Lives at `/students.html` and is gated by `mentorship`,
+`sales_manager`, or `coach` permission (or admin).
+
+### Tables
+
+| Table | Notes |
+|---|---|
+| `mentorship_students` | One row per student. ~40 columns covering identity, purchase, onboarding, coach progress, lifecycle, and admin fields. RLS on, service-role-only access. |
+| `mentorship_pauses` | Multiple pauses per student. `(start_date, end_date?)` — null end_date means ongoing. CHECK end_date >= start_date. CASCADE on student delete. |
+| `mentorship_resigns` | Resigns add months to course duration. `(resign_date, months_added > 0, amount?, notes)`. |
+| `mentorship_alerts` | Service alerts. Open/resolved with `resolution_note`, `resolved_by`, `resolved_at`. |
+| `mentorship_wins` | Per-student wins log. `(text, win_date?, created_by, created_by_email)`. |
+| `mentorship_coach_notes` | Coach session notes. Same shape as wins. |
+| `mentorship_rep_notes` | Notes from REGs / sales reps. Migrated from old `kat_notes` + `reg_notes` columns on first deploy. |
+| `mentorship_ic_notes` | Initial-call notes. |
+| `mentorship_turnovers` | Hand-offs to a rep. `(rep_name, note?, turnover_date?, result?, result_at, result_by, result_by_email)`. Backfilled from old `reg_assigned` column. |
+
+Old per-student columns `reg_notes`, `kat_notes`, `notes` (Coaching),
+`first_coach_assignment`, the Turnover-to-REG triplet, and the
+`winning_student` boolean are **all deprecated** but kept in the schema
+for back-compat with the FIELDS allowlist. The UI no longer surfaces
+them and any data they held was migrated to the appropriate log tables
+during the v82–v92 migrations. Don't add UI for them.
+
+### Lifecycle (computed server-side, never stored)
+
+`computeLifecycle(student, pauses, resigns)` derives:
+
+- `effective_end_date` = `student_onboarded_date + (months_count + Σ resigns.months_added)` + `Σ paused_days` + `active_pause_elapsed`
+- `derived_status` ∈ `Active` | `Expiring soon` | `Expired` | `Paused` | `Not onboarded`
+- `days_left` (negative when expired)
+- `paused_days_total`, `active_pause_id`, `resign_months_added`, `total_months`
+
+Both `?api=list` and `?api=get` return these computed fields. The
+sidebar status dot, the header badges, and the Coach overview pills all
+key off `derived_status`. **Don't add a manual "expired" checkbox** —
+the v80 migration deliberately removed it.
+
+### Coach progress fields (v97+)
+
+A separate "Coach" section on the profile (between Onboarding and
+Lifecycle) holds 9 fields the coach updates frequently:
+`level`, `masterclass_level`, `current_module`, `coach_status` (All
+good / Needs attention), `last_assignment_sent`, `last_assignment_received`,
+`last_zoom_date`, `concern`, `goal`. These are surfaced in the Coach
+overview table and drive the "Stale" filter (onboarded students with
+no `last_assignment_received` in 30+ days).
+
+### Logs (the 📋 button)
+
+A single Logs button at the top of each profile opens a chooser modal
+with 5 cards: Wins / Coach notes / Rep notes / I-C notes / Turnovers.
+Each card opens its own history modal. Counts on each card are live.
+The combined badge on the Logs button = sum of all 5 log counts.
+
+The frontend uses a generic `_renderNoteList(kind)` helper for rep +
+i/c notes (DRY). Wins, coach-notes, and turnovers each have their own
+implementation because their schema differs (wins have just `text`,
+turnovers have `rep_name + note + result`).
+
+### Sidebar filters + Coach overview (v98+)
+
+Above the search input there's a chip row: **All / Mine / Stale /
+Duplicates** with live counts, plus a **📊 Overview** toggle.
+
+- **Mine** filters by `coach` matching the user's first_name OR email
+  (case-insensitive, both compared). Coach-only users (no admin /
+  mentorship / sales_manager) **default to Mine** on login.
+- **Stale** = onboarded, not Expired/Paused, `last_assignment_received`
+  null OR >30 days ago. New / not-onboarded students never count as
+  stale (would be noise).
+- **Duplicates** = students sharing the same lowercased email OR name
+  with another student. Detected client-side; flagged with a `⎘ dup`
+  badge in both sidebar rows AND overview rows.
+- **Overview** swaps the profile pane for a dashboard table (sortable
+  visually but actually sorted stalest-first). Click any row to drop
+  back to that student's profile. Honors all chip + search + date
+  filters concurrently.
+
+`renderProfile()` resets `card.className` back to `profile-card` so
+returning from overview mode doesn't leak the `overview-pane` class.
+
+### Unsaved-changes guard
+
+`profileDirty` flag flips on any field input/change inside the profile
+card. `openStudent` and the sign-out button intercept it and show a
+3-way modal (Save / Leave without saving / Cancel). `beforeunload` adds
+the browser-native warning on hard reload / tab close. `saveStudent()`
+returns bool so the modal's "Save" path can chain correctly.
+
+The guard explicitly **does NOT** prompt when re-loading the same
+student (after a save, after a pause/resign/win/note/turnover/alert
+mutation). Only navigation to a different student trips it.
+
+### Collapsible sections
+
+Every section in the profile is a `<details>` element. Open/closed
+state is persisted to localStorage key `crm-collapsed-sections` (a
+JSON-encoded Set of section titles). The `_section()` helper accepts
+an optional `titleHtml` arg so sections with HTML in the title (e.g.,
+the Resigns "+X months total" chip) don't break the `data-section`
+attribute. **Don't put raw HTML directly into the title arg** — pass
+the plain key as title and the rich HTML as titleHtml.
+
+### Edge function (`students`)
+
+Endpoints (all gated to admin / mentorship / sales_manager / coach):
+
+| Endpoint | Method | Purpose |
+|---|---|---|
+| `?api=list` | GET | All students with computed lifecycle + log counts |
+| `?api=get&id=` | GET | Single student + all child collections |
+| `?api=upsert` | POST | Insert or update a student row |
+| `?api=delete` | POST | Delete a student (CASCADEs to child tables) |
+| `?api=add-pause` / `update-pause` / `delete-pause` | POST | Pauses CRUD |
+| `?api=add-resign` / `update-resign` / `delete-resign` | POST | Resigns CRUD |
+| `?api=add-alert` / `resolve-alert` / `delete-alert` | POST | Alerts |
+| `?api=add-win` / `update-win` / `delete-win` | POST | Wins |
+| `?api=add-coach-note` / `delete-coach-note` | POST | Coach notes |
+| `?api=add-rep-note` / `delete-rep-note` | POST | Rep notes |
+| `?api=add-ic-note` / `delete-ic-note` | POST | I/C notes |
+| `?api=add-turnover` / `set-turnover-result` / `delete-turnover` | POST | Turnovers (with result tracking) |
+| `?api=mentors` | GET | List of `rep_mappings.calls_name` (legacy mentor picker) |
+| `?api=coaches` | GET | Users with `coach` permission OR is_admin (drives Coach datalist) |
+
+`FIELDS` allowlist gates which student columns can be written via
+upsert. Adding a new column? Add it to FIELDS, plus DATE_FIELDS or
+BOOL_FIELDS if needed.
+
+The Coach picker on the profile is a **datalist** input (free text +
+autocomplete from `?api=coaches`). Users without an account can still
+be entered as coaches — just type their name. Don't revert to a
+`<select>`.
 
 ## When in doubt
 

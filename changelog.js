@@ -11,6 +11,12 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v91', title: 'Mentorship: one Logs button + turnover results',
+      roles: ['mentorship', 'sales_manager'], items: [
+      'The 🏆 Wins / 📝 Notes / 🔄 Turnover buttons are now consolidated into one 📋 Logs button at the top of each profile.',
+      'Click Logs → choose Wins, Coach notes, or Turnovers. Each opens its full history modal as before.',
+      'New: every turnover entry now has a + Add result button. Log the outcome of the hand-off (closed, not interested, scheduling, refunded, etc.) — captured with author + timestamp.',
+    ]},
     { version: 'v90', title: 'Mentorship: unsaved-changes guard',
       roles: ['mentorship', 'sales_manager'], items: [
       'If you edit a student profile and click another student, sign out, or reload the tab, you now get a Save / Leave without saving / Cancel prompt before losing your work.',

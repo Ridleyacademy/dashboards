@@ -1271,14 +1271,8 @@ function renderProfile() {
           <button class="alert-btn-list" id="prof-list-alerts" title="Service alerts for this student (open + resolved history)">
             🔔 Alerts <span class="alert-badge${(currentAlerts.filter(a=>a.status==='open').length>0)?' has-open':''}">${currentAlerts.filter(a=>a.status==='open').length}</span>
           </button>
-          <button class="win-btn-list" id="prof-list-wins" title="Wins for this student">
-            🏆 Wins <span class="win-badge${currentWins.length>0?' has-any':''}">${currentWins.length}</span>
-          </button>
-          <button class="note-btn-list" id="prof-list-notes" title="Coach notes for this student">
-            📝 Notes <span class="note-badge${currentCoachNotes.length>0?' has-any':''}">${currentCoachNotes.length}</span>
-          </button>
-          <button class="turn-btn-list" id="prof-list-turnovers" title="Turnover this sale to a rep">
-            🔄 Turnover <span class="turn-badge${currentTurnovers.length>0?' has-any':''}">${currentTurnovers.length}</span>
+          <button class="win-btn-list" id="prof-list-logs" title="Wins, coach notes, and turnovers for this student">
+            📋 Logs <span class="win-badge${(currentWins.length+currentCoachNotes.length+currentTurnovers.length)>0?' has-any':''}">${currentWins.length+currentCoachNotes.length+currentTurnovers.length}</span>
           </button>` : ''}
         <button class="profile-save" id="prof-save">${isNew ? 'Create' : 'Save'}</button>
         ${!isNew ? '<button class="profile-delete" id="prof-delete">Delete</button>' : ''}
@@ -1367,9 +1361,7 @@ function renderProfile() {
     _wirePauses();
     _wireResigns();
     document.getElementById('prof-list-alerts')?.addEventListener('click', openAlertsHistoryModal);
-    document.getElementById('prof-list-wins')?.addEventListener('click', openWinsHistoryModal);
-    document.getElementById('prof-list-notes')?.addEventListener('click', openCoachNotesHistoryModal);
-    document.getElementById('prof-list-turnovers')?.addEventListener('click', openTurnoversHistoryModal);
+    document.getElementById('prof-list-logs')?.addEventListener('click', openLogsChooserModal);
   }
   // Persist collapse state per section title
   card.querySelectorAll('details.profile-section').forEach(d => {
@@ -1657,6 +1649,58 @@ async function deleteCoachNote(id) {
   } catch (e) { alert('Delete failed: ' + (e.message || e)); }
 }
 
+// ── Logs chooser ──────────────────────────────────────────────
+function openLogsChooserModal() {
+  if (!currentStudent || !currentStudent.id) return;
+  document.getElementById('logsChooserModal')?.remove();
+  const m = document.createElement('div');
+  m.id = 'logsChooserModal';
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(8,9,18,0.78);backdrop-filter:blur(8px);z-index:10005;display:flex;align-items:center;justify-content:center;padding:20px;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;';
+  const cardCss = 'flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:18px;border:1px solid #1f2438;border-radius:14px;background:#0f1019;cursor:pointer;text-align:left;color:inherit;font:inherit;transition:border-color 0.12s, background 0.12s;';
+  m.innerHTML = `
+    <div style="background:#13141f;border:1px solid #1f2438;border-radius:18px;max-width:640px;width:100%;color:#eaecf8;box-shadow:0 24px 60px rgba(0,0,0,0.55);overflow:hidden;">
+      <div style="padding:18px 22px;border-bottom:1px solid #1f2438;display:flex;align-items:center;gap:10px;">
+        <div style="flex:1;font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;">📋 Logs for ${currentStudent.name || ''}</div>
+        <button id="logsChooserClose" style="background:transparent;border:none;color:#7880a8;font-size:1.5rem;cursor:pointer;padding:0 8px;">×</button>
+      </div>
+      <div style="padding:18px 22px;display:flex;flex-direction:column;gap:12px;">
+        <button data-act="wins" style="${cardCss}">
+          <div style="font-size:1.0rem;font-weight:700;display:flex;align-items:center;gap:10px;">🏆 Wins <span style="background:${currentWins.length?'#fbbf24':'#1f2438'};color:${currentWins.length?'#0b0c14':'#7880a8'};border-radius:999px;padding:1px 8px;font-size:0.7rem;font-weight:800;">${currentWins.length}</span></div>
+          <div style="font-size:0.78rem;color:#7880a8;">Milestones, audtions, breakthroughs.</div>
+        </button>
+        <button data-act="notes" style="${cardCss}">
+          <div style="font-size:1.0rem;font-weight:700;display:flex;align-items:center;gap:10px;">📝 Coach notes <span style="background:${currentCoachNotes.length?'#a78bfa':'#1f2438'};color:${currentCoachNotes.length?'#0b0c14':'#7880a8'};border-radius:999px;padding:1px 8px;font-size:0.7rem;font-weight:800;">${currentCoachNotes.length}</span></div>
+          <div style="font-size:0.78rem;color:#7880a8;">Session notes, observations, follow-ups.</div>
+        </button>
+        <button data-act="turnovers" style="${cardCss}">
+          <div style="font-size:1.0rem;font-weight:700;display:flex;align-items:center;gap:10px;">🔄 Turnovers <span style="background:${currentTurnovers.length?'#34d399':'#1f2438'};color:${currentTurnovers.length?'#0b0c14':'#7880a8'};border-radius:999px;padding:1px 8px;font-size:0.7rem;font-weight:800;">${currentTurnovers.length}</span></div>
+          <div style="font-size:0.78rem;color:#7880a8;">Hand-offs to a rep — log the rep, note, and outcome.</div>
+        </button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  function close() { document.removeEventListener('keydown', onKey); m.remove(); }
+  function onKey(e) { if (e.key === 'Escape') close(); }
+  document.addEventListener('keydown', onKey);
+  document.getElementById('logsChooserClose').addEventListener('click', close);
+  m.addEventListener('click', (e) => {
+    if (e.target === m) return close();
+    const btn = e.target.closest('[data-act]');
+    if (!btn) return;
+    const act = btn.dataset.act;
+    btn.style.borderColor = '#34d399';
+    close();
+    if (act === 'wins')      openWinsHistoryModal();
+    else if (act === 'notes') openCoachNotesHistoryModal();
+    else if (act === 'turnovers') openTurnoversHistoryModal();
+  });
+  // Hover-style fallback inline
+  m.querySelectorAll('[data-act]').forEach(b => {
+    b.addEventListener('mouseenter', () => { b.style.borderColor = '#3a4060'; b.style.background = '#13141f'; });
+    b.addEventListener('mouseleave', () => { b.style.borderColor = '#1f2438'; b.style.background = '#0f1019'; });
+  });
+}
+
 // ── Turnovers ─────────────────────────────────────────────────
 function openAddTurnoverModal() {
   if (!currentStudent || !currentStudent.id) return;
@@ -1770,6 +1814,22 @@ function renderTurnoverList() {
   });
   body.innerHTML = sorted.map(t => {
     const created = t.created_at ? new Date(t.created_at).toLocaleString() : '';
+    const hasResult = !!(t.result && String(t.result).trim());
+    const resultMeta = hasResult && t.result_at
+      ? `<div style="font-size:0.68rem;color:#7880a8;margin-top:4px;">Result added ${new Date(t.result_at).toLocaleString()}${t.result_by_email ? ' by ' + t.result_by_email : ''}</div>`
+      : '';
+    const resultBlock = hasResult
+      ? `<div style="margin-top:10px;padding:10px 12px;border-left:3px solid #34d399;background:rgba(52,211,153,0.08);border-radius:6px;">
+           <div style="font-size:0.68rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:#34d399;margin-bottom:4px;">Result</div>
+           <div class="turn-result-cell" style="font-size:0.86rem;color:#eaecf8;line-height:1.5;white-space:pre-wrap;"></div>
+           ${resultMeta}
+           <div style="margin-top:8px;display:flex;gap:8px;">
+             <button class="turn-result-edit" data-tid="${t.id}" style="background:transparent;border:1px solid #1f2438;color:#7880a8;border-radius:7px;padding:3px 10px;font-weight:600;font-size:0.72rem;cursor:pointer;">Edit result</button>
+           </div>
+         </div>`
+      : `<div style="margin-top:10px;">
+           <button class="turn-result-add" data-tid="${t.id}" style="background:rgba(52,211,153,0.12);border:1px solid rgba(52,211,153,0.4);color:#34d399;border-radius:8px;padding:5px 12px;font-weight:700;font-size:0.74rem;cursor:pointer;">+ Add result</button>
+         </div>`;
     return `<div class="turn-row" data-tid="${t.id}" style="border:1px solid rgba(52,211,153,0.35);border-radius:12px;padding:14px;margin-bottom:12px;background:rgba(52,211,153,0.05);">
       <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:6px;">
         <div style="flex:1;">
@@ -1779,17 +1839,89 @@ function renderTurnoverList() {
         <button class="profile-delete turn-del" data-tid="${t.id}" style="padding:4px 10px;font-size:0.72rem;flex-shrink:0;">✕</button>
       </div>
       <div style="font-size:0.7rem;color:#7880a8;">${t.turnover_date ? '📅 ' + t.turnover_date + ' · ' : ''}Logged ${created}${t.created_by_email ? ' by ' + t.created_by_email : ''}</div>
+      ${resultBlock}
     </div>`;
   }).join('');
   for (const t of sorted) {
-    const repCell = body.querySelector(`.turn-row[data-tid="${t.id}"] .turn-rep-cell`);
+    const row = body.querySelector(`.turn-row[data-tid="${t.id}"]`);
+    if (!row) continue;
+    const repCell = row.querySelector('.turn-rep-cell');
     if (repCell) repCell.textContent = t.rep_name || '';
-    const noteCell = body.querySelector(`.turn-row[data-tid="${t.id}"] .turn-note-cell`);
+    const noteCell = row.querySelector('.turn-note-cell');
     if (noteCell) noteCell.textContent = t.note || '';
+    const resultCell = row.querySelector('.turn-result-cell');
+    if (resultCell) resultCell.textContent = t.result || '';
   }
   body.querySelectorAll('.turn-del').forEach(btn => {
     btn.addEventListener('click', () => deleteTurnover(Number(btn.dataset.tid)));
   });
+  body.querySelectorAll('.turn-result-add, .turn-result-edit').forEach(btn => {
+    btn.addEventListener('click', () => openTurnoverResultModal(Number(btn.dataset.tid)));
+  });
+}
+
+function openTurnoverResultModal(turnoverId) {
+  const t = currentTurnovers.find(x => Number(x.id) === Number(turnoverId));
+  if (!t) return;
+  document.getElementById('turnResultModal')?.remove();
+  const m = document.createElement('div');
+  m.id = 'turnResultModal';
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(8,9,18,0.78);backdrop-filter:blur(8px);z-index:10006;display:flex;align-items:center;justify-content:center;padding:20px;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;';
+  m.innerHTML = `
+    <div style="background:#13141f;border:1px solid #1f2438;border-radius:18px;padding:24px 26px;max-width:460px;width:100%;color:#eaecf8;box-shadow:0 24px 60px rgba(0,0,0,0.55);">
+      <div style="font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;margin-bottom:4px;">${t.result ? 'Edit' : 'Add'} turnover result</div>
+      <div style="font-size:0.78rem;color:#7880a8;margin-bottom:14px;">Hand-off to <strong style="color:#eaecf8;" id="trResultRep"></strong> — what was the outcome?</div>
+      <div class="field" style="margin-bottom:18px;">
+        <div class="field-label">Result *</div>
+        <textarea class="field-textarea" id="trResultText" placeholder="Closed / not interested / scheduling / refunded / etc." style="min-height:120px;"></textarea>
+      </div>
+      <div id="trResultErr" style="color:var(--red);font-size:0.78rem;min-height:1em;margin-bottom:8px;"></div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">
+        ${t.result ? '<button id="trResultClear" style="background:rgba(248,113,113,0.12);border:1px solid rgba(248,113,113,0.4);color:#f87171;border-radius:9px;padding:8px 16px;font-weight:700;cursor:pointer;margin-right:auto;">Clear result</button>' : ''}
+        <button id="trResultCancel" style="background:transparent;border:1px solid #1f2438;color:#7880a8;border-radius:9px;padding:8px 16px;font-weight:700;cursor:pointer;">Cancel</button>
+        <button id="trResultSave" class="profile-save" style="padding:8px 18px;background:linear-gradient(135deg,#34d399,#10b981);color:#0b0c14;">Save result</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  document.getElementById('trResultRep').textContent = t.rep_name || '';
+  const txt = document.getElementById('trResultText');
+  txt.value = t.result || '';
+  txt.focus();
+  function close() { document.removeEventListener('keydown', onKey); m.remove(); }
+  function onKey(e) { if (e.key === 'Escape') close(); }
+  document.addEventListener('keydown', onKey);
+  m.addEventListener('click', e => { if (e.target === m) close(); });
+  document.getElementById('trResultCancel').addEventListener('click', close);
+  document.getElementById('trResultSave').addEventListener('click', async () => {
+    const errEl = document.getElementById('trResultErr');
+    errEl.textContent = '';
+    const result = txt.value.trim();
+    if (!result) { errEl.textContent = 'A result is required (or use Clear result).'; return; }
+    await saveTurnoverResult(turnoverId, result, close, errEl);
+  });
+  if (t.result) {
+    document.getElementById('trResultClear').addEventListener('click', async () => {
+      if (!confirm('Clear this turnover result?')) return;
+      await saveTurnoverResult(turnoverId, '', close, document.getElementById('trResultErr'));
+    });
+  }
+}
+
+async function saveTurnoverResult(id, result, onSuccess, errEl) {
+  try {
+    const r = await fetch(STUDENTS_BASE + '?api=set-turnover-result', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
+      body: JSON.stringify({ id, result }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Failed');
+    onSuccess();
+    await openStudent(currentStudent.id);
+    if (document.getElementById('turnListModal')) renderTurnoverList();
+  } catch (e) {
+    if (errEl) errEl.textContent = e.message || 'Failed';
+  }
 }
 
 async function deleteTurnover(id) {

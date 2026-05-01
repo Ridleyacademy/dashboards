@@ -11,6 +11,13 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v79', title: 'Mentorship CRM matches the Routing Form',
+      roles: ['mentorship', 'sales_manager'], items: [
+      'Profile now mirrors every column from the Super Mentorship Routing Form sheet — REG, 1st & last purchase dates, months count, welcome call/zoom/survey/video, coach + circle + onboarded date, pause start/end/notes, end date + 9-month survey, winning student + winning data, turnover + REG assigned + resign date, Kat\'s notes, last activity, expired flag, verified flag.',
+      'Profile is grouped into 8 sections (Identity, Purchase, Onboarding, Coaching, Pause, Lifecycle, Turnover to REG, Admin) so you can scan it without scrolling forever.',
+      'Sidebar list shows coach + months + winning/verified/expired badges per row.',
+      'Months count auto-fills from 1st purchase date if you leave it blank.',
+    ]},
     { version: 'v76', title: 'Unified topbar across every page', items: [
       'The topbar logo gradient and the user-pill avatar were per-page (cyan-blue on Calls, gold-green on Income, etc.). Every dashboard now uses the same blue→purple gradient. Same banner everywhere.',
     ]},

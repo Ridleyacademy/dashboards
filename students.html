@@ -202,6 +202,28 @@
   }
   .profile-delete:hover { background: rgba(248,113,113,0.18); }
   .profile-msg { font-size: 0.78rem; min-height: 1em; margin-left: 8px; align-self: center; }
+
+  .profile-section { margin-top: 22px; }
+  .profile-section-head {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 10px;
+    padding-bottom: 6px; border-bottom: 1px solid var(--border);
+  }
+  .profile-section-title { font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--green); }
+  .profile-section-line { flex: 1; }
+
+  .field-checkbox {
+    display: flex; align-items: center; gap: 9px;
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 9px 12px; font-size: 0.84rem; cursor: pointer; user-select: none;
+  }
+  .field-checkbox input { width: 16px; height: 16px; accent-color: var(--green); cursor: pointer; flex-shrink: 0; }
+  .field-checkbox.checked { border-color: var(--green); background: rgba(52,211,153,0.08); }
+
+  .badges { display: inline-flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+  .badge { font-size: 0.62rem; padding: 2px 8px; border-radius: 999px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+  .badge.win  { background: rgba(251,191,36,0.18); color: #fbbf24; }
+  .badge.ver  { background: rgba(52,211,153,0.18); color: #34d399; }
+  .badge.exp  { background: rgba(248,113,113,0.18); color: #f87171; }
 </style>
 </head>
 <body data-state="loading">
@@ -479,11 +501,20 @@ function renderStudentList() {
         <div class="student-row-meta"><span class="status-dot status-${(s.status||'Active').replace(/\s/g,'')}"></span><span class="meta-text"></span></div>
       </div>`;
     // Use textContent for user-supplied data
-    div.querySelector('.student-row-name').textContent = s.name || '(unnamed)';
+    const nameEl = div.querySelector('.student-row-name');
+    nameEl.textContent = s.name || '(unnamed)';
+    // Inline mini-badges next to name
+    const tinyBadges = [];
+    if (s.winning_student) tinyBadges.push('<span class="badge win" style="font-size:0.55rem;padding:1px 6px;margin-left:6px;vertical-align:middle;">★</span>');
+    if (s.verified)        tinyBadges.push('<span class="badge ver" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;">✓</span>');
+    if (s.expired)         tinyBadges.push('<span class="badge exp" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;">⚠</span>');
+    if (tinyBadges.length) nameEl.insertAdjacentHTML('beforeend', tinyBadges.join(''));
     const metaParts = [];
-    if (s.status) metaParts.push(s.status);
-    if (s.mentor) metaParts.push('· ' + s.mentor);
-    else if (s.email) metaParts.push('· ' + s.email);
+    if (s.status)                  metaParts.push(s.status);
+    const coach = s.coach || s.mentor;
+    if (coach)                     metaParts.push('· ' + coach);
+    if (s.months_count != null)    metaParts.push('· ' + s.months_count + 'mo');
+    if (!coach && s.email)         metaParts.push('· ' + s.email);
     div.querySelector('.meta-text').textContent = metaParts.join(' ');
     div.addEventListener('click', () => openStudent(s.id));
     list.appendChild(div);
@@ -584,6 +615,90 @@ async function openStudent(id) {
   }
 }
 
+// Field map: each section is [title, [{key, label, type, full?, opts?}]].
+// Mirrors the Google sheet column groupings. type: 'text' | 'email' | 'tel'
+// | 'date' | 'textarea' | 'select' | 'checkbox' | 'number'. `full` makes
+// the field span both grid columns.
+const SECTIONS = [
+  ['Identity', [
+    { k: 'name',    label: 'Name *',          type: 'text',  full: true },
+    { k: 'email',   label: 'Email',           type: 'email' },
+    { k: 'phone',   label: 'Phone',           type: 'tel'   },
+    { k: 'reg',     label: 'REG (registrar)', type: 'text'  },
+    { k: 'status',  label: 'Status',          type: 'select', opts: STATUSES },
+    { k: 'product', label: 'Product',         type: 'text', placeholder: 'e.g. Private Mentorship' },
+  ]],
+  ['Purchase', [
+    { k: 'first_purchase_date', label: '1st purchase date',  type: 'date' },
+    { k: 'last_purchase_date',  label: 'Last purchase date', type: 'date' },
+    { k: 'months_count',        label: 'How many months',    type: 'number' },
+  ]],
+  ['Onboarding', [
+    { k: 'reg_notes',              label: 'REG notes',                  type: 'textarea', full: true },
+    { k: 'welcome_call_date',      label: 'Welcome call date',          type: 'date' },
+    { k: 'welcome_zoom_confirmed', label: 'Welcome Zoom w/ Stephen',    type: 'checkbox' },
+    { k: 'survey_submitted_date',  label: 'Survey submitted',           type: 'date' },
+    { k: 'video_submitted_date',   label: 'Video submitted',            type: 'date' },
+  ]],
+  ['Coaching', [
+    { k: 'coach',                  label: 'Coach',                       type: 'select', opts: 'mentors' },
+    { k: 'circle_created',         label: 'Circle created',              type: 'checkbox' },
+    { k: 'first_coach_assignment', label: '1st coach assignment',        type: 'text' },
+    { k: 'student_onboarded_date', label: 'Student onboarded date',      type: 'date' },
+    { k: 'notes',                  label: 'Coaching notes',              type: 'textarea', full: true },
+  ]],
+  ['Pause', [
+    { k: 'pause_start',  label: 'Start pause', type: 'date' },
+    { k: 'pause_end',    label: 'End pause',   type: 'date' },
+    { k: 'pause_notes',  label: 'Pause notes', type: 'textarea', full: true },
+  ]],
+  ['Lifecycle', [
+    { k: 'end_date',                 label: 'End date',           type: 'date' },
+    { k: 'survey_9month_submitted',  label: '9-month survey submitted', type: 'checkbox' },
+    { k: 'winning_student',          label: 'Winning student',    type: 'checkbox' },
+    { k: 'winning_data',             label: 'Winning data',       type: 'textarea', full: true },
+  ]],
+  ['Turnover to REG', [
+    { k: 'turn_over_to_reg', label: 'Turn over to REG', type: 'checkbox' },
+    { k: 'reg_assigned',     label: 'REG assigned',     type: 'text' },
+    { k: 'resign_date',      label: 'Resign date',      type: 'date' },
+  ]],
+  ['Admin', [
+    { k: 'kat_notes',          label: "Kat's notes",         type: 'textarea', full: true },
+    { k: 'last_activity_date', label: 'Last activity date',  type: 'date' },
+    { k: 'expired',            label: 'Expired or expiring soon', type: 'checkbox' },
+    { k: 'verified',           label: 'Verified',            type: 'checkbox' },
+  ]],
+];
+
+function _buildField(field, value) {
+  const id = 'f-' + field.k;
+  if (field.type === 'checkbox') {
+    return `<label class="field-checkbox${value ? ' checked' : ''}" data-cb-for="${field.k}">
+      <input type="checkbox" id="${id}" data-key="${field.k}"${value ? ' checked' : ''}>
+      <span>${field.label}</span>
+    </label>`;
+  }
+  let inner = '';
+  if (field.type === 'select') {
+    const opts = field.opts === 'mentors' ? mentors : (field.opts || []);
+    let optHtml = '<option value="">— None —</option>';
+    if (Array.isArray(opts)) {
+      optHtml = opts.map(o => `<option value="${o}">${o}</option>`).join('');
+      if (field.opts !== 'mentors') optHtml = '<option value=""></option>' + optHtml;
+    }
+    inner = `<select class="field-select" id="${id}" data-key="${field.k}">${optHtml}</select>`;
+  } else if (field.type === 'textarea') {
+    inner = `<textarea class="field-textarea" id="${id}" data-key="${field.k}"></textarea>`;
+  } else {
+    const t = field.type === 'number' ? 'number' : (field.type === 'tel' ? 'tel' : (field.type === 'email' ? 'email' : (field.type === 'date' ? 'date' : 'text')));
+    inner = `<input class="field-input" type="${t}" id="${id}" data-key="${field.k}"${field.placeholder ? ` placeholder="${field.placeholder}"` : ''}>`;
+  }
+  return `<div class="field${field.full ? ' field-full' : ''}">
+    <div class="field-label">${field.label}</div>${inner}
+  </div>`;
+}
+
 function renderProfile() {
   const card = document.getElementById('profileCard');
   if (!currentStudent) {
@@ -594,12 +709,32 @@ function renderProfile() {
   const isNew = !s.id;
   const initials = (s.name || '?').split(/\s+/).map(p => p[0] || '').join('').slice(0, 2).toUpperCase() || '?';
 
+  // Build sections
+  const sectionsHtml = SECTIONS.map(([title, fields]) => `
+    <div class="profile-section">
+      <div class="profile-section-head">
+        <div class="profile-section-title">${title}</div>
+        <div class="profile-section-line"></div>
+      </div>
+      <div class="profile-grid">
+        ${fields.map(f => _buildField(f, s[f.k])).join('')}
+      </div>
+    </div>
+  `).join('');
+
+  // Status badges in header
+  const badges = [];
+  if (s.winning_student)  badges.push('<span class="badge win">★ Winning</span>');
+  if (s.verified)         badges.push('<span class="badge ver">✓ Verified</span>');
+  if (s.expired)          badges.push('<span class="badge exp">⚠ Expiring</span>');
+
   card.innerHTML = `
     <div class="profile-head">
       <div class="profile-av" id="prof-av">${initials}</div>
       <div class="profile-title">
         <div class="profile-name" id="prof-display-name">${isNew ? 'New student' : ''}</div>
         <div class="profile-sub" id="prof-sub"></div>
+        <div class="badges" id="prof-badges">${badges.join('')}</div>
       </div>
       <div class="profile-actions">
         <button class="profile-save" id="prof-save">${isNew ? 'Create' : 'Save'}</button>
@@ -607,85 +742,75 @@ function renderProfile() {
         <span class="profile-msg" id="prof-msg"></span>
       </div>
     </div>
-    <div class="profile-grid">
-      <div class="field field-full">
-        <div class="field-label">Name *</div>
-        <input class="field-input" id="f-name" type="text" placeholder="Full name" required>
-      </div>
-      <div class="field">
-        <div class="field-label">Email</div>
-        <input class="field-input" id="f-email" type="email" placeholder="student@example.com">
-      </div>
-      <div class="field">
-        <div class="field-label">Phone</div>
-        <input class="field-input" id="f-phone" type="text" placeholder="+1 555…">
-      </div>
-      <div class="field">
-        <div class="field-label">Status</div>
-        <select class="field-select" id="f-status">
-          ${STATUSES.map(st => `<option value="${st}">${st}</option>`).join('')}
-        </select>
-      </div>
-      <div class="field">
-        <div class="field-label">Mentor</div>
-        <select class="field-select" id="f-mentor">
-          <option value="">— None —</option>
-          ${mentors.map(m => `<option value="${m}">${m}</option>`).join('')}
-        </select>
-      </div>
-      <div class="field">
-        <div class="field-label">Product</div>
-        <input class="field-input" id="f-product" type="text" placeholder="e.g. Private Mentorship">
-      </div>
-      <div class="field">
-        <div class="field-label">Joined</div>
-        <input class="field-input" id="f-joined" type="date">
-      </div>
-      <div class="field">
-        <div class="field-label">Graduated</div>
-        <input class="field-input" id="f-graduated" type="date">
-      </div>
-      <div class="field field-full">
-        <div class="field-label">Notes</div>
-        <textarea class="field-textarea" id="f-notes" placeholder="Anything to remember about this student…"></textarea>
-      </div>
-    </div>
+    ${sectionsHtml}
   `;
 
-  // Populate (textContent / value — never innerHTML for user data)
-  document.getElementById('f-name').value     = s.name || '';
-  document.getElementById('f-email').value    = s.email || '';
-  document.getElementById('f-phone').value    = s.phone || '';
-  document.getElementById('f-status').value   = STATUSES.includes(s.status) ? s.status : 'Active';
-  document.getElementById('f-product').value  = s.product || '';
-  document.getElementById('f-joined').value   = (s.joined_at || '').slice(0, 10);
-  document.getElementById('f-graduated').value= (s.graduated_at || '').slice(0, 10);
-  document.getElementById('f-notes').value    = s.notes || '';
-  // Mentor select: ensure we add the saved mentor as an option even if the
-  // rep_mappings list doesn't include it (legacy data).
-  const mentorSel = document.getElementById('f-mentor');
-  if (s.mentor && !mentors.includes(s.mentor)) {
-    const opt = document.createElement('option'); opt.value = s.mentor; opt.textContent = s.mentor;
-    mentorSel.appendChild(opt);
+  // Populate values (textContent / .value — never innerHTML for user data)
+  for (const [, fields] of SECTIONS) {
+    for (const f of fields) {
+      const el = document.getElementById('f-' + f.k);
+      if (!el) continue;
+      const v = s[f.k];
+      if (f.type === 'checkbox') {
+        el.checked = !!v;
+      } else if (f.type === 'date') {
+        el.value = v ? String(v).slice(0, 10) : '';
+      } else if (f.type === 'select') {
+        // For coach: ensure saved value exists as option even if not in mentors
+        if (f.k === 'coach' && v && Array.isArray(mentors) && !mentors.includes(v)) {
+          const opt = document.createElement('option'); opt.value = v; opt.textContent = v;
+          el.appendChild(opt);
+        }
+        el.value = v == null ? '' : String(v);
+      } else if (f.type === 'number') {
+        el.value = v == null ? '' : String(v);
+      } else {
+        el.value = v == null ? '' : String(v);
+      }
+    }
   }
-  mentorSel.value = s.mentor || '';
+  // Status default
+  const statusEl = document.getElementById('f-status');
+  if (statusEl && !STATUSES.includes(statusEl.value)) statusEl.value = 'Active';
 
+  // Header sub-line
   if (!isNew) {
     document.getElementById('prof-display-name').textContent = s.name || '(unnamed)';
     const subParts = [];
-    if (s.status) subParts.push(s.status);
-    if (s.mentor) subParts.push('Mentor: ' + s.mentor);
-    if (s.email)  subParts.push(s.email);
+    if (s.status)            subParts.push(s.status);
+    if (s.coach || s.mentor) subParts.push('Coach: ' + (s.coach || s.mentor));
+    if (s.months_count != null) subParts.push(s.months_count + ' months');
+    if (s.email)             subParts.push(s.email);
     document.getElementById('prof-sub').textContent = subParts.join(' · ');
   } else {
-    document.getElementById('prof-sub').textContent = 'Fill the form below and click Create.';
+    document.getElementById('prof-sub').textContent = 'Fill in what you know and click Create.';
   }
 
+  // Live header updates
   document.getElementById('f-name').addEventListener('input', () => {
     const n = document.getElementById('f-name').value || '?';
     document.getElementById('prof-av').textContent = n.split(/\s+/).map(p => p[0] || '').join('').slice(0, 2).toUpperCase() || '?';
     if (!isNew) document.getElementById('prof-display-name').textContent = n;
   });
+  // Visual feedback on checkboxes
+  card.querySelectorAll('.field-checkbox input[type="checkbox"]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      cb.parentElement.classList.toggle('checked', cb.checked);
+    });
+  });
+  // Auto-fill months_count from first_purchase_date when months is empty
+  const fpd = document.getElementById('f-first_purchase_date');
+  const mc  = document.getElementById('f-months_count');
+  if (fpd && mc) {
+    fpd.addEventListener('change', () => {
+      if (!fpd.value) return;
+      const f = new Date(fpd.value + 'T00:00:00');
+      const now = new Date();
+      const months = (now.getFullYear() - f.getFullYear()) * 12 + (now.getMonth() - f.getMonth());
+      if (months >= 0 && (!mc.value || mc.value === '0')) mc.value = String(months);
+    });
+  }
+
   document.getElementById('prof-save').addEventListener('click', saveStudent);
   if (!isNew) document.getElementById('prof-delete').addEventListener('click', deleteStudent);
 }
@@ -694,18 +819,23 @@ async function saveStudent() {
   const btn = document.getElementById('prof-save');
   const msg = document.getElementById('prof-msg');
   msg.textContent = ''; msg.style.color = '';
-  const payload = {
-    id:           currentStudent.id || undefined,
-    name:         document.getElementById('f-name').value.trim(),
-    email:        document.getElementById('f-email').value.trim(),
-    phone:        document.getElementById('f-phone').value.trim(),
-    status:       document.getElementById('f-status').value,
-    mentor:       document.getElementById('f-mentor').value || null,
-    product:      document.getElementById('f-product').value.trim(),
-    joined_at:    document.getElementById('f-joined').value || null,
-    graduated_at: document.getElementById('f-graduated').value || null,
-    notes:        document.getElementById('f-notes').value,
-  };
+
+  const payload = { id: currentStudent.id || undefined };
+  for (const [, fields] of SECTIONS) {
+    for (const f of fields) {
+      const el = document.getElementById('f-' + f.k);
+      if (!el) continue;
+      if (f.type === 'checkbox') {
+        payload[f.k] = el.checked;
+      } else if (f.type === 'number') {
+        const v = el.value.trim();
+        payload[f.k] = v === '' ? null : Number(v);
+      } else {
+        const v = (el.value || '').trim();
+        payload[f.k] = v === '' ? null : v;
+      }
+    }
+  }
   if (!payload.name) {
     msg.textContent = 'Name is required'; msg.style.color = 'var(--red)';
     return;

@@ -133,12 +133,29 @@
       panel.innerHTML = `
         <div class="notif-head">
           <div class="notif-title">Notifications</div>
+          <button class="notif-mark" id="notifTestSound" title="Play the alert chime now">🔊 Test sound</button>
           <button class="notif-mark" id="notifMarkAll">Mark all read</button>
         </div>
         <div class="notif-body" id="notifBody"></div>`;
       document.body.appendChild(panel);
       panel.addEventListener('click', e => e.stopPropagation());
       document.getElementById('notifMarkAll').addEventListener('click', markAllRead);
+      document.getElementById('notifTestSound').addEventListener('click', () => {
+        // Click is a real user gesture — definitely plays if audio works at all.
+        primeAudio();
+        setTimeout(playChime, 50);
+        // Show status feedback below the buttons.
+        const head = document.querySelector('#notifBellPanel .notif-head');
+        let status = document.getElementById('notifAudioStatus');
+        if (!status) {
+          status = document.createElement('div');
+          status.id = 'notifAudioStatus';
+          status.style.cssText = 'flex-basis:100%;font-size:0.66rem;color:#7880a8;padding-top:6px;';
+          head.appendChild(status);
+        }
+        const ctxState = chimeContext ? chimeContext.state : 'no-context';
+        status.textContent = 'Audio context: ' + ctxState + ' · primed: ' + (window.__notifAudioPrimed ? 'yes' : 'no') + (ctxState !== 'running' ? ' · silent switch / volume?' : '');
+      });
     }
   }
 
@@ -240,8 +257,23 @@
     );
   }
 
+  // Pre-built HTMLAudio fallback for iOS PWAs that refuse WebAudio. The
+  // data URI is a short two-tone bleep encoded as a small base64 WAV.
+  let chimeAudioEl = null;
+  function getChimeAudioEl() {
+    if (chimeAudioEl) return chimeAudioEl;
+    // 0.4s, 22050 Hz, mono — two-tone chime served from /chime.wav
+    chimeAudioEl = new Audio('/chime.wav');
+    chimeAudioEl.preload = 'auto';
+    chimeAudioEl.volume = 0.35;
+    return chimeAudioEl;
+  }
+
   function playChime() {
-    // Two-tone chime via WebAudio.
+    // Two-tone chime via WebAudio first. If the context is suspended / iOS
+    // PWA blocks it, fall back to an HTMLAudio element which is more
+    // permissive on standalone PWAs.
+    let webaudioOk = false;
     try {
       if (!chimeContext) {
         chimeContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -249,22 +281,31 @@
       if (chimeContext.state === 'suspended') {
         chimeContext.resume().catch(() => {});
       }
-      // If the context is still suspended (no user gesture yet) we can't play.
-      if (chimeContext.state !== 'running') return;
-      const t0 = chimeContext.currentTime;
-      const playTone = (freq, start, dur) => {
-        const osc = chimeContext.createOscillator();
-        const gain = chimeContext.createGain();
-        osc.type = 'sine'; osc.frequency.value = freq;
-        gain.gain.setValueAtTime(0.0001, start);
-        gain.gain.exponentialRampToValueAtTime(0.25, start + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.0001, start + dur);
-        osc.connect(gain); gain.connect(chimeContext.destination);
-        osc.start(start); osc.stop(start + dur + 0.05);
-      };
-      playTone(880, t0,        0.18);
-      playTone(1175, t0 + 0.12, 0.22);
-    } catch (_) { /* silent */ }
+      if (chimeContext.state === 'running') {
+        const t0 = chimeContext.currentTime;
+        const playTone = (freq, start, dur) => {
+          const osc = chimeContext.createOscillator();
+          const gain = chimeContext.createGain();
+          osc.type = 'sine'; osc.frequency.value = freq;
+          gain.gain.setValueAtTime(0.0001, start);
+          gain.gain.exponentialRampToValueAtTime(0.25, start + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+          osc.connect(gain); gain.connect(chimeContext.destination);
+          osc.start(start); osc.stop(start + dur + 0.05);
+        };
+        playTone(880, t0,        0.18);
+        playTone(1175, t0 + 0.12, 0.22);
+        webaudioOk = true;
+      }
+    } catch (_) { /* fall through to fallback */ }
+
+    if (!webaudioOk) {
+      try {
+        const el = getChimeAudioEl();
+        el.currentTime = 0;
+        el.play().catch(() => {});
+      } catch (_) { /* silent */ }
+    }
   }
   function pingForNew() {
     // Don't chime when the dropdown is already open — the user is looking.

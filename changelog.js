@@ -11,6 +11,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v105', title: 'Notifications: HTMLAudio fallback + Test sound button',
+      items: [
+      'iOS PWAs sometimes refuse WebAudio entirely. The bell now falls back to an HTMLAudio chime (chime.wav) when WebAudio is suspended.',
+      'New 🔊 Test sound button in the bell dropdown — plays the chime on demand so you can sanity-check whether the device / silent switch / volume is the issue.',
+    ]},
     { version: 'v104', title: 'Fix: chime was silent (audio not unlocked)',
       items: [
       'iOS / Safari / Chrome block WebAudio until the user has tapped at least once, even on pages they\'ve been clicking around. The bell now primes the audio context on the first tap of any page so subsequent chimes actually play.',

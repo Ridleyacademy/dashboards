@@ -11,6 +11,12 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v102', title: 'Notifications: realtime + chime + mark-done from the bell',
+      items: [
+      'Bell now updates in real-time via WebSocket — new alerts pop in instantly instead of after up to 60 seconds. Polling kept as a 5-min fallback if the socket dies.',
+      'Soft two-tone chime + bell-shake animation when a new alert lands (silent if the dropdown is already open).',
+      'Open-alert rows in the dropdown have a ✓ Mark done button — type a resolution note, press OK, alert is resolved and the resolved fan-out fires (in-app + email + push) to everyone else. No need to open the student\'s page.',
+    ]},
     { version: 'v101', title: 'Web push notifications (works when tab is closed)',
       items: [
       'New 🔔 Enable push notifications button in the bell dropdown. Once enabled, alerts arrive as system notifications even when the tab is closed.',

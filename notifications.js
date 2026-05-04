@@ -19,11 +19,16 @@
   // VAPID public key (web push). Public — safe to embed.
   const VAPID_PUBLIC_KEY  = "BAmtR2m5G-vJp5A0x5FsWK_h3U0cUc1_b_jOsM8gYV7HnHCpPNB0_SE4QjX43YMLEboRPRbDGHSnxneVs1sf4YE";
 
-  const POLL_MS = 60_000;
+  // 5-min fallback poll (was 60s). Realtime via WebSocket is the primary path;
+  // poll only catches up if the socket dies.
+  const POLL_MS = 5 * 60_000;
   let pollTimer = null;
   let cachedRows = [];
   let cachedUnread = 0;
   let dropdownOpen = false;
+  let realtimeChannel = null;
+  let lastBadgeShown = 0;
+  let chimeContext = null;
   let nSupa = null;
 
   function ensureSupa() {
@@ -152,6 +157,61 @@
     }
   }
 
+  // ── Chime + bell shake ───────────────────────────────────────────────
+  function ensureChimeStyles() {
+    if (document.getElementById('notifChimeCss')) return;
+    const css = document.createElement('style');
+    css.id = 'notifChimeCss';
+    css.textContent = `
+      @keyframes notif-shake {
+        0%, 100% { transform: translateX(0) rotate(0); }
+        15% { transform: translateX(-2px) rotate(-12deg); }
+        30% { transform: translateX(2px) rotate(12deg); }
+        45% { transform: translateX(-2px) rotate(-8deg); }
+        60% { transform: translateX(2px) rotate(8deg); }
+        75% { transform: translateX(-1px) rotate(-4deg); }
+      }
+      #notifBellBtn.notif-shake svg { animation: notif-shake 0.6s ease-in-out; transform-origin: 50% 30%; }
+      #notifBellBtn.notif-shake .notif-dot { animation: notif-shake 0.6s ease-in-out; }
+    `;
+    document.head.appendChild(css);
+  }
+  function shakeBell() {
+    const btn = document.getElementById('notifBellBtn');
+    if (!btn) return;
+    btn.classList.remove('notif-shake');
+    void btn.offsetWidth;            // force reflow so animation can re-trigger
+    btn.classList.add('notif-shake');
+    setTimeout(() => btn.classList.remove('notif-shake'), 700);
+  }
+  function playChime() {
+    // Two-tone chime via WebAudio. Stays silent if the user hasn't
+    // interacted with the page yet (browsers block autoplay).
+    try {
+      if (!chimeContext) chimeContext = new (window.AudioContext || window.webkitAudioContext)();
+      if (chimeContext.state === 'suspended') { chimeContext.resume().catch(() => {}); }
+      const t0 = chimeContext.currentTime;
+      const playTone = (freq, start, dur) => {
+        const osc = chimeContext.createOscillator();
+        const gain = chimeContext.createGain();
+        osc.type = 'sine'; osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.0001, start);
+        gain.gain.exponentialRampToValueAtTime(0.18, start + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+        osc.connect(gain); gain.connect(chimeContext.destination);
+        osc.start(start); osc.stop(start + dur + 0.05);
+      };
+      playTone(880, t0,        0.18);
+      playTone(1175, t0 + 0.12, 0.22);
+    } catch (_) { /* silent */ }
+  }
+  function pingForNew() {
+    // Don't chime when the dropdown is already open — the user is looking.
+    if (dropdownOpen) { shakeBell(); return; }
+    shakeBell();
+    playChime();
+  }
+
   function renderRows() {
     const body = document.getElementById('notifBody');
     if (!body) return;
@@ -170,9 +230,49 @@
       const ts = n.created_at ? new Date(n.created_at).toLocaleString() : '';
       mEl.textContent = ts + (n.created_by_email ? ' · from ' + n.created_by_email : '');
       row.appendChild(tEl); row.appendChild(bEl); row.appendChild(mEl);
+      // For OPEN alerts (alert_opened with an alert_id), add a quick "Mark done"
+      // button so the user can resolve from the bell without going to the page.
+      if (n.kind === 'alert_opened' && n.alert_id) {
+        const actions = document.createElement('div');
+        actions.style.cssText = 'margin-top:8px;display:flex;gap:8px;';
+        const doneBtn = document.createElement('button');
+        doneBtn.className = 'notif-mark-done';
+        doneBtn.dataset.aid = n.alert_id;
+        doneBtn.dataset.nid = n.id;
+        doneBtn.textContent = '✓ Mark done';
+        doneBtn.style.cssText = 'background:rgba(52,211,153,0.15);border:1px solid #34d399;color:#34d399;border-radius:7px;padding:4px 10px;font-weight:700;font-size:0.7rem;cursor:pointer;';
+        doneBtn.addEventListener('click', (e) => { e.stopPropagation(); markAlertDone(n); });
+        actions.appendChild(doneBtn);
+        row.appendChild(actions);
+      }
       row.addEventListener('click', () => onClickRow(n));
       body.appendChild(row);
     }
+  }
+
+  async function markAlertDone(n) {
+    const tok = await getToken(); if (!tok) return;
+    const note = window.prompt('Resolution note (required):', 'Resolved from bell');
+    if (note === null) return;          // user cancelled
+    const trimmed = (note || '').trim();
+    if (!trimmed) { alert('A resolution note is required.'); return; }
+    try {
+      const r = await fetch(STUDENTS_BASE + '?api=resolve-alert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok },
+        body: JSON.stringify({ id: n.alert_id, resolution_note: trimmed }),
+      });
+      const j = await r.json();
+      if (!r.ok) { alert('Resolve failed: ' + (j.error || r.status)); return; }
+      // Mark the in-app row read locally so the badge ticks down without waiting for the next poll.
+      if (!n.read_at) {
+        markRead(n.id);
+        n.read_at = new Date().toISOString();
+        setBadge(Math.max(0, cachedUnread - 1));
+        lastBadgeShown = cachedUnread;
+        renderRows();
+      }
+    } catch (e) { alert('Resolve failed: ' + (e.message || e)); }
   }
 
   async function fetchNotifications() {
@@ -184,8 +284,12 @@
       });
       const j = await r.json();
       if (!r.ok) { console.warn('notifications fetch failed', j); return; }
+      const newUnread = j.unread || 0;
+      const grew = newUnread > lastBadgeShown;
       cachedRows = j.rows || [];
-      setBadge(j.unread || 0);
+      setBadge(newUnread);
+      lastBadgeShown = newUnread;
+      if (grew) pingForNew();
       if (dropdownOpen) renderRows();
     } catch (e) { console.warn('notifications fetch error', e); }
   }
@@ -268,6 +372,41 @@
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') fetchNotifications();
     });
+  }
+
+  // ── Realtime: subscribe to inserts/updates on this user's notifications.
+  async function startRealtime() {
+    const s = ensureSupa(); if (!s) return;
+    const { data: { user } } = await s.auth.getUser();
+    if (!user) return;
+    if (realtimeChannel) { try { s.removeChannel(realtimeChannel); } catch (_) {} realtimeChannel = null; }
+    realtimeChannel = s.channel('notifications-' + user.id)
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'notifications',
+        filter: 'user_id=eq.' + user.id,
+      }, (payload) => {
+        const n = payload.new || {};
+        // Prepend if it's not already in the cache.
+        if (!cachedRows.find(r => r.id === n.id)) cachedRows = [n, ...cachedRows].slice(0, 50);
+        const newUnread = cachedUnread + (n.read_at ? 0 : 1);
+        setBadge(newUnread);
+        lastBadgeShown = newUnread;
+        if (!n.read_at) pingForNew();
+        if (dropdownOpen) renderRows();
+      })
+      .on('postgres_changes', {
+        event: 'UPDATE', schema: 'public', table: 'notifications',
+        filter: 'user_id=eq.' + user.id,
+      }, (payload) => {
+        const n = payload.new || {};
+        const i = cachedRows.findIndex(r => r.id === n.id);
+        if (i >= 0) cachedRows[i] = n;
+        // Recompute unread from cache (cheap; ≤50 rows).
+        const u = cachedRows.filter(r => !r.read_at).length;
+        setBadge(u); lastBadgeShown = u;
+        if (dropdownOpen) renderRows();
+      })
+      .subscribe();
   }
 
   // ── Web push subscription ────────────────────────────────────────────
@@ -407,14 +546,15 @@
 
   function init() {
     ensureBellInTopbar();
+    ensureChimeStyles();
     const s = ensureSupa();
     if (!s) {
       // supabase-js not loaded yet (load order race) — try again shortly.
       setTimeout(init, 250);
       return;
     }
-    s.auth.getSession().then(({ data }) => { if (data?.session) { startPolling(); injectPushCta(); } });
-    s.auth.onAuthStateChange((_e, sess) => { if (sess) { startPolling(); injectPushCta(); } });
+    s.auth.getSession().then(({ data }) => { if (data?.session) { startPolling(); startRealtime(); injectPushCta(); } });
+    s.auth.onAuthStateChange((_e, sess) => { if (sess) { startPolling(); startRealtime(); injectPushCta(); } });
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

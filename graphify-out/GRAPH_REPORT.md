@@ -1,11 +1,11 @@
 # Graph Report - .  (2026-05-04)
 
 ## Corpus Check
-- 10 files · ~17,423 words
+- 10 files · ~18,490 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 84 nodes · 130 edges · 10 communities detected
+- 92 nodes · 152 edges · 13 communities detected
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS
 - Token cost: 0 input · 0 output
 
@@ -20,31 +20,43 @@
 - [[_COMMUNITY_Community 7|Community 7]]
 - [[_COMMUNITY_Community 8|Community 8]]
 - [[_COMMUNITY_Community 9|Community 9]]
+- [[_COMMUNITY_Community 10|Community 10]]
+- [[_COMMUNITY_Community 11|Community 11]]
+- [[_COMMUNITY_Community 12|Community 12]]
 
 ## God Nodes (most connected - your core abstractions)
-1. `fetchNotifications()` - 7 edges
-2. `enforce()` - 6 edges
-3. `getToken()` - 5 edges
-4. `renderRows()` - 5 edges
-5. `markAllRead()` - 5 edges
-6. `onClickRow()` - 5 edges
-7. `openDropdown()` - 5 edges
-8. `effOf()` - 4 edges
-9. `effective()` - 4 edges
-10. `apply()` - 4 edges
+1. `getToken()` - 7 edges
+2. `fetchNotifications()` - 7 edges
+3. `openDropdown()` - 7 edges
+4. `enforce()` - 6 edges
+5. `renderRows()` - 5 edges
+6. `markAllRead()` - 5 edges
+7. `onClickRow()` - 5 edges
+8. `pushSupported()` - 5 edges
+9. `getCurrentPushSub()` - 5 edges
+10. `ensurePushSubscribed()` - 5 edges
 
 ## Surprising Connections (you probably didn't know these)
-- None detected - all connections are within the same source files.
+- `getToken()` --calls--> `ensureSupa()`  [EXTRACTED]
+  notifications.js → notifications.js  _Bridges community 6 → community 1_
+- `ensurePushSubscribed()` --calls--> `getToken()`  [EXTRACTED]
+  notifications.js → notifications.js  _Bridges community 1 → community 11_
+- `openDropdown()` --calls--> `renderRows()`  [EXTRACTED]
+  notifications.js → notifications.js  _Bridges community 1 → community 8_
+- `toggleDropdown()` --calls--> `openDropdown()`  [EXTRACTED]
+  notifications.js → notifications.js  _Bridges community 6 → community 8_
+- `ensurePushSubscribed()` --calls--> `pushSupported()`  [EXTRACTED]
+  notifications.js → notifications.js  _Bridges community 8 → community 11_
 
 ## Communities
 
 ### Community 0 - "Community 0"
-Cohesion: 0.27
-Nodes (17): closeDropdown(), ensureBellInTopbar(), ensureSupa(), fetchNotifications(), getBase(), getToken(), init(), markAllRead() (+9 more)
-
-### Community 1 - "Community 1"
 Cohesion: 0.2
 Nodes (8): applyImpersonationToUI(), decorateKPIs(), getImpersonation(), injectTooltipStyles(), presenceTick(), renderImpersonationBanner(), startPresence(), watchKPIs()
+
+### Community 1 - "Community 1"
+Cohesion: 0.33
+Nodes (10): fetchNotifications(), getBase(), getToken(), markAllRead(), markRead(), onClickRow(), renderRows(), setBadge() (+2 more)
 
 ### Community 2 - "Community 2"
 Cohesion: 0.42
@@ -63,24 +75,43 @@ Cohesion: 0.43
 Nodes (4): getEffectiveUser(), maybeShow(), pickEntriesSince(), show()
 
 ### Community 6 - "Community 6"
+Cohesion: 0.48
+Nodes (6): closeDropdown(), ensureBellInTopbar(), ensureSupa(), init(), onDocClickOutside(), toggleDropdown()
+
+### Community 7 - "Community 7"
 Cohesion: 0.67
 Nodes (5): apply(), bootstrap(), effective(), osPrefersLight(), syncBtn()
 
-### Community 7 - "Community 7"
+### Community 8 - "Community 8"
+Cohesion: 0.53
+Nodes (6): getCurrentPushSub(), injectPushCta(), openDropdown(), positionPanel(), pushSupported(), refreshPushCta()
+
+### Community 9 - "Community 9"
 Cohesion: 0.6
 Nodes (5): canOpen(), canOpenWith(), effective(), impersonation(), pageDef()
 
-### Community 8 - "Community 8"
+### Community 10 - "Community 10"
 Cohesion: 0.5
 Nodes (0): 
 
-### Community 9 - "Community 9"
+### Community 11 - "Community 11"
+Cohesion: 0.67
+Nodes (3): ensurePushSubscribed(), getPushReg(), urlB64ToUint8()
+
+### Community 12 - "Community 12"
 Cohesion: 1.0
 Nodes (0): 
 
 ## Knowledge Gaps
-- **Thin community `Community 9`** (2 nodes): `build()`, `nav-menu.js`
+- **Thin community `Community 12`** (2 nodes): `build()`, `nav-menu.js`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 
 ## Suggested Questions
-_Not enough signal to generate questions. This usually means the corpus has no AMBIGUOUS edges, no bridge nodes, no INFERRED relationships, and all communities are tightly cohesive. Add more files or run with --mode deep to extract richer edges._
+_Questions this graph is uniquely positioned to answer:_
+
+- **Why does `getToken()` connect `Community 1` to `Community 11`, `Community 6`?**
+  _High betweenness centrality (0.002) - this node is a cross-community bridge._
+- **Why does `openDropdown()` connect `Community 8` to `Community 1`, `Community 6`?**
+  _High betweenness centrality (0.002) - this node is a cross-community bridge._
+- **Why does `fetchNotifications()` connect `Community 1` to `Community 8`, `Community 6`?**
+  _High betweenness centrality (0.001) - this node is a cross-community bridge._

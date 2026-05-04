@@ -11,6 +11,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v100', title: 'Fix: bell dropdown was empty (no auth context)',
+      items: [
+      'notifications.js was trying to read the page\'s `supa` auth client off `window`, but each page declares it with `const`/`let` inside an inline <script> which doesn\'t attach to window. The bell rendered but never polled.',
+      'Script now creates its own Supabase client and shares the persisted session via localStorage. No login impact — same session as the page.',
+    ]},
     { version: 'v99', title: 'Service alert system: full fan-out + notifications bell',
       items: [
       'New permissions: ms_ic (full mentorship access), delivery_ic (full delivery access), ms_rep (read-only on the Mentorship CRM EXCEPT for resigns + alerts).',

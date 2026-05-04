@@ -3,25 +3,39 @@
 // once the user is authed; renders a 🔔 button in the topbar at order:45 so
 // it slots between the picker (40) and the user pill (50).
 //
-// Depends on: window.SUPABASE_URL + a global supa client (every page already
-// has one). The script is defensive — it no-ops if either is missing.
+// The script is self-contained: it builds its own Supabase client (the URL +
+// anon key are public). Top-level `const supa = ...` in each page's inline
+// <script> doesn't attach to window, so this script can't borrow the page's
+// client — but it CAN share the same persisted auth session via localStorage,
+// which is what supabase-js does by default.
 (function () {
   if (window.__notificationsLoaded) return;
   window.__notificationsLoaded = true;
+
+  const SUPABASE_URL      = "https://pojqljrhhtnigyrtzdzz.supabase.co";
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBvanFsanJoaHRuaWd5cnR6ZHp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTA3ODMsImV4cCI6MjA5MTM4Njc4M30.PcSBDqOzbiZxZ7IAs5efqx0gsAlAG0cj3GqUOkAmxos";
+  const STUDENTS_BASE     = SUPABASE_URL + '/functions/v1/students';
 
   const POLL_MS = 60_000;
   let pollTimer = null;
   let cachedRows = [];
   let cachedUnread = 0;
   let dropdownOpen = false;
+  let nSupa = null;
 
-  function getSupa() { return window.supa || null; }
-  function getBase() {
-    const url = window.SUPABASE_URL || (window.supa?.supabaseUrl) || '';
-    return url ? url + '/functions/v1/students' : '';
+  function ensureSupa() {
+    if (nSupa) return nSupa;
+    if (typeof supabase === 'undefined' || !supabase?.createClient) return null;
+    // Same options as the page's own client so we share the persisted session
+    // (localStorage key 'sb-…-auth-token') instead of forcing a re-login.
+    nSupa = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: { persistSession: true, detectSessionInUrl: false, autoRefreshToken: true },
+    });
+    return nSupa;
   }
+  function getBase() { return STUDENTS_BASE; }
   async function getToken() {
-    const s = getSupa(); if (!s) return null;
+    const s = ensureSupa(); if (!s) return null;
     try { const { data } = await s.auth.getSession(); return data?.session?.access_token || null; }
     catch { return null; }
   }
@@ -254,11 +268,14 @@
 
   function init() {
     ensureBellInTopbar();
-    const supa = getSupa();
-    if (!supa) return;
-    // Wait for a session before polling.
-    supa.auth.getSession().then(({ data }) => { if (data?.session) startPolling(); });
-    supa.auth.onAuthStateChange((_e, sess) => { if (sess) startPolling(); });
+    const s = ensureSupa();
+    if (!s) {
+      // supabase-js not loaded yet (load order race) — try again shortly.
+      setTimeout(init, 250);
+      return;
+    }
+    s.auth.getSession().then(({ data }) => { if (data?.session) startPolling(); });
+    s.auth.onAuthStateChange((_e, sess) => { if (sess) startPolling(); });
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

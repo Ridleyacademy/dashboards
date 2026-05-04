@@ -11,6 +11,12 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v108', title: 'Turnovers now ping like alerts (in-app + email + push)',
+      roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'], items: [
+      'Filing a turnover now notifies the rep being handed-to (matched by first name or email), every MS I/C, every Delivery I/C, and the student\'s assigned coach. All three channels — bell + email + push — fan out at once.',
+      'When you set a result on a turnover (closing it), everyone who was on the original recipient list PLUS the original creator gets notified that it\'s closed, with the result text and resolver — minus whoever set the result. So the rep who filed it always learns the outcome.',
+      'Recipient list is snapshotted at create-time so the close fan-out is faithful even if perms change later (same pattern as alerts).',
+    ]},
     { version: 'v107', title: 'Fix: chime path uses HTMLAudio first (iOS PWA reliable)',
       items: [
       'WebAudio kept refusing to play from realtime callbacks on iOS PWA. Switched the primary chime path to HTMLAudio (chime.wav), which keeps working after focus changes once it has been played once during a user gesture.',

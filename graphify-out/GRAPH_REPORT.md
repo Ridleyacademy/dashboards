@@ -1,7 +1,7 @@
 # Graph Report - .  (2026-05-04)
 
 ## Corpus Check
-- 10 files · ~20,318 words
+- 10 files · ~20,464 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
@@ -41,13 +41,13 @@
 - `getToken()` --calls--> `ensureSupa()`  [EXTRACTED]
   notifications.js → notifications.js  _Bridges community 1 → community 5_
 - `fetchNotifications()` --calls--> `getBase()`  [EXTRACTED]
-  notifications.js → notifications.js  _Bridges community 5 → community 10_
+  notifications.js → notifications.js  _Bridges community 5 → community 11_
 - `ensurePushSubscribed()` --calls--> `getToken()`  [EXTRACTED]
   notifications.js → notifications.js  _Bridges community 5 → community 7_
 - `fetchNotifications()` --calls--> `pingForNew()`  [EXTRACTED]
-  notifications.js → notifications.js  _Bridges community 1 → community 10_
-- `onClickRow()` --calls--> `closeDropdown()`  [EXTRACTED]
-  notifications.js → notifications.js  _Bridges community 5 → community 12_
+  notifications.js → notifications.js  _Bridges community 10 → community 11_
+- `toggleDropdown()` --calls--> `openDropdown()`  [EXTRACTED]
+  notifications.js → notifications.js  _Bridges community 1 → community 11_
 
 ## Communities
 
@@ -56,8 +56,8 @@ Cohesion: 0.2
 Nodes (8): applyImpersonationToUI(), decorateKPIs(), getImpersonation(), injectTooltipStyles(), presenceTick(), renderImpersonationBanner(), startPresence(), watchKPIs()
 
 ### Community 1 - "Community 1"
-Cohesion: 0.3
-Nodes (11): ensureBellInTopbar(), ensureChimeStyles(), ensureSupa(), getChimeAudioEl(), init(), installAudioPrime(), pingForNew(), playChime() (+3 more)
+Cohesion: 0.36
+Nodes (9): closeDropdown(), ensureBellInTopbar(), ensureChimeStyles(), ensureSupa(), init(), installAudioPrime(), onDocClickOutside(), startRealtime() (+1 more)
 
 ### Community 2 - "Community 2"
 Cohesion: 0.42
@@ -92,16 +92,16 @@ Cohesion: 0.6
 Nodes (5): canOpen(), canOpenWith(), effective(), impersonation(), pageDef()
 
 ### Community 10 - "Community 10"
-Cohesion: 0.5
-Nodes (5): fetchNotifications(), openDropdown(), positionPanel(), renderRows(), startPolling()
+Cohesion: 0.4
+Nodes (5): getChimeAudioEl(), pingForNew(), playChime(), primeAudio(), shakeBell()
 
 ### Community 11 - "Community 11"
 Cohesion: 0.5
-Nodes (0): 
+Nodes (5): fetchNotifications(), openDropdown(), positionPanel(), renderRows(), startPolling()
 
 ### Community 12 - "Community 12"
-Cohesion: 0.67
-Nodes (3): closeDropdown(), onDocClickOutside(), toggleDropdown()
+Cohesion: 0.5
+Nodes (0): 
 
 ### Community 13 - "Community 13"
 Cohesion: 1.0
@@ -114,9 +114,9 @@ Nodes (0):
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `getToken()` connect `Community 5` to `Community 1`, `Community 10`, `Community 7`?**
+- **Why does `getToken()` connect `Community 5` to `Community 1`, `Community 11`, `Community 7`?**
   _High betweenness centrality (0.002) - this node is a cross-community bridge._
-- **Why does `fetchNotifications()` connect `Community 10` to `Community 1`, `Community 5`?**
+- **Why does `fetchNotifications()` connect `Community 11` to `Community 1`, `Community 10`, `Community 5`?**
   _High betweenness centrality (0.002) - this node is a cross-community bridge._
-- **Why does `openDropdown()` connect `Community 10` to `Community 1`, `Community 12`, `Community 7`?**
+- **Why does `openDropdown()` connect `Community 11` to `Community 1`, `Community 7`?**
   _High betweenness centrality (0.001) - this node is a cross-community bridge._

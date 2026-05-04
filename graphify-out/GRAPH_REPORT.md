@@ -1,11 +1,11 @@
 # Graph Report - .  (2026-05-04)
 
 ## Corpus Check
-- 10 files · ~20,150 words
+- 10 files · ~20,318 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 101 nodes · 172 edges · 14 communities detected
+- 101 nodes · 173 edges · 14 communities detected
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS
 - Token cost: 0 input · 0 output
 
@@ -45,9 +45,9 @@
 - `ensurePushSubscribed()` --calls--> `getToken()`  [EXTRACTED]
   notifications.js → notifications.js  _Bridges community 5 → community 7_
 - `fetchNotifications()` --calls--> `pingForNew()`  [EXTRACTED]
-  notifications.js → notifications.js  _Bridges community 11 → community 10_
-- `toggleDropdown()` --calls--> `openDropdown()`  [EXTRACTED]
   notifications.js → notifications.js  _Bridges community 1 → community 10_
+- `onClickRow()` --calls--> `closeDropdown()`  [EXTRACTED]
+  notifications.js → notifications.js  _Bridges community 5 → community 12_
 
 ## Communities
 
@@ -56,8 +56,8 @@ Cohesion: 0.2
 Nodes (8): applyImpersonationToUI(), decorateKPIs(), getImpersonation(), injectTooltipStyles(), presenceTick(), renderImpersonationBanner(), startPresence(), watchKPIs()
 
 ### Community 1 - "Community 1"
-Cohesion: 0.31
-Nodes (9): closeDropdown(), ensureBellInTopbar(), ensureChimeStyles(), ensureSupa(), init(), installAudioPrime(), onDocClickOutside(), startRealtime() (+1 more)
+Cohesion: 0.3
+Nodes (11): ensureBellInTopbar(), ensureChimeStyles(), ensureSupa(), getChimeAudioEl(), init(), installAudioPrime(), pingForNew(), playChime() (+3 more)
 
 ### Community 2 - "Community 2"
 Cohesion: 0.42
@@ -97,11 +97,11 @@ Nodes (5): fetchNotifications(), openDropdown(), positionPanel(), renderRows(), 
 
 ### Community 11 - "Community 11"
 Cohesion: 0.5
-Nodes (4): getChimeAudioEl(), pingForNew(), playChime(), shakeBell()
+Nodes (0): 
 
 ### Community 12 - "Community 12"
-Cohesion: 0.5
-Nodes (0): 
+Cohesion: 0.67
+Nodes (3): closeDropdown(), onDocClickOutside(), toggleDropdown()
 
 ### Community 13 - "Community 13"
 Cohesion: 1.0
@@ -116,7 +116,7 @@ _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `getToken()` connect `Community 5` to `Community 1`, `Community 10`, `Community 7`?**
   _High betweenness centrality (0.002) - this node is a cross-community bridge._
-- **Why does `fetchNotifications()` connect `Community 10` to `Community 1`, `Community 11`, `Community 5`?**
+- **Why does `fetchNotifications()` connect `Community 10` to `Community 1`, `Community 5`?**
   _High betweenness centrality (0.002) - this node is a cross-community bridge._
-- **Why does `openDropdown()` connect `Community 10` to `Community 1`, `Community 7`?**
+- **Why does `openDropdown()` connect `Community 10` to `Community 1`, `Community 12`, `Community 7`?**
   _High betweenness centrality (0.001) - this node is a cross-community bridge._

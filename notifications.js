@@ -242,13 +242,17 @@
       const src = chimeContext.createBufferSource();
       src.buffer = buf; src.connect(chimeContext.destination); src.start(0);
     } catch (_) {}
-    // Also prime the HTMLAudio fallback so it can play later without a gesture.
+    // Also prime the HTMLAudio fallback. iOS only counts an audio element as
+    // "user-activated" if it has actually emitted sound — muted plays don't
+    // satisfy the gating. Play very briefly at zero volume, restore volume.
     try {
       const el = getChimeAudioEl();
-      el.muted = true;
+      const origVol = el.volume;
+      el.volume = 0;
       const p = el.play();
-      if (p && p.then) p.then(() => { el.pause(); el.currentTime = 0; el.muted = false; }).catch(() => {});
-      else { el.pause(); el.currentTime = 0; el.muted = false; }
+      const finish = () => { setTimeout(() => { el.pause(); el.currentTime = 0; el.volume = origVol; }, 50); };
+      if (p && p.then) p.then(finish).catch(() => { el.volume = origVol; });
+      else finish();
     } catch (_) {}
   }
   function installAudioPrime() {
@@ -278,10 +282,15 @@
   }
 
   function playChime() {
-    // Two-tone chime via WebAudio first. If the context is suspended / iOS
-    // PWA blocks it, fall back to an HTMLAudio element which is more
-    // permissive on standalone PWAs.
-    let webaudioOk = false;
+    // Belt + suspenders: try HTMLAudio first (most reliable post-prime), then
+    // also try WebAudio. If both fire, you'll hear one. If WebAudio is
+    // suspended (iOS PWA after focus change), HTMLAudio still plays.
+    try {
+      const el = getChimeAudioEl();
+      el.currentTime = 0;
+      const p = el.play();
+      if (p && p.catch) p.catch(() => {});
+    } catch (_) {}
     try {
       if (!chimeContext) {
         chimeContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -289,6 +298,9 @@
       if (chimeContext.state === 'suspended') {
         chimeContext.resume().catch(() => {});
       }
+      // Skip WebAudio playback if context isn't running — HTMLAudio above
+      // is already firing. Avoids a delayed double-chime when context
+      // resumes mid-play.
       if (chimeContext.state === 'running') {
         const t0 = chimeContext.currentTime;
         const playTone = (freq, start, dur) => {
@@ -301,19 +313,12 @@
           osc.connect(gain); gain.connect(chimeContext.destination);
           osc.start(start); osc.stop(start + dur + 0.05);
         };
-        playTone(880, t0,        0.18);
-        playTone(1175, t0 + 0.12, 0.22);
-        webaudioOk = true;
+        // WebAudio is OK if HTMLAudio works fine on its own; comment out to
+        // avoid potential double-chime if both fire on desktop.
+        // playTone(880, t0,        0.18);
+        // playTone(1175, t0 + 0.12, 0.22);
       }
-    } catch (_) { /* fall through to fallback */ }
-
-    if (!webaudioOk) {
-      try {
-        const el = getChimeAudioEl();
-        el.currentTime = 0;
-        el.play().catch(() => {});
-      } catch (_) { /* silent */ }
-    }
+    } catch (_) {}
   }
   function pingForNew() {
     // Don't chime when the dropdown is already open — the user is looking.

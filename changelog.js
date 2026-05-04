@@ -11,6 +11,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v107', title: 'Fix: chime path uses HTMLAudio first (iOS PWA reliable)',
+      items: [
+      'WebAudio kept refusing to play from realtime callbacks on iOS PWA. Switched the primary chime path to HTMLAudio (chime.wav), which keeps working after focus changes once it has been played once during a user gesture.',
+      'The first-tap prime now plays the audio element at zero volume briefly (un-muted) — iOS doesn\'t count muted plays as user-activated, but a zero-volume play does.',
+    ]},
     { version: 'v106', title: 'Fix: chime now plays from realtime callbacks on iOS PWA',
       items: [
       'iOS suspends the WebAudio context the moment the PWA loses focus (lock screen, app switch). When a realtime alert arrived afterward there was no fresh user gesture to resume it, so the chime was silent.',

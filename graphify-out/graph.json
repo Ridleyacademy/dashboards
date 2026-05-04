@@ -25,7 +25,7 @@
       "source_file": "/tmp/dashboards/access-guard.js",
       "source_location": "L1",
       "id": "tmp_dashboards_access_guard_js",
-      "community": 2
+      "community": 3
     },
     {
       "label": "getArchivedIds()",
@@ -33,7 +33,7 @@
       "source_file": "/tmp/dashboards/access-guard.js",
       "source_location": "L14",
       "id": "access_guard_getarchivedids",
-      "community": 2
+      "community": 3
     },
     {
       "label": "effOf()",
@@ -41,7 +41,7 @@
       "source_file": "/tmp/dashboards/access-guard.js",
       "source_location": "L37",
       "id": "access_guard_effof",
-      "community": 2
+      "community": 3
     },
     {
       "label": "isAdmin()",
@@ -49,7 +49,7 @@
       "source_file": "/tmp/dashboards/access-guard.js",
       "source_location": "L38",
       "id": "access_guard_isadmin",
-      "community": 2
+      "community": 3
     },
     {
       "label": "canAccess()",
@@ -57,7 +57,7 @@
       "source_file": "/tmp/dashboards/access-guard.js",
       "source_location": "L39",
       "id": "access_guard_canaccess",
-      "community": 2
+      "community": 3
     },
     {
       "label": "currentPageFile()",
@@ -65,7 +65,7 @@
       "source_file": "/tmp/dashboards/access-guard.js",
       "source_location": "L45",
       "id": "access_guard_currentpagefile",
-      "community": 2
+      "community": 3
     },
     {
       "label": "enforce()",
@@ -73,7 +73,7 @@
       "source_file": "/tmp/dashboards/access-guard.js",
       "source_location": "L53",
       "id": "access_guard_enforce",
-      "community": 2
+      "community": 3
     },
     {
       "label": "runWhenReady()",
@@ -81,7 +81,7 @@
       "source_file": "/tmp/dashboards/access-guard.js",
       "source_location": "L116",
       "id": "access_guard_runwhenready",
-      "community": 2
+      "community": 3
     },
     {
       "label": "showNotice()",
@@ -89,7 +89,7 @@
       "source_file": "/tmp/dashboards/access-guard.js",
       "source_location": "L134",
       "id": "access_guard_shownotice",
-      "community": 2
+      "community": 3
     },
     {
       "label": "theme.js",
@@ -97,7 +97,7 @@
       "source_file": "/tmp/dashboards/theme.js",
       "source_location": "L1",
       "id": "tmp_dashboards_theme_js",
-      "community": 7
+      "community": 8
     },
     {
       "label": "osPrefersLight()",
@@ -105,7 +105,7 @@
       "source_file": "/tmp/dashboards/theme.js",
       "source_location": "L9",
       "id": "theme_ospreferslight",
-      "community": 7
+      "community": 8
     },
     {
       "label": "effective()",
@@ -113,7 +113,7 @@
       "source_file": "/tmp/dashboards/theme.js",
       "source_location": "L12",
       "id": "theme_effective",
-      "community": 7
+      "community": 8
     },
     {
       "label": "apply()",
@@ -121,7 +121,7 @@
       "source_file": "/tmp/dashboards/theme.js",
       "source_location": "L16",
       "id": "theme_apply",
-      "community": 7
+      "community": 8
     },
     {
       "label": "syncBtn()",
@@ -129,7 +129,7 @@
       "source_file": "/tmp/dashboards/theme.js",
       "source_location": "L22",
       "id": "theme_syncbtn",
-      "community": 7
+      "community": 8
     },
     {
       "label": "bootstrap()",
@@ -137,7 +137,7 @@
       "source_file": "/tmp/dashboards/theme.js",
       "source_location": "L45",
       "id": "theme_bootstrap",
-      "community": 7
+      "community": 8
     },
     {
       "label": "filters.js",
@@ -145,7 +145,7 @@
       "source_file": "filters.js",
       "source_location": "L1",
       "id": "filters_js",
-      "community": 3
+      "community": 4
     },
     {
       "label": "load()",
@@ -153,7 +153,7 @@
       "source_file": "filters.js",
       "source_location": "L22",
       "id": "filters_load",
-      "community": 3
+      "community": 4
     },
     {
       "label": "save()",
@@ -161,7 +161,7 @@
       "source_file": "filters.js",
       "source_location": "L26",
       "id": "filters_save",
-      "community": 3
+      "community": 4
     },
     {
       "label": "canonicalPreset()",
@@ -169,7 +169,7 @@
       "source_file": "filters.js",
       "source_location": "L44",
       "id": "filters_canonicalpreset",
-      "community": 3
+      "community": 4
     },
     {
       "label": "findPresetButton()",
@@ -177,7 +177,7 @@
       "source_file": "filters.js",
       "source_location": "L50",
       "id": "filters_findpresetbutton",
-      "community": 3
+      "community": 4
     },
     {
       "label": "rememberSelect()",
@@ -185,7 +185,7 @@
       "source_file": "filters.js",
       "source_location": "L79",
       "id": "filters_rememberselect",
-      "community": 3
+      "community": 4
     },
     {
       "label": "restoreDateRange()",
@@ -193,7 +193,7 @@
       "source_file": "filters.js",
       "source_location": "L101",
       "id": "filters_restoredaterange",
-      "community": 3
+      "community": 4
     },
     {
       "label": "wirePageFilters()",
@@ -201,7 +201,7 @@
       "source_file": "filters.js",
       "source_location": "L120",
       "id": "filters_wirepagefilters",
-      "community": 3
+      "community": 4
     },
     {
       "label": "init()",
@@ -209,7 +209,7 @@
       "source_file": "filters.js",
       "source_location": "L149",
       "id": "filters_init",
-      "community": 3
+      "community": 4
     },
     {
       "label": "ux.js",
@@ -329,55 +329,55 @@
       "source_file": "changelog.js",
       "source_location": "L1",
       "id": "changelog_js",
-      "community": 5
+      "community": 6
     },
     {
       "label": "entryAppliesTo()",
       "file_type": "code",
       "source_file": "changelog.js",
-      "source_location": "L284",
+      "source_location": "L290",
       "id": "changelog_entryappliesto",
-      "community": 5
+      "community": 6
     },
     {
       "label": "pickEntriesSince()",
       "file_type": "code",
       "source_file": "changelog.js",
-      "source_location": "L292",
+      "source_location": "L298",
       "id": "changelog_pickentriessince",
-      "community": 5
+      "community": 6
     },
     {
       "label": "show()",
       "file_type": "code",
       "source_file": "changelog.js",
-      "source_location": "L302",
+      "source_location": "L308",
       "id": "changelog_show",
-      "community": 5
+      "community": 6
     },
     {
       "label": "getEffectiveUser()",
       "file_type": "code",
       "source_file": "changelog.js",
-      "source_location": "L340",
+      "source_location": "L346",
       "id": "changelog_geteffectiveuser",
-      "community": 5
+      "community": 6
     },
     {
       "label": "maybeShow()",
       "file_type": "code",
       "source_file": "changelog.js",
-      "source_location": "L348",
+      "source_location": "L354",
       "id": "changelog_maybeshow",
-      "community": 5
+      "community": 6
     },
     {
       "label": "start()",
       "file_type": "code",
       "source_file": "changelog.js",
-      "source_location": "L370",
+      "source_location": "L376",
       "id": "changelog_start",
-      "community": 5
+      "community": 6
     },
     {
       "label": "notifications.js",
@@ -385,207 +385,255 @@
       "source_file": "notifications.js",
       "source_location": "L1",
       "id": "notifications_js",
-      "community": 6
+      "community": 1
     },
     {
       "label": "ensureSupa()",
       "file_type": "code",
       "source_file": "notifications.js",
-      "source_location": "L29",
+      "source_location": "L34",
       "id": "notifications_ensuresupa",
-      "community": 6
+      "community": 1
     },
     {
       "label": "getBase()",
       "file_type": "code",
       "source_file": "notifications.js",
-      "source_location": "L39",
+      "source_location": "L44",
       "id": "notifications_getbase",
-      "community": 1
+      "community": 2
     },
     {
       "label": "getToken()",
       "file_type": "code",
       "source_file": "notifications.js",
-      "source_location": "L40",
+      "source_location": "L45",
       "id": "notifications_gettoken",
-      "community": 1
+      "community": 2
     },
     {
       "label": "ensureBellInTopbar()",
       "file_type": "code",
       "source_file": "notifications.js",
-      "source_location": "L46",
+      "source_location": "L51",
       "id": "notifications_ensurebellintopbar",
-      "community": 6
+      "community": 1
     },
     {
       "label": "positionPanel()",
       "file_type": "code",
       "source_file": "notifications.js",
-      "source_location": "L131",
+      "source_location": "L136",
       "id": "notifications_positionpanel",
-      "community": 8
+      "community": 10
     },
     {
       "label": "setBadge()",
       "file_type": "code",
       "source_file": "notifications.js",
-      "source_location": "L143",
+      "source_location": "L148",
       "id": "notifications_setbadge",
+      "community": 2
+    },
+    {
+      "label": "ensureChimeStyles()",
+      "file_type": "code",
+      "source_file": "notifications.js",
+      "source_location": "L161",
+      "id": "notifications_ensurechimestyles",
+      "community": 1
+    },
+    {
+      "label": "shakeBell()",
+      "file_type": "code",
+      "source_file": "notifications.js",
+      "source_location": "L179",
+      "id": "notifications_shakebell",
+      "community": 1
+    },
+    {
+      "label": "playChime()",
+      "file_type": "code",
+      "source_file": "notifications.js",
+      "source_location": "L187",
+      "id": "notifications_playchime",
+      "community": 1
+    },
+    {
+      "label": "pingForNew()",
+      "file_type": "code",
+      "source_file": "notifications.js",
+      "source_location": "L208",
+      "id": "notifications_pingfornew",
       "community": 1
     },
     {
       "label": "renderRows()",
       "file_type": "code",
       "source_file": "notifications.js",
-      "source_location": "L155",
+      "source_location": "L215",
       "id": "notifications_renderrows",
-      "community": 1
+      "community": 2
+    },
+    {
+      "label": "markAlertDone()",
+      "file_type": "code",
+      "source_file": "notifications.js",
+      "source_location": "L253",
+      "id": "notifications_markalertdone",
+      "community": 2
     },
     {
       "label": "fetchNotifications()",
       "file_type": "code",
       "source_file": "notifications.js",
-      "source_location": "L178",
+      "source_location": "L278",
       "id": "notifications_fetchnotifications",
-      "community": 1
+      "community": 2
     },
     {
       "label": "markRead()",
       "file_type": "code",
       "source_file": "notifications.js",
-      "source_location": "L193",
+      "source_location": "L297",
       "id": "notifications_markread",
-      "community": 1
+      "community": 2
     },
     {
       "label": "markAllRead()",
       "file_type": "code",
       "source_file": "notifications.js",
-      "source_location": "L203",
+      "source_location": "L307",
       "id": "notifications_markallread",
-      "community": 1
+      "community": 2
     },
     {
       "label": "onClickRow()",
       "file_type": "code",
       "source_file": "notifications.js",
-      "source_location": "L216",
+      "source_location": "L320",
       "id": "notifications_onclickrow",
-      "community": 1
+      "community": 2
     },
     {
       "label": "toggleDropdown()",
       "file_type": "code",
       "source_file": "notifications.js",
-      "source_location": "L235",
+      "source_location": "L339",
       "id": "notifications_toggledropdown",
-      "community": 6
+      "community": 10
     },
     {
       "label": "openDropdown()",
       "file_type": "code",
       "source_file": "notifications.js",
-      "source_location": "L238",
+      "source_location": "L342",
       "id": "notifications_opendropdown",
-      "community": 8
+      "community": 10
     },
     {
       "label": "closeDropdown()",
       "file_type": "code",
       "source_file": "notifications.js",
-      "source_location": "L250",
+      "source_location": "L354",
       "id": "notifications_closedropdown",
-      "community": 6
+      "community": 10
     },
     {
       "label": "onDocClickOutside()",
       "file_type": "code",
       "source_file": "notifications.js",
-      "source_location": "L258",
+      "source_location": "L362",
       "id": "notifications_ondocclickoutside",
-      "community": 6
+      "community": 10
     },
     {
       "label": "startPolling()",
       "file_type": "code",
       "source_file": "notifications.js",
-      "source_location": "L264",
+      "source_location": "L368",
       "id": "notifications_startpolling",
+      "community": 1
+    },
+    {
+      "label": "startRealtime()",
+      "file_type": "code",
+      "source_file": "notifications.js",
+      "source_location": "L378",
+      "id": "notifications_startrealtime",
       "community": 1
     },
     {
       "label": "urlB64ToUint8()",
       "file_type": "code",
       "source_file": "notifications.js",
-      "source_location": "L274",
+      "source_location": "L413",
       "id": "notifications_urlb64touint8",
-      "community": 11
+      "community": 7
     },
     {
       "label": "pushSupported()",
       "file_type": "code",
       "source_file": "notifications.js",
-      "source_location": "L282",
+      "source_location": "L421",
       "id": "notifications_pushsupported",
-      "community": 8
+      "community": 7
     },
     {
       "label": "getPushReg()",
       "file_type": "code",
       "source_file": "notifications.js",
-      "source_location": "L285",
+      "source_location": "L424",
       "id": "notifications_getpushreg",
-      "community": 11
+      "community": 7
     },
     {
       "label": "getCurrentPushSub()",
       "file_type": "code",
       "source_file": "notifications.js",
-      "source_location": "L288",
+      "source_location": "L427",
       "id": "notifications_getcurrentpushsub",
-      "community": 8
+      "community": 7
     },
     {
       "label": "ensurePushSubscribed()",
       "file_type": "code",
       "source_file": "notifications.js",
-      "source_location": "L293",
+      "source_location": "L432",
       "id": "notifications_ensurepushsubscribed",
-      "community": 11
+      "community": 7
     },
     {
       "label": "unsubscribePush()",
       "file_type": "code",
       "source_file": "notifications.js",
-      "source_location": "L331",
+      "source_location": "L470",
       "id": "notifications_unsubscribepush",
-      "community": 1
+      "community": 2
     },
     {
       "label": "injectPushCta()",
       "file_type": "code",
       "source_file": "notifications.js",
-      "source_location": "L349",
+      "source_location": "L488",
       "id": "notifications_injectpushcta",
-      "community": 8
+      "community": 7
     },
     {
       "label": "refreshPushCta()",
       "file_type": "code",
       "source_file": "notifications.js",
-      "source_location": "L360",
+      "source_location": "L499",
       "id": "notifications_refreshpushcta",
-      "community": 8
+      "community": 7
     },
     {
       "label": "init()",
       "file_type": "code",
       "source_file": "notifications.js",
-      "source_location": "L408",
+      "source_location": "L547",
       "id": "notifications_init",
-      "community": 6
+      "community": 1
     },
     {
       "label": "permissions.js",
@@ -641,7 +689,7 @@
       "source_file": "sw.js",
       "source_location": "L1",
       "id": "sw_js",
-      "community": 10
+      "community": 11
     },
     {
       "label": "isApiRequest()",
@@ -649,7 +697,7 @@
       "source_file": "sw.js",
       "source_location": "L100",
       "id": "sw_isapirequest",
-      "community": 10
+      "community": 11
     },
     {
       "label": "isHTML()",
@@ -657,7 +705,7 @@
       "source_file": "sw.js",
       "source_location": "L108",
       "id": "sw_ishtml",
-      "community": 10
+      "community": 11
     },
     {
       "label": "networkFirst()",
@@ -665,7 +713,7 @@
       "source_file": "sw.js",
       "source_location": "L114",
       "id": "sw_networkfirst",
-      "community": 10
+      "community": 11
     },
     {
       "label": "pwa.js",
@@ -673,7 +721,7 @@
       "source_file": "/tmp/dashboards/pwa.js",
       "source_location": "L1",
       "id": "tmp_dashboards_pwa_js",
-      "community": 4
+      "community": 5
     },
     {
       "label": "safeReload()",
@@ -681,7 +729,7 @@
       "source_file": "/tmp/dashboards/pwa.js",
       "source_location": "L21",
       "id": "pwa_safereload",
-      "community": 4
+      "community": 5
     },
     {
       "label": "nuclearVersionCheck()",
@@ -689,7 +737,7 @@
       "source_file": "/tmp/dashboards/pwa.js",
       "source_location": "L37",
       "id": "pwa_nuclearversioncheck",
-      "community": 4
+      "community": 5
     },
     {
       "label": "checkForUpdates()",
@@ -697,7 +745,7 @@
       "source_file": "/tmp/dashboards/pwa.js",
       "source_location": "L83",
       "id": "pwa_checkforupdates",
-      "community": 4
+      "community": 5
     },
     {
       "label": "maybeShowInstallButton()",
@@ -705,7 +753,7 @@
       "source_file": "/tmp/dashboards/pwa.js",
       "source_location": "L127",
       "id": "pwa_maybeshowinstallbutton",
-      "community": 4
+      "community": 5
     },
     {
       "label": "isIPad()",
@@ -713,7 +761,7 @@
       "source_file": "/tmp/dashboards/pwa.js",
       "source_location": "L138",
       "id": "pwa_isipad",
-      "community": 4
+      "community": 5
     },
     {
       "label": "showIOSHint()",
@@ -721,7 +769,7 @@
       "source_file": "/tmp/dashboards/pwa.js",
       "source_location": "L142",
       "id": "pwa_showioshint",
-      "community": 4
+      "community": 5
     },
     {
       "label": "maybeAutoShowHint()",
@@ -729,7 +777,7 @@
       "source_file": "/tmp/dashboards/pwa.js",
       "source_location": "L184",
       "id": "pwa_maybeautoshowhint",
-      "community": 4
+      "community": 5
     },
     {
       "label": "init()",
@@ -737,7 +785,7 @@
       "source_file": "/tmp/dashboards/pwa.js",
       "source_location": "L215",
       "id": "pwa_init",
-      "community": 4
+      "community": 5
     }
   ],
   "links": [
@@ -1417,7 +1465,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "changelog.js",
-      "source_location": "L284",
+      "source_location": "L290",
       "weight": 1.0,
       "_src": "changelog_js",
       "_tgt": "changelog_entryappliesto",
@@ -1429,7 +1477,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "changelog.js",
-      "source_location": "L292",
+      "source_location": "L298",
       "weight": 1.0,
       "_src": "changelog_js",
       "_tgt": "changelog_pickentriessince",
@@ -1441,7 +1489,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "changelog.js",
-      "source_location": "L302",
+      "source_location": "L308",
       "weight": 1.0,
       "_src": "changelog_js",
       "_tgt": "changelog_show",
@@ -1453,7 +1501,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "changelog.js",
-      "source_location": "L340",
+      "source_location": "L346",
       "weight": 1.0,
       "_src": "changelog_js",
       "_tgt": "changelog_geteffectiveuser",
@@ -1465,7 +1513,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "changelog.js",
-      "source_location": "L348",
+      "source_location": "L354",
       "weight": 1.0,
       "_src": "changelog_js",
       "_tgt": "changelog_maybeshow",
@@ -1477,7 +1525,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "changelog.js",
-      "source_location": "L370",
+      "source_location": "L376",
       "weight": 1.0,
       "_src": "changelog_js",
       "_tgt": "changelog_start",
@@ -1489,7 +1537,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "changelog.js",
-      "source_location": "L357",
+      "source_location": "L363",
       "weight": 1.0,
       "_src": "changelog_maybeshow",
       "_tgt": "changelog_pickentriessince",
@@ -1501,7 +1549,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "changelog.js",
-      "source_location": "L363",
+      "source_location": "L369",
       "weight": 1.0,
       "_src": "changelog_maybeshow",
       "_tgt": "changelog_show",
@@ -1513,7 +1561,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "changelog.js",
-      "source_location": "L355",
+      "source_location": "L361",
       "weight": 1.0,
       "_src": "changelog_maybeshow",
       "_tgt": "changelog_geteffectiveuser",
@@ -1525,7 +1573,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L29",
+      "source_location": "L34",
       "weight": 1.0,
       "_src": "notifications_js",
       "_tgt": "notifications_ensuresupa",
@@ -1537,7 +1585,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L39",
+      "source_location": "L44",
       "weight": 1.0,
       "_src": "notifications_js",
       "_tgt": "notifications_getbase",
@@ -1549,7 +1597,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L40",
+      "source_location": "L45",
       "weight": 1.0,
       "_src": "notifications_js",
       "_tgt": "notifications_gettoken",
@@ -1561,7 +1609,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L46",
+      "source_location": "L51",
       "weight": 1.0,
       "_src": "notifications_js",
       "_tgt": "notifications_ensurebellintopbar",
@@ -1573,7 +1621,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L131",
+      "source_location": "L136",
       "weight": 1.0,
       "_src": "notifications_js",
       "_tgt": "notifications_positionpanel",
@@ -1585,7 +1633,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L143",
+      "source_location": "L148",
       "weight": 1.0,
       "_src": "notifications_js",
       "_tgt": "notifications_setbadge",
@@ -1597,7 +1645,55 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L155",
+      "source_location": "L161",
+      "weight": 1.0,
+      "_src": "notifications_js",
+      "_tgt": "notifications_ensurechimestyles",
+      "source": "notifications_js",
+      "target": "notifications_ensurechimestyles",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "notifications.js",
+      "source_location": "L179",
+      "weight": 1.0,
+      "_src": "notifications_js",
+      "_tgt": "notifications_shakebell",
+      "source": "notifications_js",
+      "target": "notifications_shakebell",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "notifications.js",
+      "source_location": "L187",
+      "weight": 1.0,
+      "_src": "notifications_js",
+      "_tgt": "notifications_playchime",
+      "source": "notifications_js",
+      "target": "notifications_playchime",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "notifications.js",
+      "source_location": "L208",
+      "weight": 1.0,
+      "_src": "notifications_js",
+      "_tgt": "notifications_pingfornew",
+      "source": "notifications_js",
+      "target": "notifications_pingfornew",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "notifications.js",
+      "source_location": "L215",
       "weight": 1.0,
       "_src": "notifications_js",
       "_tgt": "notifications_renderrows",
@@ -1609,7 +1705,19 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L178",
+      "source_location": "L253",
+      "weight": 1.0,
+      "_src": "notifications_js",
+      "_tgt": "notifications_markalertdone",
+      "source": "notifications_js",
+      "target": "notifications_markalertdone",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "notifications.js",
+      "source_location": "L278",
       "weight": 1.0,
       "_src": "notifications_js",
       "_tgt": "notifications_fetchnotifications",
@@ -1621,7 +1729,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L193",
+      "source_location": "L297",
       "weight": 1.0,
       "_src": "notifications_js",
       "_tgt": "notifications_markread",
@@ -1633,7 +1741,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L203",
+      "source_location": "L307",
       "weight": 1.0,
       "_src": "notifications_js",
       "_tgt": "notifications_markallread",
@@ -1645,7 +1753,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L216",
+      "source_location": "L320",
       "weight": 1.0,
       "_src": "notifications_js",
       "_tgt": "notifications_onclickrow",
@@ -1657,7 +1765,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L235",
+      "source_location": "L339",
       "weight": 1.0,
       "_src": "notifications_js",
       "_tgt": "notifications_toggledropdown",
@@ -1669,7 +1777,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L238",
+      "source_location": "L342",
       "weight": 1.0,
       "_src": "notifications_js",
       "_tgt": "notifications_opendropdown",
@@ -1681,7 +1789,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L250",
+      "source_location": "L354",
       "weight": 1.0,
       "_src": "notifications_js",
       "_tgt": "notifications_closedropdown",
@@ -1693,7 +1801,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L258",
+      "source_location": "L362",
       "weight": 1.0,
       "_src": "notifications_js",
       "_tgt": "notifications_ondocclickoutside",
@@ -1705,7 +1813,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L264",
+      "source_location": "L368",
       "weight": 1.0,
       "_src": "notifications_js",
       "_tgt": "notifications_startpolling",
@@ -1717,7 +1825,19 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L274",
+      "source_location": "L378",
+      "weight": 1.0,
+      "_src": "notifications_js",
+      "_tgt": "notifications_startrealtime",
+      "source": "notifications_js",
+      "target": "notifications_startrealtime",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "notifications.js",
+      "source_location": "L413",
       "weight": 1.0,
       "_src": "notifications_js",
       "_tgt": "notifications_urlb64touint8",
@@ -1729,7 +1849,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L282",
+      "source_location": "L421",
       "weight": 1.0,
       "_src": "notifications_js",
       "_tgt": "notifications_pushsupported",
@@ -1741,7 +1861,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L285",
+      "source_location": "L424",
       "weight": 1.0,
       "_src": "notifications_js",
       "_tgt": "notifications_getpushreg",
@@ -1753,7 +1873,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L288",
+      "source_location": "L427",
       "weight": 1.0,
       "_src": "notifications_js",
       "_tgt": "notifications_getcurrentpushsub",
@@ -1765,7 +1885,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L293",
+      "source_location": "L432",
       "weight": 1.0,
       "_src": "notifications_js",
       "_tgt": "notifications_ensurepushsubscribed",
@@ -1777,7 +1897,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L331",
+      "source_location": "L470",
       "weight": 1.0,
       "_src": "notifications_js",
       "_tgt": "notifications_unsubscribepush",
@@ -1789,7 +1909,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L349",
+      "source_location": "L488",
       "weight": 1.0,
       "_src": "notifications_js",
       "_tgt": "notifications_injectpushcta",
@@ -1801,7 +1921,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L360",
+      "source_location": "L499",
       "weight": 1.0,
       "_src": "notifications_js",
       "_tgt": "notifications_refreshpushcta",
@@ -1813,7 +1933,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L408",
+      "source_location": "L547",
       "weight": 1.0,
       "_src": "notifications_js",
       "_tgt": "notifications_init",
@@ -1825,7 +1945,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L41",
+      "source_location": "L46",
       "weight": 1.0,
       "_src": "notifications_gettoken",
       "_tgt": "notifications_ensuresupa",
@@ -1837,7 +1957,19 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L410",
+      "source_location": "L379",
+      "weight": 1.0,
+      "_src": "notifications_startrealtime",
+      "_tgt": "notifications_ensuresupa",
+      "source": "notifications_ensuresupa",
+      "target": "notifications_startrealtime",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "notifications.js",
+      "source_location": "L550",
       "weight": 1.0,
       "_src": "notifications_init",
       "_tgt": "notifications_ensuresupa",
@@ -1849,7 +1981,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L180",
+      "source_location": "L280",
       "weight": 1.0,
       "_src": "notifications_fetchnotifications",
       "_tgt": "notifications_getbase",
@@ -1861,7 +1993,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L196",
+      "source_location": "L300",
       "weight": 1.0,
       "_src": "notifications_markread",
       "_tgt": "notifications_getbase",
@@ -1873,7 +2005,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L206",
+      "source_location": "L310",
       "weight": 1.0,
       "_src": "notifications_markallread",
       "_tgt": "notifications_getbase",
@@ -1885,7 +2017,19 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L179",
+      "source_location": "L254",
+      "weight": 1.0,
+      "_src": "notifications_markalertdone",
+      "_tgt": "notifications_gettoken",
+      "source": "notifications_gettoken",
+      "target": "notifications_markalertdone",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "notifications.js",
+      "source_location": "L279",
       "weight": 1.0,
       "_src": "notifications_fetchnotifications",
       "_tgt": "notifications_gettoken",
@@ -1897,7 +2041,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L194",
+      "source_location": "L298",
       "weight": 1.0,
       "_src": "notifications_markread",
       "_tgt": "notifications_gettoken",
@@ -1909,7 +2053,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L204",
+      "source_location": "L308",
       "weight": 1.0,
       "_src": "notifications_markallread",
       "_tgt": "notifications_gettoken",
@@ -1921,7 +2065,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L311",
+      "source_location": "L450",
       "weight": 1.0,
       "_src": "notifications_ensurepushsubscribed",
       "_tgt": "notifications_gettoken",
@@ -1933,7 +2077,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L336",
+      "source_location": "L475",
       "weight": 1.0,
       "_src": "notifications_unsubscribepush",
       "_tgt": "notifications_gettoken",
@@ -1945,7 +2089,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L409",
+      "source_location": "L548",
       "weight": 1.0,
       "_src": "notifications_init",
       "_tgt": "notifications_ensurebellintopbar",
@@ -1957,7 +2101,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L242",
+      "source_location": "L346",
       "weight": 1.0,
       "_src": "notifications_opendropdown",
       "_tgt": "notifications_positionpanel",
@@ -1969,7 +2113,19 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L188",
+      "source_location": "L271",
+      "weight": 1.0,
+      "_src": "notifications_markalertdone",
+      "_tgt": "notifications_setbadge",
+      "source": "notifications_setbadge",
+      "target": "notifications_markalertdone",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "notifications.js",
+      "source_location": "L290",
       "weight": 1.0,
       "_src": "notifications_fetchnotifications",
       "_tgt": "notifications_setbadge",
@@ -1981,7 +2137,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L211",
+      "source_location": "L315",
       "weight": 1.0,
       "_src": "notifications_markallread",
       "_tgt": "notifications_setbadge",
@@ -1993,7 +2149,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L217",
+      "source_location": "L321",
       "weight": 1.0,
       "_src": "notifications_onclickrow",
       "_tgt": "notifications_setbadge",
@@ -2005,12 +2161,24 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L189",
+      "source_location": "L549",
       "weight": 1.0,
-      "_src": "notifications_fetchnotifications",
-      "_tgt": "notifications_renderrows",
-      "source": "notifications_renderrows",
-      "target": "notifications_fetchnotifications",
+      "_src": "notifications_init",
+      "_tgt": "notifications_ensurechimestyles",
+      "source": "notifications_ensurechimestyles",
+      "target": "notifications_init",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "notifications.js",
+      "source_location": "L210",
+      "weight": 1.0,
+      "_src": "notifications_pingfornew",
+      "_tgt": "notifications_shakebell",
+      "source": "notifications_shakebell",
+      "target": "notifications_pingfornew",
       "confidence_score": 1.0
     },
     {
@@ -2019,6 +2187,54 @@
       "source_file": "notifications.js",
       "source_location": "L212",
       "weight": 1.0,
+      "_src": "notifications_pingfornew",
+      "_tgt": "notifications_playchime",
+      "source": "notifications_playchime",
+      "target": "notifications_pingfornew",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "notifications.js",
+      "source_location": "L292",
+      "weight": 1.0,
+      "_src": "notifications_fetchnotifications",
+      "_tgt": "notifications_pingfornew",
+      "source": "notifications_pingfornew",
+      "target": "notifications_fetchnotifications",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "notifications.js",
+      "source_location": "L273",
+      "weight": 1.0,
+      "_src": "notifications_markalertdone",
+      "_tgt": "notifications_renderrows",
+      "source": "notifications_renderrows",
+      "target": "notifications_markalertdone",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "notifications.js",
+      "source_location": "L293",
+      "weight": 1.0,
+      "_src": "notifications_fetchnotifications",
+      "_tgt": "notifications_renderrows",
+      "source": "notifications_renderrows",
+      "target": "notifications_fetchnotifications",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "notifications.js",
+      "source_location": "L316",
+      "weight": 1.0,
       "_src": "notifications_markallread",
       "_tgt": "notifications_renderrows",
       "source": "notifications_renderrows",
@@ -2029,7 +2245,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L217",
+      "source_location": "L321",
       "weight": 1.0,
       "_src": "notifications_onclickrow",
       "_tgt": "notifications_renderrows",
@@ -2041,7 +2257,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L244",
+      "source_location": "L348",
       "weight": 1.0,
       "_src": "notifications_opendropdown",
       "_tgt": "notifications_renderrows",
@@ -2053,7 +2269,19 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L245",
+      "source_location": "L269",
+      "weight": 1.0,
+      "_src": "notifications_markalertdone",
+      "_tgt": "notifications_markread",
+      "source": "notifications_markalertdone",
+      "target": "notifications_markread",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "notifications.js",
+      "source_location": "L349",
       "weight": 1.0,
       "_src": "notifications_opendropdown",
       "_tgt": "notifications_fetchnotifications",
@@ -2065,7 +2293,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L266",
+      "source_location": "L370",
       "weight": 1.0,
       "_src": "notifications_startpolling",
       "_tgt": "notifications_fetchnotifications",
@@ -2077,7 +2305,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L217",
+      "source_location": "L321",
       "weight": 1.0,
       "_src": "notifications_onclickrow",
       "_tgt": "notifications_markread",
@@ -2089,7 +2317,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L227",
+      "source_location": "L331",
       "weight": 1.0,
       "_src": "notifications_onclickrow",
       "_tgt": "notifications_closedropdown",
@@ -2101,7 +2329,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L236",
+      "source_location": "L340",
       "weight": 1.0,
       "_src": "notifications_toggledropdown",
       "_tgt": "notifications_closedropdown",
@@ -2113,7 +2341,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L236",
+      "source_location": "L340",
       "weight": 1.0,
       "_src": "notifications_toggledropdown",
       "_tgt": "notifications_opendropdown",
@@ -2125,7 +2353,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L246",
+      "source_location": "L350",
       "weight": 1.0,
       "_src": "notifications_opendropdown",
       "_tgt": "notifications_injectpushcta",
@@ -2137,7 +2365,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L246",
+      "source_location": "L350",
       "weight": 1.0,
       "_src": "notifications_opendropdown",
       "_tgt": "notifications_refreshpushcta",
@@ -2149,7 +2377,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L261",
+      "source_location": "L365",
       "weight": 1.0,
       "_src": "notifications_ondocclickoutside",
       "_tgt": "notifications_closedropdown",
@@ -2161,7 +2389,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L306",
+      "source_location": "L445",
       "weight": 1.0,
       "_src": "notifications_ensurepushsubscribed",
       "_tgt": "notifications_urlb64touint8",
@@ -2173,7 +2401,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L289",
+      "source_location": "L428",
       "weight": 1.0,
       "_src": "notifications_getcurrentpushsub",
       "_tgt": "notifications_pushsupported",
@@ -2185,7 +2413,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L294",
+      "source_location": "L433",
       "weight": 1.0,
       "_src": "notifications_ensurepushsubscribed",
       "_tgt": "notifications_pushsupported",
@@ -2197,7 +2425,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L350",
+      "source_location": "L489",
       "weight": 1.0,
       "_src": "notifications_injectpushcta",
       "_tgt": "notifications_pushsupported",
@@ -2209,7 +2437,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L363",
+      "source_location": "L502",
       "weight": 1.0,
       "_src": "notifications_refreshpushcta",
       "_tgt": "notifications_pushsupported",
@@ -2221,7 +2449,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L290",
+      "source_location": "L429",
       "weight": 1.0,
       "_src": "notifications_getcurrentpushsub",
       "_tgt": "notifications_getpushreg",
@@ -2233,7 +2461,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L300",
+      "source_location": "L439",
       "weight": 1.0,
       "_src": "notifications_ensurepushsubscribed",
       "_tgt": "notifications_getpushreg",
@@ -2245,7 +2473,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L332",
+      "source_location": "L471",
       "weight": 1.0,
       "_src": "notifications_unsubscribepush",
       "_tgt": "notifications_getcurrentpushsub",
@@ -2257,7 +2485,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L368",
+      "source_location": "L507",
       "weight": 1.0,
       "_src": "notifications_refreshpushcta",
       "_tgt": "notifications_getcurrentpushsub",
@@ -2269,7 +2497,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "notifications.js",
-      "source_location": "L358",
+      "source_location": "L497",
       "weight": 1.0,
       "_src": "notifications_injectpushcta",
       "_tgt": "notifications_refreshpushcta",

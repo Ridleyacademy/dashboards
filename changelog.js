@@ -11,6 +11,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v103', title: 'Fix: bell dropdown overflowed on mobile',
+      items: [
+      'On phones the dropdown extended past the viewport edge. It now becomes a full-width sheet on screens ≤600px wide, with the height capped to fit between the topbar and the safe-area bottom.',
+      'On desktop, the panel is force-clamped so its left edge can never slip off-screen at zoom levels ≠ 100%.',
+    ]},
     { version: 'v102', title: 'Notifications: realtime + chime + mark-done from the bell',
       items: [
       'Bell now updates in real-time via WebSocket — new alerts pop in instantly instead of after up to 60 seconds. Polling kept as a 5-min fallback if the socket dies.',

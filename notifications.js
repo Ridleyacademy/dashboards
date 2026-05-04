@@ -73,6 +73,15 @@
           box-shadow: 0 24px 60px rgba(0,0,0,0.55); color: #eaecf8;
           font-family: -apple-system, BlinkMacSystemFont, Inter, sans-serif;
           overflow: hidden;
+          box-sizing: border-box;
+        }
+        @media (max-width: 600px) {
+          /* Full-width sheet anchored to the bottom of the topbar — same on
+             every page so the panel can never overflow the viewport. */
+          #notifBellPanel {
+            left: 8px !important; right: 8px !important; width: auto !important;
+            max-height: calc(100dvh - var(--notif-top, 64px) - 16px) !important;
+          }
         }
         #notifBellPanel.open { display: flex; }
         #notifBellPanel .notif-head {
@@ -138,11 +147,30 @@
     const panel = document.getElementById('notifBellPanel');
     if (!btn || !panel) return;
     const r = btn.getBoundingClientRect();
-    // Position below the bell, right-aligned to the bell's right edge.
-    const top = Math.min(r.bottom + 8, window.innerHeight - 80);
-    let right = Math.max(8, window.innerWidth - r.right);
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    // Anchor under the bell. Cap top so the panel never starts off-screen.
+    const top = Math.max(8, Math.min(r.bottom + 8, vh - 120));
     panel.style.top = top + 'px';
-    panel.style.right = right + 'px';
+    // Set CSS var the @media rule uses for max-height.
+    panel.style.setProperty('--notif-top', top + 'px');
+    if (vw <= 600) {
+      // Mobile: full-width sheet via the @media rule (left/right/width !important).
+      // Clear any inline overrides set by previous desktop calls.
+      panel.style.left = '';
+      panel.style.right = '';
+      panel.style.width = '';
+    } else {
+      // Desktop: anchor to the bell's right edge, but never let the LEFT
+      // edge slip below 8px — so on weird zoom levels we don't overflow.
+      const panelW = Math.min(420, vw - 24);
+      let right = Math.max(8, vw - r.right);
+      // Ensure left edge is on-screen.
+      if (vw - right - panelW < 8) right = Math.max(8, vw - panelW - 8);
+      panel.style.right = right + 'px';
+      panel.style.left = '';
+      panel.style.width = panelW + 'px';
+    }
   }
 
   function setBadge(unread) {

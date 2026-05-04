@@ -1,11 +1,11 @@
 # Graph Report - .  (2026-05-04)
 
 ## Corpus Check
-- 10 files · ~19,874 words
+- 10 files · ~20,150 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 100 nodes · 170 edges · 13 communities detected
+- 101 nodes · 172 edges · 14 communities detected
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS
 - Token cost: 0 input · 0 output
 
@@ -23,6 +23,7 @@
 - [[_COMMUNITY_Community 10|Community 10]]
 - [[_COMMUNITY_Community 11|Community 11]]
 - [[_COMMUNITY_Community 12|Community 12]]
+- [[_COMMUNITY_Community 13|Community 13]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `getToken()` - 8 edges
@@ -38,13 +39,15 @@
 
 ## Surprising Connections (you probably didn't know these)
 - `getToken()` --calls--> `ensureSupa()`  [EXTRACTED]
-  notifications.js → notifications.js  _Bridges community 1 → community 2_
+  notifications.js → notifications.js  _Bridges community 1 → community 5_
+- `fetchNotifications()` --calls--> `getBase()`  [EXTRACTED]
+  notifications.js → notifications.js  _Bridges community 5 → community 10_
 - `ensurePushSubscribed()` --calls--> `getToken()`  [EXTRACTED]
-  notifications.js → notifications.js  _Bridges community 2 → community 5_
-- `onClickRow()` --calls--> `setBadge()`  [EXTRACTED]
-  notifications.js → notifications.js  _Bridges community 2 → community 10_
+  notifications.js → notifications.js  _Bridges community 5 → community 7_
+- `fetchNotifications()` --calls--> `pingForNew()`  [EXTRACTED]
+  notifications.js → notifications.js  _Bridges community 11 → community 10_
 - `toggleDropdown()` --calls--> `openDropdown()`  [EXTRACTED]
-  notifications.js → notifications.js  _Bridges community 10 → community 5_
+  notifications.js → notifications.js  _Bridges community 1 → community 10_
 
 ## Communities
 
@@ -54,31 +57,31 @@ Nodes (8): applyImpersonationToUI(), decorateKPIs(), getImpersonation(), injectT
 
 ### Community 1 - "Community 1"
 Cohesion: 0.31
-Nodes (9): ensureBellInTopbar(), ensureChimeStyles(), ensureSupa(), init(), installAudioPrime(), pingForNew(), playChime(), shakeBell() (+1 more)
+Nodes (9): closeDropdown(), ensureBellInTopbar(), ensureChimeStyles(), ensureSupa(), init(), installAudioPrime(), onDocClickOutside(), startRealtime() (+1 more)
 
 ### Community 2 - "Community 2"
-Cohesion: 0.36
-Nodes (10): fetchNotifications(), getBase(), getToken(), markAlertDone(), markAllRead(), markRead(), renderRows(), setBadge() (+2 more)
-
-### Community 3 - "Community 3"
 Cohesion: 0.42
 Nodes (7): canAccess(), currentPageFile(), effOf(), enforce(), getArchivedIds(), isAdmin(), runWhenReady()
 
-### Community 4 - "Community 4"
+### Community 3 - "Community 3"
 Cohesion: 0.33
 Nodes (5): init(), load(), rememberSelect(), restoreDateRange(), wirePageFilters()
 
-### Community 5 - "Community 5"
-Cohesion: 0.33
-Nodes (9): ensurePushSubscribed(), getCurrentPushSub(), getPushReg(), injectPushCta(), openDropdown(), positionPanel(), pushSupported(), refreshPushCta() (+1 more)
-
-### Community 6 - "Community 6"
+### Community 4 - "Community 4"
 Cohesion: 0.33
 Nodes (7): checkForUpdates(), init(), isIPad(), maybeAutoShowHint(), maybeShowInstallButton(), nuclearVersionCheck(), showIOSHint()
 
-### Community 7 - "Community 7"
+### Community 5 - "Community 5"
+Cohesion: 0.39
+Nodes (8): getBase(), getToken(), markAlertDone(), markAllRead(), markRead(), onClickRow(), setBadge(), unsubscribePush()
+
+### Community 6 - "Community 6"
 Cohesion: 0.43
 Nodes (4): getEffectiveUser(), maybeShow(), pickEntriesSince(), show()
+
+### Community 7 - "Community 7"
+Cohesion: 0.43
+Nodes (7): ensurePushSubscribed(), getCurrentPushSub(), getPushReg(), injectPushCta(), pushSupported(), refreshPushCta(), urlB64ToUint8()
 
 ### Community 8 - "Community 8"
 Cohesion: 0.67
@@ -90,26 +93,30 @@ Nodes (5): canOpen(), canOpenWith(), effective(), impersonation(), pageDef()
 
 ### Community 10 - "Community 10"
 Cohesion: 0.5
-Nodes (4): closeDropdown(), onClickRow(), onDocClickOutside(), toggleDropdown()
+Nodes (5): fetchNotifications(), openDropdown(), positionPanel(), renderRows(), startPolling()
 
 ### Community 11 - "Community 11"
 Cohesion: 0.5
-Nodes (0): 
+Nodes (4): getChimeAudioEl(), pingForNew(), playChime(), shakeBell()
 
 ### Community 12 - "Community 12"
+Cohesion: 0.5
+Nodes (0): 
+
+### Community 13 - "Community 13"
 Cohesion: 1.0
 Nodes (0): 
 
 ## Knowledge Gaps
-- **Thin community `Community 12`** (2 nodes): `build()`, `nav-menu.js`
+- **Thin community `Community 13`** (2 nodes): `build()`, `nav-menu.js`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `getToken()` connect `Community 2` to `Community 1`, `Community 5`?**
+- **Why does `getToken()` connect `Community 5` to `Community 1`, `Community 10`, `Community 7`?**
   _High betweenness centrality (0.002) - this node is a cross-community bridge._
-- **Why does `fetchNotifications()` connect `Community 2` to `Community 1`, `Community 5`?**
+- **Why does `fetchNotifications()` connect `Community 10` to `Community 1`, `Community 11`, `Community 5`?**
   _High betweenness centrality (0.002) - this node is a cross-community bridge._
-- **Why does `openDropdown()` connect `Community 5` to `Community 1`, `Community 10`, `Community 2`?**
+- **Why does `openDropdown()` connect `Community 10` to `Community 1`, `Community 7`?**
   _High betweenness centrality (0.001) - this node is a cross-community bridge._

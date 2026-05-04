@@ -229,18 +229,26 @@
     btn.classList.add('notif-shake');
     setTimeout(() => btn.classList.remove('notif-shake'), 700);
   }
-  // Prime WebAudio on the first user gesture. iOS / Safari / most browsers
-  // block AudioContext until at least one tap/click has happened, even after
-  // the page has been interacted with elsewhere. Playing a 1-frame silent
-  // buffer here unlocks the context for the rest of the session.
+  // Prime WebAudio AND HTMLAudio on the first user gesture. iOS PWA
+  // suspends the AudioContext whenever it loses focus (lock screen, app
+  // switch), and the realtime callback doesn't count as a fresh gesture.
+  // The HTMLAudio fallback, however — once .play() has succeeded once
+  // inside a user gesture — keeps working even from background callbacks.
   function primeAudio() {
     try {
       if (!chimeContext) chimeContext = new (window.AudioContext || window.webkitAudioContext)();
       if (chimeContext.state === 'suspended') chimeContext.resume().catch(() => {});
-      // Play one silent frame to satisfy the user-gesture requirement.
       const buf = chimeContext.createBuffer(1, 1, 22050);
       const src = chimeContext.createBufferSource();
       src.buffer = buf; src.connect(chimeContext.destination); src.start(0);
+    } catch (_) {}
+    // Also prime the HTMLAudio fallback so it can play later without a gesture.
+    try {
+      const el = getChimeAudioEl();
+      el.muted = true;
+      const p = el.play();
+      if (p && p.then) p.then(() => { el.pause(); el.currentTime = 0; el.muted = false; }).catch(() => {});
+      else { el.pause(); el.currentTime = 0; el.muted = false; }
     } catch (_) {}
   }
   function installAudioPrime() {

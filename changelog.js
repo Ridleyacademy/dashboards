@@ -11,6 +11,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v110', title: 'Resource URL fields are now clickable',
+      roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'], items: [
+      'Each URL field on a student profile now has an ↗ Open button next to it that opens the link in a new tab. The button only shows when the value starts with http(s) — pastes and edits update it live.',
+    ]},
     { version: 'v109', title: 'Resources section + 25 students imported from coach tracker',
       roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'], items: [
       'New "Resources" section on each profile with four URL fields: Community / Circle URL, Google Drive doc, Student video, Survey doc — the four columns from the coach tracking sheet that didn\'t have a home before.',

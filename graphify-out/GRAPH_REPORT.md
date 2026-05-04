@@ -1,7 +1,7 @@
 # Graph Report - .  (2026-05-04)
 
 ## Corpus Check
-- 10 files · ~20,600 words
+- 10 files · ~20,672 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
@@ -41,10 +41,10 @@
   notifications.js → notifications.js  _Bridges community 1 → community 2_
 - `ensurePushSubscribed()` --calls--> `getToken()`  [EXTRACTED]
   notifications.js → notifications.js  _Bridges community 2 → community 7_
-- `onClickRow()` --calls--> `setBadge()`  [EXTRACTED]
-  notifications.js → notifications.js  _Bridges community 2 → community 9_
+- `openDropdown()` --calls--> `renderRows()`  [EXTRACTED]
+  notifications.js → notifications.js  _Bridges community 2 → community 10_
 - `openDropdown()` --calls--> `injectPushCta()`  [EXTRACTED]
-  notifications.js → notifications.js  _Bridges community 9 → community 7_
+  notifications.js → notifications.js  _Bridges community 10 → community 7_
 
 ## Communities
 
@@ -57,8 +57,8 @@ Cohesion: 0.3
 Nodes (11): ensureBellInTopbar(), ensureChimeStyles(), ensureSupa(), getChimeAudioEl(), init(), installAudioPrime(), pingForNew(), playChime() (+3 more)
 
 ### Community 2 - "Community 2"
-Cohesion: 0.36
-Nodes (10): fetchNotifications(), getBase(), getToken(), markAlertDone(), markAllRead(), markRead(), renderRows(), setBadge() (+2 more)
+Cohesion: 0.35
+Nodes (11): fetchNotifications(), getBase(), getToken(), markAlertDone(), markAllRead(), markRead(), onClickRow(), renderRows() (+3 more)
 
 ### Community 3 - "Community 3"
 Cohesion: 0.42
@@ -85,12 +85,12 @@ Cohesion: 0.67
 Nodes (5): apply(), bootstrap(), effective(), osPrefersLight(), syncBtn()
 
 ### Community 9 - "Community 9"
-Cohesion: 0.33
-Nodes (6): closeDropdown(), onClickRow(), onDocClickOutside(), openDropdown(), positionPanel(), toggleDropdown()
-
-### Community 10 - "Community 10"
 Cohesion: 0.6
 Nodes (5): canOpen(), canOpenWith(), effective(), impersonation(), pageDef()
+
+### Community 10 - "Community 10"
+Cohesion: 0.4
+Nodes (5): closeDropdown(), onDocClickOutside(), openDropdown(), positionPanel(), toggleDropdown()
 
 ### Community 11 - "Community 11"
 Cohesion: 0.5
@@ -109,7 +109,7 @@ _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `getToken()` connect `Community 2` to `Community 1`, `Community 7`?**
   _High betweenness centrality (0.002) - this node is a cross-community bridge._
-- **Why does `fetchNotifications()` connect `Community 2` to `Community 1`, `Community 9`?**
+- **Why does `fetchNotifications()` connect `Community 2` to `Community 1`, `Community 10`?**
   _High betweenness centrality (0.002) - this node is a cross-community bridge._
-- **Why does `openDropdown()` connect `Community 9` to `Community 1`, `Community 2`, `Community 7`?**
+- **Why does `openDropdown()` connect `Community 10` to `Community 1`, `Community 2`, `Community 7`?**
   _High betweenness centrality (0.001) - this node is a cross-community bridge._

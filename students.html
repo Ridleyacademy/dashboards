@@ -1112,6 +1112,21 @@ const SECTIONS = [
   ]],
 ];
 
+function _syncUrlOpenButton(inputEl) {
+  if (!inputEl) return;
+  const wrap = inputEl.closest('.field-url-wrap'); if (!wrap) return;
+  const a = wrap.querySelector('.field-url-open'); if (!a) return;
+  const v = (inputEl.value || '').trim();
+  // Only show + link when it looks like an http(s) URL.
+  if (/^https?:\/\//i.test(v)) {
+    a.href = v;
+    a.style.display = 'inline-flex';
+  } else {
+    a.removeAttribute('href');
+    a.style.display = 'none';
+  }
+}
+
 function _buildField(field, value) {
   const id = 'f-' + field.k;
   if (field.type === 'checkbox') {
@@ -1138,7 +1153,16 @@ function _buildField(field, value) {
     inner = `<textarea class="field-textarea" id="${id}" data-key="${field.k}"></textarea>`;
   } else {
     const t = field.type === 'number' ? 'number' : (field.type === 'tel' ? 'tel' : (field.type === 'email' ? 'email' : (field.type === 'date' ? 'date' : (field.type === 'url' ? 'url' : 'text'))));
-    inner = `<input class="field-input" type="${t}" id="${id}" data-key="${field.k}"${field.placeholder ? ` placeholder="${field.placeholder}"` : ''}>`;
+    if (field.type === 'url') {
+      // URL input + ↗ open-in-new-tab button. Empty button is hidden until
+      // a value is set (renderProfile / input handler toggles it).
+      inner = `<div class="field-url-wrap" style="display:flex;gap:6px;align-items:stretch;">
+        <input class="field-input field-url-input" type="url" id="${id}" data-key="${field.k}"${field.placeholder ? ` placeholder="${field.placeholder}"` : ''} style="flex:1;min-width:0;">
+        <a class="field-url-open" data-for="${id}" target="_blank" rel="noopener noreferrer" style="display:none;align-items:center;gap:4px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:0 12px;color:var(--text-muted);font-size:0.78rem;font-weight:700;text-decoration:none;white-space:nowrap;" title="Open in new tab">↗ Open</a>
+      </div>`;
+    } else {
+      inner = `<input class="field-input" type="${t}" id="${id}" data-key="${field.k}"${field.placeholder ? ` placeholder="${field.placeholder}"` : ''}>`;
+    }
   }
   return `<div class="field${field.full ? ' field-full' : ''}">
     <div class="field-label">${field.label}</div>${inner}
@@ -1612,11 +1636,18 @@ function renderProfile() {
         el.value = v == null ? '' : String(v);
       } else if (f.type === 'number') {
         el.value = v == null ? '' : String(v);
+      } else if (f.type === 'url') {
+        el.value = v == null ? '' : String(v);
+        _syncUrlOpenButton(el);
       } else {
         el.value = v == null ? '' : String(v);
       }
     }
   }
+  // Live-sync the ↗ Open button as the user types / pastes.
+  card.querySelectorAll('.field-url-input').forEach(inp => {
+    inp.addEventListener('input', () => _syncUrlOpenButton(inp));
+  });
   // Status default
   const statusEl = document.getElementById('f-status');
   if (statusEl && !STATUSES.includes(statusEl.value)) statusEl.value = 'Active';

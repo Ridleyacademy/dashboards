@@ -335,7 +335,7 @@
       "label": "entryAppliesTo()",
       "file_type": "code",
       "source_file": "changelog.js",
-      "source_location": "L320",
+      "source_location": "L325",
       "id": "changelog_entryappliesto",
       "community": 6
     },
@@ -343,7 +343,7 @@
       "label": "pickEntriesSince()",
       "file_type": "code",
       "source_file": "changelog.js",
-      "source_location": "L328",
+      "source_location": "L333",
       "id": "changelog_pickentriessince",
       "community": 6
     },
@@ -351,7 +351,7 @@
       "label": "show()",
       "file_type": "code",
       "source_file": "changelog.js",
-      "source_location": "L338",
+      "source_location": "L343",
       "id": "changelog_show",
       "community": 6
     },
@@ -359,7 +359,7 @@
       "label": "getEffectiveUser()",
       "file_type": "code",
       "source_file": "changelog.js",
-      "source_location": "L376",
+      "source_location": "L381",
       "id": "changelog_geteffectiveuser",
       "community": 6
     },
@@ -367,7 +367,7 @@
       "label": "maybeShow()",
       "file_type": "code",
       "source_file": "changelog.js",
-      "source_location": "L384",
+      "source_location": "L389",
       "id": "changelog_maybeshow",
       "community": 6
     },
@@ -375,7 +375,7 @@
       "label": "start()",
       "file_type": "code",
       "source_file": "changelog.js",
-      "source_location": "L406",
+      "source_location": "L411",
       "id": "changelog_start",
       "community": 6
     },
@@ -425,7 +425,7 @@
       "source_file": "notifications.js",
       "source_location": "L162",
       "id": "notifications_positionpanel",
-      "community": 9
+      "community": 10
     },
     {
       "label": "setBadge()",
@@ -537,7 +537,7 @@
       "source_file": "notifications.js",
       "source_location": "L435",
       "id": "notifications_onclickrow",
-      "community": 9
+      "community": 2
     },
     {
       "label": "toggleDropdown()",
@@ -545,7 +545,7 @@
       "source_file": "notifications.js",
       "source_location": "L454",
       "id": "notifications_toggledropdown",
-      "community": 9
+      "community": 10
     },
     {
       "label": "openDropdown()",
@@ -553,7 +553,7 @@
       "source_file": "notifications.js",
       "source_location": "L457",
       "id": "notifications_opendropdown",
-      "community": 9
+      "community": 10
     },
     {
       "label": "closeDropdown()",
@@ -561,7 +561,7 @@
       "source_file": "notifications.js",
       "source_location": "L469",
       "id": "notifications_closedropdown",
-      "community": 9
+      "community": 10
     },
     {
       "label": "onDocClickOutside()",
@@ -569,7 +569,7 @@
       "source_file": "notifications.js",
       "source_location": "L477",
       "id": "notifications_ondocclickoutside",
-      "community": 9
+      "community": 10
     },
     {
       "label": "startPolling()",
@@ -665,7 +665,7 @@
       "source_file": "permissions.js",
       "source_location": "L1",
       "id": "permissions_js",
-      "community": 10
+      "community": 9
     },
     {
       "label": "impersonation()",
@@ -673,7 +673,7 @@
       "source_file": "permissions.js",
       "source_location": "L25",
       "id": "permissions_impersonation",
-      "community": 10
+      "community": 9
     },
     {
       "label": "effective()",
@@ -681,7 +681,7 @@
       "source_file": "permissions.js",
       "source_location": "L34",
       "id": "permissions_effective",
-      "community": 10
+      "community": 9
     },
     {
       "label": "pageDef()",
@@ -689,7 +689,7 @@
       "source_file": "permissions.js",
       "source_location": "L52",
       "id": "permissions_pagedef",
-      "community": 10
+      "community": 9
     },
     {
       "label": "canOpen()",
@@ -697,7 +697,7 @@
       "source_file": "permissions.js",
       "source_location": "L57",
       "id": "permissions_canopen",
-      "community": 10
+      "community": 9
     },
     {
       "label": "canOpenWith()",
@@ -705,7 +705,7 @@
       "source_file": "permissions.js",
       "source_location": "L67",
       "id": "permissions_canopenwith",
-      "community": 10
+      "community": 9
     },
     {
       "label": "sw.js",
@@ -1489,7 +1489,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "changelog.js",
-      "source_location": "L320",
+      "source_location": "L325",
       "weight": 1.0,
       "_src": "changelog_js",
       "_tgt": "changelog_entryappliesto",
@@ -1501,7 +1501,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "changelog.js",
-      "source_location": "L328",
+      "source_location": "L333",
       "weight": 1.0,
       "_src": "changelog_js",
       "_tgt": "changelog_pickentriessince",
@@ -1513,7 +1513,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "changelog.js",
-      "source_location": "L338",
+      "source_location": "L343",
       "weight": 1.0,
       "_src": "changelog_js",
       "_tgt": "changelog_show",
@@ -1525,7 +1525,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "changelog.js",
-      "source_location": "L376",
+      "source_location": "L381",
       "weight": 1.0,
       "_src": "changelog_js",
       "_tgt": "changelog_geteffectiveuser",
@@ -1537,7 +1537,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "changelog.js",
-      "source_location": "L384",
+      "source_location": "L389",
       "weight": 1.0,
       "_src": "changelog_js",
       "_tgt": "changelog_maybeshow",
@@ -1549,7 +1549,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "changelog.js",
-      "source_location": "L406",
+      "source_location": "L411",
       "weight": 1.0,
       "_src": "changelog_js",
       "_tgt": "changelog_start",
@@ -1561,7 +1561,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "changelog.js",
-      "source_location": "L393",
+      "source_location": "L398",
       "weight": 1.0,
       "_src": "changelog_maybeshow",
       "_tgt": "changelog_pickentriessince",
@@ -1573,7 +1573,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "changelog.js",
-      "source_location": "L399",
+      "source_location": "L404",
       "weight": 1.0,
       "_src": "changelog_maybeshow",
       "_tgt": "changelog_show",
@@ -1585,7 +1585,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "changelog.js",
-      "source_location": "L391",
+      "source_location": "L396",
       "weight": 1.0,
       "_src": "changelog_maybeshow",
       "_tgt": "changelog_geteffectiveuser",

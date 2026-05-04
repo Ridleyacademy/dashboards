@@ -49,6 +49,54 @@ self.addEventListener('message', (event) => {
   if (event.data === 'SKIP_WAITING') self.skipWaiting();
 });
 
+// ── Web Push ────────────────────────────────────────────────────────────
+// Push payload is a JSON envelope:
+//   { title, body, link_url?, kind?, alert_id?, student_id? }
+// We display a system notification and, on click, open / focus the link.
+self.addEventListener('push', (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch (_) {
+    try { data = { title: 'Notification', body: event.data ? event.data.text() : '' }; }
+    catch (__) { data = { title: 'Notification', body: '' }; }
+  }
+  const title = data.title || 'Notification';
+  const opts = {
+    body: data.body || '',
+    icon: '/icons/icon-192.png',
+    badge: '/icons/icon-192.png',
+    tag: data.alert_id ? ('alert-' + data.alert_id + '-' + (data.kind || '')) : undefined,
+    renotify: !!data.alert_id,
+    data: { link_url: data.link_url || '/', kind: data.kind || null, alert_id: data.alert_id || null, student_id: data.student_id || null },
+  };
+  event.waitUntil(self.registration.showNotification(title, opts));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const link = (event.notification.data && event.notification.data.link_url) || '/';
+  const target = new URL(link, self.location.origin).href;
+  event.waitUntil((async () => {
+    const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    // If a window is already on the target, focus it.
+    for (const c of all) {
+      try {
+        const u = new URL(c.url);
+        if (u.origin === self.location.origin && (u.pathname === new URL(target).pathname)) {
+          await c.focus();
+          // Pass the link so the page can route to the alert without a reload.
+          c.postMessage({ type: 'open-link', link });
+          return;
+        }
+      } catch (_) {}
+    }
+    // Otherwise: focus any window and navigate, or open a new one.
+    if (all.length && all[0].navigate) {
+      try { await all[0].focus(); await all[0].navigate(target); return; } catch (_) {}
+    }
+    await self.clients.openWindow(target);
+  })());
+});
+
 function isApiRequest(url) {
   // Never cache: Supabase, edge functions, and the version-check file.
   // The version file MUST always be fresh — it's how we detect new deploys.

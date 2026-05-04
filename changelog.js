@@ -11,6 +11,13 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v101', title: 'Web push notifications (works when tab is closed)',
+      items: [
+      'New 🔔 Enable push notifications button in the bell dropdown. Once enabled, alerts arrive as system notifications even when the tab is closed.',
+      'On iOS, requires adding ridleyacademy.team to your home screen first (Safari → Share → Add to Home Screen) and opening from there. iOS 16.4+ only.',
+      'Service worker handles the push event, shows a system notification, and on click opens the alert in the dashboard.',
+      'Once you set the VAPID secrets in Supabase (VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT), every new MS alert and resolution will dispatch alongside the in-app + email channels.',
+    ]},
     { version: 'v100', title: 'Fix: bell dropdown was empty (no auth context)',
       items: [
       'notifications.js was trying to read the page\'s `supa` auth client off `window`, but each page declares it with `const`/`let` inside an inline <script> which doesn\'t attach to window. The bell rendered but never polled.',

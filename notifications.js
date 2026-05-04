@@ -15,6 +15,9 @@
   const SUPABASE_URL      = "https://pojqljrhhtnigyrtzdzz.supabase.co";
   const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBvanFsanJoaHRuaWd5cnR6ZHp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTA3ODMsImV4cCI6MjA5MTM4Njc4M30.PcSBDqOzbiZxZ7IAs5efqx0gsAlAG0cj3GqUOkAmxos";
   const STUDENTS_BASE     = SUPABASE_URL + '/functions/v1/students';
+  const PUSH_BASE         = SUPABASE_URL + '/functions/v1/push-subscribe';
+  // VAPID public key (web push). Public — safe to embed.
+  const VAPID_PUBLIC_KEY  = "BAmtR2m5G-vJp5A0x5FsWK_h3U0cUc1_b_jOsM8gYV7HnHCpPNB0_SE4QjX43YMLEboRPRbDGHSnxneVs1sf4YE";
 
   const POLL_MS = 60_000;
   let pollTimer = null;
@@ -240,6 +243,7 @@
     panel.classList.add('open');
     renderRows();
     fetchNotifications();
+    injectPushCta(); refreshPushCta();
     setTimeout(() => document.addEventListener('click', onDocClickOutside), 0);
     window.addEventListener('resize', positionPanel);
   }
@@ -266,6 +270,141 @@
     });
   }
 
+  // ── Web push subscription ────────────────────────────────────────────
+  function urlB64ToUint8(base64) {
+    const padding = '='.repeat((4 - (base64.length % 4)) % 4);
+    const b64 = (base64 + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const raw = atob(b64);
+    const out = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+    return out;
+  }
+  function pushSupported() {
+    return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  }
+  async function getPushReg() {
+    try { return await navigator.serviceWorker.ready; } catch (_) { return null; }
+  }
+  async function getCurrentPushSub() {
+    if (!pushSupported()) return null;
+    const reg = await getPushReg(); if (!reg) return null;
+    return await reg.pushManager.getSubscription();
+  }
+  async function ensurePushSubscribed() {
+    if (!pushSupported()) return { ok: false, reason: 'unsupported' };
+    if (Notification.permission === 'denied') return { ok: false, reason: 'denied' };
+    if (Notification.permission === 'default') {
+      const p = await Notification.requestPermission();
+      if (p !== 'granted') return { ok: false, reason: p };
+    }
+    const reg = await getPushReg(); if (!reg) return { ok: false, reason: 'no service worker' };
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      try {
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlB64ToUint8(VAPID_PUBLIC_KEY),
+        });
+      } catch (e) { return { ok: false, reason: 'subscribe-failed: ' + (e?.message || e) }; }
+    }
+    // Send to server
+    const tok = await getToken(); if (!tok) return { ok: false, reason: 'no auth' };
+    const json = sub.toJSON();
+    try {
+      const r = await fetch(PUSH_BASE + '?api=subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok },
+        body: JSON.stringify({
+          endpoint: json.endpoint,
+          p256dh: json.keys?.p256dh,
+          auth: json.keys?.auth,
+          user_agent: navigator.userAgent.slice(0, 500),
+        }),
+      });
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        return { ok: false, reason: 'server: ' + (j.error || r.status) };
+      }
+    } catch (e) { return { ok: false, reason: 'network: ' + (e?.message || e) }; }
+    return { ok: true };
+  }
+  async function unsubscribePush() {
+    const sub = await getCurrentPushSub();
+    if (!sub) return { ok: true };
+    const endpoint = sub.endpoint;
+    try { await sub.unsubscribe(); } catch (_) {}
+    const tok = await getToken();
+    if (tok) {
+      try {
+        await fetch(PUSH_BASE + '?api=unsubscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok },
+          body: JSON.stringify({ endpoint }),
+        });
+      } catch (_) {}
+    }
+    return { ok: true };
+  }
+
+  function injectPushCta() {
+    if (!pushSupported()) return;
+    const head = document.querySelector('#notifBellPanel .notif-head');
+    if (!head || head.querySelector('.notif-push-cta')) return;
+    const el = document.createElement('div');
+    el.className = 'notif-push-cta';
+    el.style.cssText = 'flex-basis:100%;padding:8px 0 0;font-size:0.72rem;color:#7880a8;display:flex;align-items:center;gap:8px;flex-wrap:wrap;';
+    head.style.flexWrap = 'wrap';
+    head.appendChild(el);
+    refreshPushCta();
+  }
+  async function refreshPushCta() {
+    const el = document.querySelector('#notifBellPanel .notif-push-cta');
+    if (!el) return;
+    if (!pushSupported()) {
+      el.innerHTML = '<span>Push not supported on this browser. Add to home screen on iOS 16.4+ for push.</span>';
+      return;
+    }
+    const perm = Notification.permission;
+    const sub = await getCurrentPushSub();
+    if (perm === 'denied') {
+      el.innerHTML = '<span>🔕 Push notifications blocked in browser settings.</span>';
+      return;
+    }
+    if (sub) {
+      el.innerHTML = '<span>🔔 Push notifications on for this device.</span> <button id="notifPushOff" style="background:transparent;border:1px solid #1f2438;color:#7880a8;border-radius:7px;padding:3px 8px;font-weight:700;font-size:0.66rem;cursor:pointer;">Turn off</button>';
+      const off = document.getElementById('notifPushOff');
+      if (off) off.addEventListener('click', async () => {
+        await unsubscribePush(); refreshPushCta();
+      });
+    } else {
+      el.innerHTML = '<button id="notifPushOn" style="background:rgba(52,211,153,0.15);border:1px solid #34d399;color:#34d399;border-radius:7px;padding:4px 10px;font-weight:700;font-size:0.7rem;cursor:pointer;">🔔 Enable push notifications</button> <span style="font-size:0.66rem;">(works when the tab is closed)</span>';
+      const on = document.getElementById('notifPushOn');
+      if (on) on.addEventListener('click', async () => {
+        on.disabled = true; on.textContent = 'Enabling…';
+        const res = await ensurePushSubscribed();
+        if (!res.ok) { on.disabled = false; on.textContent = '🔔 Enable push (failed: ' + res.reason + ')'; return; }
+        refreshPushCta();
+      });
+    }
+  }
+
+  // Listen for service worker click messages so we can route without reload.
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', (e) => {
+      if (e.data?.type === 'open-link' && e.data.link) {
+        try {
+          const u = new URL(e.data.link, window.location.origin);
+          if (u.pathname.endsWith('students.html') && typeof window.openAlertById === 'function') {
+            const aid = parseInt(u.searchParams.get('openAlert') || '0', 10);
+            const sid = parseInt(u.searchParams.get('student') || '0', 10);
+            if (sid && aid) { window.openAlertById(sid, aid); return; }
+          }
+          window.location.href = e.data.link;
+        } catch (_) {}
+      }
+    });
+  }
+
   function init() {
     ensureBellInTopbar();
     const s = ensureSupa();
@@ -274,8 +413,8 @@
       setTimeout(init, 250);
       return;
     }
-    s.auth.getSession().then(({ data }) => { if (data?.session) startPolling(); });
-    s.auth.onAuthStateChange((_e, sess) => { if (sess) startPolling(); });
+    s.auth.getSession().then(({ data }) => { if (data?.session) { startPolling(); injectPushCta(); } });
+    s.auth.onAuthStateChange((_e, sess) => { if (sess) { startPolling(); injectPushCta(); } });
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

@@ -489,6 +489,8 @@ let students = [];
 let currentStudent = null;     // full row when one is selected
 let mentors = [];
 let coaches = [];
+// MS rep only: read-only on the CRM except for resigns + alerts.
+let isMsRepOnly = false;
 const STATUSES = ['Active', 'Paused', 'Graduated', 'Cancelled', 'Lead'];
 
 // ── Theme (handled by theme.js but we keep the button working) ──
@@ -530,20 +532,46 @@ async function onAuthed(session) {
     setState('denied'); return;
   }
   setState('dashboard');
-  // For coach-only users (no admin / mentorship / sales_manager), default the
-  // sidebar filter to "Mine" so they land on their own students.
+  // Compute capability flags from session perms.
   const am = session.user.app_metadata || {};
   const isAdmin = am.is_admin === true;
   const ps = Array.isArray(am.permissions) ? am.permissions : [];
   const isCoachOnly = !isAdmin && ps.includes('coach') && !ps.includes('mentorship') && !ps.includes('sales_manager');
+  isMsRepOnly = !isAdmin && ps.includes('ms_rep')
+    && !ps.includes('mentorship') && !ps.includes('sales_manager')
+    && !ps.includes('coach') && !ps.includes('ms_ic') && !ps.includes('delivery_ic');
   if (isCoachOnly) {
     listFilter = 'mine';
     document.querySelectorAll('#listFilterBar [data-filter]').forEach(b => b.classList.toggle('active', b.dataset.filter === 'mine'));
   }
+  // Hide the New Student button for ms_rep (they cannot create or edit base data)
+  if (isMsRepOnly) {
+    const addBtn = document.getElementById('addStudentBtn'); if (addBtn) addBtn.style.display = 'none';
+  }
   loadMentors();
   loadCoaches();
   await loadStudents();
+  // If the URL has ?openAlert=N&student=M (from a notification click), open
+  // that student then their alerts modal.
+  try {
+    const u = new URL(window.location.href);
+    const sid = parseInt(u.searchParams.get('student') || '0', 10);
+    const aid = parseInt(u.searchParams.get('openAlert') || '0', 10);
+    if (sid) {
+      await openStudent(sid);
+      if (aid) setTimeout(() => { try { openAlertsHistoryModal(); } catch (_) {} }, 80);
+      // Clean the URL so back-button doesn't re-trigger.
+      history.replaceState({}, '', window.location.pathname);
+    }
+  } catch (_) {}
 }
+
+// Public hook so notifications.js can jump in without a full reload.
+window.openAlertById = async function(studentId, alertId) {
+  if (!studentId) return;
+  await openStudent(studentId);
+  setTimeout(() => { try { openAlertsHistoryModal(); } catch (_) {} }, 80);
+};
 
 document.getElementById('loginForm').addEventListener('submit', async e => {
   e.preventDefault();
@@ -1625,7 +1653,7 @@ function renderProfile() {
     });
   }
 
-  document.getElementById('prof-save').addEventListener('click', saveStudent);
+  document.getElementById('prof-save')?.addEventListener('click', saveStudent);
   // Track dirty state on any field input/change inside the profile card.
   const dirtyHandler = (e) => {
     const t = e.target;
@@ -1633,7 +1661,28 @@ function renderProfile() {
   };
   card.addEventListener('input',  dirtyHandler);
   card.addEventListener('change', dirtyHandler);
-  if (!isNew) document.getElementById('prof-delete').addEventListener('click', deleteStudent);
+  if (!isNew) document.getElementById('prof-delete')?.addEventListener('click', deleteStudent);
+
+  // ms_rep lockdown: disable every base-field input + hide save/delete.
+  // Keep Resigns + Alerts buttons fully functional (they call their own endpoints).
+  if (isMsRepOnly) {
+    card.querySelectorAll('input, select, textarea').forEach(el => {
+      // Spare resign rows (.resign-* classes) — they need to be editable.
+      if (el.closest('table') && (el.classList.contains('resign-date') || el.classList.contains('resign-months') || el.classList.contains('resign-amount') || el.classList.contains('resign-notes'))) return;
+      // Spare the dirty-tracker listener has already attached; just make field-level inputs read-only.
+      if (el.id && el.id.startsWith('f-')) {
+        el.disabled = true;
+        if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') el.readOnly = true;
+      }
+    });
+    // Hide Save + Delete; show a small badge instead.
+    const saveBtn = document.getElementById('prof-save'); if (saveBtn) saveBtn.style.display = 'none';
+    const delBtn  = document.getElementById('prof-delete'); if (delBtn)  delBtn.style.display  = 'none';
+    const msg = document.getElementById('prof-msg');
+    if (msg && !msg.textContent) {
+      msg.textContent = 'Read-only (MS rep)'; msg.style.color = 'var(--text-dim)';
+    }
+  }
   if (!isNew) {
     _wirePauses();
     _wireResigns();
@@ -2618,6 +2667,7 @@ initAuth().catch(e => { console.error('Unhandled auth error:', e); setState('log
 <script src="loading-states.js"></script>
 <script src="theme.js"></script>
 <script src="changelog.js"></script>
+<script src="notifications.js"></script>
 <script src="pwa.js"></script>
 <script src="ux.js"></script>
 <script src="filters.js"></script>

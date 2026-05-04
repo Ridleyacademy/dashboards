@@ -11,6 +11,14 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v99', title: 'Service alert system: full fan-out + notifications bell',
+      items: [
+      'New permissions: ms_ic (full mentorship access), delivery_ic (full delivery access), ms_rep (read-only on the Mentorship CRM EXCEPT for resigns + alerts).',
+      'When an MS alert is filed, every ms_ic, every delivery_ic, and the student\'s assigned coach (matched by first name) gets pinged. The recipient list is snapshotted on the alert so resolve-time fan-out is faithful.',
+      'When the alert is resolved, every recipient PLUS the original creator gets a "resolved" notification (minus the resolver).',
+      'New 🔔 notifications bell in the topbar of every dashboard, with unread count, dropdown of recent items, and one-click jump to the alert. Click outside to close.',
+      'Email channel deployed (send-email edge fn over SMTP). Each notification includes the full payload — student name + email + assigned coach, who filed, when, alert title and details, and on resolution the resolution note. To turn on email, set SMTP_HOST/SMTP_PORT/SMTP_USER/SMTP_PASS/SMTP_FROM as edge function secrets in Supabase.',
+    ]},
     { version: 'v98', title: 'Mentorship: My-students filter, Coach overview, duplicates',
       roles: ['mentorship', 'sales_manager', 'coach'], items: [
       'New filter chips above the student list: All / Mine / Stale (>30d) / Duplicates. Each chip shows a live count.',

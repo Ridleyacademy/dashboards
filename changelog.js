@@ -11,6 +11,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v109', title: 'Resources section + 25 students imported from coach tracker',
+      roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'], items: [
+      'New "Resources" section on each profile with four URL fields: Community / Circle URL, Google Drive doc, Student video, Survey doc — the four columns from the coach tracking sheet that didn\'t have a home before.',
+      'Imported 25 students from the coach tracker (Sheet 2) with their coach, level, module, masterclass level, concern, last-assignment dates, plus all four resource URLs. The Mentorship CRM is now a complete superset of both Google Sheets — coaches no longer need to keep them open.',
+    ]},
     { version: 'v108', title: 'Turnovers now ping like alerts (in-app + email + push)',
       roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'], items: [
       'Filing a turnover now notifies the rep being handed-to (matched by first name or email), every MS I/C, every Delivery I/C, and the student\'s assigned coach. All three channels — bell + email + push — fan out at once.',

@@ -1096,6 +1096,12 @@ const SECTIONS = [
     { k: 'concern',                label: 'Concern',                    type: 'textarea', full: true, placeholder: 'Practice constraints, problem areas…' },
     { k: 'goal',                   label: 'Goal',                       type: 'textarea', full: true, placeholder: 'What are they working toward?' },
   ]],
+  ['Resources', [
+    { k: 'community_url', label: 'Community / Circle URL', type: 'url', placeholder: 'https://www.ridleyacademy.com/products/communities/...' },
+    { k: 'gdrive_url',    label: 'Google Drive doc',       type: 'url', placeholder: 'https://docs.google.com/...' },
+    { k: 'video_url',     label: 'Student video',          type: 'url', placeholder: 'https://www.dropbox.com/... or YouTube' },
+    { k: 'survey_url',    label: 'Survey doc',             type: 'url', placeholder: 'https://docs.google.com/document/...' },
+  ]],
   ['Lifecycle', [
     { k: 'end_date',                 label: 'Manual end date (override)', type: 'date' },
     { k: 'survey_9month_submitted',  label: '9-month survey submitted',   type: 'checkbox' },
@@ -1131,7 +1137,7 @@ function _buildField(field, value) {
   } else if (field.type === 'textarea') {
     inner = `<textarea class="field-textarea" id="${id}" data-key="${field.k}"></textarea>`;
   } else {
-    const t = field.type === 'number' ? 'number' : (field.type === 'tel' ? 'tel' : (field.type === 'email' ? 'email' : (field.type === 'date' ? 'date' : 'text')));
+    const t = field.type === 'number' ? 'number' : (field.type === 'tel' ? 'tel' : (field.type === 'email' ? 'email' : (field.type === 'date' ? 'date' : (field.type === 'url' ? 'url' : 'text'))));
     inner = `<input class="field-input" type="${t}" id="${id}" data-key="${field.k}"${field.placeholder ? ` placeholder="${field.placeholder}"` : ''}>`;
   }
   return `<div class="field${field.full ? ' field-full' : ''}">

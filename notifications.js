@@ -212,19 +212,52 @@
     btn.classList.add('notif-shake');
     setTimeout(() => btn.classList.remove('notif-shake'), 700);
   }
-  function playChime() {
-    // Two-tone chime via WebAudio. Stays silent if the user hasn't
-    // interacted with the page yet (browsers block autoplay).
+  // Prime WebAudio on the first user gesture. iOS / Safari / most browsers
+  // block AudioContext until at least one tap/click has happened, even after
+  // the page has been interacted with elsewhere. Playing a 1-frame silent
+  // buffer here unlocks the context for the rest of the session.
+  function primeAudio() {
     try {
       if (!chimeContext) chimeContext = new (window.AudioContext || window.webkitAudioContext)();
-      if (chimeContext.state === 'suspended') { chimeContext.resume().catch(() => {}); }
+      if (chimeContext.state === 'suspended') chimeContext.resume().catch(() => {});
+      // Play one silent frame to satisfy the user-gesture requirement.
+      const buf = chimeContext.createBuffer(1, 1, 22050);
+      const src = chimeContext.createBufferSource();
+      src.buffer = buf; src.connect(chimeContext.destination); src.start(0);
+    } catch (_) {}
+  }
+  function installAudioPrime() {
+    if (window.__notifAudioPrimed) return;
+    const handler = () => {
+      window.__notifAudioPrimed = true;
+      primeAudio();
+      ['pointerdown','touchstart','keydown','click'].forEach(ev =>
+        document.removeEventListener(ev, handler, { capture: true })
+      );
+    };
+    ['pointerdown','touchstart','keydown','click'].forEach(ev =>
+      document.addEventListener(ev, handler, { capture: true, passive: true })
+    );
+  }
+
+  function playChime() {
+    // Two-tone chime via WebAudio.
+    try {
+      if (!chimeContext) {
+        chimeContext = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (chimeContext.state === 'suspended') {
+        chimeContext.resume().catch(() => {});
+      }
+      // If the context is still suspended (no user gesture yet) we can't play.
+      if (chimeContext.state !== 'running') return;
       const t0 = chimeContext.currentTime;
       const playTone = (freq, start, dur) => {
         const osc = chimeContext.createOscillator();
         const gain = chimeContext.createGain();
         osc.type = 'sine'; osc.frequency.value = freq;
         gain.gain.setValueAtTime(0.0001, start);
-        gain.gain.exponentialRampToValueAtTime(0.18, start + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.25, start + 0.02);
         gain.gain.exponentialRampToValueAtTime(0.0001, start + dur);
         osc.connect(gain); gain.connect(chimeContext.destination);
         osc.start(start); osc.stop(start + dur + 0.05);
@@ -575,6 +608,7 @@
   function init() {
     ensureBellInTopbar();
     ensureChimeStyles();
+    installAudioPrime();
     const s = ensureSupa();
     if (!s) {
       // supabase-js not loaded yet (load order race) — try again shortly.

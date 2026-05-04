@@ -11,6 +11,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v104', title: 'Fix: chime was silent (audio not unlocked)',
+      items: [
+      'iOS / Safari / Chrome block WebAudio until the user has tapped at least once, even on pages they\'ve been clicking around. The bell now primes the audio context on the first tap of any page so subsequent chimes actually play.',
+    ]},
     { version: 'v103', title: 'Fix: bell dropdown overflowed on mobile',
       items: [
       'On phones the dropdown extended past the viewport edge. It now becomes a full-width sheet on screens ≤600px wide, with the height capped to fit between the topbar and the safe-area bottom.',

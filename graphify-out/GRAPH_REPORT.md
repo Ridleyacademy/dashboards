@@ -1,7 +1,7 @@
 # Graph Report - .  (2026-05-04)
 
 ## Corpus Check
-- 10 files · ~19,438 words
+- 10 files · ~19,675 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
@@ -38,13 +38,13 @@
 
 ## Surprising Connections (you probably didn't know these)
 - `getToken()` --calls--> `ensureSupa()`  [EXTRACTED]
-  notifications.js → notifications.js  _Bridges community 1 → community 2_
+  notifications.js → notifications.js  _Bridges community 4 → community 1_
 - `ensurePushSubscribed()` --calls--> `getToken()`  [EXTRACTED]
-  notifications.js → notifications.js  _Bridges community 2 → community 7_
-- `openDropdown()` --calls--> `renderRows()`  [EXTRACTED]
-  notifications.js → notifications.js  _Bridges community 2 → community 10_
+  notifications.js → notifications.js  _Bridges community 1 → community 7_
+- `onClickRow()` --calls--> `setBadge()`  [EXTRACTED]
+  notifications.js → notifications.js  _Bridges community 1 → community 9_
 - `openDropdown()` --calls--> `injectPushCta()`  [EXTRACTED]
-  notifications.js → notifications.js  _Bridges community 10 → community 7_
+  notifications.js → notifications.js  _Bridges community 9 → community 7_
 
 ## Communities
 
@@ -53,20 +53,20 @@ Cohesion: 0.2
 Nodes (8): applyImpersonationToUI(), decorateKPIs(), getImpersonation(), injectTooltipStyles(), presenceTick(), renderImpersonationBanner(), startPresence(), watchKPIs()
 
 ### Community 1 - "Community 1"
-Cohesion: 0.33
-Nodes (9): ensureBellInTopbar(), ensureChimeStyles(), ensureSupa(), init(), pingForNew(), playChime(), shakeBell(), startPolling() (+1 more)
+Cohesion: 0.36
+Nodes (10): fetchNotifications(), getBase(), getToken(), markAlertDone(), markAllRead(), markRead(), renderRows(), setBadge() (+2 more)
 
 ### Community 2 - "Community 2"
-Cohesion: 0.4
-Nodes (10): fetchNotifications(), getBase(), getToken(), markAlertDone(), markAllRead(), markRead(), onClickRow(), renderRows() (+2 more)
-
-### Community 3 - "Community 3"
 Cohesion: 0.42
 Nodes (7): canAccess(), currentPageFile(), effOf(), enforce(), getArchivedIds(), isAdmin(), runWhenReady()
 
-### Community 4 - "Community 4"
+### Community 3 - "Community 3"
 Cohesion: 0.33
 Nodes (5): init(), load(), rememberSelect(), restoreDateRange(), wirePageFilters()
+
+### Community 4 - "Community 4"
+Cohesion: 0.39
+Nodes (8): ensureBellInTopbar(), ensureChimeStyles(), ensureSupa(), init(), pingForNew(), playChime(), shakeBell(), startRealtime()
 
 ### Community 5 - "Community 5"
 Cohesion: 0.33
@@ -85,12 +85,12 @@ Cohesion: 0.67
 Nodes (5): apply(), bootstrap(), effective(), osPrefersLight(), syncBtn()
 
 ### Community 9 - "Community 9"
-Cohesion: 0.6
-Nodes (5): canOpen(), canOpenWith(), effective(), impersonation(), pageDef()
+Cohesion: 0.33
+Nodes (6): closeDropdown(), onClickRow(), onDocClickOutside(), openDropdown(), positionPanel(), toggleDropdown()
 
 ### Community 10 - "Community 10"
-Cohesion: 0.4
-Nodes (5): closeDropdown(), onDocClickOutside(), openDropdown(), positionPanel(), toggleDropdown()
+Cohesion: 0.6
+Nodes (5): canOpen(), canOpenWith(), effective(), impersonation(), pageDef()
 
 ### Community 11 - "Community 11"
 Cohesion: 0.5
@@ -107,9 +107,9 @@ Nodes (0):
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `getToken()` connect `Community 2` to `Community 1`, `Community 7`?**
+- **Why does `getToken()` connect `Community 1` to `Community 4`, `Community 7`?**
   _High betweenness centrality (0.002) - this node is a cross-community bridge._
-- **Why does `fetchNotifications()` connect `Community 2` to `Community 1`, `Community 10`?**
+- **Why does `fetchNotifications()` connect `Community 1` to `Community 9`, `Community 4`?**
   _High betweenness centrality (0.002) - this node is a cross-community bridge._
-- **Why does `openDropdown()` connect `Community 10` to `Community 1`, `Community 2`, `Community 7`?**
+- **Why does `openDropdown()` connect `Community 9` to `Community 1`, `Community 4`, `Community 7`?**
   _High betweenness centrality (0.001) - this node is a cross-community bridge._

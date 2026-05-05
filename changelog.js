@@ -11,6 +11,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v113', title: 'Videos: stored URL fallback + earliest-date submission',
+      roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'], items: [
+      'When the Videos modal finds nothing in Dropbox but the profile has a Student video URL set, it now shows that URL as a single playable row. Dropbox share links are auto-converted to direct streams (?dl=0 → ?raw=1) so they play in the inline window.',
+      'video_submitted_date now reflects the EARLIEST matching file in Dropbox for that student — both for the one-time backfill (19 students updated) and going forward via the webhook.',
+    ]},
     { version: 'v112', title: 'Videos: inline player + Dropbox auto-sync',
       roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'], items: [
       'Click ▶ Open on a student\'s video → it now plays inside a black, full-window player ON the same page (works inside the iOS PWA, no new tab). ↗ Share link button at the top right falls back to a public Dropbox URL if needed.',

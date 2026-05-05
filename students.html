@@ -2198,6 +2198,7 @@ async function openDropboxVideosModal() {
   if (!tok) { document.getElementById('videosBody').innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted);">Not authenticated.</div>'; return; }
 
   let files = [];
+  let dropboxFailed = false;
   try {
     const r = await fetch(DROPBOX_PROXY_BASE + '?api=list&q=' + encodeURIComponent(q), { headers: { Authorization: 'Bearer ' + tok } });
     const j = await r.json();
@@ -2205,37 +2206,68 @@ async function openDropboxVideosModal() {
     files = j.files || [];
     document.getElementById('videosCount').textContent = `${files.length} file${files.length !== 1 ? 's' : ''} matching · ${j.total} in folder`;
   } catch (e) {
-    document.getElementById('videosBody').innerHTML = '<div style="padding:32px;text-align:center;color:var(--red);font-size:0.86rem;">'+(e.message||'Failed to load')+'</div>';
-    return;
+    dropboxFailed = true;
+    document.getElementById('videosCount').textContent = 'Dropbox lookup failed — showing stored URL fallback if any';
+  }
+
+  // Fallback: if Dropbox returned nothing (or errored) but the profile has
+  // a stored video_url (e.g. imported from Sheet 2), surface it as a single
+  // row so the coach still has a way to play the video.
+  const storedUrl = (currentStudent.video_url || '').toString().trim();
+  const usingStoredFallback = !files.length && storedUrl;
+  if (usingStoredFallback) {
+    files = [{
+      _stored_url: storedUrl,
+      path: '__stored__',
+      name: storedUrl.split('/').pop()?.split('?')[0] || 'Stored video',
+      size: null,
+      server_modified: currentStudent.video_submitted_date ? new Date(currentStudent.video_submitted_date).toISOString() : null,
+    }];
+    document.getElementById('videosCount').textContent = 'No Dropbox match — using stored video URL from profile';
   }
 
   const body = document.getElementById('videosBody');
   if (!files.length) {
-    body.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted);font-size:0.86rem;">No videos found in Dropbox matching this student\'s email or name.</div>';
+    body.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted);font-size:0.86rem;">No videos found in Dropbox matching this student\'s email or name, and no stored video URL on the profile.</div>';
     return;
   }
 
-  body.innerHTML = files.map(f => `
-    <div class="video-row" data-path="${f.path.replace(/"/g,'&quot;')}" style="border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:10px;background:var(--surface2);display:flex;gap:12px;align-items:center;">
-      <div style="font-size:1.4rem;flex-shrink:0;">🎬</div>
+  body.innerHTML = files.map((f, i) => `
+    <div class="video-row" data-idx="${i}" style="border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:10px;background:var(--surface2);display:flex;gap:12px;align-items:center;">
+      <div style="font-size:1.4rem;flex-shrink:0;">${f._stored_url ? '🔗' : '🎬'}</div>
       <div style="flex:1;min-width:0;">
         <div class="video-name" style="font-weight:700;font-size:0.86rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
-        <div style="font-size:0.7rem;color:#7880a8;margin-top:2px;">${_humanSize(f.size)} · modified ${f.server_modified ? new Date(f.server_modified).toLocaleString() : '—'}</div>
+        <div style="font-size:0.7rem;color:#7880a8;margin-top:2px;">${f._stored_url ? 'From profile · ' : ''}${f.size ? _humanSize(f.size) + ' · ' : ''}${f.server_modified ? 'modified ' + new Date(f.server_modified).toLocaleString() : ''}</div>
       </div>
       <button class="video-open" style="background:rgba(52,211,153,0.15);border:1px solid #34d399;color:#34d399;border-radius:8px;padding:6px 12px;font-weight:700;font-size:0.74rem;cursor:pointer;white-space:nowrap;">▶ Open</button>
     </div>`).join('');
 
-  for (const f of files) {
-    const row = body.querySelector(`.video-row[data-path="${f.path.replace(/"/g,'&quot;')}"]`);
+  files.forEach((f, i) => {
+    const row = body.querySelector(`.video-row[data-idx="${i}"]`);
     if (row) row.querySelector('.video-name').textContent = f.name;
-  }
+  });
 
   body.querySelectorAll('.video-open').forEach(btn => {
     btn.addEventListener('click', async () => {
       const row = btn.closest('.video-row');
-      const path = row.dataset.path;
+      const i = parseInt(row.dataset.idx, 10);
+      const f = files[i];
       const name = row.querySelector('.video-name')?.textContent || 'Video';
       btn.disabled = true; btn.textContent = '…';
+      // Stored-URL fallback path: convert Dropbox share links to direct
+      // streaming URLs (?dl=0 → ?raw=1) so the inline <video> can play them.
+      if (f._stored_url) {
+        let playable = f._stored_url;
+        if (/dropbox\.com\//i.test(playable)) {
+          if (/[?&]dl=0\b/.test(playable))      playable = playable.replace(/([?&])dl=0\b/, '$1raw=1');
+          else if (/[?&]dl=1\b/.test(playable)) playable = playable.replace(/([?&])dl=1\b/, '$1raw=1');
+          else                                  playable += (playable.includes('?') ? '&' : '?') + 'raw=1';
+        }
+        openInlineVideoPlayer(name, playable, f._stored_url, tok);
+        btn.disabled = false; btn.textContent = '▶ Open';
+        return;
+      }
+      const path = f.path;
       try {
         const r = await fetch(DROPBOX_PROXY_BASE + '?api=temp-link&path=' + encodeURIComponent(path), { headers: { Authorization: 'Bearer ' + tok } });
         const j = await r.json();
@@ -2284,9 +2316,13 @@ function openInlineVideoPlayer(title, src, path, sessionTok) {
   // Backdrop click closes (but ignore clicks on the video element).
   m.addEventListener('click', (e) => { if (e.target === m || e.target === m.firstElementChild) close(); });
 
-  // Share-link fallback button: fetch a public Dropbox link in case the
-  // inline stream doesn't play (codec issue) or the user wants to share it.
+  // Share-link fallback: for Dropbox paths, request a public share URL.
+  // For stored URLs (already a public URL), just open it directly.
   document.getElementById('vpShareBtn').addEventListener('click', async () => {
+    if (typeof path === 'string' && /^https?:\/\//i.test(path)) {
+      window.open(path, '_blank', 'noopener,noreferrer');
+      return;
+    }
     try {
       const r = await fetch(DROPBOX_PROXY_BASE + '?api=share&path=' + encodeURIComponent(path), { headers: { Authorization: 'Bearer ' + sessionTok } });
       const j = await r.json();

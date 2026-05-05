@@ -11,6 +11,14 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v119', title: 'Surveys: Typeform direct intake + 📝 Survey button',
+      roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'], items: [
+      'Typeform now posts directly to the app (no Zapier needed). Every response is captured as a Q&A list and viewable as a doc from the student profile.',
+      'New 📝 Surveys button on each student profile (next to 📂 Videos) — opens the list of received surveys with badge count, click any entry to read the full Q&A.',
+      'Auto-fill of existing profile fields from the survey: Name, Email, Phone, Location, Goal (from "biggest benefit" / "what would you get" / "what goals would it help"), Concern (from "what problem would coaching solve" / "what do you struggle with"). Only fills NULL fields — never overwrites your edits.',
+      'Removed the SURVEY DOC URL field from Resources — covered by the new live data.',
+      'New 🔔 in-app + email + push notification when a survey arrives, fanned out to coach + ICs.',
+    ]},
     { version: 'v118', title: 'Delayed start date on Onboarding',
       roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'], items: [
       'New Delayed start (optional) date in Onboarding. When set in the future, the student\'s status becomes ⏳ Delayed start with a countdown until the date — sidebar dot turns blue, header badge shows "Xd to go".',

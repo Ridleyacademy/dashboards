@@ -1052,6 +1052,7 @@ async function openStudent(id) {
     currentTurnovers  = Array.isArray(j.turnovers)   ? j.turnovers   : [];
     currentRepNotes   = Array.isArray(j.rep_notes)   ? j.rep_notes   : [];
     currentIcNotes    = Array.isArray(j.ic_notes)    ? j.ic_notes    : [];
+    if (currentStudent) currentStudent.surveys = Array.isArray(j.surveys) ? j.surveys : [];
     profileDirty = false;
     renderProfile();
     renderStudentList();
@@ -1101,7 +1102,6 @@ const SECTIONS = [
   ]],
   ['Resources', [
     { k: 'gdrive_url',    label: 'Google Drive doc',       type: 'url', placeholder: 'https://docs.google.com/...' },
-    { k: 'survey_url',    label: 'Survey doc',             type: 'url', placeholder: 'https://docs.google.com/document/...' },
   ]],
   ['Lifecycle', [
     { k: 'end_date',                 label: 'Manual end date (override)', type: 'date' },
@@ -1614,6 +1614,9 @@ function renderProfile() {
           </button>
           <button class="win-btn-list" id="prof-list-videos" title="Open this student's videos from Dropbox">
             📂 Videos
+          </button>
+          <button class="win-btn-list" id="prof-list-surveys" title="View Typeform survey responses for this student">
+            📝 Surveys <span class="win-badge${(s.surveys_count||0)>0?' has-any':''}">${s.surveys_count||0}</span>
           </button>` : ''}
         <button class="profile-save" id="prof-save">${isNew ? 'Create' : 'Save'}</button>
         ${!isNew ? '<button class="profile-delete" id="prof-delete">Delete</button>' : ''}
@@ -1732,6 +1735,7 @@ function renderProfile() {
     document.getElementById('prof-list-alerts')?.addEventListener('click', openAlertsHistoryModal);
     document.getElementById('prof-list-logs')?.addEventListener('click', openLogsChooserModal);
     document.getElementById('prof-list-videos')?.addEventListener('click', openDropboxVideosModal);
+    document.getElementById('prof-list-surveys')?.addEventListener('click', openSurveysHistoryModal);
   }
   // Persist collapse state per section title
   card.querySelectorAll('details.profile-section').forEach(d => {
@@ -2155,6 +2159,105 @@ async function _deleteNote(kind, id) {
     await loadStudents();
     if (document.getElementById(c.modalId)) _renderNoteList(kind);
   } catch (e) { alert('Delete failed: ' + (e.message || e)); }
+}
+
+// ── Surveys (Typeform) ────────────────────────────────────────
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+async function openSurveysHistoryModal() {
+  if (!currentStudent || !currentStudent.id) return;
+  const sid = currentStudent.id;
+  const sname = currentStudent.name || '(unnamed)';
+  // Try in-memory list from /api=get first, otherwise fetch.
+  let list = Array.isArray(currentStudent.surveys) ? currentStudent.surveys : null;
+  let loadFailed = false;
+  if (!list) {
+    try {
+      const r = await fetch(STUDENTS_BASE + '?api=surveys&student_id=' + encodeURIComponent(sid), {
+        headers: { Authorization: 'Bearer ' + currentSession.access_token },
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const j = await r.json(); list = j.rows || [];
+    } catch (e) { loadFailed = true; list = []; console.warn('survey list fetch failed', e); }
+  }
+  const rows = (list || []).map(s => {
+    const when = s.submitted_at || s.created_at;
+    const w = when ? new Date(when).toLocaleString() : '—';
+    const src = s.source || 'survey';
+    return `<button class="logs-chooser-card" data-id="${s.id}" style="display:flex;align-items:center;gap:.6rem;width:100%;text-align:left;padding:.7rem .9rem;border:1px solid var(--border);border-radius:.5rem;background:var(--bg-elev);cursor:pointer;margin-bottom:.4rem;">
+      <span style="font-size:1.4rem;flex-shrink:0;">📝</span>
+      <span style="flex:1;min-width:0;">
+        <div style="font-weight:600;">${src} · ${s.qa_count || 0} question${(s.qa_count===1)?'':'s'}</div>
+        <div style="font-size:.85rem;color:var(--text-dim);">${w}</div>
+      </span>
+      <span style="opacity:.5;">›</span>
+    </button>`;
+  }).join('');
+  const empty = (list && list.length === 0)
+    ? `<div style="padding:1rem;text-align:center;color:var(--text-dim);">No survey responses received yet for this student.${loadFailed ? '<br><em>(failed to load — check console)</em>' : ''}</div>`
+    : '';
+  const html = `
+    <div class="modal-backdrop" data-close="1">
+      <div class="modal" style="max-width:540px;">
+        <div class="modal-header">
+          <h3 style="margin:0;">📝 Surveys — ${escapeHtml(sname)}</h3>
+          <button class="modal-close" data-close="1">×</button>
+        </div>
+        <div class="modal-body">${rows}${empty}</div>
+      </div>
+    </div>`;
+  const wrap = document.createElement('div'); wrap.innerHTML = html;
+  document.body.appendChild(wrap);
+  wrap.querySelectorAll('[data-close]').forEach(el => el.addEventListener('click', e => {
+    if (e.target === el || el.classList.contains('modal-close')) wrap.remove();
+  }));
+  wrap.querySelectorAll('.logs-chooser-card').forEach(b => b.addEventListener('click', () => {
+    const id = parseInt(b.dataset.id, 10);
+    wrap.remove();
+    openSurveyDocModal(id);
+  }));
+}
+
+async function openSurveyDocModal(surveyId) {
+  let row;
+  try {
+    const r = await fetch(STUDENTS_BASE + '?api=survey&id=' + encodeURIComponent(surveyId), {
+      headers: { Authorization: 'Bearer ' + currentSession.access_token },
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const j = await r.json(); row = j.row;
+  } catch (e) { alert('Failed to load survey: ' + (e.message || e)); return; }
+  if (!row) return;
+  const when = row.submitted_at || row.created_at;
+  const w = when ? new Date(when).toLocaleString() : '—';
+  const qa = Array.isArray(row.content_qa) ? row.content_qa : [];
+  const docHtml = qa.map(({ q, a }) => `
+    <div style="margin-bottom:1.2rem;">
+      <div style="font-weight:600;font-size:.95rem;color:var(--text);margin-bottom:.25rem;">${escapeHtml(q || '(untitled)')}</div>
+      <div style="white-space:pre-wrap;color:var(--text-dim);line-height:1.45;font-size:.92rem;">${a ? escapeHtml(a) : '<em style="opacity:.6;">(no answer)</em>'}</div>
+    </div>`).join('');
+  const empty = qa.length === 0 ? '<div style="color:var(--text-dim);padding:1rem;">No questions captured.</div>' : '';
+  const html = `
+    <div class="modal-backdrop" data-close="1">
+      <div class="modal" style="max-width:760px;max-height:90vh;display:flex;flex-direction:column;">
+        <div class="modal-header">
+          <h3 style="margin:0;">📝 Survey response · ${escapeHtml(row.source || 'survey')}</h3>
+          <button class="modal-close" data-close="1">×</button>
+        </div>
+        <div class="modal-body" style="overflow:auto;flex:1;">
+          <div style="font-size:.85rem;color:var(--text-dim);margin-bottom:.9rem;">Submitted: ${w}${row.form_id ? ' · form ' + escapeHtml(row.form_id) : ''}</div>
+          ${docHtml}${empty}
+        </div>
+      </div>
+    </div>`;
+  const wrap = document.createElement('div'); wrap.innerHTML = html;
+  document.body.appendChild(wrap);
+  wrap.querySelectorAll('[data-close]').forEach(el => el.addEventListener('click', e => {
+    if (e.target === el || el.classList.contains('modal-close')) wrap.remove();
+  }));
 }
 
 // ── Logs chooser ──────────────────────────────────────────────

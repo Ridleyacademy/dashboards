@@ -11,6 +11,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v117', title: 'Videos modal: ✏️ Set URL button for manual entry',
+      roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'], items: [
+      'New ✏️ Set URL button at the top of the Videos modal. Paste any URL — Dropbox, YouTube, anything — and it\'s saved on the student. Empties the field if you submit blank.',
+      'When a student has no Dropbox match and no stored URL, the empty state now points to the button instead of leaving you stuck.',
+    ]},
     { version: 'v116', title: 'Hide Student video URL field — covered by 📂 Videos button',
       roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'], items: [
       'Removed the Student video URL input from Resources. The 📂 Videos button at the top of each profile already surfaces the file (Dropbox match first, stored URL as fallback), so the input was redundant.',

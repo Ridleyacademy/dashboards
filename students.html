@@ -2177,6 +2177,7 @@ async function openDropboxVideosModal() {
           <div style="font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;">📂 Dropbox videos for ${currentStudent.name || ''}</div>
           <div style="font-size:0.74rem;color:#7880a8;margin-top:3px;" id="videosCount">Loading…</div>
         </div>
+        <button id="videosSetUrlBtn" style="background:transparent;border:1px solid #1f2438;color:#7880a8;border-radius:8px;padding:6px 10px;font-weight:700;font-size:0.72rem;cursor:pointer;white-space:nowrap;" title="Manually set or change the stored video URL">✏️ Set URL</button>
         <button id="videosClose" style="background:transparent;border:none;color:#7880a8;font-size:1.5rem;cursor:pointer;padding:0 8px;">×</button>
       </div>
       <div id="videosBody" style="flex:1;overflow-y:auto;padding:14px 22px;"></div>
@@ -2187,6 +2188,28 @@ async function openDropboxVideosModal() {
   document.addEventListener('keydown', onKey);
   m.addEventListener('click', e => { if (e.target === m) close(); });
   document.getElementById('videosClose').addEventListener('click', close);
+  document.getElementById('videosSetUrlBtn').addEventListener('click', async () => {
+    const current = currentStudent.video_url || '';
+    const next = window.prompt('Paste the student\'s video URL (Dropbox / YouTube / etc.). Leave blank to clear.', current);
+    if (next === null) return;                              // cancelled
+    const trimmed = (next || '').trim();
+    if (trimmed === current) return;                        // no change
+    try {
+      const r = await fetch(STUDENTS_BASE + '?api=upsert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
+        body: JSON.stringify({ id: currentStudent.id, video_url: trimmed || null }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'Save failed');
+      currentStudent.video_url = trimmed || null;
+      // Re-render the modal so the new URL appears as a row.
+      close();
+      openDropboxVideosModal();
+    } catch (e) {
+      alert('Could not save URL: ' + (e.message || e));
+    }
+  });
 
   const email = (currentStudent.email || '').toLowerCase().trim();
   const q = [email, email.replace('@','-'), (currentStudent.name||'').toLowerCase().trim()].filter(Boolean).join(' ');
@@ -2225,7 +2248,7 @@ async function openDropboxVideosModal() {
 
   const body = document.getElementById('videosBody');
   if (!files.length) {
-    body.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted);font-size:0.86rem;">No videos found in Dropbox matching this student\'s email or name, and no stored video URL on the profile.</div>';
+    body.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted);font-size:0.86rem;">No videos found in Dropbox matching this student\'s email or name, and no stored video URL on the profile.<br><br>Use the <strong>✏️ Set URL</strong> button above to paste a URL manually.</div>';
     return;
   }
 

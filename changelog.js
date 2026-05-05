@@ -11,6 +11,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v116', title: 'Hide Student video URL field — covered by 📂 Videos button',
+      roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'], items: [
+      'Removed the Student video URL input from Resources. The 📂 Videos button at the top of each profile already surfaces the file (Dropbox match first, stored URL as fallback), so the input was redundant.',
+      'Existing video_url values stay in the database and still feed the fallback row in the Videos modal — nothing lost.',
+    ]},
     { version: 'v115', title: 'Onboarding tidy: Circle URL replaces Circle-created checkbox',
       roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'], items: [
       'Circle created checkbox is gone — having a Community / Circle URL says the same thing.',

@@ -1079,7 +1079,7 @@ const SECTIONS = [
     { k: 'survey_submitted_date',  label: 'Survey submitted',           type: 'date' },
     { k: 'video_submitted_date',   label: 'Video submitted',            type: 'date' },
     { k: 'coach',                  label: 'Coach',                      type: 'datalist', opts: 'coaches', placeholder: 'Type a coach name…' },
-    { k: 'circle_created',         label: 'Circle created',             type: 'checkbox' },
+    { k: 'community_url',          label: 'Community / Circle URL',     type: 'url', full: true, placeholder: 'https://www.ridleyacademy.com/products/communities/...' },
     { k: 'student_onboarded_date', label: 'Student onboarded date',     type: 'date' },
   ]],
   // Pauses get their own custom widget (multiple rows). Section title still
@@ -1096,7 +1096,6 @@ const SECTIONS = [
     { k: 'goal',                   label: 'Goal',                       type: 'textarea', full: true, placeholder: 'What are they working toward?' },
   ]],
   ['Resources', [
-    { k: 'community_url', label: 'Community / Circle URL', type: 'url', placeholder: 'https://www.ridleyacademy.com/products/communities/...' },
     { k: 'gdrive_url',    label: 'Google Drive doc',       type: 'url', placeholder: 'https://docs.google.com/...' },
     { k: 'video_url',     label: 'Student video',          type: 'url', placeholder: 'https://www.dropbox.com/... or YouTube' },
     { k: 'survey_url',    label: 'Survey doc',             type: 'url', placeholder: 'https://docs.google.com/document/...' },

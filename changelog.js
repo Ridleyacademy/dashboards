@@ -11,6 +11,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v115', title: 'Onboarding tidy: Circle URL replaces Circle-created checkbox',
+      roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'], items: [
+      'Circle created checkbox is gone — having a Community / Circle URL says the same thing.',
+      'Community / Circle URL moved out of Resources and into Onboarding next to Coach.',
+    ]},
     { version: 'v114', title: 'Removed Product field from Identity',
       roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'], items: [
       'The Product input was unused; gone from the Identity section. Existing values stay in the database in case anything needs them later.',

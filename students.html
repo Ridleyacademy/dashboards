@@ -207,6 +207,7 @@
   .status-derived-Expired       { background: #f87171; }                         /* red     */
   .status-derived-Paused        { background: #a78bfa; }                         /* purple  */
   .status-derived-Notonboarded  { background: #f59e0b; box-shadow: 0 0 0 2px rgba(245,158,11,0.18); } /* orange */
+  .status-derived-Delayedstart  { background: #60a5fa; box-shadow: 0 0 0 2px rgba(96,165,250,0.18); } /* blue */
 
   .student-list-empty { padding: 32px 16px; color: var(--text-muted); font-size: 0.84rem; text-align: center; }
 
@@ -768,7 +769,9 @@ function renderStudentList() {
     else if (s.status)             metaParts.push(s.status);
     const coach = s.coach || s.mentor;
     if (coach)                     metaParts.push('· ' + coach);
-    if (s.days_left != null && s.derived_status !== 'Not onboarded') {
+    if (s.derived_status === 'Delayed start' && s.days_until_start != null) {
+      metaParts.push('· ' + s.days_until_start + 'd to start');
+    } else if (s.days_left != null && s.derived_status !== 'Not onboarded') {
       const dl = s.days_left;
       metaParts.push('· ' + (dl >= 0 ? `${dl}d left` : `${Math.abs(dl)}d ago`));
     } else if (s.months_count != null) {
@@ -1081,6 +1084,7 @@ const SECTIONS = [
     { k: 'coach',                  label: 'Coach',                      type: 'datalist', opts: 'coaches', placeholder: 'Type a coach name…' },
     { k: 'community_url',          label: 'Community / Circle URL',     type: 'url', full: true, placeholder: 'https://www.ridleyacademy.com/products/communities/...' },
     { k: 'student_onboarded_date', label: 'Student onboarded date',     type: 'date' },
+    { k: 'delayed_start_date',     label: 'Delayed start (optional)',   type: 'date' },
   ]],
   // Pauses get their own custom widget (multiple rows). Section title still
   // appears via SECTION_RENDERERS below.
@@ -1574,13 +1578,15 @@ function renderProfile() {
   // Status badges in header — computed lifecycle is the source of truth.
   const badges = [];
   const ds = s.derived_status || 'Not onboarded';
-  const dsClass = ds === 'Active' ? 'ver' : ds === 'Expiring soon' ? 'win' : ds === 'Expired' ? 'exp' : ds === 'Paused' ? 'win' : 'exp';
+  const dsClass = ds === 'Active' ? 'ver' : ds === 'Expiring soon' ? 'win' : ds === 'Expired' ? 'exp' : ds === 'Paused' ? 'win' : ds === 'Delayed start' ? 'ver' : 'exp';
   const dsLabel = ds === 'Active' ? '● Active'
     : ds === 'Expiring soon' ? `⚠ Expiring soon (${s.days_left}d left)`
     : ds === 'Expired'       ? `⚠ Expired (${Math.abs(s.days_left || 0)}d ago)`
     : ds === 'Paused'        ? '⏸ Paused'
+    : ds === 'Delayed start' ? `⏳ Delayed start (${s.days_until_start}d to go${s.delayed_start_date ? ' — ' + s.delayed_start_date : ''})`
     : 'Not onboarded';
-  badges.push(`<span class="badge ${dsClass}">${dsLabel}</span>`);
+  const dsStyle = ds === 'Delayed start' ? ' style="background:rgba(96,165,250,0.18);color:#60a5fa;"' : '';
+  badges.push(`<span class="badge ${dsClass}"${dsStyle}>${dsLabel}</span>`);
   if (s.effective_end_date) {
     badges.push(`<span class="badge ver" style="background:rgba(120,128,168,0.18);color:#7880a8;">Ends ${s.effective_end_date}</span>`);
   }

@@ -11,6 +11,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v118', title: 'Delayed start date on Onboarding',
+      roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'], items: [
+      'New Delayed start (optional) date in Onboarding. When set in the future, the student\'s status becomes ⏳ Delayed start with a countdown until the date — sidebar dot turns blue, header badge shows "Xd to go".',
+      'Once the delayed-start date arrives, the normal lifecycle calc takes over (Active / Expiring / Expired) based on the student\'s onboarded date.',
+    ]},
     { version: 'v117', title: 'Videos modal: ✏️ Set URL button for manual entry',
       roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'], items: [
       'New ✏️ Set URL button at the top of the Videos modal. Paste any URL — Dropbox, YouTube, anything — and it\'s saved on the student. Empties the field if you submit blank.',

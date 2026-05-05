@@ -11,6 +11,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v114', title: 'Removed Product field from Identity',
+      roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'], items: [
+      'The Product input was unused; gone from the Identity section. Existing values stay in the database in case anything needs them later.',
+    ]},
     { version: 'v113', title: 'Videos: stored URL fallback + earliest-date submission',
       roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'], items: [
       'When the Videos modal finds nothing in Dropbox but the profile has a Student video URL set, it now shows that URL as a single playable row. Dropbox share links are auto-converted to direct streams (?dl=0 → ?raw=1) so they play in the inline window.',

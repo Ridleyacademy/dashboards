@@ -2171,7 +2171,6 @@ async function openSurveysHistoryModal() {
   if (!currentStudent || !currentStudent.id) return;
   const sid = currentStudent.id;
   const sname = currentStudent.name || '(unnamed)';
-  // Try in-memory list from /api=get first, otherwise fetch.
   let list = Array.isArray(currentStudent.surveys) ? currentStudent.surveys : null;
   let loadFailed = false;
   if (!list) {
@@ -2183,42 +2182,52 @@ async function openSurveysHistoryModal() {
       const j = await r.json(); list = j.rows || [];
     } catch (e) { loadFailed = true; list = []; console.warn('survey list fetch failed', e); }
   }
-  const rows = (list || []).map(s => {
+  document.getElementById('surveysHistoryModal')?.remove();
+  const m = document.createElement('div');
+  m.id = 'surveysHistoryModal';
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(8,9,18,0.78);backdrop-filter:blur(8px);z-index:10005;display:flex;align-items:center;justify-content:center;padding:20px;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;';
+  const cardCss = 'flex:1;min-width:0;display:flex;align-items:center;gap:12px;padding:14px 16px;border:1px solid #1f2438;border-radius:12px;background:#0f1019;cursor:pointer;text-align:left;color:inherit;font:inherit;transition:border-color 0.12s, background 0.12s;width:100%;margin-bottom:8px;';
+  const rowsHtml = (list || []).map(s => {
     const when = s.submitted_at || s.created_at;
     const w = when ? new Date(when).toLocaleString() : '—';
     const src = s.source || 'survey';
-    return `<button class="logs-chooser-card" data-id="${s.id}" style="display:flex;align-items:center;gap:.6rem;width:100%;text-align:left;padding:.7rem .9rem;border:1px solid var(--border);border-radius:.5rem;background:var(--bg-elev);cursor:pointer;margin-bottom:.4rem;">
-      <span style="font-size:1.4rem;flex-shrink:0;">📝</span>
+    return `<button data-survey-id="${s.id}" style="${cardCss}">
+      <span style="font-size:1.4rem;">📝</span>
       <span style="flex:1;min-width:0;">
-        <div style="font-weight:600;">${src} · ${s.qa_count || 0} question${(s.qa_count===1)?'':'s'}</div>
-        <div style="font-size:.85rem;color:var(--text-dim);">${w}</div>
+        <div style="font-weight:700;font-size:0.95rem;">${escapeHtml(src)} · ${s.qa_count || 0} question${(s.qa_count===1)?'':'s'}</div>
+        <div style="font-size:0.78rem;color:#7880a8;margin-top:2px;">${escapeHtml(w)}</div>
       </span>
-      <span style="opacity:.5;">›</span>
+      <span style="color:#7880a8;font-size:1.2rem;">›</span>
     </button>`;
   }).join('');
   const empty = (list && list.length === 0)
-    ? `<div style="padding:1rem;text-align:center;color:var(--text-dim);">No survey responses received yet for this student.${loadFailed ? '<br><em>(failed to load — check console)</em>' : ''}</div>`
+    ? `<div style="padding:24px;text-align:center;color:#7880a8;font-size:0.88rem;">No survey responses received yet for this student.${loadFailed ? '<br><em style="opacity:.7;">(failed to load — check console)</em>' : ''}</div>`
     : '';
-  const html = `
-    <div class="modal-backdrop" data-close="1">
-      <div class="modal" style="max-width:540px;">
-        <div class="modal-header">
-          <h3 style="margin:0;">📝 Surveys — ${escapeHtml(sname)}</h3>
-          <button class="modal-close" data-close="1">×</button>
-        </div>
-        <div class="modal-body">${rows}${empty}</div>
+  m.innerHTML = `
+    <div style="background:#13141f;border:1px solid #1f2438;border-radius:18px;max-width:560px;width:100%;color:#eaecf8;box-shadow:0 24px 60px rgba(0,0,0,0.55);overflow:hidden;">
+      <div style="padding:18px 22px;border-bottom:1px solid #1f2438;display:flex;align-items:center;gap:10px;">
+        <div style="flex:1;font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;">📝 Surveys — ${escapeHtml(sname)}</div>
+        <button id="surveysHistoryClose" style="background:transparent;border:none;color:#7880a8;font-size:1.5rem;cursor:pointer;padding:0 8px;">×</button>
       </div>
+      <div style="padding:18px 22px;">${rowsHtml}${empty}</div>
     </div>`;
-  const wrap = document.createElement('div'); wrap.innerHTML = html;
-  document.body.appendChild(wrap);
-  wrap.querySelectorAll('[data-close]').forEach(el => el.addEventListener('click', e => {
-    if (e.target === el || el.classList.contains('modal-close')) wrap.remove();
-  }));
-  wrap.querySelectorAll('.logs-chooser-card').forEach(b => b.addEventListener('click', () => {
-    const id = parseInt(b.dataset.id, 10);
-    wrap.remove();
+  document.body.appendChild(m);
+  function close() { document.removeEventListener('keydown', onKey); m.remove(); }
+  function onKey(e) { if (e.key === 'Escape') close(); }
+  document.addEventListener('keydown', onKey);
+  document.getElementById('surveysHistoryClose').addEventListener('click', close);
+  m.addEventListener('click', (e) => {
+    if (e.target === m) return close();
+    const btn = e.target.closest('[data-survey-id]');
+    if (!btn) return;
+    const id = parseInt(btn.dataset.surveyId, 10);
+    close();
     openSurveyDocModal(id);
-  }));
+  });
+  m.querySelectorAll('[data-survey-id]').forEach(b => {
+    b.addEventListener('mouseenter', () => { b.style.borderColor = '#3a4060'; });
+    b.addEventListener('mouseleave', () => { b.style.borderColor = '#1f2438'; });
+  });
 }
 
 async function openSurveyDocModal(surveyId) {
@@ -2235,29 +2244,32 @@ async function openSurveyDocModal(surveyId) {
   const w = when ? new Date(when).toLocaleString() : '—';
   const qa = Array.isArray(row.content_qa) ? row.content_qa : [];
   const docHtml = qa.map(({ q, a }) => `
-    <div style="margin-bottom:1.2rem;">
-      <div style="font-weight:600;font-size:.95rem;color:var(--text);margin-bottom:.25rem;">${escapeHtml(q || '(untitled)')}</div>
-      <div style="white-space:pre-wrap;color:var(--text-dim);line-height:1.45;font-size:.92rem;">${a ? escapeHtml(a) : '<em style="opacity:.6;">(no answer)</em>'}</div>
+    <div style="margin-bottom:18px;">
+      <div style="font-weight:700;font-size:0.92rem;color:#eaecf8;margin-bottom:5px;">${escapeHtml(q || '(untitled)')}</div>
+      <div style="white-space:pre-wrap;color:#cbd1ee;line-height:1.5;font-size:0.88rem;">${a ? escapeHtml(a) : '<em style="opacity:.5;">(no answer)</em>'}</div>
     </div>`).join('');
-  const empty = qa.length === 0 ? '<div style="color:var(--text-dim);padding:1rem;">No questions captured.</div>' : '';
-  const html = `
-    <div class="modal-backdrop" data-close="1">
-      <div class="modal" style="max-width:760px;max-height:90vh;display:flex;flex-direction:column;">
-        <div class="modal-header">
-          <h3 style="margin:0;">📝 Survey response · ${escapeHtml(row.source || 'survey')}</h3>
-          <button class="modal-close" data-close="1">×</button>
-        </div>
-        <div class="modal-body" style="overflow:auto;flex:1;">
-          <div style="font-size:.85rem;color:var(--text-dim);margin-bottom:.9rem;">Submitted: ${w}${row.form_id ? ' · form ' + escapeHtml(row.form_id) : ''}</div>
-          ${docHtml}${empty}
-        </div>
+  const empty = qa.length === 0 ? '<div style="color:#7880a8;padding:24px;text-align:center;">No questions captured.</div>' : '';
+  document.getElementById('surveyDocModal')?.remove();
+  const m = document.createElement('div');
+  m.id = 'surveyDocModal';
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(8,9,18,0.78);backdrop-filter:blur(8px);z-index:10006;display:flex;align-items:center;justify-content:center;padding:20px;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;';
+  m.innerHTML = `
+    <div style="background:#13141f;border:1px solid #1f2438;border-radius:18px;max-width:780px;width:100%;max-height:90vh;color:#eaecf8;box-shadow:0 24px 60px rgba(0,0,0,0.55);overflow:hidden;display:flex;flex-direction:column;">
+      <div style="padding:18px 22px;border-bottom:1px solid #1f2438;display:flex;align-items:center;gap:10px;">
+        <div style="flex:1;font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;">📝 Survey response · ${escapeHtml(row.source || 'survey')}</div>
+        <button id="surveyDocClose" style="background:transparent;border:none;color:#7880a8;font-size:1.5rem;cursor:pointer;padding:0 8px;">×</button>
+      </div>
+      <div style="padding:18px 22px;overflow:auto;flex:1;">
+        <div style="font-size:0.78rem;color:#7880a8;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid #1f2438;">Submitted: ${escapeHtml(w)}${row.form_id ? ' · form ' + escapeHtml(row.form_id) : ''}</div>
+        ${docHtml}${empty}
       </div>
     </div>`;
-  const wrap = document.createElement('div'); wrap.innerHTML = html;
-  document.body.appendChild(wrap);
-  wrap.querySelectorAll('[data-close]').forEach(el => el.addEventListener('click', e => {
-    if (e.target === el || el.classList.contains('modal-close')) wrap.remove();
-  }));
+  document.body.appendChild(m);
+  function close() { document.removeEventListener('keydown', onKey); m.remove(); }
+  function onKey(e) { if (e.key === 'Escape') close(); }
+  document.addEventListener('keydown', onKey);
+  document.getElementById('surveyDocClose').addEventListener('click', close);
+  m.addEventListener('click', (e) => { if (e.target === m) close(); });
 }
 
 // ── Logs chooser ──────────────────────────────────────────────

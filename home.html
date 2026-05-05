@@ -859,12 +859,17 @@ async function initAuth() {
 
 async function onAuthed(session) {
   try {
-    // Hard gate: every authenticated user must have a first_name.
-    // If they don't, force them through the Activate Account screen.
-    // Legacy users (already signed in before, password already set) only
-    // need to fill first name — we hide the password fields for them.
+    // Hard gate: every authenticated user must have completed activation
+    // (activated=true in user_metadata) AND have a first_name.
+    // - New invitees: activated is false until they submit the activation
+    //   form (sets password + first_name). Even if first_name was pre-seeded
+    //   from the invite payload, they still need to set their own password.
+    // - Legacy users: activated=true (set by one-shot SQL backfill); they
+    //   only need to fill first_name if it's missing. Password fields are
+    //   hidden for them via the isLegacy branch below.
     const fn = session?.user?.user_metadata?.first_name;
-    if (!fn || !String(fn).trim()) {
+    const activated = session?.user?.user_metadata?.activated === true;
+    if (!activated || !fn || !String(fn).trim()) {
       session_ = session;
       setState('set-password');
       const fnInput = document.getElementById('newFirstName');

@@ -2171,17 +2171,17 @@ async function openSurveysHistoryModal() {
   if (!currentStudent || !currentStudent.id) return;
   const sid = currentStudent.id;
   const sname = currentStudent.name || '(unnamed)';
-  let list = Array.isArray(currentStudent.surveys) ? currentStudent.surveys : null;
+  // Always re-fetch so we see freshly-added legacy links without a page reload.
+  let list = null;
   let loadFailed = false;
-  if (!list) {
-    try {
-      const r = await fetch(STUDENTS_BASE + '?api=surveys&student_id=' + encodeURIComponent(sid), {
-        headers: { Authorization: 'Bearer ' + currentSession.access_token },
-      });
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      const j = await r.json(); list = j.rows || [];
-    } catch (e) { loadFailed = true; list = []; console.warn('survey list fetch failed', e); }
-  }
+  try {
+    const r = await fetch(STUDENTS_BASE + '?api=surveys&student_id=' + encodeURIComponent(sid), {
+      headers: { Authorization: 'Bearer ' + currentSession.access_token },
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const j = await r.json(); list = j.rows || [];
+    if (currentStudent) currentStudent.surveys = list;
+  } catch (e) { loadFailed = true; list = []; console.warn('survey list fetch failed', e); }
   document.getElementById('surveysHistoryModal')?.remove();
   const m = document.createElement('div');
   m.id = 'surveysHistoryModal';
@@ -2191,14 +2191,20 @@ async function openSurveysHistoryModal() {
     const when = s.submitted_at || s.created_at;
     const w = when ? new Date(when).toLocaleString() : '—';
     const src = s.source || 'survey';
-    return `<button data-survey-id="${s.id}" style="${cardCss}">
-      <span style="font-size:1.4rem;">📝</span>
+    const isLink = !!s.external_url;
+    const icon = isLink ? '🔗' : '📝';
+    const titleLine = isLink
+      ? (s.title || s.external_url)
+      : `${src} · ${s.qa_count || 0} question${(s.qa_count===1)?'':'s'}`;
+    return `<div data-survey-id="${s.id}" data-is-link="${isLink ? '1' : '0'}" data-url="${isLink ? escapeHtml(s.external_url) : ''}" style="${cardCss}">
+      <span style="font-size:1.4rem;">${icon}</span>
       <span style="flex:1;min-width:0;">
-        <div style="font-weight:700;font-size:0.95rem;">${escapeHtml(src)} · ${s.qa_count || 0} question${(s.qa_count===1)?'':'s'}</div>
-        <div style="font-size:0.78rem;color:#7880a8;margin-top:2px;">${escapeHtml(w)}</div>
+        <div style="font-weight:700;font-size:0.95rem;${isLink ? 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;' : ''}">${escapeHtml(titleLine)}</div>
+        <div style="font-size:0.78rem;color:#7880a8;margin-top:2px;">${escapeHtml(w)}${isLink ? ' · legacy link' : ''}</div>
       </span>
+      <button data-action="delete-survey" data-survey-id="${s.id}" title="Remove" style="background:transparent;border:none;color:#7880a8;font-size:1.0rem;cursor:pointer;padding:6px 8px;border-radius:6px;">🗑</button>
       <span style="color:#7880a8;font-size:1.2rem;">›</span>
-    </button>`;
+    </div>`;
   }).join('');
   const empty = (list && list.length === 0)
     ? `<div style="padding:24px;text-align:center;color:#7880a8;font-size:0.88rem;">No survey responses received yet for this student.${loadFailed ? '<br><em style="opacity:.7;">(failed to load — check console)</em>' : ''}</div>`
@@ -2209,24 +2215,116 @@ async function openSurveysHistoryModal() {
         <div style="flex:1;font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;">📝 Surveys — ${escapeHtml(sname)}</div>
         <button id="surveysHistoryClose" style="background:transparent;border:none;color:#7880a8;font-size:1.5rem;cursor:pointer;padding:0 8px;">×</button>
       </div>
-      <div style="padding:18px 22px;">${rowsHtml}${empty}</div>
+      <div style="padding:18px 22px;">
+        <button id="addSurveyLinkBtn" style="display:flex;align-items:center;gap:8px;width:100%;padding:10px 14px;border:1px dashed #3a4060;border-radius:10px;background:#0f1019;cursor:pointer;color:#a3a8c4;font:inherit;font-size:0.88rem;margin-bottom:14px;">
+          <span style="font-size:1.1rem;">➕</span>
+          <span>Add legacy survey link (Google Doc, etc.)</span>
+        </button>
+        ${rowsHtml}${empty}
+      </div>
     </div>`;
   document.body.appendChild(m);
   function close() { document.removeEventListener('keydown', onKey); m.remove(); }
   function onKey(e) { if (e.key === 'Escape') close(); }
   document.addEventListener('keydown', onKey);
   document.getElementById('surveysHistoryClose').addEventListener('click', close);
-  m.addEventListener('click', (e) => {
+  document.getElementById('addSurveyLinkBtn').addEventListener('click', () => { close(); openAddSurveyLinkModal(); });
+  m.addEventListener('click', async (e) => {
     if (e.target === m) return close();
-    const btn = e.target.closest('[data-survey-id]');
-    if (!btn) return;
-    const id = parseInt(btn.dataset.surveyId, 10);
-    close();
-    openSurveyDocModal(id);
+    const delBtn = e.target.closest('[data-action="delete-survey"]');
+    if (delBtn) {
+      e.stopPropagation();
+      const sid = parseInt(delBtn.dataset.surveyId, 10);
+      if (!confirm('Remove this survey entry? This cannot be undone.')) return;
+      try {
+        const r = await fetch(STUDENTS_BASE + '?api=delete-survey', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
+          body: JSON.stringify({ id: sid }),
+        });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        close(); openSurveysHistoryModal();
+      } catch (err) { alert('Delete failed: ' + (err.message || err)); }
+      return;
+    }
+    const card = e.target.closest('[data-survey-id]');
+    if (!card) return;
+    const id = parseInt(card.dataset.surveyId, 10);
+    const isLink = card.dataset.isLink === '1';
+    const url = card.dataset.url || '';
+    if (isLink && url) {
+      // Legacy link: just open in a new tab.
+      window.open(url, '_blank', 'noopener');
+    } else {
+      close();
+      openSurveyDocModal(id);
+    }
   });
   m.querySelectorAll('[data-survey-id]').forEach(b => {
     b.addEventListener('mouseenter', () => { b.style.borderColor = '#3a4060'; });
     b.addEventListener('mouseleave', () => { b.style.borderColor = '#1f2438'; });
+  });
+}
+
+function openAddSurveyLinkModal() {
+  if (!currentStudent || !currentStudent.id) return;
+  document.getElementById('addSurveyLinkModal')?.remove();
+  const m = document.createElement('div');
+  m.id = 'addSurveyLinkModal';
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(8,9,18,0.78);backdrop-filter:blur(8px);z-index:10006;display:flex;align-items:center;justify-content:center;padding:20px;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;';
+  m.innerHTML = `
+    <div style="background:#13141f;border:1px solid #1f2438;border-radius:18px;max-width:520px;width:100%;color:#eaecf8;box-shadow:0 24px 60px rgba(0,0,0,0.55);overflow:hidden;">
+      <div style="padding:18px 22px;border-bottom:1px solid #1f2438;display:flex;align-items:center;gap:10px;">
+        <div style="flex:1;font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;">🔗 Add legacy survey link</div>
+        <button id="addSurveyLinkClose" style="background:transparent;border:none;color:#7880a8;font-size:1.5rem;cursor:pointer;padding:0 8px;">×</button>
+      </div>
+      <div style="padding:18px 22px;display:flex;flex-direction:column;gap:12px;">
+        <label style="display:flex;flex-direction:column;gap:4px;">
+          <span style="font-size:0.78rem;color:#7880a8;font-weight:600;">URL *</span>
+          <input id="addSurveyLinkUrl" type="url" placeholder="https://docs.google.com/document/d/..." style="background:#0f1019;border:1px solid #1f2438;border-radius:8px;padding:10px;color:#eaecf8;font:inherit;font-size:0.9rem;">
+        </label>
+        <label style="display:flex;flex-direction:column;gap:4px;">
+          <span style="font-size:0.78rem;color:#7880a8;font-weight:600;">Label (optional)</span>
+          <input id="addSurveyLinkTitle" type="text" placeholder="Old onboarding survey, 9-month review, etc." style="background:#0f1019;border:1px solid #1f2438;border-radius:8px;padding:10px;color:#eaecf8;font:inherit;font-size:0.9rem;">
+        </label>
+        <label style="display:flex;flex-direction:column;gap:4px;">
+          <span style="font-size:0.78rem;color:#7880a8;font-weight:600;">Date submitted (optional)</span>
+          <input id="addSurveyLinkDate" type="date" style="background:#0f1019;border:1px solid #1f2438;border-radius:8px;padding:10px;color:#eaecf8;font:inherit;font-size:0.9rem;">
+        </label>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px;">
+          <button id="addSurveyLinkCancel" style="background:#0f1019;border:1px solid #1f2438;color:#a3a8c4;border-radius:8px;padding:8px 14px;cursor:pointer;font:inherit;font-size:0.85rem;">Cancel</button>
+          <button id="addSurveyLinkSave" style="background:linear-gradient(135deg,#34d399,#10b981);border:none;color:#0b0c14;border-radius:8px;padding:8px 16px;cursor:pointer;font:inherit;font-size:0.85rem;font-weight:700;">Save link</button>
+        </div>
+        <div id="addSurveyLinkErr" style="color:#fb7185;font-size:0.8rem;display:none;"></div>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  function close() { m.remove(); }
+  document.getElementById('addSurveyLinkClose').addEventListener('click', close);
+  document.getElementById('addSurveyLinkCancel').addEventListener('click', close);
+  m.addEventListener('click', e => { if (e.target === m) close(); });
+  document.getElementById('addSurveyLinkUrl').focus();
+  document.getElementById('addSurveyLinkSave').addEventListener('click', async () => {
+    const url = document.getElementById('addSurveyLinkUrl').value.trim();
+    const title = document.getElementById('addSurveyLinkTitle').value.trim();
+    const date = document.getElementById('addSurveyLinkDate').value;
+    const err = document.getElementById('addSurveyLinkErr');
+    err.style.display = 'none';
+    if (!url) { err.textContent = 'URL is required.'; err.style.display = 'block'; return; }
+    if (!/^https?:\/\//i.test(url)) { err.textContent = 'URL must start with http:// or https://'; err.style.display = 'block'; return; }
+    try {
+      const r = await fetch(STUDENTS_BASE + '?api=add-survey-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
+        body: JSON.stringify({ studentId: currentStudent.id, url, title: title || null, submitted_at: date || null }),
+      });
+      const j = await r.json();
+      if (!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
+      close(); openSurveysHistoryModal();
+    } catch (e) {
+      err.textContent = 'Save failed: ' + (e.message || e);
+      err.style.display = 'block';
+    }
   });
 }
 

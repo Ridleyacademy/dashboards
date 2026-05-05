@@ -11,6 +11,12 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v120', title: 'Surveys: legacy Google Doc links + delete button',
+      roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'], items: [
+      'New ➕ Add legacy survey link button at the top of the 📝 Surveys modal — paste a Google Doc / Notion / any URL with an optional label and date.',
+      'Legacy links show with 🔗 icon and open in a new tab on click; structured Typeform surveys still open the in-app Q&A doc viewer.',
+      '🗑 Delete button on each survey row for cleaning up test entries or stale links.',
+    ]},
     { version: 'v119', title: 'Surveys: Typeform direct intake + 📝 Survey button',
       roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'], items: [
       'Typeform now posts directly to the app (no Zapier needed). Every response is captured as a Q&A list and viewable as a doc from the student profile.',

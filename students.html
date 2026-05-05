@@ -2234,18 +2234,65 @@ async function openDropboxVideosModal() {
     btn.addEventListener('click', async () => {
       const row = btn.closest('.video-row');
       const path = row.dataset.path;
+      const name = row.querySelector('.video-name')?.textContent || 'Video';
       btn.disabled = true; btn.textContent = '…';
       try {
-        const r = await fetch(DROPBOX_PROXY_BASE + '?api=share&path=' + encodeURIComponent(path), { headers: { Authorization: 'Bearer ' + tok } });
+        const r = await fetch(DROPBOX_PROXY_BASE + '?api=temp-link&path=' + encodeURIComponent(path), { headers: { Authorization: 'Bearer ' + tok } });
         const j = await r.json();
         if (!r.ok || !j.link) throw new Error(j.error || 'No link returned');
-        window.open(j.link, '_blank', 'noopener,noreferrer');
+        openInlineVideoPlayer(name, j.link, path, tok);
       } catch (e) {
         alert('Could not open: ' + (e.message || e));
       } finally {
         btn.disabled = false; btn.textContent = '▶ Open';
       }
     });
+  });
+}
+
+// Inline HTML5 video player. Works inside the PWA on iOS without launching
+// Safari. Has a "Share link" button as a fallback in case the inline stream
+// can't decode (rare codecs).
+function openInlineVideoPlayer(title, src, path, sessionTok) {
+  document.getElementById('videoPlayerModal')?.remove();
+  const m = document.createElement('div');
+  m.id = 'videoPlayerModal';
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:10010;display:flex;align-items:center;justify-content:center;padding:0;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;';
+  m.innerHTML = `
+    <div style="position:relative;width:100%;height:100%;display:flex;flex-direction:column;color:#eaecf8;">
+      <div style="padding:14px 18px;display:flex;align-items:center;gap:12px;background:rgba(0,0,0,0.6);">
+        <div class="vp-title" style="flex:1;min-width:0;font-weight:700;font-size:0.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
+        <button id="vpShareBtn" style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:#eaecf8;border-radius:8px;padding:6px 12px;font-weight:700;font-size:0.74rem;cursor:pointer;white-space:nowrap;">↗ Share link</button>
+        <button id="vpClose" style="background:transparent;border:none;color:#eaecf8;font-size:1.6rem;cursor:pointer;padding:0 8px;line-height:1;">×</button>
+      </div>
+      <div style="flex:1;display:flex;align-items:center;justify-content:center;background:#000;">
+        <video id="vpVideo" controls autoplay playsinline preload="metadata" style="max-width:100%;max-height:100%;outline:none;background:#000;"></video>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  m.querySelector('.vp-title').textContent = title || 'Video';
+  const v = document.getElementById('vpVideo');
+  v.src = src;
+  function close() {
+    try { v.pause(); v.removeAttribute('src'); v.load(); } catch (_) {}
+    document.removeEventListener('keydown', onKey);
+    m.remove();
+  }
+  function onKey(e) { if (e.key === 'Escape') close(); }
+  document.addEventListener('keydown', onKey);
+  document.getElementById('vpClose').addEventListener('click', close);
+  // Backdrop click closes (but ignore clicks on the video element).
+  m.addEventListener('click', (e) => { if (e.target === m || e.target === m.firstElementChild) close(); });
+
+  // Share-link fallback button: fetch a public Dropbox link in case the
+  // inline stream doesn't play (codec issue) or the user wants to share it.
+  document.getElementById('vpShareBtn').addEventListener('click', async () => {
+    try {
+      const r = await fetch(DROPBOX_PROXY_BASE + '?api=share&path=' + encodeURIComponent(path), { headers: { Authorization: 'Bearer ' + sessionTok } });
+      const j = await r.json();
+      if (!r.ok || !j.link) throw new Error(j.error || 'No link returned');
+      window.open(j.link, '_blank', 'noopener,noreferrer');
+    } catch (e) { alert('Share failed: ' + (e.message || e)); }
   });
 }
 

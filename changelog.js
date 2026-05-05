@@ -11,6 +11,12 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v112', title: 'Videos: inline player + Dropbox auto-sync',
+      roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'], items: [
+      'Click ▶ Open on a student\'s video → it now plays inside a black, full-window player ON the same page (works inside the iOS PWA, no new tab). ↗ Share link button at the top right falls back to a public Dropbox URL if needed.',
+      'New dropbox-webhook endpoint: when a video is uploaded to /Mentorship Content/Mentorship Students Playing/, the dashboard automatically updates that student\'s video_url + video_submitted_date and pings the coach + I/Cs via the bell + email + push.',
+      'The whole Zapier zap (Dropbox trigger → 11 sheet/email steps) can now be retired — the dashboard does it directly.',
+    ]},
     { version: 'v111', title: 'Dropbox videos button on each student profile',
       roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'], items: [
       'New 📂 Videos button next to 🔔 Alerts and 📋 Logs. Opens a list of files from /Mentorship Content/Mentorship Students Playing/ filtered by the student\'s email or name.',

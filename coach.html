@@ -32,18 +32,41 @@
   body[data-state="dashboard"] #app { display: block; }
   #boot { padding: 60px 20px; text-align: center; color: var(--text-dim); }
 
-  /* Header */
-  .topbar { display: flex; align-items: center; gap: 14px; padding: 14px 22px;
-    border-bottom: 1px solid var(--border); background: var(--surface);
-    position: sticky; top: 0; z-index: 50; }
-  .topbar h1 { margin: 0; font-size: 1.05rem; font-weight: 800; letter-spacing: -0.02em; }
-  .topbar .grow { flex: 1; }
-  .topbar a, .topbar button { color: var(--text-dim); background: transparent;
-    border: 1px solid var(--border); border-radius: 9px; padding: 7px 12px;
-    font-size: 0.78rem; font-weight: 700; cursor: pointer; text-decoration: none;
-    display: inline-flex; align-items: center; gap: 6px; }
-  .topbar a:hover, .topbar button:hover { color: var(--text); border-color: var(--border-light); }
-  .topbar #userEmail { color: var(--text-muted); font-size: 0.8rem; }
+  /* Standard Topbar (matches students.html / calls.html / etc.) */
+  .topbar {
+    display: flex; align-items: center; gap: 10px; padding: 12px 32px;
+    background: rgba(8,10,20,0.85); backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100;
+    flex-wrap: wrap;
+  }
+  body.light .topbar { background: rgba(255,255,255,0.9); }
+  .topbar-logo { width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0;
+    background: linear-gradient(135deg,#34d399,#10b981); display: flex; align-items: center; justify-content: center; }
+  .topbar-brand { font-size: 0.9rem; font-weight: 700; letter-spacing: -0.02em; }
+  .topbar-spacer { flex: 1; }
+  .tbtn { border: none; border-radius: 8px; padding: 6px 12px; font-size: 0.74rem;
+    font-weight: 600; cursor: pointer; transition: all 0.15s; display: inline-flex;
+    align-items: center; gap: 5px; text-decoration: none; }
+  .tbtn-ghost { background: var(--surface2); color: var(--text-muted); border: 1px solid var(--border); }
+  .tbtn-ghost:hover { color: var(--text); border-color: var(--border-light); }
+  .user-pill { display: flex; align-items: center; gap: 8px; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 999px; padding: 4px 14px 4px 4px; }
+  .user-pill-av { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;
+    background: linear-gradient(135deg,#34d399,#10b981); color: #0b0c14;
+    font-size: 0.62rem; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+  .user-pill-email { font-size: 0.73rem; color: var(--text-muted); max-width: 180px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nav-dropdown { position: relative; }
+  .nav-dropdown-menu { display: none; position: absolute; top: 100%; right: 0;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 6px; margin-top: 6px; min-width: 200px; z-index: 200; }
+  .nav-dropdown-menu.open { display: block; }
+  .nav-menu-link { display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+    border-radius: 8px; color: var(--text-muted); text-decoration: none;
+    font-size: 0.82rem; font-weight: 600; }
+  .nav-menu-link:hover { background: var(--surface2); color: var(--text); }
+  .nav-menu-link.active { background: rgba(52,211,153,0.12); color: #34d399; }
+  .nav-menu-link svg { flex-shrink: 0; }
 
   /* KPI cards */
   .kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px;
@@ -174,14 +197,33 @@
 </div>
 
 <div id="app">
-  <div class="topbar">
-    <h1>🎯 Coach Dashboard</h1>
-    <span id="userEmail" class="grow"></span>
-    <button id="themeBtn" title="Toggle theme">☀️</button>
-    <button id="refreshBtn" title="Refresh">🔄</button>
-    <a href="home.html" title="Back to Home">← Home</a>
-    <button id="logoutBtn">Sign out</button>
-  </div>
+  <header class="topbar">
+    <div class="topbar-logo">
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0b0c14" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+    </div>
+    <div class="topbar-brand">Coach Dashboard</div>
+    <div class="topbar-spacer"></div>
+
+    <button class="tbtn tbtn-ghost" id="refreshBtn" title="Refresh data">
+      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+      Refresh
+    </button>
+    <button class="tbtn tbtn-ghost" id="themeBtn" style="font-size:1rem;padding:5px 10px;" title="Toggle theme"></button>
+
+    <div class="nav-dropdown" id="navDropdown">
+      <button class="tbtn tbtn-ghost" id="navDropdownBtn">Dashboards ▾</button>
+      <div class="nav-dropdown-menu" id="navDropMenu"></div>
+    </div>
+
+    <div class="user-pill">
+      <div class="user-pill-av" id="userAvatar">U</div>
+      <div class="user-pill-email" id="userEmail">…</div>
+    </div>
+    <button class="tbtn tbtn-ghost" id="signOutBtn">
+      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      Sign Out
+    </button>
+  </header>
 
   <div class="kpis">
     <div class="kpi"><div class="kpi-label">Students</div>
@@ -281,14 +323,24 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
   if (error) { err.textContent = error.message; return; }
   onAuthed(data.session);
 });
-document.getElementById('logoutBtn').addEventListener('click', async () => {
+document.getElementById('signOutBtn').addEventListener('click', async () => {
   await supa.auth.signOut();
   setState('login');
+});
+// Dashboard picker dropdown
+document.getElementById('navDropdownBtn').addEventListener('click', e => {
+  e.stopPropagation();
+  document.getElementById('navDropMenu').classList.toggle('open');
+});
+document.addEventListener('click', () => {
+  document.getElementById('navDropMenu').classList.remove('open');
 });
 
 async function onAuthed(session) {
   currentSession = session;
-  document.getElementById('userEmail').textContent = session.user.email;
+  const email = session.user.email || '';
+  document.getElementById('userEmail').textContent = email;
+  document.getElementById('userAvatar').textContent = (email[0] || 'U').toUpperCase();
   const am = session.user.app_metadata || {};
   const perms = Array.isArray(am.permissions) ? am.permissions : [];
   isAdmin = am.is_admin === true;
@@ -680,5 +732,11 @@ function openBulkEditModal() {
 
 initAuth();
 </script>
+
+<script src="forgot-password.js"></script>
+<script src="changelog.js"></script>
+<script src="nav-menu.js"></script>
+<script src="ux.js"></script>
+<script src="pwa.js"></script>
 </body>
 </html>

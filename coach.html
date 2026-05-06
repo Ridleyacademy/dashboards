@@ -642,12 +642,14 @@ function _daysSince(d) {
   if (!d) return null;
   const t = new Date(d).getTime();
   if (isNaN(t)) return null;
-  // Sanity guard: any year before 2020 or in the future is almost certainly a
-  // typo (e.g. "0206-04-29" instead of "2026-04-29"). Treat as missing so
-  // averages and "stale" coloring don't get blown up by one bad row.
   const y = new Date(d).getFullYear();
+  // Year sanity (e.g. "0206-04-29" typos)
   if (y < 2020 || y > 2100) return null;
-  return Math.floor((Date.now() - t) / 86400000);
+  const days = Math.floor((Date.now() - t) / 86400000);
+  // Future dates (M/D ↔ D/M swap victims, or genuine typos) — treat as missing
+  // so averages and "stale" coloring stay sane. Allow 1 day of clock slack.
+  if (days < -1) return null;
+  return days;
 }
 function _isAtRisk(s) {
   const dz = _daysSince(s.last_zoom_date);

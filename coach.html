@@ -8,6 +8,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <script src="permissions.js"></script>
 <link rel="stylesheet" href="mobile.css">
 <style>
@@ -165,6 +166,15 @@
   .kpi.warn .kpi-value { color: #fb7185; }
   .kpi.good .kpi-value { color: var(--green); }
   .kpi.muted .kpi-value { color: var(--text-dim); }
+
+  /* Charts row */
+  .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 14px; padding: 14px 22px 4px; }
+  .chart-card { background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 14px 16px; }
+  .chart-title { font-size: 0.7rem; font-weight: 700; color: var(--text-dim);
+    text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 10px; }
+  .chart-wrap { position: relative; height: 220px; }
 
   /* Filter bar */
   .filterbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
@@ -351,6 +361,21 @@
       <div class="kpi-value" id="kpi-expired">0</div><div class="kpi-sub">Term ended</div></div>
     <div class="kpi muted"><div class="kpi-label">Paused</div>
       <div class="kpi-value" id="kpi-paused">0</div><div class="kpi-sub">Currently on pause</div></div>
+  </div>
+
+  <div class="charts">
+    <div class="chart-card">
+      <div class="chart-title">Status distribution</div>
+      <div class="chart-wrap"><canvas id="chartStatus"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Days since last zoom</div>
+      <div class="chart-wrap"><canvas id="chartZoom"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Level breakdown</div>
+      <div class="chart-wrap"><canvas id="chartLevel"></canvas></div>
+    </div>
   </div>
 
   <div class="filterbar">
@@ -719,6 +744,9 @@ function renderAll() {
   document.getElementById('cnt-expiring').textContent = exp;
   document.getElementById('cnt-needs').textContent = active.filter(_isNeedsAttention).length;
 
+  // Render charts (computed on `scoped` — current coach + date range)
+  renderCharts(scoped);
+
   // Sort: at-risk first, then by days since zoom desc, then name
   rows.sort((a, b) => {
     const ar = _isAtRisk(a) ? 1 : 0;
@@ -960,6 +988,102 @@ function openBulkEditModal() {
     } catch (e) { msg.className='msg err'; msg.textContent='Failed: ' + (e.message || e); }
   });
 }
+
+// ── Charts ────────────────────────────────────────────────────
+let _charts = { status: null, zoom: null, level: null };
+const CHART_COLORS = {
+  green:'#34d399', cyan:'#22d3ee', blue:'#6b9eff', purple:'#a78bfa',
+  pink:'#f472b6', red:'#f87171', gold:'#fbbf24', dim:'#3e4668',
+};
+function _chartTextColor() {
+  return document.body.classList.contains('light') ? '#0f1220' : '#eaecf8';
+}
+function _chartGridColor() {
+  return document.body.classList.contains('light') ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.05)';
+}
+function renderCharts(scoped) {
+  if (!window.Chart) return;
+  // Common defaults
+  Chart.defaults.color = _chartTextColor();
+  Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, Inter, 'Segoe UI', sans-serif";
+
+  // 1) Status distribution (donut)
+  const statuses = ['Active','Expiring soon','Not onboarded','Delayed start','Paused','Expired'];
+  const statusColors = [
+    CHART_COLORS.green, CHART_COLORS.gold, CHART_COLORS.blue,
+    CHART_COLORS.purple, CHART_COLORS.dim, CHART_COLORS.red,
+  ];
+  const statusCounts = statuses.map(st => scoped.filter(s => (s.derived_status || s.status) === st).length);
+  const otherCount = scoped.length - statusCounts.reduce((a,b) => a+b, 0);
+  if (otherCount > 0) { statuses.push('Other'); statusColors.push(CHART_COLORS.cyan); statusCounts.push(otherCount); }
+
+  if (_charts.status) _charts.status.destroy();
+  _charts.status = new Chart(document.getElementById('chartStatus'), {
+    type: 'doughnut',
+    data: { labels: statuses, datasets: [{ data: statusCounts, backgroundColor: statusColors, borderWidth: 0, hoverOffset: 6 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      cutout: '62%',
+      plugins: {
+        legend: { position: 'right', labels: { boxWidth: 10, padding: 8, font: { size: 11 } } },
+        tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.parsed} (${Math.round(100*ctx.parsed/Math.max(1,scoped.length))}%)` } },
+      },
+    },
+  });
+
+  // 2) Days-since-zoom histogram (active-only — same as KPI)
+  const buckets = [
+    { label: '0–7d',  test: d => d != null && d <= 7,  color: CHART_COLORS.green },
+    { label: '8–14d', test: d => d != null && d <= 14 && d > 7,  color: CHART_COLORS.cyan },
+    { label: '15–30d',test: d => d != null && d <= 30 && d > 14, color: CHART_COLORS.gold },
+    { label: '31–60d',test: d => d != null && d <= 60 && d > 30, color: '#f59e0b' },
+    { label: '60d+',  test: d => d != null && d > 60,  color: CHART_COLORS.red },
+    { label: 'Never', test: d => d == null,            color: CHART_COLORS.dim },
+  ];
+  const active = scoped.filter(_isActiveForStats);
+  const zoomDaysAll = active.map(s => _daysSince(s.last_zoom_date));
+  const zoomCounts = buckets.map(b => zoomDaysAll.filter(b.test).length);
+  if (_charts.zoom) _charts.zoom.destroy();
+  _charts.zoom = new Chart(document.getElementById('chartZoom'), {
+    type: 'bar',
+    data: {
+      labels: buckets.map(b => b.label),
+      datasets: [{ data: zoomCounts, backgroundColor: buckets.map(b => b.color), borderRadius: 6, borderWidth: 0 }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `${ctx.parsed.y} student${ctx.parsed.y===1?'':'s'}` } } },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+        y: { beginAtZero: true, ticks: { precision: 0, font: { size: 10 } }, grid: { color: _chartGridColor() } },
+      },
+    },
+  });
+
+  // 3) Level breakdown (active-only)
+  const levels = ['Beginner','Intermediate','Advanced','Unknown'];
+  const levelColors = [CHART_COLORS.cyan, CHART_COLORS.blue, CHART_COLORS.purple, CHART_COLORS.dim];
+  const levelCounts = levels.map(L =>
+    L === 'Unknown' ? active.filter(s => !s.level).length : active.filter(s => s.level === L).length
+  );
+  if (_charts.level) _charts.level.destroy();
+  _charts.level = new Chart(document.getElementById('chartLevel'), {
+    type: 'doughnut',
+    data: { labels: levels, datasets: [{ data: levelCounts, backgroundColor: levelColors, borderWidth: 0, hoverOffset: 6 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      cutout: '62%',
+      plugins: {
+        legend: { position: 'right', labels: { boxWidth: 10, padding: 8, font: { size: 11 } } },
+        tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.parsed} (${Math.round(100*ctx.parsed/Math.max(1,active.length))}%)` } },
+      },
+    },
+  });
+}
+// Re-render charts when theme toggles (the text+grid colors change)
+document.getElementById('themeBtn').addEventListener('click', () => {
+  if (allStudents.length) setTimeout(() => renderAll(), 50);
+});
 
 initAuth();
 </script>

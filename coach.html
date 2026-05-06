@@ -640,7 +640,14 @@ document.getElementById('drApply').addEventListener('click', () => {
 });
 function _daysSince(d) {
   if (!d) return null;
-  return Math.floor((Date.now() - new Date(d).getTime()) / 86400000);
+  const t = new Date(d).getTime();
+  if (isNaN(t)) return null;
+  // Sanity guard: any year before 2020 or in the future is almost certainly a
+  // typo (e.g. "0206-04-29" instead of "2026-04-29"). Treat as missing so
+  // averages and "stale" coloring don't get blown up by one bad row.
+  const y = new Date(d).getFullYear();
+  if (y < 2020 || y > 2100) return null;
+  return Math.floor((Date.now() - t) / 86400000);
 }
 function _isAtRisk(s) {
   const dz = _daysSince(s.last_zoom_date);

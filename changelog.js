@@ -11,6 +11,13 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v121', title: 'Mentorship CRM: full-featured filter system',
+      roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'], items: [
+      'New 🔎 Filters button on the student list opens a panel with multi-select filters: Coach, Rep/Mentor, Product, Lifecycle status, Time until end (≤7d / ≤30d / Expired / etc.), Days since last activity, Coach status, Level, Module, Masterclass level, Term length.',
+      'Yes/No filters: Verified, Has open alerts, Has wins, Has video, Has survey, Has Google Drive doc.',
+      'Active filters show as removable chips at the top of the list — click ✕ to remove one or "Clear all" to reset.',
+      'All filters work in both the regular student list view AND the 📊 Overview table view.',
+    ]},
     { version: 'v120', title: 'Surveys: legacy Google Doc links + delete button',
       roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'], items: [
       'New ➕ Add legacy survey link button at the top of the 📝 Surveys modal — paste a Google Doc / Notion / any URL with an optional label and date.',

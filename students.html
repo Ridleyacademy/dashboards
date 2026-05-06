@@ -1373,6 +1373,17 @@ function confirmLeaveUnsaved() {
 window.addEventListener('beforeunload', (e) => {
   if (profileDirty) { e.preventDefault(); e.returnValue = ''; }
 });
+// Race-safe student loading: track the latest-clicked id and discard stale responses
+// so rapid clicks (A → B → C) always end with C displayed, not whichever fetch happens
+// to return last. Also avoid the heavy full-list re-render on every open — a lightweight
+// active-class swap is enough.
+let _openStudentLatestId = null;
+let _openStudentAbort = null;
+function _swapActiveRow(id) {
+  document.querySelectorAll('#studentList .student-row').forEach(r => {
+    r.classList.toggle('active', String(id) === r.dataset.id);
+  });
+}
 async function openStudent(id) {
   // Unsaved-changes guard: only prompt when navigating to a *different* student
   // (or the "new student" form) — re-loading the same student after a save or
@@ -1385,18 +1396,31 @@ async function openStudent(id) {
     profileDirty = false;
   }
   if (id === null) {
+    _openStudentLatestId = null;
+    if (_openStudentAbort) { try { _openStudentAbort.abort(); } catch(_){} _openStudentAbort = null; }
     currentStudent = { id: null, name: '', status: 'Active', metadata: {} };
     currentPauses = []; currentResigns = []; currentAlerts = []; currentWins = []; currentCoachNotes = []; currentTurnovers = []; currentRepNotes = []; currentIcNotes = [];
     profileDirty = false;
     renderProfile();
-    renderStudentList();
+    _swapActiveRow(null);
     return;
   }
+  // Mark this click as the latest; any previous in-flight request gets superseded
+  _openStudentLatestId = id;
+  if (_openStudentAbort) { try { _openStudentAbort.abort(); } catch(_){} }
+  const ac = new AbortController();
+  _openStudentAbort = ac;
+  // Immediately reflect the click in the list so it feels responsive
+  _swapActiveRow(id);
   try {
     const r = await fetch(STUDENTS_BASE + '?api=get&id=' + encodeURIComponent(id), {
-      headers: { Authorization: 'Bearer ' + currentSession.access_token }
+      headers: { Authorization: 'Bearer ' + currentSession.access_token },
+      signal: ac.signal,
     });
+    // Stale-response guard: if a newer click happened, drop this one
+    if (_openStudentLatestId !== id) return;
     const j = await r.json();
+    if (_openStudentLatestId !== id) return;
     if (!r.ok) throw new Error(j.error || 'Failed');
     currentStudent = j.row || null;
     currentPauses  = Array.isArray(j.pauses)  ? j.pauses  : [];
@@ -1410,9 +1434,14 @@ async function openStudent(id) {
     if (currentStudent) currentStudent.surveys = Array.isArray(j.surveys) ? j.surveys : [];
     profileDirty = false;
     renderProfile();
-    renderStudentList();
+    // No full renderStudentList() here — _swapActiveRow already updated the highlight.
+    // (Cards can drift if counts change; a deliberate refresh button or chip-click
+    // forces a full re-render. This trade-off is worth it with 600+ students.)
   } catch (e) {
+    if (e?.name === 'AbortError') return; // superseded by a later click
     alert('Failed to load student: ' + (e.message || e));
+  } finally {
+    if (_openStudentAbort === ac) _openStudentAbort = null;
   }
 }
 

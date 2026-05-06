@@ -488,6 +488,7 @@
     <button class="chip" data-filter="atrisk">At risk <span class="chip-count" id="cnt-atrisk">0</span></button>
     <button class="chip" data-filter="expiring">Expiring <span class="chip-count" id="cnt-expiring">0</span></button>
     <button class="chip" data-filter="needs">Needs attention <span class="chip-count" id="cnt-needs">0</span></button>
+    <button id="scheduleZoomTopBtn" class="btn-primary" style="margin-left:auto;padding:8px 14px;font-size:0.8rem;border-radius:9px;display:inline-flex;align-items:center;gap:6px;">📅 Schedule Zoom</button>
   </div>
 
   <div class="bulkbar" id="bulkbar">
@@ -1586,6 +1587,7 @@ document.getElementById('bulkScheduleZoomBtn').addEventListener('click', () => {
   openScheduleZoomModal([...selectedIds]);
 });
 document.getElementById('scheduleZoomFreshBtn').addEventListener('click', () => openScheduleZoomModal(null));
+document.getElementById('scheduleZoomTopBtn').addEventListener('click', () => openScheduleZoomModal(null));
 
 initAuth();
 </script>

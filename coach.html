@@ -202,6 +202,31 @@
   .bulkbar .ghost { background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
   .bulkbar .ghost:hover { color: var(--text); }
 
+  /* Upcoming Zoom meetings */
+  .upcoming-zoom { padding: 10px 22px 0; }
+  .upcoming-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .upcoming-head h2 { font-size: 1rem; margin: 0; color: var(--text); }
+  .upcoming-card { display: flex; align-items: center; gap: 14px; padding: 12px 14px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 8px; }
+  .upcoming-when { min-width: 130px; font-weight: 700; color: var(--accent2); font-size: 0.85rem; }
+  .upcoming-when small { display:block; color: var(--text-dim); font-weight: 500; font-size: 0.72rem; }
+  .upcoming-topic { flex: 1; font-weight: 600; }
+  .upcoming-topic small { display:block; color: var(--text-dim); font-weight: 400; font-size: 0.74rem; margin-top: 2px; }
+  .upcoming-actions { display:flex; gap: 6px; }
+  .upcoming-actions button { background: transparent; color: var(--text-dim); border: 1px solid var(--border);
+    border-radius: 8px; padding: 6px 10px; font-size: 0.74rem; cursor: pointer; font-weight: 600; }
+  .upcoming-actions button:hover { color: var(--text); border-color: var(--accent); }
+  .upcoming-actions button.danger:hover { color: #f87171; border-color: #f87171; }
+
+  /* Schedule Zoom modal */
+  .sz-students { max-height: 180px; overflow-y: auto; border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px; background: var(--bg); }
+  .sz-students label { display:flex; align-items:center; gap:8px; padding: 4px 6px; font-size: 0.82rem; cursor: pointer; }
+  .sz-students label:hover { background: var(--surface); }
+  .sz-result { font-size: 0.78rem; padding: 8px 10px; border-radius: 8px; margin-top: 6px;
+    background: rgba(52,211,153,0.1); border: 1px solid rgba(52,211,153,0.3); color: var(--accent2); }
+  .sz-result.err { background: rgba(248,113,113,0.1); border-color: rgba(248,113,113,0.3); color: #f87171; }
+
   /* Table */
   .tablewrap { padding: 14px 22px 40px; overflow-x: auto; }
   table.students { width: 100%; border-collapse: separate; border-spacing: 0;
@@ -468,7 +493,16 @@
   <div class="bulkbar" id="bulkbar">
     <span class="count" id="bulkCount">0 selected</span>
     <button id="bulkApplyBtn">Apply update to selected…</button>
+    <button id="bulkScheduleZoomBtn">📅 Schedule Zoom for selected</button>
     <button class="ghost" id="bulkClearBtn">Clear selection</button>
+  </div>
+
+  <div class="upcoming-zoom" id="upcomingZoom" style="display:none;">
+    <div class="upcoming-head">
+      <h2>Upcoming Zoom meetings</h2>
+      <button id="scheduleZoomFreshBtn" class="btn-primary" style="padding:6px 14px;font-size:0.78rem;">+ Schedule meeting</button>
+    </div>
+    <div id="upcomingZoomList"></div>
   </div>
 
   <div class="tablewrap">
@@ -496,6 +530,7 @@
 const SUPABASE_URL = "https://pojqljrhhtnigyrtzdzz.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBvanFsanJoaHRuaWd5cnR6ZHp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTA3ODMsImV4cCI6MjA5MTM4Njc4M30.PcSBDqOzbiZxZ7IAs5efqx0gsAlAG0cj3GqUOkAmxos";
 const STUDENTS_BASE = SUPABASE_URL + '/functions/v1/students';
+const ZOOM_MEETINGS_BASE = SUPABASE_URL + '/functions/v1/zoom-meetings';
 const supa = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: true, detectSessionInUrl: true, autoRefreshToken: true }});
 
 let currentSession = null;
@@ -576,6 +611,7 @@ async function onAuthed(session) {
   }
   setState('dashboard');
   await Promise.all([loadStudents(), loadPins()]);
+  loadUpcomingMeetings();
 }
 async function loadPins() {
   try {
@@ -620,7 +656,7 @@ async function loadStudents() {
     document.getElementById('studentTbody').innerHTML = `<tr><td colspan="10" style="text-align:center;padding:24px;color:#f87171;">Failed to load: ${escapeHtml(e.message || e)}</td></tr>`;
   }
 }
-document.getElementById('refreshBtn').addEventListener('click', loadStudents);
+document.getElementById('refreshBtn').addEventListener('click', () => { loadStudents(); loadUpcomingMeetings(); });
 
 function escapeHtml(s) {
   return String(s == null ? '' : s)
@@ -1347,6 +1383,209 @@ function renderCharts(scoped) {
 document.getElementById('themeBtn').addEventListener('click', () => {
   if (allStudents.length) setTimeout(() => renderAll(), 50);
 });
+
+// ── Zoom scheduling ───────────────────────────────────────────
+let upcomingMeetings = [];
+
+async function _zoomFetch(api, opts = {}) {
+  const url = ZOOM_MEETINGS_BASE + '?api=' + api;
+  const r = await fetch(url, {
+    method: opts.method || 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer ' + currentSession.access_token,
+    },
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+  return j;
+}
+
+async function loadUpcomingMeetings() {
+  if (!currentSession) return;
+  try {
+    const fromIso = new Date(Date.now() - 60 * 60 * 1000).toISOString(); // include meetings starting up to 1h ago
+    const j = await _zoomFetch('list&from=' + encodeURIComponent(fromIso));
+    upcomingMeetings = (j.meetings || []).filter(m => m.status === 'scheduled');
+    renderUpcomingMeetings();
+  } catch (e) {
+    console.warn('loadUpcomingMeetings failed', e);
+  }
+}
+
+function _fmtMeetingTime(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  const date = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', weekday: 'short' });
+  const time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  return { date, time };
+}
+
+function renderUpcomingMeetings() {
+  const wrap = document.getElementById('upcomingZoom');
+  const list = document.getElementById('upcomingZoomList');
+  if (!upcomingMeetings.length) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  list.innerHTML = upcomingMeetings.map(m => {
+    const t = _fmtMeetingTime(m.scheduled_start_time);
+    const studentNames = (m.invited_student_ids || [])
+      .map(id => allStudents.find(s => s.id === id)?.name)
+      .filter(Boolean);
+    const peopleLine = studentNames.length
+      ? `${studentNames.length} student${studentNames.length===1?'':'s'}: ${escapeHtml(studentNames.slice(0,3).join(', '))}${studentNames.length>3?` +${studentNames.length-3}`:''}`
+      : 'No students invited';
+    return `<div class="upcoming-card">
+      <div class="upcoming-when">${escapeHtml(t.time)}<small>${escapeHtml(t.date)} · ${m.scheduled_duration_minutes||60} min</small></div>
+      <div class="upcoming-topic">${escapeHtml(m.topic || 'Meeting')}<small>${escapeHtml(peopleLine)}</small></div>
+      <div class="upcoming-actions">
+        ${m.join_url ? `<button data-zm-copy="${m.id}" title="Copy host join link">Copy link</button>` : ''}
+        ${m.start_url ? `<button data-zm-start="${m.id}" title="Open host start URL">Start</button>` : ''}
+        <button data-zm-resched="${m.id}">Reschedule</button>
+        <button class="danger" data-zm-cancel="${m.id}">Cancel</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  list.querySelectorAll('[data-zm-cancel]').forEach(b => b.addEventListener('click', () => cancelMeeting(parseInt(b.dataset.zmCancel,10))));
+  list.querySelectorAll('[data-zm-resched]').forEach(b => b.addEventListener('click', () => openRescheduleModal(parseInt(b.dataset.zmResched,10))));
+  list.querySelectorAll('[data-zm-copy]').forEach(b => b.addEventListener('click', () => {
+    const m = upcomingMeetings.find(x => x.id == b.dataset.zmCopy);
+    if (m?.join_url) { navigator.clipboard.writeText(m.join_url); b.textContent='Copied!'; setTimeout(()=>b.textContent='Copy link',1200); }
+  }));
+  list.querySelectorAll('[data-zm-start]').forEach(b => b.addEventListener('click', () => {
+    const m = upcomingMeetings.find(x => x.id == b.dataset.zmStart);
+    if (m?.start_url) window.open(m.start_url, '_blank');
+  }));
+}
+
+async function cancelMeeting(id) {
+  const m = upcomingMeetings.find(x => x.id === id);
+  if (!confirm(`Cancel "${m?.topic || 'this meeting'}"? Registered students will be notified by Zoom.`)) return;
+  try {
+    await _zoomFetch('cancel', { method:'POST', body:{ id } });
+    await loadUpcomingMeetings();
+  } catch (e) { alert('Cancel failed: ' + (e.message || e)); }
+}
+
+function openScheduleZoomModal(prefilledIds) {
+  document.getElementById('szModal')?.remove();
+  // Default: 24h from now, rounded to next 15-min mark
+  const def = new Date(Date.now() + 24*60*60*1000);
+  def.setMinutes(Math.ceil(def.getMinutes()/15)*15, 0, 0);
+  const pad = n => String(n).padStart(2,'0');
+  const localDtVal = `${def.getFullYear()}-${pad(def.getMonth()+1)}-${pad(def.getDate())}T${pad(def.getHours())}:${pad(def.getMinutes())}`;
+
+  // Pool: prefilled IDs OR currently scoped students
+  const ids = prefilledIds && prefilledIds.length ? prefilledIds : _scopedRows().map(s => s.id);
+  const pool = ids.map(id => allStudents.find(s => s.id === id)).filter(Boolean);
+
+  const m = document.createElement('div');
+  m.id = 'szModal'; m.className = 'modal-bg';
+  m.innerHTML = `
+    <div class="modal-card" style="max-width:560px;">
+      <div class="modal-head">
+        <h2>Schedule Zoom meeting</h2>
+        <button class="close" data-x>×</button>
+      </div>
+      <div class="modal-body" style="grid-template-columns:1fr;">
+        <div><label>Topic</label>
+          <input id="sz-topic" type="text" placeholder="e.g. Weekly check-in — Module 5" value="Mentorship Zoom — ${new Date().toLocaleDateString()}"></div>
+        <div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;">
+          <div><label>Start (your local time)</label>
+            <input id="sz-start" type="datetime-local" value="${localDtVal}"></div>
+          <div><label>Duration (min)</label>
+            <input id="sz-duration" type="number" min="15" step="15" value="60"></div>
+        </div>
+        <div><label>Invite students (auto-emails personal join link)</label>
+          <div class="sz-students" id="sz-students">
+            ${pool.length ? pool.map(s => `<label><input type="checkbox" value="${s.id}" ${prefilledIds?.length ? 'checked':''}> ${escapeHtml(s.name||'(unnamed)')} <span style="color:var(--text-dim);">${escapeHtml(s.email||'no email')}</span></label>`).join('') : '<div style="color:var(--text-dim);font-size:0.8rem;">No students in current view.</div>'}
+          </div>
+          <div style="font-size:0.72rem;color:var(--text-dim);margin-top:4px;">Students without an email will be skipped.</div>
+        </div>
+        <div><label>Notes (internal, not sent to students)</label>
+          <textarea id="sz-notes" style="min-height:60px;" placeholder="Optional"></textarea></div>
+        <div id="sz-result-wrap"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn-ghost" data-x>Cancel</button>
+        <button class="btn-primary" id="sz-create">Create meeting & invite</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  const close = () => m.remove();
+  m.addEventListener('click', e => { if (e.target === m || e.target.matches('[data-x]')) close(); });
+
+  document.getElementById('sz-create').addEventListener('click', async () => {
+    const topic = document.getElementById('sz-topic').value.trim();
+    const localStart = document.getElementById('sz-start').value;
+    const duration = parseInt(document.getElementById('sz-duration').value, 10);
+    const notes = document.getElementById('sz-notes').value.trim() || null;
+    const student_ids = [...document.querySelectorAll('#sz-students input:checked')].map(cb => parseInt(cb.value,10));
+    const wrap = document.getElementById('sz-result-wrap');
+    if (!topic || !localStart || !duration) { wrap.innerHTML = '<div class="sz-result err">Topic, start time, and duration are required.</div>'; return; }
+    // local datetime → UTC ISO
+    const startIso = new Date(localStart).toISOString();
+    const btn = document.getElementById('sz-create'); btn.disabled = true; btn.textContent = 'Creating…';
+    try {
+      const j = await _zoomFetch('create', { method:'POST', body:{ topic, start_time: startIso, duration, student_ids, notes } });
+      const ok = (j.meeting?.registrants || []).filter(r => !r.error).length;
+      const fail = (j.meeting?.registrants || []).filter(r => r.error);
+      let html = `<div class="sz-result">✓ Meeting created. ${ok} student${ok===1?'':'s'} invited via Zoom email.</div>`;
+      if (fail.length) html += `<div class="sz-result err">${fail.length} could not be invited: ${fail.map(f=>escapeHtml((allStudents.find(s=>s.id===f.student_id)?.name)||'?')+': '+escapeHtml(f.error||'unknown')).join('; ')}</div>`;
+      wrap.innerHTML = html;
+      await loadUpcomingMeetings();
+      setTimeout(close, 1800);
+    } catch (e) {
+      wrap.innerHTML = `<div class="sz-result err">Failed: ${escapeHtml(e.message || String(e))}</div>`;
+      btn.disabled = false; btn.textContent = 'Create meeting & invite';
+    }
+  });
+}
+
+function openRescheduleModal(id) {
+  const meeting = upcomingMeetings.find(x => x.id === id);
+  if (!meeting) return;
+  document.getElementById('szModal')?.remove();
+  const cur = new Date(meeting.scheduled_start_time);
+  const pad = n => String(n).padStart(2,'0');
+  const curVal = `${cur.getFullYear()}-${pad(cur.getMonth()+1)}-${pad(cur.getDate())}T${pad(cur.getHours())}:${pad(cur.getMinutes())}`;
+  const m = document.createElement('div');
+  m.id = 'szModal'; m.className = 'modal-bg';
+  m.innerHTML = `
+    <div class="modal-card" style="max-width:440px;">
+      <div class="modal-head"><h2>Reschedule "${escapeHtml(meeting.topic||'')}"</h2><button class="close" data-x>×</button></div>
+      <div class="modal-body" style="grid-template-columns:1fr;">
+        <div><label>New start</label><input id="rs-start" type="datetime-local" value="${curVal}"></div>
+        <div><label>Duration (min)</label><input id="rs-duration" type="number" min="15" step="15" value="${meeting.scheduled_duration_minutes||60}"></div>
+        <div id="rs-result-wrap"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn-ghost" data-x>Cancel</button>
+        <button class="btn-primary" id="rs-save">Save</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  const close = () => m.remove();
+  m.addEventListener('click', e => { if (e.target === m || e.target.matches('[data-x]')) close(); });
+  document.getElementById('rs-save').addEventListener('click', async () => {
+    const startIso = new Date(document.getElementById('rs-start').value).toISOString();
+    const duration = parseInt(document.getElementById('rs-duration').value, 10);
+    const wrap = document.getElementById('rs-result-wrap');
+    try {
+      await _zoomFetch('reschedule', { method:'POST', body:{ id, start_time: startIso, duration } });
+      wrap.innerHTML = '<div class="sz-result">✓ Rescheduled. Zoom will email registered students.</div>';
+      await loadUpcomingMeetings();
+      setTimeout(close, 1200);
+    } catch (e) { wrap.innerHTML = `<div class="sz-result err">Failed: ${escapeHtml(e.message || String(e))}</div>`; }
+  });
+}
+
+document.getElementById('bulkScheduleZoomBtn').addEventListener('click', () => {
+  if (!selectedIds.size) return;
+  openScheduleZoomModal([...selectedIds]);
+});
+document.getElementById('scheduleZoomFreshBtn').addEventListener('click', () => openScheduleZoomModal(null));
 
 initAuth();
 </script>

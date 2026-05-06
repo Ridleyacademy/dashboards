@@ -11,6 +11,13 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v126', title: 'Zoom integration — auto-attendance + schedule from dashboard',
+      roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic'], items: [
+      'When a Zoom meeting on the shared mentorship account ends, the system auto-bumps the matching student\'s Last Zoom date — no more manual logging.',
+      'New "Schedule Zoom" button on the Coach Dashboard: pick a time + duration, choose students, click Create. Zoom emails each student their personal join link automatically.',
+      'Bulk schedule: select multiple students, hit "📅 Schedule Zoom for selected" to invite them all to one meeting.',
+      'Upcoming meetings appear at the top of the Coach Dashboard with Copy link / Start / Reschedule / Cancel controls.',
+    ]},
     { version: 'v125', title: 'New 🎯 Coach Dashboard with KPIs and bulk edit',
       roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic'], items: [
       'New Coach Dashboard tile on home — see your roster at a glance with 5 KPI cards (total / at risk / expiring / avg days since zoom / % with assignment last 7d).',

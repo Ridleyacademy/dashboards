@@ -11,6 +11,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v122', title: 'Schedule field moved from survey auto-extract to coach area',
+      roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'], items: [
+      'New Schedule field in the Coach section of the student profile — coaches enter it manually (e.g. "Tue/Thu 6pm CET").',
+      'Survey-intake no longer extracts the time-slot answer from Typeform automatically. Existing values stay; only future surveys stop overriding it.',
+    ]},
     { version: 'v121', title: 'Mentorship CRM: full-featured filter system',
       roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'], items: [
       'New 🔎 Filters button on the student list opens a panel with multi-select filters: Coach, Rep/Mentor, Product, Lifecycle status, Time until end (≤7d / ≤30d / Expired / etc.), Days since last activity, Coach status, Level, Module, Masterclass level, Term length.',

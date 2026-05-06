@@ -4,69 +4,108 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Coach Dashboard — Ridley Academy</title>
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🎯%3C/text%3E%3C/svg%3E">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="theme.js"></script>
 <script src="permissions.js"></script>
-<script src="access-guard.js"></script>
-<script src="notifications.js" defer></script>
+<link rel="stylesheet" href="mobile.css">
 <style>
   :root {
-    --bg: #0b0c14; --surface: #13141f; --surface2: #0f1019;
-    --border: #1f2438; --border-light: #2a3050;
-    --text: #eaecf8; --text-muted: #c2c8e0; --text-dim: #7880a8;
-    --accent: #10b981; --accent2: #34d399;
+    --bg: #080a14;
+    --surface: #0f1120; --surface2: #141728; --surface3: #191e30;
+    --border: #1f2438; --border-light: #272d45;
+    --text: #eaecf8; --text-muted: #7880a8; --text-dim: #3e4668;
+    --blue: #6b9eff; --blue-glow: rgba(107,158,255,0.3); --blue-bg: rgba(107,158,255,0.1);
+    --green: #34d399; --green-glow: rgba(52,211,153,0.3); --green-bg: rgba(52,211,153,0.1);
+    --pink: #f472b6; --pink-glow: rgba(244,114,182,0.3); --pink-bg: rgba(244,114,182,0.1);
+    --purple: #a78bfa; --purple-bg: rgba(167,139,250,0.1);
+    --gold: #fbbf24; --gold-bg: rgba(251,191,36,0.1);
+    --red: #f87171; --cyan: #22d3ee;
   }
   body.light {
-    --bg: #f5f6fa; --surface: #fff; --surface2: #f8f9fc;
-    --border: #e1e4ed; --border-light: #c2c8e0;
-    --text: #0b0c14; --text-muted: #2a3050; --text-dim: #7880a8;
+    --bg: #f0f2fa; --surface: #ffffff; --surface2: #f5f6fc; --surface3: #eceef8;
+    --border: #dde1f2; --border-light: #ccd1e8;
+    --text: #0f1220; --text-muted: #525b82; --text-dim: #9099be;
+    --blue-glow: rgba(107,158,255,0.15); --green-glow: rgba(52,211,153,0.15); --pink-glow: rgba(244,114,182,0.15);
+    --blue-bg: rgba(107,158,255,0.1); --green-bg: rgba(52,211,153,0.1); --pink-bg: rgba(244,114,182,0.1);
   }
-  * { box-sizing: border-box; }
-  body { margin: 0; padding: 0; background: var(--bg); color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, Inter, "Segoe UI", Helvetica, Arial, sans-serif;
-    min-height: 100vh; -webkit-font-smoothing: antialiased; }
+  body.light .topbar { background: rgba(255,255,255,0.9); }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+    background: var(--bg); color: var(--text); min-height: 100vh;
+    -webkit-font-smoothing: antialiased; overflow-x: hidden;
+  }
+  /* Ambient background — same as the other dashboards */
+  body::before {
+    content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background:
+      radial-gradient(ellipse at 15% 15%, rgba(107,158,255,0.07) 0%, transparent 55%),
+      radial-gradient(ellipse at 85% 85%, rgba(167,139,250,0.05) 0%, transparent 55%),
+      radial-gradient(ellipse at 80% 10%, rgba(244,114,182,0.05) 0%, transparent 50%);
+    animation: ambientShift 18s ease-in-out infinite;
+  }
+  @keyframes ambientShift { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
+  #app { position: relative; z-index: 1; }
   body[data-state="loading"] #app, body[data-state="loading"] #login,
   body[data-state="login"] #app, body[data-state="login"] #boot,
   body[data-state="dashboard"] #login, body[data-state="dashboard"] #boot { display: none; }
   body[data-state="dashboard"] #app { display: block; }
   #boot { padding: 60px 20px; text-align: center; color: var(--text-dim); }
 
-  /* Standard Topbar (matches students.html / calls.html / etc.) */
+  /* ── Topbar (identical to calls.html / income.html / declarations.html) ─── */
   .topbar {
     display: flex; align-items: center; gap: 10px; padding: 12px 32px;
     background: rgba(8,10,20,0.85); backdrop-filter: blur(20px);
     border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100;
-    flex-wrap: wrap;
   }
-  body.light .topbar { background: rgba(255,255,255,0.9); }
-  .topbar-logo { width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0;
-    background: linear-gradient(135deg,#34d399,#10b981); display: flex; align-items: center; justify-content: center; }
+  .topbar-logo {
+    width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0;
+    background: linear-gradient(135deg, #34d399, #10b981);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 14px rgba(52,211,153,0.4);
+  }
   .topbar-brand { font-size: 0.9rem; font-weight: 700; letter-spacing: -0.02em; }
   .topbar-spacer { flex: 1; }
-  .tbtn { border: none; border-radius: 8px; padding: 6px 12px; font-size: 0.74rem;
-    font-weight: 600; cursor: pointer; transition: all 0.15s; display: inline-flex;
-    align-items: center; gap: 5px; text-decoration: none; }
+  .tbtn { border: none; border-radius: 8px; padding: 6px 12px; font-size: 0.74rem; font-weight: 600; cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 5px; }
   .tbtn-ghost { background: var(--surface2); color: var(--text-muted); border: 1px solid var(--border); }
   .tbtn-ghost:hover { color: var(--text); border-color: var(--border-light); }
-  .user-pill { display: flex; align-items: center; gap: 8px; background: var(--surface);
-    border: 1px solid var(--border); border-radius: 999px; padding: 4px 14px 4px 4px; }
-  .user-pill-av { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;
-    background: linear-gradient(135deg,#34d399,#10b981); color: #0b0c14;
-    font-size: 0.62rem; font-weight: 800; display: flex; align-items: center; justify-content: center; }
-  .user-pill-email { font-size: 0.73rem; color: var(--text-muted); max-width: 180px;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tbtn-ghost:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* Nav dropdown */
   .nav-dropdown { position: relative; }
-  .nav-dropdown-menu { display: none; position: absolute; top: 100%; right: 0;
-    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
-    padding: 6px; margin-top: 6px; min-width: 200px; z-index: 200; }
+  .nav-dropdown-menu {
+    display: none; position: absolute; top: calc(100% + 8px); right: 0;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    padding: 6px; min-width: 200px;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+    z-index: 200;
+  }
   .nav-dropdown-menu.open { display: block; }
-  .nav-menu-link { display: flex; align-items: center; gap: 10px; padding: 8px 12px;
-    border-radius: 8px; color: var(--text-muted); text-decoration: none;
-    font-size: 0.82rem; font-weight: 600; }
+  .nav-dropdown-item {
+    display: block; padding: 9px 13px; font-size: 0.78rem; font-weight: 600;
+    color: var(--text-muted); text-decoration: none; border-radius: 9px;
+    transition: all 0.12s;
+  }
+  .nav-dropdown-item:hover { background: var(--surface2); color: var(--text); }
+  .nav-dropdown-item.active { color: var(--green); background: rgba(52,211,153,0.08); }
+  /* nav-menu.js generates .nav-menu-link items — style them identically so the
+     dropdown looks the same whether items come from inline HTML or the script */
+  .nav-menu-link {
+    display: flex; align-items: center; gap: 10px; padding: 9px 13px; font-size: 0.78rem;
+    font-weight: 600; color: var(--text-muted); text-decoration: none; border-radius: 9px;
+    transition: all 0.12s;
+  }
   .nav-menu-link:hover { background: var(--surface2); color: var(--text); }
-  .nav-menu-link.active { background: rgba(52,211,153,0.12); color: #34d399; }
+  .nav-menu-link.active { color: var(--green); background: rgba(52,211,153,0.08); }
   .nav-menu-link svg { flex-shrink: 0; }
+
+  .user-pill { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 4px 14px 4px 4px; cursor: default; }
+  .user-pill-av { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; background: linear-gradient(135deg, #34d399, #10b981); color: #0b0c14; font-size: 0.62rem; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+  .user-pill-email { font-size: 0.73rem; color: var(--text-muted); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  @media(max-width:700px) { .topbar { padding: 10px 16px; gap: 6px; } }
 
   /* KPI cards */
   .kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px;
@@ -734,9 +773,12 @@ initAuth();
 </script>
 
 <script src="forgot-password.js"></script>
+<script src="access-guard.js"></script>
+<script src="theme.js"></script>
 <script src="changelog.js"></script>
-<script src="nav-menu.js"></script>
-<script src="ux.js"></script>
+<script src="notifications.js"></script>
 <script src="pwa.js"></script>
+<script src="ux.js"></script>
+<script src="nav-menu.js"></script>
 </body>
 </html>

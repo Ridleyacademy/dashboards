@@ -499,8 +499,8 @@
           <button class="list-filter-chip" data-filter="mine" id="chip-mine">Mine <span class="chip-count" id="cnt-mine">0</span></button>
           <button class="list-filter-chip" data-filter="stale">Stale <span class="chip-count" id="cnt-stale">0</span></button>
           <button class="list-filter-chip" data-filter="duplicates">Duplicates <span class="chip-count" id="cnt-duplicates">0</span></button>
-          <button class="list-filter-chip" id="advFilterToggleBtn" title="Advanced filters: coach, rep, status, level, etc.">🔎 Filters <span class="chip-count" id="cnt-active-filters" style="display:none;">0</span></button>
-          <button class="list-filter-chip" id="overviewToggleBtn" style="margin-left:auto;" title="Coach overview — table view">📊 Overview</button>
+          <button class="list-filter-chip" id="advFilterToggleBtn" title="Advanced filters: coach, rep, status, level, etc." style="display:inline-flex;align-items:center;gap:6px;">${ICONS.search()} Filters <span class="chip-count" id="cnt-active-filters" style="display:none;">0</span></button>
+          <button class="list-filter-chip" id="overviewToggleBtn" style="margin-left:auto;display:inline-flex;align-items:center;gap:6px;" title="Coach overview — table view">${ICONS.barChart()} Overview</button>
         </div>
         <div class="active-filters-bar" id="activeFiltersBar"></div>
         <div class="adv-filter-panel" id="advFilterPanel"></div>
@@ -532,6 +532,37 @@ const SUPABASE_URL      = "https://pojqljrhhtnigyrtzdzz.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBvanFsanJoaHRuaWd5cnR6ZHp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTA3ODMsImV4cCI6MjA5MTM4Njc4M30.PcSBDqOzbiZxZ7IAs5efqx0gsAlAG0cj3GqUOkAmxos";
 const STUDENTS_BASE = SUPABASE_URL + '/functions/v1/students';
 const supa = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: true, detectSessionInUrl: true, autoRefreshToken: true } });
+
+// ── Icon vocabulary (Lucide-stroke style, matches dashboard nav-menu icons) ──
+function _svg(inner, size = 14) {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;flex-shrink:0;">${inner}</svg>`;
+}
+const ICONS = {
+  zoom:    (s=14)=>_svg('<polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>', s),
+  bell:    (s=14)=>_svg('<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>', s),
+  clipboard:(s=14)=>_svg('<rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>', s),
+  film:    (s=14)=>_svg('<rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="7" x2="7" y2="7"/><line x1="2" y1="17" x2="7" y2="17"/><line x1="17" y1="17" x2="22" y2="17"/><line x1="17" y1="7" x2="22" y2="7"/>', s),
+  fileText:(s=14)=>_svg('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>', s),
+  award:   (s=14)=>_svg('<circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/>', s),
+  refresh: (s=14)=>_svg('<polyline points="1 4 1 10 7 10"/><polyline points="23 20 23 14 17 14"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4-4.64 4.36A9 9 0 0 1 3.51 15"/>', s),
+  target:  (s=14)=>_svg('<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>', s),
+  users:   (s=14)=>_svg('<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>', s),
+  user:    (s=14)=>_svg('<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>', s),
+  pulse:   (s=14)=>_svg('<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>', s),
+  music:   (s=14)=>_svg('<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>', s),
+  search:  (s=14)=>_svg('<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>', s),
+  barChart:(s=14)=>_svg('<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>', s),
+  folder:  (s=14)=>_svg('<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>', s),
+  calendar:(s=14)=>_svg('<rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>', s),
+  alertTri:(s=14)=>_svg('<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>', s),
+  trash:   (s=14)=>_svg('<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>', s),
+  edit:    (s=14)=>_svg('<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="m18.5 2.5 a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>', s),
+  plus:    (s=14)=>_svg('<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>', s),
+  link:    (s=14)=>_svg('<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>', s),
+  briefcase:(s=14)=>_svg('<rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>', s),
+  check:   (s=14)=>_svg('<polyline points="20 6 9 17 4 12"/>', s),
+  x:       (s=14)=>_svg('<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>', s),
+};
 
 function setState(s) { document.body.dataset.state = s; }
 let currentSession = null;
@@ -850,8 +881,8 @@ function renderAdvFilterPanel() {
 
   panel.innerHTML = `
     <div class="adv-filter-grid">
-      ${sectionMulti('coach', '👤 Coach', _uniqueValues('coach', '(unassigned)'))}
-      ${sectionMulti('mentor', '🎯 Rep / Mentor', _uniqueValues('mentor', '(unassigned)'))}
+      ${sectionMulti('coach', ICONS.user() + ' Coach', _uniqueValues('coach', '(unassigned)'))}
+      ${sectionMulti('mentor', ICONS.target() + ' Rep / Mentor', _uniqueValues('mentor', '(unassigned)'))}
     </div>
     ${sectionMulti('product', '📦 Product', _uniqueValues('product', '(none)'))}
     ${sectionMulti('derived_status', '🚦 Lifecycle status', _uniqueValues('derived_status', '(none)'))}
@@ -864,32 +895,32 @@ function renderAdvFilterPanel() {
       { val: 'delayed', label: 'Delayed start' },
       { val: 'unknown', label: 'Not onboarded' },
     ])}
-    ${sectionBucket('inactive_days_bucket', '📅 Days since last activity', [
+    ${sectionBucket('inactive_days_bucket', ICONS.calendar() + ' Days since last activity', [
       { val: '0-30', label: '≤ 30d' },
       { val: '30-60', label: '30–60d' },
       { val: '60+', label: '60d+' },
       { val: 'never', label: 'No activity ever' },
     ])}
     <div class="adv-filter-grid">
-      ${sectionMulti('coach_status', '🩺 Coach status', _uniqueValues('coach_status', '(none)'))}
+      ${sectionMulti('coach_status', ICONS.pulse() + ' Coach status', _uniqueValues('coach_status', '(none)'))}
       ${sectionMulti('level', '🎚 Level', _uniqueValues('level', '(none)'))}
     </div>
     <div class="adv-filter-grid">
       ${sectionMulti('current_module', '📘 Current module', _uniqueValues('current_module', '(none)'))}
-      ${sectionMulti('masterclass_level', '🎼 Masterclass level', _uniqueValues('masterclass_level', '(none)'))}
+      ${sectionMulti('masterclass_level', ICONS.music() + ' Masterclass level', _uniqueValues('masterclass_level', '(none)'))}
     </div>
     ${sectionMulti('months_count', '📆 Term length (months)', _uniqueValues('months_count', '12'))}
     <div class="adv-filter-grid">
       ${sectionTri('verified', '✓ Verified')}
-      ${sectionTri('has_open_alerts', '⚠ Has open alerts')}
+      ${sectionTri('has_open_alerts', ICONS.alertTri() + ' Has open alerts')}
     </div>
     <div class="adv-filter-grid">
       ${sectionTri('has_wins', '★ Has wins')}
-      ${sectionTri('has_video', '🎬 Has video')}
+      ${sectionTri('has_video', ICONS.film() + ' Has video')}
     </div>
     <div class="adv-filter-grid">
-      ${sectionTri('has_survey', '📝 Has survey')}
-      ${sectionTri('has_gdrive', '📁 Has Google Drive')}
+      ${sectionTri('has_survey', ICONS.fileText() + ' Has survey')}
+      ${sectionTri('has_gdrive', ICONS.folder() + ' Has Google Drive')}
     </div>
     <div class="adv-filter-actions">
       <span style="font-size:0.7rem;color:var(--text-dim);">${_advFilterCount()} filter${_advFilterCount()===1?'':'s'} applied</span>
@@ -1550,7 +1581,7 @@ function _buildField(field, value) {
       // Date input + 🎥 history button so coaches can see all past Zoom sessions.
       inner = `<div style="display:flex;gap:6px;align-items:stretch;">
         <input class="field-input" type="date" id="${id}" data-key="${field.k}" style="flex:1;min-width:0;">
-        <button type="button" class="zoom-history-btn" title="See all Zoom sessions this student attended" style="background:rgba(34,211,238,0.12);border:1px solid rgba(34,211,238,0.4);border-radius:10px;padding:0 12px;color:#22d3ee;font-size:0.78rem;font-weight:700;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:4px;">🎥 History</button>
+        <button type="button" class="zoom-history-btn" title="See all Zoom sessions this student attended" style="background:rgba(34,211,238,0.12);border:1px solid rgba(34,211,238,0.4);border-radius:10px;padding:0 12px;color:#22d3ee;font-size:0.78rem;font-weight:700;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:6px;">${ICONS.zoom()} History</button>
       </div>`;
     } else {
       inner = `<input class="field-input" type="${t}" id="${id}" data-key="${field.k}"${field.placeholder ? ` placeholder="${field.placeholder}"` : ''}>`;
@@ -1998,16 +2029,16 @@ function renderProfile() {
       <div class="profile-actions">
         ${!isNew ? `
           <button class="alert-btn-list" id="prof-list-alerts" title="Service alerts for this student (open + resolved history)">
-            🔔 Alerts <span class="alert-badge${(currentAlerts.filter(a=>a.status==='open').length>0)?' has-open':''}">${currentAlerts.filter(a=>a.status==='open').length}</span>
+            ${ICONS.bell()} Alerts <span class="alert-badge${(currentAlerts.filter(a=>a.status==='open').length>0)?' has-open':''}">${currentAlerts.filter(a=>a.status==='open').length}</span>
           </button>
           <button class="win-btn-list" id="prof-list-logs" title="Wins, notes, and turnovers for this student">
-            📋 Logs <span class="win-badge${(currentWins.length+currentCoachNotes.length+currentTurnovers.length+currentRepNotes.length+currentIcNotes.length)>0?' has-any':''}">${currentWins.length+currentCoachNotes.length+currentTurnovers.length+currentRepNotes.length+currentIcNotes.length}</span>
+            ${ICONS.clipboard()} Logs <span class="win-badge${(currentWins.length+currentCoachNotes.length+currentTurnovers.length+currentRepNotes.length+currentIcNotes.length)>0?' has-any':''}">${currentWins.length+currentCoachNotes.length+currentTurnovers.length+currentRepNotes.length+currentIcNotes.length}</span>
           </button>
           <button class="win-btn-list" id="prof-list-videos" title="Open this student's videos from Dropbox">
-            📂 Videos
+            ${ICONS.film()} Videos
           </button>
           <button class="win-btn-list" id="prof-list-surveys" title="View Typeform survey responses for this student">
-            📝 Surveys <span class="win-badge${(s.surveys_count||0)>0?' has-any':''}">${s.surveys_count||0}</span>
+            ${ICONS.fileText()} Surveys <span class="win-badge${(s.surveys_count||0)>0?' has-any':''}">${s.surveys_count||0}</span>
           </button>` : ''}
         <button class="profile-save" id="prof-save">${isNew ? 'Create' : 'Save'}</button>
         ${!isNew ? '<button class="profile-delete" id="prof-delete">Delete</button>' : ''}
@@ -2154,7 +2185,7 @@ function openAddWinModal() {
   m.style.cssText = 'position:fixed;inset:0;background:rgba(8,9,18,0.78);backdrop-filter:blur(8px);z-index:10006;display:flex;align-items:center;justify-content:center;padding:20px;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;';
   m.innerHTML = `
     <div style="background:#13141f;border:1px solid #1f2438;border-radius:18px;padding:24px 26px;max-width:460px;width:100%;color:#eaecf8;box-shadow:0 24px 60px rgba(0,0,0,0.55);">
-      <div style="font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;margin-bottom:4px;">🏆 Add a win</div>
+      <div style="font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;margin-bottom:4px;display:flex;align-items:center;gap:8px;">${ICONS.award(16)} Add a win</div>
       <div style="font-size:0.78rem;color:#7880a8;margin-bottom:18px;">Anything worth celebrating: first gig, audition, milestone, breakthrough.</div>
       <div class="field" style="margin-bottom:12px;">
         <div class="field-label">Win *</div>
@@ -2216,7 +2247,7 @@ function openWinsHistoryModal() {
     <div style="background:#13141f;border:1px solid #1f2438;border-radius:18px;max-width:640px;width:100%;max-height:85vh;display:flex;flex-direction:column;color:#eaecf8;box-shadow:0 24px 60px rgba(0,0,0,0.55);overflow:hidden;">
       <div style="padding:18px 22px;border-bottom:1px solid #1f2438;display:flex;align-items:center;gap:10px;">
         <div style="flex:1;">
-          <div style="font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;">🏆 Wins for ${currentStudent.name || ''}</div>
+          <div style="font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;display:flex;align-items:center;gap:8px;">${ICONS.award(16)} Wins for ${currentStudent.name || ''}</div>
           <div style="font-size:0.74rem;color:#7880a8;margin-top:3px;" id="winListCount"></div>
         </div>
         <button class="profile-save" id="winListAdd" style="padding:7px 14px;font-size:0.78rem;background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#0b0c14;">+ Add win</button>
@@ -2289,7 +2320,7 @@ function openAddCoachNoteModal() {
   m.style.cssText = 'position:fixed;inset:0;background:rgba(8,9,18,0.78);backdrop-filter:blur(8px);z-index:10006;display:flex;align-items:center;justify-content:center;padding:20px;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;';
   m.innerHTML = `
     <div style="background:#13141f;border:1px solid #1f2438;border-radius:18px;padding:24px 26px;max-width:460px;width:100%;color:#eaecf8;box-shadow:0 24px 60px rgba(0,0,0,0.55);">
-      <div style="font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;margin-bottom:4px;">📝 Add a coach note</div>
+      <div style="font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;margin-bottom:4px;display:flex;align-items:center;gap:8px;">${ICONS.fileText(16)} Add a coach note</div>
       <div style="font-size:0.78rem;color:#7880a8;margin-bottom:18px;">Session notes, observations, follow-ups — anything coach-relevant.</div>
       <div class="field" style="margin-bottom:12px;">
         <div class="field-label">Note *</div>
@@ -2350,7 +2381,7 @@ function openCoachNotesHistoryModal() {
     <div style="background:#13141f;border:1px solid #1f2438;border-radius:18px;max-width:640px;width:100%;max-height:85vh;display:flex;flex-direction:column;color:#eaecf8;box-shadow:0 24px 60px rgba(0,0,0,0.55);overflow:hidden;">
       <div style="padding:18px 22px;border-bottom:1px solid #1f2438;display:flex;align-items:center;gap:10px;">
         <div style="flex:1;">
-          <div style="font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;">📝 Coach notes for ${currentStudent.name || ''}</div>
+          <div style="font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;display:flex;align-items:center;gap:8px;">${ICONS.fileText(16)} Coach notes for ${currentStudent.name || ''}</div>
           <div style="font-size:0.74rem;color:#7880a8;margin-top:3px;" id="noteListCount"></div>
         </div>
         <button class="profile-save" id="noteListAdd" style="padding:7px 14px;font-size:0.78rem;background:linear-gradient(135deg,#a78bfa,#6b9eff);color:#0b0c14;">+ Add note</button>
@@ -2423,8 +2454,8 @@ async function deleteCoachNote(id) {
 function _notesGetList(kind) { return kind === 'rep' ? currentRepNotes : currentIcNotes; }
 function _notesConfig(kind) {
   return kind === 'rep'
-    ? { label: 'Rep notes',  emoji: '🧑‍💼', color: '#60a5fa', addApi: 'add-rep-note',  delApi: 'delete-rep-note',  modalId: 'repNoteListModal',  addModalId: 'repNoteAddModal',  bodyId: 'repNoteListBody', cntId: 'repNoteListCount', addBtnId: 'repNoteListAdd', closeBtnId: 'repNoteListClose' }
-    : { label: 'I/C notes',  emoji: '🎯',   color: '#f472b6', addApi: 'add-ic-note',   delApi: 'delete-ic-note',   modalId: 'icNoteListModal',   addModalId: 'icNoteAddModal',   bodyId: 'icNoteListBody',  cntId: 'icNoteListCount',  addBtnId: 'icNoteListAdd',  closeBtnId: 'icNoteListClose'  };
+    ? { label: 'Rep notes',  emoji: ICONS.briefcase(16), color: '#60a5fa', addApi: 'add-rep-note',  delApi: 'delete-rep-note',  modalId: 'repNoteListModal',  addModalId: 'repNoteAddModal',  bodyId: 'repNoteListBody', cntId: 'repNoteListCount', addBtnId: 'repNoteListAdd', closeBtnId: 'repNoteListClose' }
+    : { label: 'I/C notes',  emoji: ICONS.target(16),    color: '#f472b6', addApi: 'add-ic-note',   delApi: 'delete-ic-note',   modalId: 'icNoteListModal',   addModalId: 'icNoteAddModal',   bodyId: 'icNoteListBody',  cntId: 'icNoteListCount',  addBtnId: 'icNoteListAdd',  closeBtnId: 'icNoteListClose'  };
 }
 function openRepNotesHistoryModal() { _openNotesHistoryModal('rep'); }
 function openIcNotesHistoryModal()  { _openNotesHistoryModal('ic');  }
@@ -2587,17 +2618,17 @@ async function openSurveysHistoryModal() {
     const w = when ? new Date(when).toLocaleString() : '—';
     const src = s.source || 'survey';
     const isLink = !!s.external_url;
-    const icon = isLink ? '🔗' : '📝';
+    const icon = isLink ? ICONS.link(20) : ICONS.fileText(20);
     const titleLine = isLink
       ? (s.title || s.external_url)
       : `${src} · ${s.qa_count || 0} question${(s.qa_count===1)?'':'s'}`;
     return `<div data-survey-id="${s.id}" data-is-link="${isLink ? '1' : '0'}" data-url="${isLink ? escapeHtml(s.external_url) : ''}" style="${cardCss}">
-      <span style="font-size:1.4rem;">${icon}</span>
+      <span style="display:inline-flex;align-items:center;color:#a78bfa;">${icon}</span>
       <span style="flex:1;min-width:0;">
         <div style="font-weight:700;font-size:0.95rem;${isLink ? 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;' : ''}">${escapeHtml(titleLine)}</div>
         <div style="font-size:0.78rem;color:#7880a8;margin-top:2px;">${escapeHtml(w)}${isLink ? ' · legacy link' : ''}</div>
       </span>
-      <button data-action="delete-survey" data-survey-id="${s.id}" title="Remove" style="background:transparent;border:none;color:#7880a8;font-size:1.0rem;cursor:pointer;padding:6px 8px;border-radius:6px;">🗑</button>
+      <button data-action="delete-survey" data-survey-id="${s.id}" title="Remove" style="background:transparent;border:none;color:#7880a8;cursor:pointer;padding:6px 8px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;">${ICONS.trash()}</button>
       <span style="color:#7880a8;font-size:1.2rem;">›</span>
     </div>`;
   }).join('');
@@ -2607,12 +2638,12 @@ async function openSurveysHistoryModal() {
   m.innerHTML = `
     <div style="background:#13141f;border:1px solid #1f2438;border-radius:18px;max-width:560px;width:100%;color:#eaecf8;box-shadow:0 24px 60px rgba(0,0,0,0.55);overflow:hidden;">
       <div style="padding:18px 22px;border-bottom:1px solid #1f2438;display:flex;align-items:center;gap:10px;">
-        <div style="flex:1;font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;">📝 Surveys — ${escapeHtml(sname)}</div>
+        <div style="flex:1;font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;display:flex;align-items:center;gap:8px;">${ICONS.fileText(16)} Surveys — ${escapeHtml(sname)}</div>
         <button id="surveysHistoryClose" style="background:transparent;border:none;color:#7880a8;font-size:1.5rem;cursor:pointer;padding:0 8px;">×</button>
       </div>
       <div style="padding:18px 22px;">
         <button id="addSurveyLinkBtn" style="display:flex;align-items:center;gap:8px;width:100%;padding:10px 14px;border:1px dashed #3a4060;border-radius:10px;background:#0f1019;cursor:pointer;color:#a3a8c4;font:inherit;font-size:0.88rem;margin-bottom:14px;">
-          <span style="font-size:1.1rem;">➕</span>
+          <span style="display:inline-flex;align-items:center;">${ICONS.plus()}</span>
           <span>Add legacy survey link (Google Doc, etc.)</span>
         </button>
         ${rowsHtml}${empty}
@@ -2749,7 +2780,7 @@ async function openSurveyDocModal(surveyId) {
   m.innerHTML = `
     <div style="background:#13141f;border:1px solid #1f2438;border-radius:18px;max-width:780px;width:100%;max-height:90vh;color:#eaecf8;box-shadow:0 24px 60px rgba(0,0,0,0.55);overflow:hidden;display:flex;flex-direction:column;">
       <div style="padding:18px 22px;border-bottom:1px solid #1f2438;display:flex;align-items:center;gap:10px;">
-        <div style="flex:1;font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;">📝 Survey response · ${escapeHtml(row.source || 'survey')}</div>
+        <div style="flex:1;font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;display:flex;align-items:center;gap:8px;">${ICONS.fileText(16)} Survey response · ${escapeHtml(row.source || 'survey')}</div>
         <button id="surveyDocClose" style="background:transparent;border:none;color:#7880a8;font-size:1.5rem;cursor:pointer;padding:0 8px;">×</button>
       </div>
       <div style="padding:18px 22px;overflow:auto;flex:1;">
@@ -2788,10 +2819,10 @@ async function openDropboxVideosModal() {
     <div style="background:#13141f;border:1px solid #1f2438;border-radius:18px;max-width:780px;width:100%;max-height:85vh;display:flex;flex-direction:column;color:#eaecf8;box-shadow:0 24px 60px rgba(0,0,0,0.55);overflow:hidden;">
       <div style="padding:18px 22px;border-bottom:1px solid #1f2438;display:flex;align-items:center;gap:10px;">
         <div style="flex:1;">
-          <div style="font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;">📂 Dropbox videos for ${currentStudent.name || ''}</div>
+          <div style="font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;display:flex;align-items:center;gap:8px;">${ICONS.film(16)} Dropbox videos for ${currentStudent.name || ''}</div>
           <div style="font-size:0.74rem;color:#7880a8;margin-top:3px;" id="videosCount">Loading…</div>
         </div>
-        <button id="videosSetUrlBtn" style="background:transparent;border:1px solid #1f2438;color:#7880a8;border-radius:8px;padding:6px 10px;font-weight:700;font-size:0.72rem;cursor:pointer;white-space:nowrap;" title="Manually set or change the stored video URL">✏️ Set URL</button>
+        <button id="videosSetUrlBtn" style="background:transparent;border:1px solid #1f2438;color:#7880a8;border-radius:8px;padding:6px 10px;font-weight:700;font-size:0.72rem;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:6px;" title="Manually set or change the stored video URL">${ICONS.edit()} Set URL</button>
         <button id="videosClose" style="background:transparent;border:none;color:#7880a8;font-size:1.5rem;cursor:pointer;padding:0 8px;">×</button>
       </div>
       <div id="videosBody" style="flex:1;overflow-y:auto;padding:14px 22px;"></div>
@@ -2862,13 +2893,13 @@ async function openDropboxVideosModal() {
 
   const body = document.getElementById('videosBody');
   if (!files.length) {
-    body.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted);font-size:0.86rem;">No videos found in Dropbox matching this student\'s email or name, and no stored video URL on the profile.<br><br>Use the <strong>✏️ Set URL</strong> button above to paste a URL manually.</div>';
+    body.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted);font-size:0.86rem;">No videos found in Dropbox matching this student\'s email or name, and no stored video URL on the profile.<br><br>Use the <strong>Set URL</strong> button above to paste a URL manually.</div>';
     return;
   }
 
   body.innerHTML = files.map((f, i) => `
     <div class="video-row" data-idx="${i}" style="border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:10px;background:var(--surface2);display:flex;gap:12px;align-items:center;">
-      <div style="font-size:1.4rem;flex-shrink:0;">${f._stored_url ? '🔗' : '🎬'}</div>
+      <div style="display:inline-flex;align-items:center;flex-shrink:0;color:#22d3ee;">${f._stored_url ? ICONS.link(22) : ICONS.film(22)}</div>
       <div style="flex:1;min-width:0;">
         <div class="video-name" style="font-weight:700;font-size:0.86rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
         <div style="font-size:0.7rem;color:#7880a8;margin-top:2px;">${f._stored_url ? 'From profile · ' : ''}${f.size ? _humanSize(f.size) + ' · ' : ''}${f.server_modified ? 'modified ' + new Date(f.server_modified).toLocaleString() : ''}</div>
@@ -2977,7 +3008,7 @@ function openZoomHistoryModal() {
     <div style="background:#13141f;border:1px solid #1f2438;border-radius:18px;max-width:680px;width:100%;max-height:85vh;display:flex;flex-direction:column;color:#eaecf8;box-shadow:0 24px 60px rgba(0,0,0,0.55);overflow:hidden;">
       <div style="padding:18px 22px;border-bottom:1px solid #1f2438;display:flex;align-items:center;gap:10px;">
         <div style="flex:1;">
-          <div style="font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;">🎥 Zoom history for ${currentStudent.name || ''}</div>
+          <div style="font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;display:flex;align-items:center;gap:8px;">${ICONS.zoom(16)} Zoom history for ${currentStudent.name || ''}</div>
           <div style="font-size:0.74rem;color:#7880a8;margin-top:3px;" id="zoomHistCount">Loading…</div>
         </div>
         <button id="zoomHistClose" style="background:transparent;border:none;color:#7880a8;font-size:1.5rem;cursor:pointer;padding:0 8px;">×</button>
@@ -3033,28 +3064,28 @@ function openLogsChooserModal() {
   m.innerHTML = `
     <div style="background:#13141f;border:1px solid #1f2438;border-radius:18px;max-width:640px;width:100%;color:#eaecf8;box-shadow:0 24px 60px rgba(0,0,0,0.55);overflow:hidden;">
       <div style="padding:18px 22px;border-bottom:1px solid #1f2438;display:flex;align-items:center;gap:10px;">
-        <div style="flex:1;font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;">📋 Logs for ${currentStudent.name || ''}</div>
+        <div style="flex:1;font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;display:flex;align-items:center;gap:8px;">${ICONS.clipboard(16)} Logs for ${currentStudent.name || ''}</div>
         <button id="logsChooserClose" style="background:transparent;border:none;color:#7880a8;font-size:1.5rem;cursor:pointer;padding:0 8px;">×</button>
       </div>
       <div style="padding:18px 22px;display:flex;flex-direction:column;gap:12px;">
         <button data-act="wins" style="${cardCss}">
-          <div style="font-size:1.0rem;font-weight:700;display:flex;align-items:center;gap:10px;">🏆 Wins <span style="background:${currentWins.length?'#fbbf24':'#1f2438'};color:${currentWins.length?'#0b0c14':'#7880a8'};border-radius:999px;padding:1px 8px;font-size:0.7rem;font-weight:800;">${currentWins.length}</span></div>
-          <div style="font-size:0.78rem;color:#7880a8;">Milestones, audtions, breakthroughs.</div>
+          <div style="font-size:1.0rem;font-weight:700;display:flex;align-items:center;gap:10px;">${ICONS.award()} Wins <span style="background:${currentWins.length?'#fbbf24':'#1f2438'};color:${currentWins.length?'#0b0c14':'#7880a8'};border-radius:999px;padding:1px 8px;font-size:0.7rem;font-weight:800;">${currentWins.length}</span></div>
+          <div style="font-size:0.78rem;color:#7880a8;">Milestones, auditions, breakthroughs.</div>
         </button>
         <button data-act="notes" style="${cardCss}">
-          <div style="font-size:1.0rem;font-weight:700;display:flex;align-items:center;gap:10px;">📝 Coach notes <span style="background:${currentCoachNotes.length?'#a78bfa':'#1f2438'};color:${currentCoachNotes.length?'#0b0c14':'#7880a8'};border-radius:999px;padding:1px 8px;font-size:0.7rem;font-weight:800;">${currentCoachNotes.length}</span></div>
+          <div style="font-size:1.0rem;font-weight:700;display:flex;align-items:center;gap:10px;">${ICONS.fileText()} Coach notes <span style="background:${currentCoachNotes.length?'#a78bfa':'#1f2438'};color:${currentCoachNotes.length?'#0b0c14':'#7880a8'};border-radius:999px;padding:1px 8px;font-size:0.7rem;font-weight:800;">${currentCoachNotes.length}</span></div>
           <div style="font-size:0.78rem;color:#7880a8;">Session notes, observations, follow-ups.</div>
         </button>
         <button data-act="repnotes" style="${cardCss}">
-          <div style="font-size:1.0rem;font-weight:700;display:flex;align-items:center;gap:10px;">🧑‍💼 Rep notes <span style="background:${currentRepNotes.length?'#60a5fa':'#1f2438'};color:${currentRepNotes.length?'#0b0c14':'#7880a8'};border-radius:999px;padding:1px 8px;font-size:0.7rem;font-weight:800;">${currentRepNotes.length}</span></div>
+          <div style="font-size:1.0rem;font-weight:700;display:flex;align-items:center;gap:10px;">${ICONS.briefcase()} Rep notes <span style="background:${currentRepNotes.length?'#60a5fa':'#1f2438'};color:${currentRepNotes.length?'#0b0c14':'#7880a8'};border-radius:999px;padding:1px 8px;font-size:0.7rem;font-weight:800;">${currentRepNotes.length}</span></div>
           <div style="font-size:0.78rem;color:#7880a8;">Notes from REGs / sales reps about this student.</div>
         </button>
         <button data-act="icnotes" style="${cardCss}">
-          <div style="font-size:1.0rem;font-weight:700;display:flex;align-items:center;gap:10px;">🎯 I/C notes <span style="background:${currentIcNotes.length?'#f472b6':'#1f2438'};color:${currentIcNotes.length?'#0b0c14':'#7880a8'};border-radius:999px;padding:1px 8px;font-size:0.7rem;font-weight:800;">${currentIcNotes.length}</span></div>
+          <div style="font-size:1.0rem;font-weight:700;display:flex;align-items:center;gap:10px;">${ICONS.target()} I/C notes <span style="background:${currentIcNotes.length?'#f472b6':'#1f2438'};color:${currentIcNotes.length?'#0b0c14':'#7880a8'};border-radius:999px;padding:1px 8px;font-size:0.7rem;font-weight:800;">${currentIcNotes.length}</span></div>
           <div style="font-size:0.78rem;color:#7880a8;">Initial-call notes — onboarding, intent, fit.</div>
         </button>
         <button data-act="turnovers" style="${cardCss}">
-          <div style="font-size:1.0rem;font-weight:700;display:flex;align-items:center;gap:10px;">🔄 Turnovers <span style="background:${currentTurnovers.length?'#34d399':'#1f2438'};color:${currentTurnovers.length?'#0b0c14':'#7880a8'};border-radius:999px;padding:1px 8px;font-size:0.7rem;font-weight:800;">${currentTurnovers.length}</span></div>
+          <div style="font-size:1.0rem;font-weight:700;display:flex;align-items:center;gap:10px;">${ICONS.refresh()} Turnovers <span style="background:${currentTurnovers.length?'#34d399':'#1f2438'};color:${currentTurnovers.length?'#0b0c14':'#7880a8'};border-radius:999px;padding:1px 8px;font-size:0.7rem;font-weight:800;">${currentTurnovers.length}</span></div>
           <div style="font-size:0.78rem;color:#7880a8;">Hand-offs to a rep — log the rep, note, and outcome.</div>
         </button>
       </div>
@@ -3096,7 +3127,7 @@ function openAddTurnoverModal() {
   m.style.cssText = 'position:fixed;inset:0;background:rgba(8,9,18,0.78);backdrop-filter:blur(8px);z-index:10006;display:flex;align-items:center;justify-content:center;padding:20px;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;';
   m.innerHTML = `
     <div style="background:#13141f;border:1px solid #1f2438;border-radius:18px;padding:24px 26px;max-width:460px;width:100%;color:#eaecf8;box-shadow:0 24px 60px rgba(0,0,0,0.55);">
-      <div style="font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;margin-bottom:4px;">🔄 Turnover sale to a rep</div>
+      <div style="font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;margin-bottom:4px;display:flex;align-items:center;gap:8px;">${ICONS.refresh(16)} Turnover sale to a rep</div>
       <div style="font-size:0.78rem;color:#7880a8;margin-bottom:18px;">Hand this student off to a rep. Pick from the list or type a new name.</div>
       <div class="field" style="margin-bottom:12px;">
         <div class="field-label">Rep *</div>
@@ -3163,7 +3194,7 @@ function openTurnoversHistoryModal() {
     <div style="background:#13141f;border:1px solid #1f2438;border-radius:18px;max-width:640px;width:100%;max-height:85vh;display:flex;flex-direction:column;color:#eaecf8;box-shadow:0 24px 60px rgba(0,0,0,0.55);overflow:hidden;">
       <div style="padding:18px 22px;border-bottom:1px solid #1f2438;display:flex;align-items:center;gap:10px;">
         <div style="flex:1;">
-          <div style="font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;">🔄 Turnovers for ${currentStudent.name || ''}</div>
+          <div style="font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;display:flex;align-items:center;gap:8px;">${ICONS.refresh(16)} Turnovers for ${currentStudent.name || ''}</div>
           <div style="font-size:0.74rem;color:#7880a8;margin-top:3px;" id="turnListCount"></div>
         </div>
         <button class="profile-save" id="turnListAdd" style="padding:7px 14px;font-size:0.78rem;background:linear-gradient(135deg,#34d399,#10b981);color:#0b0c14;">+ Add turnover</button>
@@ -3332,7 +3363,7 @@ function openAddAlertModal() {
   m.style.cssText = 'position:fixed;inset:0;background:rgba(8,9,18,0.78);backdrop-filter:blur(8px);z-index:10005;display:flex;align-items:center;justify-content:center;padding:20px;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;';
   m.innerHTML = `
     <div style="background:#13141f;border:1px solid #1f2438;border-radius:18px;padding:24px 26px;max-width:460px;width:100%;color:#eaecf8;box-shadow:0 24px 60px rgba(0,0,0,0.55);">
-      <div style="font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;margin-bottom:4px;">⚠ Open a service alert</div>
+      <div style="font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;margin-bottom:4px;display:flex;align-items:center;gap:8px;">${ICONS.alertTri(16)} Open a service alert</div>
       <div style="font-size:0.78rem;color:#7880a8;margin-bottom:18px;">Track an unresolved issue for this student. Resolve it later with a note explaining what was done.</div>
       <div class="field" style="margin-bottom:12px;">
         <div class="field-label">Title *</div>
@@ -3394,7 +3425,7 @@ function openAlertsHistoryModal() {
     <div style="background:#13141f;border:1px solid #1f2438;border-radius:18px;max-width:640px;width:100%;max-height:85vh;display:flex;flex-direction:column;color:#eaecf8;box-shadow:0 24px 60px rgba(0,0,0,0.55);overflow:hidden;">
       <div style="padding:18px 22px;border-bottom:1px solid #1f2438;display:flex;align-items:center;gap:10px;">
         <div style="flex:1;">
-          <div style="font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;">🔔 Alerts for ${currentStudent.name || ''}</div>
+          <div style="font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;display:flex;align-items:center;gap:8px;">${ICONS.bell(16)} Alerts for ${currentStudent.name || ''}</div>
           <div style="font-size:0.74rem;color:#7880a8;margin-top:3px;">${openCount} open · ${resolvedCount} resolved</div>
         </div>
         <button class="alert-btn-add" id="alertListAdd" style="padding:7px 14px;font-size:0.78rem;">+ Open alert</button>

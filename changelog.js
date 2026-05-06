@@ -11,6 +11,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v129', title: 'CRM icons aligned with the dashboard look',
+      roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'], items: [
+      'Replaced colored emoji throughout the Mentorship CRM (Alerts, Logs, Videos, Surveys, Coach section, filter chips, modal headers) with the same Lucide-stroke SVG icons used by the Dashboards menu and Coach Dashboard.',
+      'Same vocabulary across the app — easier to scan and matches the rest of the system.',
+    ]},
     { version: 'v128', title: 'Zoom attendance history per student',
       roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic'], items: [
       'Every Zoom session a student attends is now logged as a permanent record (not just overwriting "Last Zoom").',

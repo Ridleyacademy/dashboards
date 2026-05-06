@@ -1076,6 +1076,7 @@ async function loadAdminUsers() {
           <div class="user-meta ${lastLogin.cls}">${lastLogin.text}</div>
         </div>
         <input class="auth-input first-name-input" type="text" data-id="${u.id}" value="${(u.first_name || '').replace(/"/g,'&quot;')}" placeholder="First name" style="max-width:140px;padding:8px 10px;font-size:0.78rem;">
+        <input class="auth-input zoom-email-input" type="email" data-id="${u.id}" value="${(u.zoom_host_email || '').replace(/"/g,'&quot;')}" placeholder="Zoom host email" title="Email of this user's Zoom account — meetings they schedule will be hosted here" style="max-width:200px;padding:8px 10px;font-size:0.78rem;">
         <div class="user-perms">
           ${permSelectHTML({ checked: u.permissions || [], isAdmin: !!u.is_admin })}
         </div>
@@ -1433,6 +1434,8 @@ async function saveUser(btn) {
   const is_admin = scope.querySelector('.admin-check').checked;
   const firstNameEl = row.querySelector('.first-name-input');
   const first_name = firstNameEl ? firstNameEl.value.trim() : undefined;
+  const zoomEmailEl = row.querySelector('.zoom-email-input');
+  const zoom_host_email = zoomEmailEl ? zoomEmailEl.value.trim() : undefined;
   const msg = document.getElementById('msg-' + userId);
   const roleEl = document.getElementById('role-' + userId);
 
@@ -1440,6 +1443,7 @@ async function saveUser(btn) {
   try {
     const body = { userId, permissions, is_admin };
     if (firstNameEl) body.first_name = first_name;
+    if (zoomEmailEl) body.zoom_host_email = zoom_host_email;
     const r = await fetch(ADMIN_API_BASE + '?api=set-permissions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session_.access_token },

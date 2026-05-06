@@ -11,6 +11,12 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v127', title: 'Per-coach Zoom host mapping (concurrent meetings)',
+      adminOnly: true, items: [
+      'New "Zoom host email" field in the Admin Panel (next to First name) — set each coach\'s personal Zoom account email there.',
+      'When a coach schedules a meeting, it\'s now hosted under THEIR Zoom user, not the global owner. Two coaches with separate Zoom licenses can run sessions at the same time.',
+      'Falls back to the ZOOM_HOST_EMAIL secret (if set) or the account Owner when a user has no mapping.',
+    ]},
     { version: 'v126', title: 'Zoom integration — auto-attendance + schedule from dashboard',
       roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic'], items: [
       'When a Zoom meeting on the shared mentorship account ends, the system auto-bumps the matching student\'s Last Zoom date — no more manual logging.',

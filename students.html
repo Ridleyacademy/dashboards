@@ -1546,6 +1546,12 @@ function _buildField(field, value) {
         <input class="field-input field-url-input" type="url" id="${id}" data-key="${field.k}"${field.placeholder ? ` placeholder="${field.placeholder}"` : ''} style="flex:1;min-width:0;">
         <a class="field-url-open" data-for="${id}" target="_blank" rel="noopener noreferrer" style="display:none;align-items:center;gap:4px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:0 12px;color:var(--text-muted);font-size:0.78rem;font-weight:700;text-decoration:none;white-space:nowrap;" title="Open in new tab">↗ Open</a>
       </div>`;
+    } else if (field.k === 'last_zoom_date') {
+      // Date input + 🎥 history button so coaches can see all past Zoom sessions.
+      inner = `<div style="display:flex;gap:6px;align-items:stretch;">
+        <input class="field-input" type="date" id="${id}" data-key="${field.k}" style="flex:1;min-width:0;">
+        <button type="button" class="zoom-history-btn" title="See all Zoom sessions this student attended" style="background:rgba(34,211,238,0.12);border:1px solid rgba(34,211,238,0.4);border-radius:10px;padding:0 12px;color:#22d3ee;font-size:0.78rem;font-weight:700;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:4px;">🎥 History</button>
+      </div>`;
     } else {
       inner = `<input class="field-input" type="${t}" id="${id}" data-key="${field.k}"${field.placeholder ? ` placeholder="${field.placeholder}"` : ''}>`;
     }
@@ -2041,6 +2047,10 @@ function renderProfile() {
   // Live-sync the ↗ Open button as the user types / pastes.
   card.querySelectorAll('.field-url-input').forEach(inp => {
     inp.addEventListener('input', () => _syncUrlOpenButton(inp));
+  });
+  // 🎥 History button next to Last Zoom
+  card.querySelectorAll('.zoom-history-btn').forEach(btn => {
+    btn.addEventListener('click', () => openZoomHistoryModal());
   });
   // Status default
   const statusEl = document.getElementById('f-status');
@@ -3047,10 +3057,6 @@ function openLogsChooserModal() {
           <div style="font-size:1.0rem;font-weight:700;display:flex;align-items:center;gap:10px;">🔄 Turnovers <span style="background:${currentTurnovers.length?'#34d399':'#1f2438'};color:${currentTurnovers.length?'#0b0c14':'#7880a8'};border-radius:999px;padding:1px 8px;font-size:0.7rem;font-weight:800;">${currentTurnovers.length}</span></div>
           <div style="font-size:0.78rem;color:#7880a8;">Hand-offs to a rep — log the rep, note, and outcome.</div>
         </button>
-        <button data-act="zoom" style="${cardCss}">
-          <div style="font-size:1.0rem;font-weight:700;display:flex;align-items:center;gap:10px;">🎥 Zoom history</div>
-          <div style="font-size:0.78rem;color:#7880a8;">Every Zoom session this student attended (auto-recorded).</div>
-        </button>
       </div>
     </div>`;
   document.body.appendChild(m);
@@ -3070,7 +3076,6 @@ function openLogsChooserModal() {
     else if (act === 'repnotes') openRepNotesHistoryModal();
     else if (act === 'icnotes')  openIcNotesHistoryModal();
     else if (act === 'turnovers') openTurnoversHistoryModal();
-    else if (act === 'zoom')     openZoomHistoryModal();
   });
   // Hover-style fallback inline
   m.querySelectorAll('[data-act]').forEach(b => {

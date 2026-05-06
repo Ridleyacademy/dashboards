@@ -15,7 +15,7 @@
       roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic'], items: [
       'Every Zoom session a student attends is now logged as a permanent record (not just overwriting "Last Zoom").',
       'Last Zoom date still updates to the most recent session — but old sessions are preserved.',
-      'Mentorship CRM → Logs → 🎥 Zoom history shows the full session list (date, topic, duration, time spent in call) for any student.',
+      'Mentorship CRM → student profile → Coach section → click the 🎥 History button next to Last Zoom to see the full session list (date, topic, duration, time in call).',
       'Coach Dashboard keeps showing only the latest Last Zoom date (uncluttered).',
       'Existing matched sessions were backfilled into the history.',
     ]},

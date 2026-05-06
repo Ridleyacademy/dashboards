@@ -11,6 +11,14 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v125', title: 'New 🎯 Coach Dashboard with KPIs and bulk edit',
+      roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic'], items: [
+      'New Coach Dashboard tile on home — see your roster at a glance with 5 KPI cards (total / at risk / expiring / avg days since zoom / % with assignment last 7d).',
+      'Coaches see only their own students; admins/ICs see a coach picker with All / per-coach scope.',
+      'Click any row to open a profile modal with the most-used coach fields editable (Coach, Level, Module, Coach status, Last Zoom / Last Assignment dates, Schedule, Concern, Goal). "Full profile ↗" link jumps to the CRM for everything else.',
+      'Multi-select checkboxes + bulk-edit toolbar: pick a field (Last Zoom, Last assignment, Level, Module, Coach status…) and apply to all selected students at once.',
+      'Filter chips: All / At risk / Expiring / Needs attention. Search by name, email, or module.',
+    ]},
     { version: 'v122', title: 'Schedule field moved from survey auto-extract to coach area',
       roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'], items: [
       'New Schedule field in the Coach section of the student profile — coaches enter it manually (e.g. "Tue/Thu 6pm CET").',

@@ -741,6 +741,13 @@ const BOARDS = [
     desc: 'CRM for mentorship students. Click a name to open their profile, status, mentor, joined date, and notes.',
     tags: [{ label: 'CRM', bg: 'rgba(16,185,129,0.12)', color: '#10b981' }, { label: 'Profiles', bg: 'rgba(167,139,250,0.12)', color: '#a78bfa' }],
   },
+  {
+    id: 'coach', href: 'coach.html', title: 'Coach Dashboard', permission: 'coach',
+    color: '#34d399', glow: 'rgba(52,211,153,0.18)', bg: 'rgba(52,211,153,0.12)',
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>`,
+    desc: 'Coach view: KPIs across your roster, at-risk students, last-zoom tracking, and bulk-edit fields like last assignment and zoom dates.',
+    tags: [{ label: 'Coach', bg: 'rgba(52,211,153,0.12)', color: '#34d399' }, { label: 'Bulk edit', bg: 'rgba(251,191,36,0.12)', color: '#fbbf24' }],
+  },
 ];
 
 const supa = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {

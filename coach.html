@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Coach Dashboard — Ridley Academy</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🎯%3C/text%3E%3C/svg%3E">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="theme.js"></script>
+<script src="permissions.js"></script>
+<script src="access-guard.js"></script>
+<script src="notifications.js" defer></script>
+<style>
+  :root {
+    --bg: #0b0c14; --surface: #13141f; --surface2: #0f1019;
+    --border: #1f2438; --border-light: #2a3050;
+    --text: #eaecf8; --text-muted: #c2c8e0; --text-dim: #7880a8;
+    --accent: #10b981; --accent2: #34d399;
+  }
+  body.light {
+    --bg: #f5f6fa; --surface: #fff; --surface2: #f8f9fc;
+    --border: #e1e4ed; --border-light: #c2c8e0;
+    --text: #0b0c14; --text-muted: #2a3050; --text-dim: #7880a8;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, Inter, "Segoe UI", Helvetica, Arial, sans-serif;
+    min-height: 100vh; -webkit-font-smoothing: antialiased; }
+  body[data-state="loading"] #app, body[data-state="loading"] #login,
+  body[data-state="login"] #app, body[data-state="login"] #boot,
+  body[data-state="dashboard"] #login, body[data-state="dashboard"] #boot { display: none; }
+  body[data-state="dashboard"] #app { display: block; }
+  #boot { padding: 60px 20px; text-align: center; color: var(--text-dim); }
+
+  /* Header */
+  .topbar { display: flex; align-items: center; gap: 14px; padding: 14px 22px;
+    border-bottom: 1px solid var(--border); background: var(--surface);
+    position: sticky; top: 0; z-index: 50; }
+  .topbar h1 { margin: 0; font-size: 1.05rem; font-weight: 800; letter-spacing: -0.02em; }
+  .topbar .grow { flex: 1; }
+  .topbar a, .topbar button { color: var(--text-dim); background: transparent;
+    border: 1px solid var(--border); border-radius: 9px; padding: 7px 12px;
+    font-size: 0.78rem; font-weight: 700; cursor: pointer; text-decoration: none;
+    display: inline-flex; align-items: center; gap: 6px; }
+  .topbar a:hover, .topbar button:hover { color: var(--text); border-color: var(--border-light); }
+  .topbar #userEmail { color: var(--text-muted); font-size: 0.8rem; }
+
+  /* KPI cards */
+  .kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px;
+    padding: 18px 22px 4px; }
+  @media (max-width: 1100px) { .kpis { grid-template-columns: repeat(2, 1fr); } }
+  .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; }
+  .kpi-label { font-size: 0.7rem; font-weight: 700; color: var(--text-dim);
+    text-transform: uppercase; letter-spacing: 0.04em; }
+  .kpi-value { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.02em; color: var(--text); }
+  .kpi-sub { font-size: 0.72rem; color: var(--text-dim); }
+  .kpi.warn .kpi-value { color: #fb7185; }
+  .kpi.good .kpi-value { color: var(--accent2); }
+
+  /* Filter bar */
+  .filterbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+    padding: 14px 22px; border-bottom: 1px solid var(--border); }
+  .filterbar select, .filterbar input { background: var(--surface); border: 1px solid var(--border);
+    color: var(--text); border-radius: 9px; padding: 8px 12px; font: inherit; font-size: 0.85rem; }
+  .filterbar input[type="search"] { flex: 1; min-width: 200px; }
+  .chip { background: var(--surface2); border: 1px solid var(--border); color: var(--text-muted);
+    border-radius: 999px; padding: 5px 12px; font-size: 0.72rem; font-weight: 700; cursor: pointer;
+    user-select: none; transition: border-color 0.1s, color 0.1s; }
+  .chip:hover { color: var(--text); border-color: var(--border-light); }
+  .chip.active { background: rgba(52,211,153,0.18); border-color: #34d399; color: #34d399; }
+  .chip-count { background: rgba(120,128,168,0.2); color: var(--text-dim);
+    border-radius: 999px; padding: 0 7px; font-size: 0.65rem; margin-left: 4px; }
+  .chip.active .chip-count { background: rgba(52,211,153,0.3); color: #0b0c14; }
+
+  /* Bulk actions toolbar */
+  .bulkbar { display: none; align-items: center; gap: 12px; padding: 10px 22px;
+    background: rgba(52,211,153,0.08); border-bottom: 1px solid rgba(52,211,153,0.2); }
+  .bulkbar.visible { display: flex; }
+  .bulkbar .count { font-weight: 800; font-size: 0.9rem; color: var(--accent2); }
+  .bulkbar button { background: var(--accent); color: #06231a; border: none;
+    border-radius: 9px; padding: 8px 16px; font-weight: 700; font-size: 0.82rem; cursor: pointer; }
+  .bulkbar button:hover { background: var(--accent2); }
+  .bulkbar .ghost { background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
+  .bulkbar .ghost:hover { color: var(--text); }
+
+  /* Table */
+  .tablewrap { padding: 14px 22px 40px; overflow-x: auto; }
+  table.students { width: 100%; border-collapse: separate; border-spacing: 0;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    overflow: hidden; font-size: 0.85rem; }
+  table.students thead { background: var(--surface2); position: sticky; top: 60px; z-index: 10; }
+  table.students th, table.students td { padding: 10px 12px; text-align: left;
+    border-bottom: 1px solid var(--border); white-space: nowrap; }
+  table.students th { font-weight: 700; font-size: 0.72rem; color: var(--text-dim);
+    text-transform: uppercase; letter-spacing: 0.04em; }
+  table.students td { color: var(--text-muted); }
+  table.students tbody tr { cursor: pointer; transition: background 0.1s; }
+  table.students tbody tr:hover { background: rgba(52,211,153,0.06); }
+  table.students tbody tr.selected { background: rgba(52,211,153,0.1); }
+  table.students td:first-child, table.students th:first-child { width: 30px; padding: 10px 6px 10px 14px; }
+  table.students td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 0.68rem;
+    font-weight: 700; }
+  .pill.ok { background: rgba(52,211,153,0.18); color: #34d399; }
+  .pill.warn { background: rgba(251,191,36,0.18); color: #fbbf24; }
+  .pill.bad { background: rgba(248,113,113,0.18); color: #f87171; }
+  .pill.muted { background: rgba(120,128,168,0.18); color: var(--text-dim); }
+
+  /* Days-since coloring */
+  .dsince { font-variant-numeric: tabular-nums; }
+  .dsince.fresh { color: var(--accent2); }
+  .dsince.stale { color: #fbbf24; }
+  .dsince.dead  { color: #f87171; }
+
+  /* Modal */
+  .modal-bg { position: fixed; inset: 0; background: rgba(8,9,18,0.78);
+    backdrop-filter: blur(8px); z-index: 10000; display: flex; align-items: center;
+    justify-content: center; padding: 20px; font-family: inherit; }
+  .modal-card { background: var(--surface); border: 1px solid var(--border);
+    border-radius: 18px; max-width: 640px; width: 100%; max-height: 92vh;
+    color: var(--text); box-shadow: 0 24px 60px rgba(0,0,0,0.55); overflow: hidden;
+    display: flex; flex-direction: column; }
+  .modal-head { padding: 18px 22px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px; }
+  .modal-head h2 { flex: 1; font-size: 1.05rem; font-weight: 800; letter-spacing: -0.02em; margin: 0; }
+  .modal-head .close { background: transparent; border: none; color: var(--text-dim);
+    font-size: 1.5rem; cursor: pointer; padding: 0 8px; }
+  .modal-body { padding: 18px 22px; overflow-y: auto; flex: 1;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .modal-body .full { grid-column: 1 / -1; }
+  .modal-body label { font-size: 0.72rem; color: var(--text-dim); font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; display: block; }
+  .modal-body input, .modal-body select, .modal-body textarea {
+    width: 100%; background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); border-radius: 9px; padding: 9px 11px; font: inherit; font-size: 0.85rem; }
+  .modal-body textarea { min-height: 80px; resize: vertical; }
+  .modal-foot { padding: 14px 22px; border-top: 1px solid var(--border);
+    display: flex; gap: 10px; justify-content: flex-end; align-items: center; }
+  .modal-foot .msg { flex: 1; font-size: 0.78rem; color: var(--text-dim); }
+  .modal-foot .msg.err { color: #f87171; }
+  .modal-foot .msg.ok  { color: var(--accent2); }
+  .btn-primary { background: linear-gradient(135deg, #34d399, #10b981); color: #06231a;
+    border: none; border-radius: 9px; padding: 10px 20px; font-weight: 800; font-size: 0.85rem; cursor: pointer; }
+  .btn-ghost { background: transparent; color: var(--text-dim); border: 1px solid var(--border);
+    border-radius: 9px; padding: 10px 16px; font-weight: 700; font-size: 0.85rem; cursor: pointer; }
+  .btn-ghost:hover { color: var(--text); }
+
+  /* Login screen */
+  #login { padding: 60px 20px; max-width: 380px; margin: 0 auto; }
+  #login h1 { font-size: 1.4rem; margin: 0 0 8px; }
+  #login p { color: var(--text-dim); margin: 0 0 24px; font-size: 0.9rem; }
+  #login form { display: flex; flex-direction: column; gap: 12px; }
+  #login input { background: var(--surface); border: 1px solid var(--border); color: var(--text);
+    border-radius: 9px; padding: 10px 12px; font-size: 0.95rem; font: inherit; }
+  #login button { background: linear-gradient(135deg, #34d399, #10b981); color: #06231a;
+    border: none; border-radius: 9px; padding: 11px; font-weight: 800; cursor: pointer; }
+  #login .err { color: #f87171; font-size: 0.82rem; min-height: 1em; }
+</style>
+</head>
+<body data-state="loading">
+
+<div id="boot">Loading…</div>
+
+<div id="login">
+  <h1>🎯 Coach Dashboard</h1>
+  <p>Sign in with your Ridley Academy account.</p>
+  <form id="loginForm">
+    <input type="email" id="loginEmail" placeholder="email@ridleyacademy.team" required autocomplete="email">
+    <input type="password" id="loginPassword" placeholder="Password" required autocomplete="current-password">
+    <button type="submit">Sign in</button>
+    <div class="err" id="loginErr"></div>
+  </form>
+</div>
+
+<div id="app">
+  <div class="topbar">
+    <h1>🎯 Coach Dashboard</h1>
+    <span id="userEmail" class="grow"></span>
+    <button id="themeBtn" title="Toggle theme">☀️</button>
+    <button id="refreshBtn" title="Refresh">🔄</button>
+    <a href="home.html" title="Back to Home">← Home</a>
+    <button id="logoutBtn">Sign out</button>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi"><div class="kpi-label">Students</div>
+      <div class="kpi-value" id="kpi-total">0</div><div class="kpi-sub" id="kpi-total-sub">—</div></div>
+    <div class="kpi warn"><div class="kpi-label">At risk</div>
+      <div class="kpi-value" id="kpi-risk">0</div><div class="kpi-sub">No zoom AND no assignment in 14d</div></div>
+    <div class="kpi"><div class="kpi-label">Expiring ≤ 30d</div>
+      <div class="kpi-value" id="kpi-expiring">0</div><div class="kpi-sub">Term ending within a month</div></div>
+    <div class="kpi"><div class="kpi-label">Avg days since zoom</div>
+      <div class="kpi-value" id="kpi-zoom">—</div><div class="kpi-sub">Across all students</div></div>
+    <div class="kpi good"><div class="kpi-label">Assignment last 7d</div>
+      <div class="kpi-value" id="kpi-assignment">0%</div><div class="kpi-sub">% with assignment received</div></div>
+  </div>
+
+  <div class="filterbar">
+    <label style="font-size:0.78rem;color:var(--text-dim);font-weight:700;">Coach:</label>
+    <select id="coachPicker"></select>
+    <input type="search" id="searchBox" placeholder="Search name, email, module…">
+    <button class="chip active" data-filter="all">All <span class="chip-count" id="cnt-all">0</span></button>
+    <button class="chip" data-filter="atrisk">At risk <span class="chip-count" id="cnt-atrisk">0</span></button>
+    <button class="chip" data-filter="expiring">Expiring <span class="chip-count" id="cnt-expiring">0</span></button>
+    <button class="chip" data-filter="needs">Needs attention <span class="chip-count" id="cnt-needs">0</span></button>
+  </div>
+
+  <div class="bulkbar" id="bulkbar">
+    <span class="count" id="bulkCount">0 selected</span>
+    <button id="bulkApplyBtn">Apply update to selected…</button>
+    <button class="ghost" id="bulkClearBtn">Clear selection</button>
+  </div>
+
+  <div class="tablewrap">
+    <table class="students" id="studentTable">
+      <thead>
+        <tr>
+          <th><input type="checkbox" id="checkAll" title="Select all"></th>
+          <th>Name</th>
+          <th>Level</th>
+          <th>Module</th>
+          <th>Last Zoom</th>
+          <th>Last Assignment Sent</th>
+          <th>Last Assignment Recv</th>
+          <th>Days left</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="studentTbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = "https://pojqljrhhtnigyrtzdzz.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBvanFsanJoaHRuaWd5cnR6ZHp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTA3ODMsImV4cCI6MjA5MTM4Njc4M30.PcSBDqOzbiZxZ7IAs5efqx0gsAlAG0cj3GqUOkAmxos";
+const STUDENTS_BASE = SUPABASE_URL + '/functions/v1/students';
+const supa = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: true, detectSessionInUrl: true, autoRefreshToken: true }});
+
+let currentSession = null;
+let allStudents = [];
+let selectedIds = new Set();
+let listFilter = 'all';
+let isAdmin = false;
+let isCoach = false;
+let isPrivilegedViewer = false;  // admin / ms_ic / mentorship can pick any coach
+let coachPick = '__mine__';      // value of the coach picker
+
+function setState(s) { document.body.dataset.state = s; }
+function syncThemeBtn() {
+  const b = document.getElementById('themeBtn');
+  if (b) b.textContent = document.body.classList.contains('light') ? '🌙' : '☀️';
+}
+const savedTheme = localStorage.getItem('theme') || 'dark';
+if (savedTheme === 'light') document.body.classList.add('light');
+syncThemeBtn();
+document.getElementById('themeBtn').addEventListener('click', () => {
+  document.body.classList.toggle('light');
+  localStorage.setItem('theme', document.body.classList.contains('light') ? 'light' : 'dark');
+  syncThemeBtn();
+});
+
+// ── Auth ──────────────────────────────────────────────────────
+async function initAuth() {
+  const safety = setTimeout(() => { if (document.body.dataset.state === 'loading') setState('login'); }, 8000);
+  try {
+    const { data: { session } } = await supa.auth.getSession();
+    clearTimeout(safety);
+    if (session) { onAuthed(session); return; }
+    setState('login');
+  } catch(e) { clearTimeout(safety); setState('login'); }
+  supa.auth.onAuthStateChange((_e, s) => { if (s) onAuthed(s); else setState('login'); });
+}
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const err = document.getElementById('loginErr'); err.textContent = '';
+  const email = document.getElementById('loginEmail').value.trim();
+  const pw = document.getElementById('loginPassword').value;
+  const { data, error } = await supa.auth.signInWithPassword({ email, password: pw });
+  if (error) { err.textContent = error.message; return; }
+  onAuthed(data.session);
+});
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+  await supa.auth.signOut();
+  setState('login');
+});
+
+async function onAuthed(session) {
+  currentSession = session;
+  document.getElementById('userEmail').textContent = session.user.email;
+  const am = session.user.app_metadata || {};
+  const perms = Array.isArray(am.permissions) ? am.permissions : [];
+  isAdmin = am.is_admin === true;
+  isCoach = perms.includes('coach');
+  isPrivilegedViewer = isAdmin || perms.includes('ms_ic') || perms.includes('delivery_ic') || perms.includes('mentorship');
+  if (!isAdmin && !isCoach && !isPrivilegedViewer) {
+    document.getElementById('app').innerHTML = '<div style="padding:60px 20px;text-align:center;color:var(--text-dim)">You don\'t have access to the Coach Dashboard. Ask an admin to add the coach permission to your account.</div>';
+    setState('dashboard');
+    return;
+  }
+  setState('dashboard');
+  await loadStudents();
+}
+
+// ── Load + render ─────────────────────────────────────────────
+async function loadStudents() {
+  document.getElementById('studentTbody').innerHTML = '<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--text-dim);">Loading…</td></tr>';
+  try {
+    const r = await fetch(STUDENTS_BASE + '?api=list', {
+      headers: { Authorization: 'Bearer ' + currentSession.access_token },
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Failed');
+    allStudents = j.rows || [];
+    populateCoachPicker();
+    renderAll();
+  } catch (e) {
+    document.getElementById('studentTbody').innerHTML = `<tr><td colspan="9" style="text-align:center;padding:24px;color:#f87171;">Failed to load: ${escapeHtml(e.message || e)}</td></tr>`;
+  }
+}
+document.getElementById('refreshBtn').addEventListener('click', loadStudents);
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function _myCoachIdentities() {
+  const fn = (currentSession?.user?.user_metadata?.first_name || '').toLowerCase().trim();
+  const em = (currentSession?.user?.email || '').toLowerCase().trim();
+  const out = new Set();
+  if (fn) out.add(fn);
+  if (em) out.add(em);
+  return out;
+}
+function _isMine(s, mineSet) {
+  const c = (s.coach || '').toLowerCase().trim();
+  return c && (mineSet.has(c) || [...mineSet].some(m => c === m));
+}
+
+function populateCoachPicker() {
+  const sel = document.getElementById('coachPicker');
+  // Coaches see only themselves; privileged viewers see All + each coach
+  if (!isPrivilegedViewer && isCoach) {
+    sel.innerHTML = '<option value="__mine__">My students</option>';
+    sel.disabled = true;
+    coachPick = '__mine__';
+    return;
+  }
+  const coaches = [...new Set(allStudents.map(s => (s.coach || '').trim()).filter(Boolean))].sort();
+  const opts = ['<option value="__all__">All coaches</option>'];
+  if (isCoach) opts.push('<option value="__mine__">My students</option>');
+  for (const c of coaches) opts.push(`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`);
+  sel.innerHTML = opts.join('');
+  sel.disabled = false;
+  if (!coachPick || !sel.querySelector(`[value="${CSS.escape(coachPick)}"]`)) {
+    coachPick = isCoach ? '__mine__' : '__all__';
+  }
+  sel.value = coachPick;
+}
+document.getElementById('coachPicker').addEventListener('change', (e) => {
+  coachPick = e.target.value;
+  selectedIds.clear();
+  renderAll();
+});
+
+// Filter logic — returns rows + per-bucket counts (computed on the chosen-coach scope)
+function _scopedRows() {
+  const mine = _myCoachIdentities();
+  const q = (document.getElementById('searchBox').value || '').toLowerCase().trim();
+  let rows = allStudents.slice();
+  // Coach scope
+  if (coachPick === '__mine__') rows = rows.filter(s => _isMine(s, mine));
+  else if (coachPick !== '__all__') rows = rows.filter(s => (s.coach || '').toLowerCase() === coachPick.toLowerCase());
+  // Search
+  if (q) rows = rows.filter(s =>
+    (s.name || '').toLowerCase().includes(q) ||
+    (s.email || '').toLowerCase().includes(q) ||
+    (s.current_module || '').toLowerCase().includes(q) ||
+    (s.level || '').toLowerCase().includes(q));
+  return rows;
+}
+function _daysSince(d) {
+  if (!d) return null;
+  return Math.floor((Date.now() - new Date(d).getTime()) / 86400000);
+}
+function _isAtRisk(s) {
+  const dz = _daysSince(s.last_zoom_date);
+  const da = _daysSince(s.last_assignment_received);
+  const both14 = (dz === null || dz > 14) && (da === null || da > 14);
+  // exclude already-expired or paused students from the at-risk view by default
+  const status = s.derived_status;
+  return both14 && status !== 'Expired' && status !== 'Paused' && status !== 'Not onboarded' && status !== 'Delayed start';
+}
+function _isExpiring(s) {
+  return s.derived_status === 'Expiring soon' || (s.days_left != null && s.days_left >= 0 && s.days_left <= 30);
+}
+function _isNeedsAttention(s) {
+  return (s.coach_status || '').toLowerCase() === 'needs attention';
+}
+
+function _filterRows(rows) {
+  if (listFilter === 'all') return rows;
+  if (listFilter === 'atrisk') return rows.filter(_isAtRisk);
+  if (listFilter === 'expiring') return rows.filter(_isExpiring);
+  if (listFilter === 'needs') return rows.filter(_isNeedsAttention);
+  return rows;
+}
+
+function renderAll() {
+  const scoped = _scopedRows();
+  const rows = _filterRows(scoped);
+
+  // KPIs (computed on `scoped` — i.e., the selected coach's students, not on filtered)
+  document.getElementById('kpi-total').textContent = scoped.length;
+  document.getElementById('kpi-total-sub').textContent =
+    coachPick === '__all__' ? 'all coaches' : (coachPick === '__mine__' ? 'your students' : `${coachPick}'s roster`);
+  const risk = scoped.filter(_isAtRisk).length;
+  document.getElementById('kpi-risk').textContent = risk;
+  const exp = scoped.filter(_isExpiring).length;
+  document.getElementById('kpi-expiring').textContent = exp;
+
+  const zoomDays = scoped.map(s => _daysSince(s.last_zoom_date)).filter(d => d !== null);
+  const avgZoom = zoomDays.length ? Math.round(zoomDays.reduce((a,b)=>a+b,0) / zoomDays.length) : null;
+  document.getElementById('kpi-zoom').textContent = avgZoom == null ? '—' : avgZoom + 'd';
+
+  const last7 = scoped.filter(s => { const d = _daysSince(s.last_assignment_received); return d !== null && d <= 7; }).length;
+  const pct = scoped.length ? Math.round(100 * last7 / scoped.length) : 0;
+  document.getElementById('kpi-assignment').textContent = pct + '%';
+
+  // Chip counts
+  document.getElementById('cnt-all').textContent = scoped.length;
+  document.getElementById('cnt-atrisk').textContent = risk;
+  document.getElementById('cnt-expiring').textContent = exp;
+  document.getElementById('cnt-needs').textContent = scoped.filter(_isNeedsAttention).length;
+
+  // Sort: at-risk first, then by days since zoom desc, then name
+  rows.sort((a, b) => {
+    const ar = _isAtRisk(a) ? 1 : 0;
+    const br = _isAtRisk(b) ? 1 : 0;
+    if (ar !== br) return br - ar;
+    const az = _daysSince(a.last_zoom_date); const bz = _daysSince(b.last_zoom_date);
+    const av = az == null ? -1 : az; const bv = bz == null ? -1 : bz;
+    if (av !== bv) return bv - av;
+    return (a.name || '').localeCompare(b.name || '');
+  });
+
+  // Render table
+  const tbody = document.getElementById('studentTbody');
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:32px;color:var(--text-dim);">No students match.</td></tr>`;
+  } else {
+    tbody.innerHTML = rows.map(s => {
+      const dz = _daysSince(s.last_zoom_date);
+      const da = _daysSince(s.last_assignment_received);
+      const ds = _daysSince(s.last_assignment_sent);
+      const cls = (d) => d === null ? '' : (d <= 14 ? 'fresh' : d <= 30 ? 'stale' : 'dead');
+      const fmt = (d, raw) => raw ? `<span class="dsince ${cls(d)}">${d}d</span>` : '<span class="dsince" style="opacity:.4">—</span>';
+      const status = s.derived_status || s.status || '—';
+      const statusClass = status === 'Expired' ? 'bad' : status === 'Expiring soon' ? 'warn' : status === 'Paused' ? 'muted' : status === 'Active' ? 'ok' : 'muted';
+      const checked = selectedIds.has(s.id) ? 'checked' : '';
+      return `<tr data-id="${s.id}" class="${selectedIds.has(s.id) ? 'selected' : ''}">
+        <td><input type="checkbox" data-rowsel="${s.id}" ${checked}></td>
+        <td><strong>${escapeHtml(s.name || '(unnamed)')}</strong><br><span style="font-size:0.72rem;color:var(--text-dim);">${escapeHtml(s.email || '')}</span></td>
+        <td>${escapeHtml(s.level || '—')}</td>
+        <td>${escapeHtml(s.current_module || '—')}</td>
+        <td>${fmt(dz, s.last_zoom_date)}</td>
+        <td>${fmt(ds, s.last_assignment_sent)}</td>
+        <td>${fmt(da, s.last_assignment_received)}</td>
+        <td class="num">${s.days_left == null ? '—' : (s.days_left + 'd')}</td>
+        <td><span class="pill ${statusClass}">${escapeHtml(status)}</span></td>
+      </tr>`;
+    }).join('');
+    // Wire row click → open profile modal (skip if click was on the checkbox)
+    tbody.querySelectorAll('tr').forEach(tr => {
+      tr.addEventListener('click', (e) => {
+        if (e.target?.tagName === 'INPUT') return;
+        const id = parseInt(tr.dataset.id, 10);
+        openProfileModal(id);
+      });
+    });
+    tbody.querySelectorAll('[data-rowsel]').forEach(cb => {
+      cb.addEventListener('change', (e) => {
+        const id = parseInt(e.target.dataset.rowsel, 10);
+        if (e.target.checked) selectedIds.add(id); else selectedIds.delete(id);
+        e.target.closest('tr').classList.toggle('selected', e.target.checked);
+        updateBulkbar();
+      });
+    });
+  }
+  updateBulkbar();
+}
+
+document.getElementById('searchBox').addEventListener('input', renderAll);
+document.querySelectorAll('.chip[data-filter]').forEach(b => {
+  b.addEventListener('click', () => {
+    listFilter = b.dataset.filter;
+    document.querySelectorAll('.chip[data-filter]').forEach(x => x.classList.toggle('active', x === b));
+    renderAll();
+  });
+});
+document.getElementById('checkAll').addEventListener('change', (e) => {
+  const rows = _filterRows(_scopedRows());
+  if (e.target.checked) rows.forEach(s => selectedIds.add(s.id));
+  else rows.forEach(s => selectedIds.delete(s.id));
+  renderAll();
+});
+
+function updateBulkbar() {
+  const bar = document.getElementById('bulkbar');
+  bar.classList.toggle('visible', selectedIds.size > 0);
+  document.getElementById('bulkCount').textContent = selectedIds.size + ' selected';
+}
+document.getElementById('bulkClearBtn').addEventListener('click', () => { selectedIds.clear(); renderAll(); });
+document.getElementById('bulkApplyBtn').addEventListener('click', () => openBulkEditModal());
+
+// ── Profile modal: minimal coach-relevant editor ──────────────
+async function openProfileModal(id) {
+  document.getElementById('profileModal')?.remove();
+  // Fetch fresh
+  let row;
+  try {
+    const r = await fetch(STUDENTS_BASE + '?api=get&id=' + encodeURIComponent(id), {
+      headers: { Authorization: 'Bearer ' + currentSession.access_token },
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Failed');
+    row = j.row;
+  } catch (e) { alert('Failed to load: ' + (e.message || e)); return; }
+
+  const m = document.createElement('div');
+  m.id = 'profileModal'; m.className = 'modal-bg';
+  m.innerHTML = `
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2>${escapeHtml(row.name || '(unnamed)')}</h2>
+        <a href="students.html?student=${row.id}" target="_blank" class="btn-ghost" title="Open in full CRM">Full profile ↗</a>
+        <button class="close" data-x>×</button>
+      </div>
+      <div class="modal-body">
+        <div><label>Email</label><input id="pf-email" value="${escapeHtml(row.email||'')}" readonly></div>
+        <div><label>Coach</label><input id="pf-coach" value="${escapeHtml(row.coach||'')}"></div>
+        <div><label>Level</label>
+          <select id="pf-level">
+            <option value="">—</option><option ${row.level==='Beginner'?'selected':''}>Beginner</option>
+            <option ${row.level==='Intermediate'?'selected':''}>Intermediate</option>
+            <option ${row.level==='Advanced'?'selected':''}>Advanced</option>
+          </select></div>
+        <div><label>Current module</label><input id="pf-current_module" value="${escapeHtml(row.current_module||'')}" placeholder="e.g. Module 5"></div>
+        <div><label>Coach status</label>
+          <select id="pf-coach_status">
+            <option value="">—</option>
+            <option ${row.coach_status==='All good'?'selected':''}>All good</option>
+            <option ${row.coach_status==='Needs attention'?'selected':''}>Needs attention</option>
+          </select></div>
+        <div><label>Masterclass level</label><input id="pf-masterclass_level" value="${escapeHtml(row.masterclass_level||'')}" placeholder="LEVEL 1"></div>
+        <div><label>Last Zoom</label><input id="pf-last_zoom_date" type="date" value="${row.last_zoom_date||''}"></div>
+        <div><label>Last assignment sent</label><input id="pf-last_assignment_sent" type="date" value="${row.last_assignment_sent||''}"></div>
+        <div><label>Last assignment received</label><input id="pf-last_assignment_received" type="date" value="${row.last_assignment_received||''}"></div>
+        <div><label>Schedule</label><input id="pf-preferred_time_slot" value="${escapeHtml(row.preferred_time_slot||'')}" placeholder="e.g. Tue/Thu 6pm CET"></div>
+        <div class="full"><label>Concern</label><textarea id="pf-concern" placeholder="Practice constraints, problem areas…">${escapeHtml(row.concern||'')}</textarea></div>
+        <div class="full"><label>Goal</label><textarea id="pf-goal" placeholder="What are they working toward?">${escapeHtml(row.goal||'')}</textarea></div>
+      </div>
+      <div class="modal-foot">
+        <span class="msg" id="pf-msg"></span>
+        <button class="btn-ghost" data-x>Cancel</button>
+        <button class="btn-primary" id="pf-save">Save</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  const close = () => m.remove();
+  m.addEventListener('click', e => { if (e.target === m || e.target.matches('[data-x]')) close(); });
+  document.getElementById('pf-save').addEventListener('click', async () => {
+    const fields = ['coach','level','current_module','coach_status','masterclass_level','last_zoom_date','last_assignment_sent','last_assignment_received','preferred_time_slot','concern','goal'];
+    const payload = { id: row.id };
+    fields.forEach(f => { payload[f] = document.getElementById('pf-'+f).value || null; });
+    const msg = document.getElementById('pf-msg'); msg.className='msg'; msg.textContent='Saving…';
+    try {
+      const r = await fetch(STUDENTS_BASE + '?api=upsert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
+        body: JSON.stringify(payload),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'Failed');
+      msg.className='msg ok'; msg.textContent='Saved';
+      // update local state
+      Object.assign(row, payload);
+      const idx = allStudents.findIndex(s => s.id === row.id);
+      if (idx >= 0) Object.assign(allStudents[idx], payload);
+      renderAll();
+      setTimeout(close, 600);
+    } catch (e) { msg.className='msg err'; msg.textContent='Save failed: ' + (e.message || e); }
+  });
+}
+
+// ── Bulk edit modal ───────────────────────────────────────────
+function openBulkEditModal() {
+  if (!selectedIds.size) return;
+  document.getElementById('bulkModal')?.remove();
+  const m = document.createElement('div');
+  m.id = 'bulkModal'; m.className = 'modal-bg';
+  m.innerHTML = `
+    <div class="modal-card" style="max-width:520px;">
+      <div class="modal-head">
+        <h2>Apply to ${selectedIds.size} student${selectedIds.size===1?'':'s'}</h2>
+        <button class="close" data-x>×</button>
+      </div>
+      <div class="modal-body" style="grid-template-columns:1fr;">
+        <div><label>Field to update</label>
+          <select id="bf-field">
+            <option value="last_zoom_date">Last Zoom date</option>
+            <option value="last_assignment_sent">Last assignment sent</option>
+            <option value="last_assignment_received">Last assignment received</option>
+            <option value="level">Level</option>
+            <option value="current_module">Current module</option>
+            <option value="coach_status">Coach status</option>
+            <option value="coach">Coach</option>
+            <option value="masterclass_level">Masterclass level</option>
+            <option value="preferred_time_slot">Schedule</option>
+            <option value="concern">Concern (replaces)</option>
+            <option value="goal">Goal (replaces)</option>
+          </select></div>
+        <div id="bf-value-wrap"></div>
+        <div style="font-size:0.78rem;color:var(--text-dim);line-height:1.5;">
+          The selected field will be set to this value on every selected student. Empty value clears the field. Concern/Goal replace existing text.
+        </div>
+      </div>
+      <div class="modal-foot">
+        <span class="msg" id="bf-msg"></span>
+        <button class="btn-ghost" data-x>Cancel</button>
+        <button class="btn-primary" id="bf-apply">Apply to ${selectedIds.size}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  const close = () => m.remove();
+  m.addEventListener('click', e => { if (e.target === m || e.target.matches('[data-x]')) close(); });
+
+  function buildValueInput() {
+    const f = document.getElementById('bf-field').value;
+    const wrap = document.getElementById('bf-value-wrap');
+    let html = '<label>Value</label>';
+    if (['last_zoom_date','last_assignment_sent','last_assignment_received'].includes(f)) {
+      html += `<input id="bf-value" type="date">`;
+    } else if (f === 'level') {
+      html += `<select id="bf-value"><option value="">— clear —</option><option>Beginner</option><option>Intermediate</option><option>Advanced</option></select>`;
+    } else if (f === 'coach_status') {
+      html += `<select id="bf-value"><option value="">— clear —</option><option>All good</option><option>Needs attention</option></select>`;
+    } else if (['concern','goal'].includes(f)) {
+      html += `<textarea id="bf-value" style="min-height:80px;"></textarea>`;
+    } else {
+      html += `<input id="bf-value" type="text" placeholder="${f === 'current_module' ? 'e.g. Module 5' : ''}">`;
+    }
+    wrap.innerHTML = html;
+  }
+  buildValueInput();
+  document.getElementById('bf-field').addEventListener('change', buildValueInput);
+
+  document.getElementById('bf-apply').addEventListener('click', async () => {
+    const field = document.getElementById('bf-field').value;
+    const valEl = document.getElementById('bf-value');
+    const value = (valEl?.value || '').trim();
+    const ids = [...selectedIds];
+    const msg = document.getElementById('bf-msg'); msg.className='msg'; msg.textContent='Applying…';
+    try {
+      const { data, error } = await supa.rpc('bulk_update_students_field', {
+        p_ids: ids, p_field: field, p_value: value || null,
+      });
+      if (error) throw error;
+      const updated = data?.updated ?? 0;
+      msg.className='msg ok'; msg.textContent = `Updated ${updated} student${updated===1?'':'s'}`;
+      await loadStudents();
+      selectedIds.clear();
+      setTimeout(close, 700);
+    } catch (e) { msg.className='msg err'; msg.textContent='Failed: ' + (e.message || e); }
+  });
+}
+
+initAuth();
+</script>
+</body>
+</html>

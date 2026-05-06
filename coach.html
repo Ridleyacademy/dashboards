@@ -154,9 +154,8 @@
   .dr-apply:hover { opacity: 0.9; }
 
   /* KPI cards */
-  .kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px;
-    padding: 18px 22px 4px; }
-  @media (max-width: 1100px) { .kpis { grid-template-columns: repeat(2, 1fr); } }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 14px; padding: 18px 22px 4px; }
   .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
     padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; }
   .kpi-label { font-size: 0.7rem; font-weight: 700; color: var(--text-dim);
@@ -164,7 +163,8 @@
   .kpi-value { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.02em; color: var(--text); }
   .kpi-sub { font-size: 0.72rem; color: var(--text-dim); }
   .kpi.warn .kpi-value { color: #fb7185; }
-  .kpi.good .kpi-value { color: var(--accent2); }
+  .kpi.good .kpi-value { color: var(--green); }
+  .kpi.muted .kpi-value { color: var(--text-dim); }
 
   /* Filter bar */
   .filterbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
@@ -337,16 +337,20 @@
   </header>
 
   <div class="kpis">
-    <div class="kpi"><div class="kpi-label">Students</div>
-      <div class="kpi-value" id="kpi-total">0</div><div class="kpi-sub" id="kpi-total-sub">—</div></div>
+    <div class="kpi"><div class="kpi-label">Active students</div>
+      <div class="kpi-value" id="kpi-total">0</div><div class="kpi-sub" id="kpi-total-sub">excludes expired & paused</div></div>
     <div class="kpi warn"><div class="kpi-label">At risk</div>
       <div class="kpi-value" id="kpi-risk">0</div><div class="kpi-sub">No zoom AND no assignment in 14d</div></div>
     <div class="kpi"><div class="kpi-label">Expiring ≤ 30d</div>
       <div class="kpi-value" id="kpi-expiring">0</div><div class="kpi-sub">Term ending within a month</div></div>
     <div class="kpi"><div class="kpi-label">Avg days since zoom</div>
-      <div class="kpi-value" id="kpi-zoom">—</div><div class="kpi-sub">Across all students</div></div>
+      <div class="kpi-value" id="kpi-zoom">—</div><div class="kpi-sub">Active students only</div></div>
     <div class="kpi good"><div class="kpi-label">Assignment last 7d</div>
       <div class="kpi-value" id="kpi-assignment">0%</div><div class="kpi-sub">% with assignment received</div></div>
+    <div class="kpi warn"><div class="kpi-label">Expired</div>
+      <div class="kpi-value" id="kpi-expired">0</div><div class="kpi-sub">Term ended</div></div>
+    <div class="kpi muted"><div class="kpi-label">Paused</div>
+      <div class="kpi-value" id="kpi-paused">0</div><div class="kpi-sub">Currently on pause</div></div>
   </div>
 
   <div class="filterbar">
@@ -661,32 +665,50 @@ function _filterRows(rows) {
   return rows;
 }
 
+function _isExpired(s) { return s.derived_status === 'Expired'; }
+function _isPaused(s)  { return s.derived_status === 'Paused'; }
+// "Active" for stats means: not Expired and not Paused. Other statuses
+// (Active, Expiring soon, Not onboarded, Delayed start) all count as live roster.
+function _isActiveForStats(s) { return !_isExpired(s) && !_isPaused(s); }
+
 function renderAll() {
   const scoped = _scopedRows();
   const rows = _filterRows(scoped);
 
-  // KPIs (computed on `scoped` — i.e., the selected coach's students, not on filtered)
-  document.getElementById('kpi-total').textContent = scoped.length;
+  // Split scoped into active vs paused vs expired so KPIs only reflect active
+  const active  = scoped.filter(_isActiveForStats);
+  const expired = scoped.filter(_isExpired);
+  const paused  = scoped.filter(_isPaused);
+
+  // KPIs
+  document.getElementById('kpi-total').textContent = active.length;
   document.getElementById('kpi-total-sub').textContent =
-    coachPick === '__all__' ? 'all coaches' : (coachPick === '__mine__' ? 'your students' : `${coachPick}'s roster`);
-  const risk = scoped.filter(_isAtRisk).length;
+    (coachPick === '__all__' ? 'all coaches' : (coachPick === '__mine__' ? 'your students' : `${coachPick}'s roster`))
+    + ' · excl. expired & paused';
+  const risk = active.filter(_isAtRisk).length;
   document.getElementById('kpi-risk').textContent = risk;
-  const exp = scoped.filter(_isExpiring).length;
+  const exp = active.filter(_isExpiring).length;
   document.getElementById('kpi-expiring').textContent = exp;
 
-  const zoomDays = scoped.map(s => _daysSince(s.last_zoom_date)).filter(d => d !== null);
+  // Avg days since zoom — active only
+  const zoomDays = active.map(s => _daysSince(s.last_zoom_date)).filter(d => d !== null);
   const avgZoom = zoomDays.length ? Math.round(zoomDays.reduce((a,b)=>a+b,0) / zoomDays.length) : null;
   document.getElementById('kpi-zoom').textContent = avgZoom == null ? '—' : avgZoom + 'd';
 
-  const last7 = scoped.filter(s => { const d = _daysSince(s.last_assignment_received); return d !== null && d <= 7; }).length;
-  const pct = scoped.length ? Math.round(100 * last7 / scoped.length) : 0;
+  // % with assignment received in last 7d — active only
+  const last7 = active.filter(s => { const d = _daysSince(s.last_assignment_received); return d !== null && d <= 7; }).length;
+  const pct = active.length ? Math.round(100 * last7 / active.length) : 0;
   document.getElementById('kpi-assignment').textContent = pct + '%';
 
-  // Chip counts
+  // Expired + Paused counts
+  document.getElementById('kpi-expired').textContent = expired.length;
+  document.getElementById('kpi-paused').textContent  = paused.length;
+
+  // Chip counts (also active-only for the relevant ones; All shows full scope)
   document.getElementById('cnt-all').textContent = scoped.length;
   document.getElementById('cnt-atrisk').textContent = risk;
   document.getElementById('cnt-expiring').textContent = exp;
-  document.getElementById('cnt-needs').textContent = scoped.filter(_isNeedsAttention).length;
+  document.getElementById('cnt-needs').textContent = active.filter(_isNeedsAttention).length;
 
   // Sort: at-risk first, then by days since zoom desc, then name
   rows.sort((a, b) => {

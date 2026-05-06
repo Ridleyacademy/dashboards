@@ -220,32 +220,79 @@
   table.students td.num { text-align: right; font-variant-numeric: tabular-nums; }
   table.students tr.pinned { background: rgba(251,191,36,0.04); border-left: 3px solid var(--gold, #fbbf24); }
   table.students tr.pinned:hover { background: rgba(251,191,36,0.08); }
-  /* Row action icons (pin, quick note) — appear in a single column */
-  .row-actions { display: inline-flex; gap: 6px; align-items: center; }
+  /* Row action icons — SVG icons matching the dashboard style (Lucide-stroke) */
+  .row-actions { display: inline-flex; gap: 4px; align-items: center; }
   .row-actions button {
-    background: transparent; border: none; cursor: pointer; padding: 4px 6px;
-    border-radius: 6px; color: var(--text-dim); font-size: 0.95rem; line-height: 1;
+    position: relative; background: transparent; border: none; cursor: pointer;
+    padding: 5px; border-radius: 6px; color: var(--text-dim); line-height: 0;
     transition: background 0.12s, color 0.12s;
+    display: inline-flex; align-items: center; justify-content: center;
   }
   .row-actions button:hover { background: var(--surface2); color: var(--text); }
+  .row-actions button svg { width: 15px; height: 15px; display: block; }
   .row-actions button.pinned { color: var(--gold, #fbbf24); }
-  /* Inline note popover */
+  .row-actions button.pinned svg { fill: currentColor; }
+  .row-actions .note-badge {
+    position: absolute; top: -3px; right: -4px;
+    background: var(--green); color: #06231a;
+    font-size: 0.6rem; font-weight: 800;
+    border-radius: 999px; padding: 0 4px; min-width: 14px; height: 14px;
+    display: flex; align-items: center; justify-content: center;
+    line-height: 1;
+  }
+  /* Coach-notes popover (matches CRM behavior — list + add) */
   .note-popover {
     position: fixed; z-index: 9001;
     background: var(--surface); border: 1px solid var(--border-light);
-    border-radius: 12px; padding: 12px; min-width: 320px;
+    border-radius: 14px; padding: 14px; width: 420px; max-width: calc(100vw - 24px);
+    max-height: 70vh; display: flex; flex-direction: column;
     box-shadow: 0 16px 48px rgba(0,0,0,0.5);
   }
-  .note-popover .np-head { font-size: 0.78rem; font-weight: 700; color: var(--text);
-    margin-bottom: 8px; letter-spacing: -0.01em; }
+  .note-popover .np-head {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 0.82rem; font-weight: 700; color: var(--text);
+    margin-bottom: 10px; letter-spacing: -0.01em;
+  }
+  .note-popover .np-head .np-count {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 999px; padding: 1px 8px; font-size: 0.65rem; font-weight: 700;
+    color: var(--text-dim);
+  }
+  .note-popover .np-head .grow { flex: 1; }
+  .note-popover .np-head a {
+    font-size: 0.7rem; color: var(--text-dim); text-decoration: none;
+  }
+  .note-popover .np-head a:hover { color: var(--text); }
+  .note-popover .np-list {
+    flex: 1; overflow-y: auto; max-height: 240px; min-height: 40px;
+    margin-bottom: 10px; padding-right: 4px;
+  }
+  .note-popover .np-list:empty::before {
+    content: 'No notes yet — be the first.'; color: var(--text-dim);
+    font-size: 0.78rem; display: block; text-align: center; padding: 14px 8px;
+  }
+  .np-note-row {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 9px; padding: 9px 11px; margin-bottom: 6px;
+  }
+  .np-note-meta {
+    font-size: 0.66rem; color: var(--text-dim); margin-bottom: 4px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .np-note-text {
+    font-size: 0.82rem; color: var(--text); white-space: pre-wrap; line-height: 1.4;
+  }
+  .np-divider { height: 1px; background: var(--border); margin: 4px 0 10px; }
   .note-popover textarea {
-    width: 100%; min-height: 80px; background: var(--surface2);
-    border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px;
+    width: 100%; min-height: 64px; background: var(--surface2);
+    border: 1px solid var(--border); border-radius: 9px; padding: 8px 10px;
     color: var(--text); font: inherit; font-size: 0.85rem; resize: vertical;
   }
-  .note-popover .np-foot { display: flex; gap: 8px; justify-content: flex-end;
-    margin-top: 8px; align-items: center; }
-  .note-popover .np-foot .msg { flex: 1; font-size: 0.74rem; color: var(--text-dim); }
+  .note-popover .np-foot {
+    display: flex; gap: 8px; justify-content: flex-end;
+    margin-top: 8px; align-items: center;
+  }
+  .note-popover .np-foot .msg { flex: 1; font-size: 0.72rem; color: var(--text-dim); }
   .note-popover .np-foot .msg.err { color: #f87171; }
   .note-popover .np-foot .msg.ok { color: var(--green); }
   .pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 0.68rem;
@@ -834,15 +881,20 @@ function renderAll() {
       const statusClass = status === 'Expired' ? 'bad' : status === 'Expiring soon' ? 'warn' : status === 'Paused' ? 'muted' : status === 'Active' ? 'ok' : 'muted';
       const checked = selectedIds.has(s.id) ? 'checked' : '';
       const isPinned = pinnedIds.has(s.id);
+      const noteCount = s.coach_notes_count || 0;
       const trClasses = [
         selectedIds.has(s.id) ? 'selected' : '',
         isPinned ? 'pinned' : '',
       ].filter(Boolean).join(' ');
+      // Lucide-style stroke SVGs matching the dashboard's icon vocabulary
+      const pinSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="${isPinned ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg>`;
+      const noteSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8z"/><polyline points="14 3 14 8 19 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>`;
+      const noteBadge = noteCount > 0 ? `<span class="note-badge">${noteCount}</span>` : '';
       return `<tr data-id="${s.id}" class="${trClasses}">
         <td><input type="checkbox" data-rowsel="${s.id}" ${checked}></td>
         <td><div class="row-actions">
-          <button data-pin="${s.id}" class="${isPinned ? 'pinned' : ''}" title="${isPinned ? 'Unpin' : 'Pin to top'}">${isPinned ? '📌' : '📍'}</button>
-          <button data-note="${s.id}" title="Quick coach note">📝+</button>
+          <button data-pin="${s.id}" class="${isPinned ? 'pinned' : ''}" title="${isPinned ? 'Unpin from top' : 'Pin to top of list'}">${pinSvg}</button>
+          <button data-note="${s.id}" title="${noteCount} coach note${noteCount===1?'':'s'} — click to view or add">${noteSvg}${noteBadge}</button>
         </div></td>
         <td><strong>${escapeHtml(s.name || '(unnamed)')}</strong><br><span style="font-size:0.72rem;color:var(--text-dim);">${escapeHtml(s.email || '')}</span></td>
         <td>${escapeHtml(s.level || '—')}</td>
@@ -915,34 +967,52 @@ function updateBulkbar() {
 document.getElementById('bulkClearBtn').addEventListener('click', () => { selectedIds.clear(); renderAll(); });
 document.getElementById('bulkApplyBtn').addEventListener('click', () => openBulkEditModal());
 
-// ── Quick coach-note popover ──────────────────────────────────
-function openQuickNotePopover(anchorEl, studentId, studentName) {
+// ── Coach-notes popover (list + add — same data as the CRM) ──
+async function openQuickNotePopover(anchorEl, studentId, studentName) {
   document.getElementById('quickNotePop')?.remove();
   const pop = document.createElement('div');
   pop.id = 'quickNotePop';
   pop.className = 'note-popover';
   pop.innerHTML = `
-    <div class="np-head">📝 Coach note · ${escapeHtml(studentName || '(unnamed)')}</div>
-    <textarea id="qnText" placeholder="Quick observation, follow-up, win… (Cmd/Ctrl+Enter to save, Esc to cancel)" autofocus></textarea>
+    <div class="np-head">
+      <span style="display:inline-flex;align-items:center;gap:6px;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8z"/><polyline points="14 3 14 8 19 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>
+        Coach notes · ${escapeHtml(studentName || '(unnamed)')}
+      </span>
+      <span class="np-count" id="qnCount">…</span>
+      <span class="grow"></span>
+      <a href="students.html?student=${studentId}" target="_blank" title="Open full profile in CRM">Open in CRM ↗</a>
+    </div>
+    <div class="np-list" id="qnList"></div>
+    <div class="np-divider"></div>
+    <textarea id="qnText" placeholder="Add a new note — observation, follow-up, win…  (Cmd/Ctrl+Enter to save, Esc to close)"></textarea>
     <div class="np-foot">
       <span class="msg" id="qnMsg"></span>
-      <button class="btn-ghost" id="qnCancel">Cancel</button>
+      <button class="btn-ghost" id="qnCancel">Close</button>
       <button class="btn-primary" id="qnSave">Save note</button>
     </div>`;
   document.body.appendChild(pop);
 
   // Position popover near the button (clamp to viewport)
   const r = anchorEl.getBoundingClientRect();
-  const popW = 340, popH = 170;
+  const popW = 420;
   let left = Math.min(r.left, window.innerWidth - popW - 12);
-  let top  = r.bottom + 6;
-  if (top + popH > window.innerHeight - 12) top = Math.max(12, r.top - popH - 6);
+  // Default below the button; if no room, place above
   pop.style.left = Math.max(12, left) + 'px';
-  pop.style.top  = top + 'px';
+  pop.style.top  = (r.bottom + 6) + 'px';
+  // After render, re-check vertical fit
+  requestAnimationFrame(() => {
+    const ph = pop.offsetHeight;
+    if (r.bottom + 6 + ph > window.innerHeight - 12) {
+      pop.style.top = Math.max(12, r.top - ph - 6) + 'px';
+    }
+  });
 
-  const ta = document.getElementById('qnText');
-  setTimeout(() => ta.focus(), 30);
-  function close() { pop.remove(); document.removeEventListener('keydown', onKey); document.removeEventListener('click', onOutside, true); }
+  function close() {
+    pop.remove();
+    document.removeEventListener('keydown', onKey);
+    document.removeEventListener('click', onOutside, true);
+  }
   function onKey(e) {
     if (e.key === 'Escape') close();
     else if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') save();
@@ -951,7 +1021,39 @@ function openQuickNotePopover(anchorEl, studentId, studentName) {
   setTimeout(() => document.addEventListener('click', onOutside, true), 0);
   document.addEventListener('keydown', onKey);
   document.getElementById('qnCancel').addEventListener('click', close);
+
+  // Load existing notes from the same source the CRM uses (?api=get returns coach_notes)
+  async function loadNotes() {
+    try {
+      const r = await fetch(STUDENTS_BASE + '?api=get&id=' + encodeURIComponent(studentId), {
+        headers: { Authorization: 'Bearer ' + currentSession.access_token },
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'Failed');
+      const notes = Array.isArray(j.coach_notes) ? j.coach_notes : [];
+      document.getElementById('qnCount').textContent = notes.length;
+      const list = document.getElementById('qnList');
+      list.innerHTML = notes.map(n => {
+        const when = n.note_date || n.created_at || '';
+        const whenStr = when ? new Date(when).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+        const who = n.created_by_email || 'unknown';
+        return `<div class="np-note-row">
+          <div class="np-note-meta">${escapeHtml(whenStr)} · ${escapeHtml(who)}</div>
+          <div class="np-note-text">${escapeHtml(n.text || '')}</div>
+        </div>`;
+      }).join('');
+      // Sync local cached count so the badge stays right
+      const idx = allStudents.findIndex(x => x.id === studentId);
+      if (idx >= 0) allStudents[idx].coach_notes_count = notes.length;
+    } catch (e) {
+      document.getElementById('qnList').innerHTML = `<div style="color:#f87171;font-size:0.78rem;padding:8px;">Failed to load: ${escapeHtml(e.message || e)}</div>`;
+    }
+  }
+  loadNotes();
+  setTimeout(() => document.getElementById('qnText').focus(), 50);
+
   async function save() {
+    const ta = document.getElementById('qnText');
     const text = ta.value.trim();
     const msg = document.getElementById('qnMsg');
     msg.className = 'msg'; msg.textContent = '';
@@ -960,12 +1062,29 @@ function openQuickNotePopover(anchorEl, studentId, studentName) {
     try {
       await quickAddCoachNote(studentId, text);
       msg.className = 'msg ok'; msg.textContent = 'Saved.';
-      // Bump local count if shown
+      ta.value = '';
+      // Refresh the list inline (no popover close — encourage rapid logging)
+      loadNotes();
+      // Update the row's badge in the table without a full re-render
       const idx = allStudents.findIndex(x => x.id === studentId);
       if (idx >= 0) {
         allStudents[idx].coach_notes_count = (allStudents[idx].coach_notes_count || 0) + 1;
       }
-      setTimeout(close, 500);
+      // Update just the badge on the originating button if it's still in DOM
+      const btn = document.querySelector(`[data-note="${studentId}"]`);
+      if (btn) {
+        const cnt = (allStudents[idx]?.coach_notes_count || 0);
+        let badge = btn.querySelector('.note-badge');
+        if (cnt > 0) {
+          if (!badge) {
+            badge = document.createElement('span');
+            badge.className = 'note-badge';
+            btn.appendChild(badge);
+          }
+          badge.textContent = cnt;
+        }
+      }
+      setTimeout(() => { msg.textContent = ''; msg.className = 'msg'; }, 1200);
     } catch (e) { msg.className = 'msg err'; msg.textContent = 'Save failed: ' + (e.message || e); }
   }
   document.getElementById('qnSave').addEventListener('click', save);

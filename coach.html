@@ -1477,9 +1477,16 @@ function openScheduleZoomModal(prefilledIds) {
   const pad = n => String(n).padStart(2,'0');
   const localDtVal = `${def.getFullYear()}-${pad(def.getMonth()+1)}-${pad(def.getDate())}T${pad(def.getHours())}:${pad(def.getMinutes())}`;
 
-  // Pool: prefilled IDs OR currently scoped students
-  const ids = prefilledIds && prefilledIds.length ? prefilledIds : _scopedRows().map(s => s.id);
-  const pool = ids.map(id => allStudents.find(s => s.id === id)).filter(Boolean);
+  // Pool = ALL students; prefilledIds (from bulk select) come pre-checked.
+  // Sort: prefilled first, then alphabetical.
+  const preset = new Set((prefilledIds || []).map(Number));
+  const pool = [...allStudents].sort((a,b) => {
+    const ap = preset.has(a.id) ? 0 : 1, bp = preset.has(b.id) ? 0 : 1;
+    if (ap !== bp) return ap - bp;
+    return (a.name||'').localeCompare(b.name||'');
+  });
+  // Selection state lives outside DOM so it survives search-filtering
+  const szSelected = new Set(preset);
 
   const m = document.createElement('div');
   m.id = 'szModal'; m.className = 'modal-bg';
@@ -1498,10 +1505,14 @@ function openScheduleZoomModal(prefilledIds) {
           <div><label>Duration (min)</label>
             <input id="sz-duration" type="number" min="15" step="15" value="60"></div>
         </div>
-        <div><label>Invite students (auto-emails personal join link)</label>
-          <div class="sz-students" id="sz-students">
-            ${pool.length ? pool.map(s => `<label><input type="checkbox" value="${s.id}" ${prefilledIds?.length ? 'checked':''}> ${escapeHtml(s.name||'(unnamed)')} <span style="color:var(--text-dim);">${escapeHtml(s.email||'no email')}</span></label>`).join('') : '<div style="color:var(--text-dim);font-size:0.8rem;">No students in current view.</div>'}
+        <div>
+          <label>Invite students (auto-emails personal join link)</label>
+          <input id="sz-search" type="search" placeholder="Search by name or email…" style="margin-bottom:6px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.72rem;color:var(--text-dim);margin-bottom:4px;">
+            <span id="sz-count">${szSelected.size} selected</span>
+            <button type="button" id="sz-clear" style="background:transparent;border:none;color:var(--text-dim);cursor:pointer;text-decoration:underline;font-size:0.72rem;padding:0;">Clear all</button>
           </div>
+          <div class="sz-students" id="sz-students"></div>
           <div style="font-size:0.72rem;color:var(--text-dim);margin-top:4px;">Students without an email will be skipped.</div>
         </div>
         <div><label>Notes (internal, not sent to students)</label>
@@ -1517,12 +1528,44 @@ function openScheduleZoomModal(prefilledIds) {
   const close = () => m.remove();
   m.addEventListener('click', e => { if (e.target === m || e.target.matches('[data-x]')) close(); });
 
+  const listEl = document.getElementById('sz-students');
+  const countEl = document.getElementById('sz-count');
+  const searchEl = document.getElementById('sz-search');
+  function renderStudentChoices() {
+    const q = (searchEl.value || '').trim().toLowerCase();
+    let rows = pool;
+    if (q) rows = rows.filter(s => (s.name||'').toLowerCase().includes(q) || (s.email||'').toLowerCase().includes(q));
+    // Cap to 200 results visible to keep the modal snappy; selected always shown
+    const selectedRows = rows.filter(s => szSelected.has(s.id));
+    const otherRows = rows.filter(s => !szSelected.has(s.id)).slice(0, 200 - selectedRows.length);
+    const visible = [...selectedRows, ...otherRows];
+    if (!visible.length) { listEl.innerHTML = '<div style="color:var(--text-dim);font-size:0.8rem;padding:6px;">No matches.</div>'; return; }
+    listEl.innerHTML = visible.map(s =>
+      `<label><input type="checkbox" data-szid="${s.id}" ${szSelected.has(s.id)?'checked':''}> ${escapeHtml(s.name||'(unnamed)')} <span style="color:var(--text-dim);">${escapeHtml(s.email||'no email')}</span></label>`
+    ).join('');
+    if (rows.length > visible.length) listEl.innerHTML += `<div style="color:var(--text-dim);font-size:0.72rem;padding:6px;">+ ${rows.length - visible.length} more — refine search to see them.</div>`;
+    listEl.querySelectorAll('input[data-szid]').forEach(cb => {
+      cb.addEventListener('change', e => {
+        const id = parseInt(cb.dataset.szid, 10);
+        if (e.target.checked) szSelected.add(id); else szSelected.delete(id);
+        countEl.textContent = szSelected.size + ' selected';
+      });
+    });
+  }
+  renderStudentChoices();
+  searchEl.addEventListener('input', renderStudentChoices);
+  document.getElementById('sz-clear').addEventListener('click', () => {
+    szSelected.clear();
+    countEl.textContent = '0 selected';
+    renderStudentChoices();
+  });
+
   document.getElementById('sz-create').addEventListener('click', async () => {
     const topic = document.getElementById('sz-topic').value.trim();
     const localStart = document.getElementById('sz-start').value;
     const duration = parseInt(document.getElementById('sz-duration').value, 10);
     const notes = document.getElementById('sz-notes').value.trim() || null;
-    const student_ids = [...document.querySelectorAll('#sz-students input:checked')].map(cb => parseInt(cb.value,10));
+    const student_ids = [...szSelected];
     const wrap = document.getElementById('sz-result-wrap');
     if (!topic || !localStart || !duration) { wrap.innerHTML = '<div class="sz-result err">Topic, start time, and duration are required.</div>'; return; }
     // local datetime → UTC ISO

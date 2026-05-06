@@ -1173,6 +1173,9 @@ async function openProfileModal(id) {
         <div><label>Schedule</label><input id="pf-preferred_time_slot" value="${escapeHtml(row.preferred_time_slot||'')}" placeholder="e.g. Tue/Thu 6pm CET"></div>
         <div class="full"><label>Concern</label><textarea id="pf-concern" placeholder="Practice constraints, problem areas…">${escapeHtml(row.concern||'')}</textarea></div>
         <div class="full"><label>Goal</label><textarea id="pf-goal" placeholder="What are they working toward?">${escapeHtml(row.goal||'')}</textarea></div>
+        <div class="full"><label style="display:flex;align-items:center;justify-content:space-between;">Zoom history (auto-recorded) <span id="pf-zoom-count" style="color:var(--text-dim);font-weight:500;font-size:0.74rem;"></span></label>
+          <div id="pf-zoom-history" style="border:1px solid var(--border);border-radius:8px;padding:6px 4px;max-height:160px;overflow-y:auto;background:var(--bg);font-size:0.8rem;">Loading…</div>
+        </div>
       </div>
       <div class="modal-foot">
         <span class="msg" id="pf-msg"></span>
@@ -1183,6 +1186,30 @@ async function openProfileModal(id) {
   document.body.appendChild(m);
   const close = () => m.remove();
   m.addEventListener('click', e => { if (e.target === m || e.target.matches('[data-x]')) close(); });
+
+  // Load Zoom attendance history
+  (async () => {
+    const wrap = document.getElementById('pf-zoom-history');
+    const cnt = document.getElementById('pf-zoom-count');
+    try {
+      const { data, error } = await supa.rpc('student_zoom_history', { p_student_id: row.id, p_limit: 100 });
+      if (error) throw error;
+      const rows = data || [];
+      cnt.textContent = rows.length + ' total session' + (rows.length===1?'':'s');
+      if (!rows.length) { wrap.innerHTML = '<div style="padding:8px 10px;color:var(--text-dim);">No Zoom sessions recorded yet.</div>'; return; }
+      wrap.innerHTML = rows.map(r => {
+        const dur = r.participant_duration_seconds ? Math.round(r.participant_duration_seconds/60) + ' min' : (r.duration_minutes ? r.duration_minutes + ' min' : '');
+        return `<div style="display:flex;justify-content:space-between;gap:10px;padding:5px 8px;border-bottom:1px solid var(--border);">
+          <span style="font-weight:600;color:var(--accent2);min-width:90px;">${escapeHtml(r.attended_on)}</span>
+          <span style="flex:1;color:var(--text);">${escapeHtml(r.topic||'(no topic)')}</span>
+          <span style="color:var(--text-dim);font-size:0.74rem;">${dur}</span>
+        </div>`;
+      }).join('');
+    } catch (e) {
+      wrap.innerHTML = '<div style="padding:8px 10px;color:#f87171;">Failed to load history: ' + escapeHtml(e.message||String(e)) + '</div>';
+    }
+  })();
+
   document.getElementById('pf-save').addEventListener('click', async () => {
     const fields = ['coach','level','current_module','coach_status','masterclass_level','last_zoom_date','last_assignment_sent','last_assignment_received','preferred_time_slot','concern','goal'];
     const payload = { id: row.id };

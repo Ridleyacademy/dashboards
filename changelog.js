@@ -11,6 +11,13 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v128', title: 'Zoom attendance history per student',
+      roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic'], items: [
+      'Every Zoom session a student attends is now logged as a permanent record (not just overwriting "Last Zoom").',
+      'Last Zoom date still updates to the most recent session — but old sessions are preserved.',
+      'Coach Dashboard student profile now shows a "Zoom history (auto-recorded)" list with date, topic, and duration for every session.',
+      'Existing matched sessions were backfilled into the history.',
+    ]},
     { version: 'v127', title: 'Per-coach Zoom host mapping (concurrent meetings)',
       adminOnly: true, items: [
       'New "Zoom host email" field in the Admin Panel (next to First name) — set each coach\'s personal Zoom account email there.',

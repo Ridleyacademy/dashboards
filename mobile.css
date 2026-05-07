@@ -168,10 +168,34 @@
     margin: 0 auto 12px; opacity: 0.5;
   }
   .modal-head { padding: 0 !important; margin-bottom: 12px !important; gap: 8px !important; }
-  .modal-head h2 { font-size: 1.05rem !important; }
-  .modal-body { padding: 0 !important; gap: 12px !important; grid-template-columns: 1fr !important; }
-  .modal-foot { padding: 14px 0 0 !important; flex-wrap: wrap !important; gap: 8px !important; }
-  .modal-foot button { min-height: 40px; }
+  .modal-head h2 { font-size: 1.05rem !important; line-height: 1.3 !important; }
+  /* Body: single column, with REAL spacing between fields */
+  .modal-body {
+    padding: 0 !important;
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+    row-gap: 16px !important;
+  }
+  .modal-body > div { display: block; }
+  .modal-body label { display: block !important; font-size: 0.7rem !important; margin-bottom: 8px !important; }
+  .modal-body input, .modal-body select, .modal-body textarea {
+    padding: 12px 14px !important;
+    font-size: 0.95rem !important;
+    min-height: 46px !important;
+    border-radius: 12px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  .modal-body textarea { min-height: 96px !important; }
+  .modal-foot {
+    padding: 14px 0 0 !important;
+    margin-top: 8px !important;
+    border-top: 1px solid var(--border, #1f2438);
+    flex-wrap: wrap !important;
+    gap: 10px !important;
+  }
+  .modal-foot button { min-height: 42px; flex: 1 1 auto; padding: 10px 16px !important; font-size: 0.88rem !important; }
 
   /* Hide admin-only column on mobile */
   body:not(.can-see-all) .admin-col { display: none !important; }
@@ -251,8 +275,43 @@
   /* Topbar header on the dashboards: shrink the title + tighten controls */
   .brand-title, .brand h1 { font-size: 0.92rem !important; }
 
-  /* Student profile (CRM) — make field grid single column on small phones */
-  .profile-grid { grid-template-columns: 1fr !important; gap: 12px !important; }
+  /* Student profile (CRM) — single column with proper breathing room */
+  .profile-card { padding: 16px 14px !important; }
+  .profile-grid { grid-template-columns: 1fr !important; gap: 16px !important; padding: 4px 0 !important; }
+  .field { margin-bottom: 0 !important; }
+  .field-label { font-size: 0.7rem !important; margin-bottom: 8px !important; display: block !important; }
+  .field-input, .field-select, .field-textarea {
+    padding: 12px 14px !important;
+    font-size: 0.95rem !important;
+    min-height: 46px !important;
+    border-radius: 12px !important;
+  }
+  .field-textarea { min-height: 96px !important; }
+
+  /* Profile sections (Lifecycle, Resources, Coach, etc.) */
+  .profile-section { margin-top: 22px !important; padding-top: 14px !important; border-top: 1px solid var(--border, #1f2438); }
+  .profile-section-head { gap: 8px !important; }
+  details.profile-section > summary { margin-bottom: 14px !important; padding: 4px 0 !important; }
+
+  /* Header — profile name + status pill stack with space */
+  .profile-header { gap: 12px !important; padding: 4px 0 18px !important; border-bottom: 1px solid var(--border, #1f2438); margin-bottom: 18px !important; }
+  .profile-name { font-size: 1.3rem !important; line-height: 1.2 !important; }
+  .profile-sub { font-size: 0.84rem !important; }
+  .badges { gap: 6px !important; flex-wrap: wrap !important; }
+
+  /* Action row spacing */
+  .profile-actions { padding: 10px 0 0 !important; gap: 8px !important; row-gap: 10px !important; border-top: 1px solid var(--border, #1f2438); margin-top: 16px; }
+
+  /* Multi-row layouts inside the profile (e.g. pause grid, resign grid) */
+  .pause-grid, .resign-grid, .alert-grid, .turnover-grid, .win-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  /* Buttons inside the profile breathe better */
+  .profile-card button, .profile-card .btn-ghost, .profile-card .btn-primary {
+    min-height: 42px;
+  }
 
   /* Generic helper: hide on phones */
   .hide-on-mobile { display: none !important; }

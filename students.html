@@ -148,10 +148,14 @@
   .list-filter-chip:hover { color: var(--text); border-color: var(--border-light); }
   .list-filter-chip.active { background: rgba(52,211,153,0.15); border-color: #34d399; color: #34d399; }
   .list-filter-chip .chip-count {
-    background: rgba(120,128,168,0.18); color: var(--text-dim);
-    border-radius: 999px; padding: 0 6px; font-size: 0.62rem; font-weight: 800;
+    background: rgba(255,255,255,0.10); color: var(--text);
+    border-radius: 999px; padding: 1px 8px; font-size: 0.66rem; font-weight: 800;
+    min-width: 18px; text-align: center;
   }
-  .list-filter-chip.active .chip-count { background: rgba(52,211,153,0.3); color: #0b0c14; }
+  .list-filter-chip:hover .chip-count { background: rgba(255,255,255,0.16); color: #fff; }
+  .list-filter-chip.active .chip-count { background: rgba(52,211,153,0.35); color: #0b0c14; }
+  body.light .list-filter-chip .chip-count { background: rgba(0,0,0,0.08); color: var(--text); }
+  body.light .list-filter-chip:hover .chip-count { background: rgba(0,0,0,0.14); }
 
   /* Advanced filter panel */
   .adv-filter-panel {

@@ -11,6 +11,12 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v133', title: 'Saved student groups for Schedule Zoom',
+      roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic'], items: [
+      'New "Groups" button on the Coach Dashboard. Each coach can save preset groups of students (e.g. "Tuesday cohort", "Beginners weekly").',
+      'In the Schedule Zoom modal, a new "— Use a group —" dropdown auto-fills the student selection with the group\'s members. You can then still add/remove individuals before sending.',
+      'Coaches own their own groups; admins / I-Cs / Mentorship can see and edit everyone\'s groups.',
+    ]},
     { version: 'v132', title: 'Coach Dashboard boots ~10× faster',
       roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic'], items: [
       'Coach Dashboard now caches the student list locally — on warm reload the page renders instantly from cache and refreshes in the background.',

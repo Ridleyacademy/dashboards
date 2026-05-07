@@ -488,7 +488,8 @@
     <button class="chip" data-filter="atrisk">At risk <span class="chip-count" id="cnt-atrisk">0</span></button>
     <button class="chip" data-filter="expiring">Expiring <span class="chip-count" id="cnt-expiring">0</span></button>
     <button class="chip" data-filter="needs">Needs attention <span class="chip-count" id="cnt-needs">0</span></button>
-    <button id="scheduleZoomTopBtn" class="btn-primary" style="margin-left:auto;padding:8px 14px;font-size:0.8rem;border-radius:9px;display:inline-flex;align-items:center;gap:6px;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> Schedule Zoom</button>
+    <button id="manageGroupsBtn" class="btn-ghost" style="margin-left:auto;padding:8px 14px;font-size:0.8rem;border-radius:9px;display:inline-flex;align-items:center;gap:6px;" title="Saved student groups (re-use in Schedule Zoom)"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Groups</button>
+    <button id="scheduleZoomTopBtn" class="btn-primary" style="padding:8px 14px;font-size:0.8rem;border-radius:9px;display:inline-flex;align-items:center;gap:6px;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> Schedule Zoom</button>
   </div>
 
   <div class="bulkbar" id="bulkbar">
@@ -1699,7 +1700,13 @@ function openScheduleZoomModal(prefilledIds) {
         </div>
         <div>
           <label>Invite students (auto-emails personal join link)</label>
-          <input id="sz-search" type="search" placeholder="Search by name or email…" style="margin-bottom:6px;">
+          <div style="display:flex;gap:6px;margin-bottom:6px;">
+            <input id="sz-search" type="search" placeholder="Search by name or email…" style="flex:1;">
+            <select id="sz-group" style="flex:0 0 200px;font-size:0.82rem;">
+              <option value="">— Use a group —</option>
+              ${(sessionGroups||[]).slice().sort((a,b)=> (a.name||'').localeCompare(b.name||'')).map(g => `<option value="${g.id}">${escapeHtml(g.name)} (${(g.student_ids||[]).length})</option>`).join('')}
+            </select>
+          </div>
           <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.72rem;color:var(--text-dim);margin-bottom:4px;">
             <span id="sz-count">${szSelected.size} selected</span>
             <button type="button" id="sz-clear" style="background:transparent;border:none;color:var(--text-dim);cursor:pointer;text-decoration:underline;font-size:0.72rem;padding:0;">Clear all</button>
@@ -1750,6 +1757,20 @@ function openScheduleZoomModal(prefilledIds) {
     szSelected.clear();
     countEl.textContent = '0 selected';
     renderStudentChoices();
+  });
+  // Group picker: replace selection with the group's students (or add to existing if shift-key)
+  const groupSel = document.getElementById('sz-group');
+  groupSel?.addEventListener('change', e => {
+    const gid = e.target.value;
+    if (!gid) return;
+    const g = (sessionGroups || []).find(x => String(x.id) === String(gid));
+    if (!g) return;
+    szSelected.clear();
+    for (const id of (g.student_ids || [])) szSelected.add(Number(id));
+    countEl.textContent = szSelected.size + ' selected';
+    renderStudentChoices();
+    // reset to placeholder so the same group can be re-applied
+    e.target.value = '';
   });
 
   document.getElementById('sz-create').addEventListener('click', async () => {
@@ -1822,6 +1843,185 @@ document.getElementById('bulkScheduleZoomBtn').addEventListener('click', () => {
   openScheduleZoomModal([...selectedIds]);
 });
 document.getElementById('scheduleZoomTopBtn').addEventListener('click', () => openScheduleZoomModal(null));
+
+// ── Session groups (preset student groups for re-use) ───────────
+let sessionGroups = [];
+async function loadSessionGroups() {
+  try {
+    const { data, error } = await supa.rpc('list_session_groups');
+    if (error) throw error;
+    sessionGroups = data || [];
+  } catch (e) { console.warn('loadSessionGroups failed', e); sessionGroups = []; }
+}
+
+function _canEditGroup(g) {
+  return isPrivilegedViewer || (currentSession?.user?.id && g.owner_id === currentSession.user.id);
+}
+
+async function openGroupsModal() {
+  await loadSessionGroups();
+  document.getElementById('groupsModal')?.remove();
+  const m = document.createElement('div');
+  m.id = 'groupsModal'; m.className = 'modal-bg';
+  const myId = currentSession?.user?.id;
+  const mineFirst = [...sessionGroups].sort((a,b) => {
+    const am = a.owner_id === myId ? 0 : 1;
+    const bm = b.owner_id === myId ? 0 : 1;
+    if (am !== bm) return am - bm;
+    return (a.name||'').localeCompare(b.name||'');
+  });
+  m.innerHTML = `
+    <div class="modal-card" style="max-width:620px;">
+      <div class="modal-head">
+        <h2>Saved student groups</h2>
+        <button id="groupNewBtn" class="btn-primary" style="padding:7px 14px;font-size:0.8rem;">+ New group</button>
+        <button class="close" data-x>×</button>
+      </div>
+      <div class="modal-body" style="grid-template-columns:1fr;">
+        <div id="groupsList" style="display:flex;flex-direction:column;gap:8px;max-height:480px;overflow-y:auto;"></div>
+        ${!sessionGroups.length ? '<div style="text-align:center;color:var(--text-dim);padding:18px;font-size:0.86rem;">No groups yet. Click <strong>+ New group</strong> to create one.</div>' : ''}
+      </div>
+      <div class="modal-foot">
+        <button class="btn-ghost" data-x>Close</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  const close = () => m.remove();
+  m.addEventListener('click', e => { if (e.target === m || e.target.matches('[data-x]')) close(); });
+
+  const list = document.getElementById('groupsList');
+  list.innerHTML = mineFirst.map(g => {
+    const ids = g.student_ids || [];
+    const names = ids.map(id => allStudents.find(s => s.id === id)?.name).filter(Boolean);
+    const ownerLabel = g.owner_id === myId ? 'You' : (g.owner_email || 'Unknown');
+    const canEdit = _canEditGroup(g);
+    return `<div style="border:1px solid var(--border);border-radius:10px;padding:12px 14px;background:var(--surface);">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="flex:1;">
+          <div style="font-weight:700;font-size:0.95rem;">${escapeHtml(g.name)}</div>
+          <div style="font-size:0.74rem;color:var(--text-dim);">${ids.length} student${ids.length===1?'':'s'} · Owner: ${escapeHtml(ownerLabel)}${g.description ? ' · ' + escapeHtml(g.description) : ''}</div>
+          ${names.length ? `<div style="font-size:0.74rem;color:var(--text-dim);margin-top:4px;">${escapeHtml(names.slice(0,5).join(', '))}${names.length>5 ? ' +' + (names.length-5) + ' more' : ''}</div>` : ''}
+        </div>
+        ${canEdit ? `<button data-edit-group="${g.id}" class="btn-ghost" style="padding:6px 12px;font-size:0.75rem;">Edit</button>` : ''}
+        ${canEdit ? `<button data-delete-group="${g.id}" class="btn-ghost" style="padding:6px 10px;font-size:0.75rem;color:#f87171;">Delete</button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('groupNewBtn').addEventListener('click', () => { close(); openGroupEditor(null); });
+  list.querySelectorAll('[data-edit-group]').forEach(b => b.addEventListener('click', () => {
+    const g = sessionGroups.find(x => String(x.id) === b.dataset.editGroup);
+    if (g) { close(); openGroupEditor(g); }
+  }));
+  list.querySelectorAll('[data-delete-group]').forEach(b => b.addEventListener('click', async () => {
+    const g = sessionGroups.find(x => String(x.id) === b.dataset.deleteGroup);
+    if (!g) return;
+    if (!confirm(`Delete group "${g.name}"? This can't be undone.`)) return;
+    try {
+      const { error } = await supa.from('mentorship_session_groups').delete().eq('id', g.id);
+      if (error) throw error;
+      close(); openGroupsModal();
+    } catch (e) { alert('Delete failed: ' + (e.message || e)); }
+  }));
+}
+
+function openGroupEditor(group) {
+  document.getElementById('groupEditModal')?.remove();
+  const isNew = !group;
+  const groupSel = new Set((group?.student_ids || []).map(Number));
+  const m = document.createElement('div');
+  m.id = 'groupEditModal'; m.className = 'modal-bg';
+  m.innerHTML = `
+    <div class="modal-card" style="max-width:580px;">
+      <div class="modal-head">
+        <h2>${isNew ? 'New' : 'Edit'} group</h2>
+        <button class="close" data-x>×</button>
+      </div>
+      <div class="modal-body" style="grid-template-columns:1fr;">
+        <div><label>Group name *</label>
+          <input id="ge-name" type="text" placeholder="e.g. Tuesday afternoon cohort" value="${escapeHtml(group?.name || '')}"></div>
+        <div><label>Description (optional)</label>
+          <input id="ge-desc" type="text" placeholder="e.g. Beginners weekly group" value="${escapeHtml(group?.description || '')}"></div>
+        <div><label>Students *</label>
+          <input id="ge-search" type="search" placeholder="Search by name or email…" style="margin-bottom:6px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.72rem;color:var(--text-dim);margin-bottom:4px;">
+            <span id="ge-count">${groupSel.size} selected</span>
+            <button type="button" id="ge-clear" style="background:transparent;border:none;color:var(--text-dim);cursor:pointer;text-decoration:underline;font-size:0.72rem;padding:0;">Clear all</button>
+          </div>
+          <div class="sz-students" id="ge-students"></div>
+        </div>
+        <div id="ge-result-wrap"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn-ghost" data-x>Cancel</button>
+        <button class="btn-primary" id="ge-save">${isNew ? 'Create group' : 'Save changes'}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  const close = () => m.remove();
+  m.addEventListener('click', e => { if (e.target === m || e.target.matches('[data-x]')) close(); });
+
+  const listEl = document.getElementById('ge-students');
+  const countEl = document.getElementById('ge-count');
+  const searchEl = document.getElementById('ge-search');
+  function renderChoices() {
+    const q = (searchEl.value || '').trim().toLowerCase();
+    const pool = [...allStudents].sort((a,b) => {
+      const ap = groupSel.has(a.id) ? 0 : 1;
+      const bp = groupSel.has(b.id) ? 0 : 1;
+      if (ap !== bp) return ap - bp;
+      return (a.name||'').localeCompare(b.name||'');
+    });
+    let rows = pool;
+    if (q) rows = rows.filter(s => (s.name||'').toLowerCase().includes(q) || (s.email||'').toLowerCase().includes(q));
+    const selRows = rows.filter(s => groupSel.has(s.id));
+    const otherRows = rows.filter(s => !groupSel.has(s.id)).slice(0, 200 - selRows.length);
+    const visible = [...selRows, ...otherRows];
+    if (!visible.length) { listEl.innerHTML = '<div style="color:var(--text-dim);font-size:0.8rem;padding:6px;">No matches.</div>'; return; }
+    listEl.innerHTML = visible.map(s =>
+      `<label><input type="checkbox" data-geid="${s.id}" ${groupSel.has(s.id)?'checked':''}> ${escapeHtml(s.name||'(unnamed)')} <span style="color:var(--text-dim);">${escapeHtml(s.email||'no email')}</span></label>`
+    ).join('');
+    if (rows.length > visible.length) listEl.innerHTML += `<div style="color:var(--text-dim);font-size:0.72rem;padding:6px;">+ ${rows.length - visible.length} more — refine search.</div>`;
+    listEl.querySelectorAll('input[data-geid]').forEach(cb => {
+      cb.addEventListener('change', e => {
+        const id = parseInt(cb.dataset.geid, 10);
+        if (e.target.checked) groupSel.add(id); else groupSel.delete(id);
+        countEl.textContent = groupSel.size + ' selected';
+      });
+    });
+  }
+  renderChoices();
+  searchEl.addEventListener('input', renderChoices);
+  document.getElementById('ge-clear').addEventListener('click', () => { groupSel.clear(); countEl.textContent = '0 selected'; renderChoices(); });
+
+  document.getElementById('ge-save').addEventListener('click', async () => {
+    const name = document.getElementById('ge-name').value.trim();
+    const description = document.getElementById('ge-desc').value.trim() || null;
+    const ids = [...groupSel];
+    const wrap = document.getElementById('ge-result-wrap');
+    if (!name) { wrap.innerHTML = '<div class="sz-result err">Name is required.</div>'; return; }
+    if (!ids.length) { wrap.innerHTML = '<div class="sz-result err">Pick at least one student.</div>'; return; }
+    try {
+      const payload = { name, description, student_ids: ids };
+      if (isNew) {
+        payload.owner_id = currentSession.user.id;
+        const { error } = await supa.from('mentorship_session_groups').insert(payload);
+        if (error) throw error;
+      } else {
+        const { error } = await supa.from('mentorship_session_groups').update(payload).eq('id', group.id);
+        if (error) throw error;
+      }
+      wrap.innerHTML = '<div class="sz-result">✓ Saved.</div>';
+      await loadSessionGroups();
+      setTimeout(() => { close(); openGroupsModal(); }, 600);
+    } catch (e) { wrap.innerHTML = `<div class="sz-result err">Failed: ${escapeHtml(e.message || String(e))}</div>`; }
+  });
+}
+
+document.getElementById('manageGroupsBtn').addEventListener('click', openGroupsModal);
+
+// Pre-load groups in background so the Schedule Zoom modal can show them instantly
+setTimeout(() => loadSessionGroups(), 300);
 
 initAuth();
 </script>

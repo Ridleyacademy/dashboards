@@ -11,6 +11,12 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v134', title: 'Schedule Zoom & Groups on a coach\'s behalf',
+      roles: ['mentorship', 'sales_manager', 'ms_ic', 'delivery_ic'], items: [
+      'Admins / Mentorship I-C / Delivery I-C can now create Zoom meetings on behalf of any coach. The meeting is hosted under the coach\'s Zoom account, and the meeting card attributes it to them.',
+      'Same for groups: a "Owner (coach)" dropdown in New / Edit group lets privileged users assign or move a group to any coach.',
+      'Coaches without a Zoom host email mapped show as disabled in the picker — set their mapping in the Admin Panel first.',
+    ]},
     { version: 'v133', title: 'Saved student groups for Schedule Zoom',
       roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic'], items: [
       'New "Groups" button on the Coach Dashboard. Each coach can save preset groups of students (e.g. "Tuesday cohort", "Beginners weekly").',

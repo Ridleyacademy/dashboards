@@ -1690,6 +1690,14 @@ function openScheduleZoomModal(prefilledIds) {
         <button class="close" data-x>×</button>
       </div>
       <div class="modal-body" style="grid-template-columns:1fr;">
+        ${isPrivilegedViewer && zoomHosts.length ? `
+        <div><label>Host as (coach)</label>
+          <select id="sz-host">
+            <option value="">— Me (${escapeHtml(currentSession.user.email||'')}) —</option>
+            ${zoomHosts.filter(h => h.id !== currentSession.user.id).map(h => `<option value="${h.id}" ${h.zoom_host_email ? '' : 'disabled'}>${escapeHtml(_hostLabel(h))}${h.zoom_host_email ? '' : ' — no Zoom email mapped'}</option>`).join('')}
+          </select>
+          <div style="font-size:0.72rem;color:var(--text-dim);margin-top:4px;">As an admin/I-C, you can schedule on a coach's behalf. The meeting will be hosted under their Zoom account.</div>
+        </div>` : ''}
         <div><label>Topic</label>
           <input id="sz-topic" type="text" placeholder="e.g. Weekly check-in — Module 5" value="Mentorship Zoom — ${new Date().toLocaleDateString()}"></div>
         <div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;">
@@ -1783,9 +1791,11 @@ function openScheduleZoomModal(prefilledIds) {
     if (!topic || !localStart || !duration) { wrap.innerHTML = '<div class="sz-result err">Topic, start time, and duration are required.</div>'; return; }
     // local datetime → UTC ISO
     const startIso = new Date(localStart).toISOString();
+    const hostSel = document.getElementById('sz-host');
+    const host_user_id = hostSel?.value || null;
     const btn = document.getElementById('sz-create'); btn.disabled = true; btn.textContent = 'Creating…';
     try {
-      const j = await _zoomFetch('create', { method:'POST', body:{ topic, start_time: startIso, duration, student_ids, notes } });
+      const j = await _zoomFetch('create', { method:'POST', body:{ topic, start_time: startIso, duration, student_ids, notes, host_user_id } });
       const ok = (j.meeting?.registrants || []).filter(r => !r.error).length;
       const fail = (j.meeting?.registrants || []).filter(r => r.error);
       let html = `<div class="sz-result">✓ Meeting created. ${ok} student${ok===1?'':'s'} invited via Zoom email.</div>`;
@@ -1846,12 +1856,25 @@ document.getElementById('scheduleZoomTopBtn').addEventListener('click', () => op
 
 // ── Session groups (preset student groups for re-use) ───────────
 let sessionGroups = [];
+let zoomHosts = []; // privileged-only: list of users + their zoom_host_email
 async function loadSessionGroups() {
   try {
     const { data, error } = await supa.rpc('list_session_groups');
     if (error) throw error;
     sessionGroups = data || [];
   } catch (e) { console.warn('loadSessionGroups failed', e); sessionGroups = []; }
+}
+async function loadZoomHosts() {
+  if (!isPrivilegedViewer) return;
+  try {
+    const { data, error } = await supa.rpc('list_zoom_hosts');
+    if (error) throw error;
+    zoomHosts = data || [];
+  } catch (e) { console.warn('loadZoomHosts failed', e); zoomHosts = []; }
+}
+function _hostLabel(u) {
+  const fn = u.first_name || (u.email||'').split('@')[0];
+  return fn + (u.email ? ' · ' + u.email : '');
 }
 
 function _canEditGroup(g) {
@@ -1929,6 +1952,15 @@ function openGroupEditor(group) {
   document.getElementById('groupEditModal')?.remove();
   const isNew = !group;
   const groupSel = new Set((group?.student_ids || []).map(Number));
+  const myId = currentSession.user.id;
+  const initialOwnerId = group?.owner_id || myId;
+  const ownerPickerHtml = isPrivilegedViewer && zoomHosts.length ? `
+    <div><label>Owner (coach)</label>
+      <select id="ge-owner">
+        ${zoomHosts.map(h => `<option value="${h.id}" ${h.id === initialOwnerId ? 'selected' : ''}>${escapeHtml(_hostLabel(h))}${h.id === myId ? ' (you)' : ''}</option>`).join('')}
+      </select>
+      <div style="font-size:0.72rem;color:var(--text-dim);margin-top:4px;">As an admin/I-C, you can create or edit groups on a coach's behalf.</div>
+    </div>` : '';
   const m = document.createElement('div');
   m.id = 'groupEditModal'; m.className = 'modal-bg';
   m.innerHTML = `
@@ -1938,6 +1970,7 @@ function openGroupEditor(group) {
         <button class="close" data-x>×</button>
       </div>
       <div class="modal-body" style="grid-template-columns:1fr;">
+        ${ownerPickerHtml}
         <div><label>Group name *</label>
           <input id="ge-name" type="text" placeholder="e.g. Tuesday afternoon cohort" value="${escapeHtml(group?.name || '')}"></div>
         <div><label>Description (optional)</label>
@@ -1998,16 +2031,19 @@ function openGroupEditor(group) {
     const name = document.getElementById('ge-name').value.trim();
     const description = document.getElementById('ge-desc').value.trim() || null;
     const ids = [...groupSel];
+    const ownerSel = document.getElementById('ge-owner');
+    const pickedOwnerId = ownerSel ? ownerSel.value : myId;
     const wrap = document.getElementById('ge-result-wrap');
     if (!name) { wrap.innerHTML = '<div class="sz-result err">Name is required.</div>'; return; }
     if (!ids.length) { wrap.innerHTML = '<div class="sz-result err">Pick at least one student.</div>'; return; }
     try {
       const payload = { name, description, student_ids: ids };
       if (isNew) {
-        payload.owner_id = currentSession.user.id;
+        payload.owner_id = pickedOwnerId;
         const { error } = await supa.from('mentorship_session_groups').insert(payload);
         if (error) throw error;
       } else {
+        if (isPrivilegedViewer && pickedOwnerId !== group.owner_id) payload.owner_id = pickedOwnerId;
         const { error } = await supa.from('mentorship_session_groups').update(payload).eq('id', group.id);
         if (error) throw error;
       }
@@ -2020,8 +2056,8 @@ function openGroupEditor(group) {
 
 document.getElementById('manageGroupsBtn').addEventListener('click', openGroupsModal);
 
-// Pre-load groups in background so the Schedule Zoom modal can show them instantly
-setTimeout(() => loadSessionGroups(), 300);
+// Pre-load groups + hosts in background so modals render instantly
+setTimeout(() => { loadSessionGroups(); loadZoomHosts(); }, 300);
 
 initAuth();
 </script>

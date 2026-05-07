@@ -11,6 +11,12 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v132', title: 'Coach Dashboard boots ~10× faster',
+      roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic'], items: [
+      'Coach Dashboard now caches the student list locally — on warm reload the page renders instantly from cache and refreshes in the background.',
+      'Pins and upcoming-meetings load in parallel after first paint instead of blocking it.',
+      'Backend: zoom-meetings list-all now fetches per-user upcoming meetings in parallel (was serial) and caches the active-Zoom-users list for 60s.',
+    ]},
     { version: 'v131', title: 'Admins see ALL upcoming Zoom meetings on the account',
       adminOnly: true, items: [
       'The Coach Dashboard now reads upcoming meetings directly from the shared Zoom account too — including any meeting created in zoom.us by hand (not just ones scheduled via this system).',

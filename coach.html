@@ -610,8 +610,21 @@ async function onAuthed(session) {
     return;
   }
   setState('dashboard');
-  await Promise.all([loadStudents(), loadPins()]);
-  loadUpcomingMeetings();
+  // Render from cache (if any) before awaiting any network. This makes the
+  // page appear instant on warm reloads.
+  const cache = _readStudentsCache();
+  if (cache && cache.user_id === currentSession.user.id) {
+    allStudents = cache.rows;
+    populateCoachPicker();
+    renderAll();
+  }
+  // Kick off in parallel — students refresh + pins. Don't await both before
+  // showing the page; let each update its slice as it returns.
+  loadStudents();
+  loadPins().then(() => { if (allStudents.length) renderAll(); });
+  // Upcoming meetings is the slowest call (admins fetch from Zoom across all
+  // users). Defer until after the first paint so the page feels responsive.
+  setTimeout(() => loadUpcomingMeetings(), 50);
 }
 async function loadPins() {
   try {
@@ -641,19 +654,61 @@ async function quickAddCoachNote(studentId, text) {
 }
 
 // ── Load + render ─────────────────────────────────────────────
-async function loadStudents() {
-  document.getElementById('studentTbody').innerHTML = '<tr><td colspan="10" style="text-align:center;padding:24px;color:var(--text-dim);">Loading…</td></tr>';
+// Stale-while-revalidate cache for the student list — boots the page instantly
+// from cached data, then re-fetches in the background and re-renders if anything
+// changed.
+const STUDENTS_CACHE_KEY = 'coachDash_students_v1';
+function _readStudentsCache() {
+  try {
+    const raw = localStorage.getItem(STUDENTS_CACHE_KEY);
+    if (!raw) return null;
+    const j = JSON.parse(raw);
+    if (!j || !Array.isArray(j.rows) || !j.user_id) return null;
+    if (currentSession?.user?.id && j.user_id !== currentSession.user.id) return null; // wrong user
+    return j;
+  } catch { return null; }
+}
+function _writeStudentsCache(rows) {
+  try { localStorage.setItem(STUDENTS_CACHE_KEY, JSON.stringify({ rows, user_id: currentSession?.user?.id || null, ts: Date.now() })); }
+  catch (_) {}
+}
+async function loadStudents(opts) {
+  const tbody = document.getElementById('studentTbody');
+  const force = !!(opts && opts.force);
+
+  // 1. Show cached data instantly (if fresh enough — 1 hour cap)
+  const cache = _readStudentsCache();
+  if (!force && cache && (Date.now() - cache.ts) < 3600_000) {
+    allStudents = cache.rows;
+    populateCoachPicker();
+    renderAll();
+  } else if (!allStudents.length) {
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:24px;color:var(--text-dim);">Loading…</td></tr>';
+  }
+
+  // 2. Always fetch fresh in the background
   try {
     const r = await fetch(STUDENTS_BASE + '?api=list', {
       headers: { Authorization: 'Bearer ' + currentSession.access_token },
     });
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || 'Failed');
-    allStudents = j.rows || [];
-    populateCoachPicker();
-    renderAll();
+    const rows = j.rows || [];
+    // Diff: only re-render if something changed (cheap signature)
+    const sigPrev = allStudents.length + ':' + (allStudents[0]?.id || '');
+    const sigNew = rows.length + ':' + (rows[0]?.id || '');
+    allStudents = rows;
+    _writeStudentsCache(rows);
+    if (sigPrev !== sigNew || force || !cache) {
+      populateCoachPicker();
+      renderAll();
+    } else {
+      // Same shape — quietly refresh in case fields changed
+      renderAll();
+    }
   } catch (e) {
-    document.getElementById('studentTbody').innerHTML = `<tr><td colspan="10" style="text-align:center;padding:24px;color:#f87171;">Failed to load: ${escapeHtml(e.message || e)}</td></tr>`;
+    if (!allStudents.length) tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:24px;color:#f87171;">Failed to load: ${escapeHtml(e.message || e)}</td></tr>`;
+    console.warn('loadStudents background fetch failed', e);
   }
 }
 document.getElementById('refreshBtn').addEventListener('click', () => { loadStudents(); loadUpcomingMeetings(); });

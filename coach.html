@@ -1424,30 +1424,77 @@ function _fmtMeetingTime(iso) {
   return { date, time };
 }
 
+function _myZoomEmail() {
+  const e = currentSession?.user?.app_metadata?.zoom_host_email;
+  return (typeof e === 'string' && e.trim()) ? e.trim().toLowerCase() : null;
+}
+function _isMyMeeting(m) {
+  if (!currentSession?.user) return false;
+  if (m.created_by === currentSession.user.id) return true;
+  const me = _myZoomEmail();
+  if (me && m.host_email && String(m.host_email).toLowerCase() === me) return true;
+  return false;
+}
+function _meetingCardHtml(m, opts) {
+  const t = _fmtMeetingTime(m.scheduled_start_time);
+  const invited = (m.invited_student_ids || []).length;
+  const accent = opts?.highlight ? 'background:rgba(34,211,238,0.08);border-color:rgba(34,211,238,0.4);' : '';
+  return `<div class="upcoming-card" style="${accent}">
+      <div class="upcoming-when">${escapeHtml(t.time)}<small>${escapeHtml(t.date)} · ${m.scheduled_duration_minutes||60} min</small></div>
+      <div class="upcoming-topic">${escapeHtml(m.topic || 'Meeting')}<small>${invited} invitee${invited===1?'':'s'}</small></div>
+      <div class="upcoming-actions">
+        ${m.join_url ? `<button data-zm-open="${m.id}" title="Open the Zoom meeting">Open Zoom</button>` : ''}
+        <button data-zm-invitees="${m.id}" title="See invited students">Invitees</button>
+        ${m.join_url ? `<button data-zm-copy="${m.id}" title="Copy join link">Copy link</button>` : ''}
+        ${m.start_url ? `<button data-zm-start="${m.id}" title="Open host start URL">Start as host</button>` : ''}
+        <button data-zm-resched="${m.id}">Reschedule</button>
+        <button class="danger" data-zm-cancel="${m.id}">Cancel</button>
+      </div>
+    </div>`;
+}
 function renderUpcomingMeetings() {
   const wrap = document.getElementById('upcomingZoom');
   const list = document.getElementById('upcomingZoomList');
   if (!upcomingMeetings.length) { wrap.style.display = 'none'; return; }
   wrap.style.display = 'block';
-  list.innerHTML = upcomingMeetings.map(m => {
-    const t = _fmtMeetingTime(m.scheduled_start_time);
-    const studentNames = (m.invited_student_ids || [])
-      .map(id => allStudents.find(s => s.id === id)?.name)
-      .filter(Boolean);
-    const peopleLine = studentNames.length
-      ? `${studentNames.length} student${studentNames.length===1?'':'s'}: ${escapeHtml(studentNames.slice(0,3).join(', '))}${studentNames.length>3?` +${studentNames.length-3}`:''}`
-      : 'No students invited';
-    return `<div class="upcoming-card">
-      <div class="upcoming-when">${escapeHtml(t.time)}<small>${escapeHtml(t.date)} · ${m.scheduled_duration_minutes||60} min</small></div>
-      <div class="upcoming-topic">${escapeHtml(m.topic || 'Meeting')}<small>${escapeHtml(peopleLine)}</small></div>
-      <div class="upcoming-actions">
-        ${m.join_url ? `<button data-zm-copy="${m.id}" title="Copy host join link">Copy link</button>` : ''}
-        ${m.start_url ? `<button data-zm-start="${m.id}" title="Open host start URL">Start</button>` : ''}
-        <button data-zm-resched="${m.id}">Reschedule</button>
-        <button class="danger" data-zm-cancel="${m.id}">Cancel</button>
+
+  // Coaches (no privileged role) see only meetings they host. Privileged roles see all.
+  let visible = upcomingMeetings;
+  if (!isPrivilegedViewer) visible = upcomingMeetings.filter(_isMyMeeting);
+  if (!visible.length) { wrap.style.display = 'none'; return; }
+
+  // Highlight the first one belonging to the current user as "Next session"
+  const myMine = visible.filter(_isMyMeeting);
+  const nextMine = myMine[0] || null;
+  const others = visible.filter(m => m !== nextMine);
+
+  let html = '';
+  if (nextMine) {
+    const t = _fmtMeetingTime(nextMine.scheduled_start_time);
+    const invited = (nextMine.invited_student_ids || []).length;
+    html += `<div style="background:linear-gradient(135deg,rgba(34,211,238,0.10),rgba(167,139,250,0.10));border:1px solid rgba(34,211,238,0.45);border-radius:14px;padding:18px 20px;margin-bottom:14px;">
+      <div style="font-size:0.72rem;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:var(--accent2);margin-bottom:8px;">Your next session</div>
+      <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;">
+        <div style="min-width:130px;">
+          <div style="font-size:1.2rem;font-weight:800;color:var(--accent2);">${escapeHtml(t.time)}</div>
+          <div style="font-size:0.78rem;color:var(--text-dim);">${escapeHtml(t.date)} · ${nextMine.scheduled_duration_minutes||60} min</div>
+        </div>
+        <div style="flex:1;min-width:200px;">
+          <div style="font-size:1rem;font-weight:700;">${escapeHtml(nextMine.topic || 'Meeting')}</div>
+          <div style="font-size:0.78rem;color:var(--text-dim);margin-top:2px;">${invited} invitee${invited===1?'':'s'}</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          ${nextMine.start_url ? `<button data-zm-start="${nextMine.id}" class="btn-primary" style="padding:9px 16px;font-size:0.85rem;">Start as host →</button>` : ''}
+          ${nextMine.join_url ? `<button data-zm-open="${nextMine.id}" class="btn-ghost" style="padding:9px 16px;font-size:0.85rem;">Open Zoom</button>` : ''}
+          <button data-zm-invitees="${nextMine.id}" class="btn-ghost" style="padding:9px 16px;font-size:0.85rem;">Invitees (${invited})</button>
+        </div>
       </div>
     </div>`;
-  }).join('');
+  }
+  if (others.length) {
+    html += others.map(m => _meetingCardHtml(m)).join('');
+  }
+  list.innerHTML = html;
 
   list.querySelectorAll('[data-zm-cancel]').forEach(b => b.addEventListener('click', () => cancelMeeting(parseInt(b.dataset.zmCancel,10))));
   list.querySelectorAll('[data-zm-resched]').forEach(b => b.addEventListener('click', () => openRescheduleModal(parseInt(b.dataset.zmResched,10))));
@@ -1455,9 +1502,66 @@ function renderUpcomingMeetings() {
     const m = upcomingMeetings.find(x => x.id == b.dataset.zmCopy);
     if (m?.join_url) { navigator.clipboard.writeText(m.join_url); b.textContent='Copied!'; setTimeout(()=>b.textContent='Copy link',1200); }
   }));
+  list.querySelectorAll('[data-zm-open]').forEach(b => b.addEventListener('click', () => {
+    const m = upcomingMeetings.find(x => x.id == b.dataset.zmOpen);
+    if (m?.join_url) window.open(m.join_url, '_blank');
+  }));
   list.querySelectorAll('[data-zm-start]').forEach(b => b.addEventListener('click', () => {
     const m = upcomingMeetings.find(x => x.id == b.dataset.zmStart);
     if (m?.start_url) window.open(m.start_url, '_blank');
+  }));
+  list.querySelectorAll('[data-zm-invitees]').forEach(b => b.addEventListener('click', () => {
+    const m = upcomingMeetings.find(x => x.id == b.dataset.zmInvitees);
+    if (m) openInviteesModal(m);
+  }));
+}
+
+function openInviteesModal(meeting) {
+  document.getElementById('inviteesModal')?.remove();
+  const t = _fmtMeetingTime(meeting.scheduled_start_time);
+  const regs = meeting.registrants || [];
+  const m = document.createElement('div');
+  m.id = 'inviteesModal'; m.className = 'modal-bg';
+  m.innerHTML = `
+    <div class="modal-card" style="max-width:600px;">
+      <div class="modal-head">
+        <h2>Invitees · ${escapeHtml(meeting.topic||'Meeting')}</h2>
+        <button class="close" data-x>×</button>
+      </div>
+      <div class="modal-body" style="grid-template-columns:1fr;">
+        <div style="font-size:0.82rem;color:var(--text-dim);margin-bottom:10px;">${escapeHtml(t.date)} · ${escapeHtml(t.time)} · ${meeting.scheduled_duration_minutes||60} min · ${regs.length} invitee${regs.length===1?'':'s'}</div>
+        <div style="border:1px solid var(--border);border-radius:10px;max-height:380px;overflow-y:auto;background:var(--bg);">
+          ${regs.length ? regs.map(r => {
+            const stu = allStudents.find(s => s.id === r.student_id);
+            const name = stu?.name || (r.email||'').split('@')[0] || 'Unknown';
+            const ok = r.email_sent === true;
+            const status = ok
+              ? `<span style="color:var(--accent2);font-size:0.72rem;font-weight:700;">✓ Email sent</span>`
+              : (r.error
+                  ? `<span style="color:#f87171;font-size:0.72rem;font-weight:700;">✗ ${escapeHtml(r.error)}</span>`
+                  : (r.email_error ? `<span style="color:#f87171;font-size:0.72rem;font-weight:700;">✗ ${escapeHtml(r.email_error)}</span>` : `<span style="color:var(--text-dim);font-size:0.72rem;">No status</span>`));
+            return `<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--border);">
+              <div style="flex:1;">
+                <div style="font-weight:600;font-size:0.88rem;">${escapeHtml(name)}</div>
+                <div style="font-size:0.74rem;color:var(--text-dim);">${escapeHtml(r.email||'(no email)')}</div>
+              </div>
+              <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">${status}
+                ${r.join_url ? `<button data-copy-link="${escapeHtml(r.join_url)}" style="background:transparent;border:1px solid var(--border);color:var(--text-dim);border-radius:6px;padding:3px 8px;font-size:0.7rem;cursor:pointer;">Copy personal link</button>` : ''}
+              </div>
+            </div>`;
+          }).join('') : '<div style="padding:24px;text-align:center;color:var(--text-dim);font-size:0.86rem;">No invitees on this meeting.</div>'}
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn-ghost" data-x>Close</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  const close = () => m.remove();
+  m.addEventListener('click', e => { if (e.target === m || e.target.matches('[data-x]')) close(); });
+  m.querySelectorAll('[data-copy-link]').forEach(b => b.addEventListener('click', () => {
+    navigator.clipboard.writeText(b.dataset.copyLink);
+    const orig = b.textContent; b.textContent = 'Copied!'; setTimeout(() => b.textContent = orig, 1200);
   }));
 }
 

@@ -11,6 +11,13 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v130', title: 'Coach Dashboard: Your next Zoom session card + invitees modal',
+      roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic'], items: [
+      'New highlighted "Your next session" card at the top of the Coach Dashboard for the logged-in coach\'s upcoming meeting.',
+      'One-click "Start as host" or "Open Zoom" button.',
+      '"Invitees" button opens a modal listing every student invited, their email, whether the invitation email was sent, plus a "Copy personal link" button.',
+      'Coaches now only see their own upcoming meetings on the dashboard. Admins / I-Cs / Delivery I-Cs / Mentorship still see everyone\'s.',
+    ]},
     { version: 'v129', title: 'CRM icons aligned with the dashboard look',
       roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'], items: [
       'Replaced colored emoji throughout the Mentorship CRM (Alerts, Logs, Videos, Surveys, Coach section, filter chips, modal headers) with the same Lucide-stroke SVG icons used by the Dashboards menu and Coach Dashboard.',

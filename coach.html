@@ -1698,6 +1698,7 @@ function renderUpcomingMeetings() {
           ${next.start_url && _isMyMeeting(next) ? `<button data-zm-start="${next.id}" class="btn-primary" style="padding:9px 16px;font-size:0.85rem;">Start as host →</button>` : ''}
           ${next.join_url ? `<button data-zm-open="${next.id}" class="btn-ghost" style="padding:9px 16px;font-size:0.85rem;">Open Zoom</button>` : ''}
           <button data-zm-invitees="${next.id}" class="btn-ghost" style="padding:9px 16px;font-size:0.85rem;">Invitees (${invited})</button>
+          ${next.source !== 'zoom' ? `<button data-zm-cancel="${next.id}" class="btn-ghost" style="padding:9px 16px;font-size:0.85rem;color:#f87171;border-color:rgba(248,113,113,0.4);">Cancel</button>` : ''}
         </div>
       </div>
     </div>`;
@@ -1738,12 +1739,14 @@ function openInviteesModal(meeting) {
   document.getElementById('inviteesModal')?.remove();
   const t = _fmtMeetingTime(meeting.scheduled_start_time);
   const regs = meeting.registrants || [];
+  const isSystemMeeting = meeting.source !== 'zoom' && typeof meeting.id === 'number';
   const m = document.createElement('div');
   m.id = 'inviteesModal'; m.className = 'modal-bg';
   m.innerHTML = `
-    <div class="modal-card" style="max-width:600px;">
+    <div class="modal-card" style="max-width:620px;">
       <div class="modal-head">
         <h2>Invitees · ${escapeHtml(meeting.topic||'Meeting')}</h2>
+        ${isSystemMeeting ? `<button id="inv-add-btn" class="btn-primary" style="padding:7px 14px;font-size:0.78rem;">+ Add students</button>` : ''}
         <button class="close" data-x>×</button>
       </div>
       <div class="modal-body" style="grid-template-columns:1fr;">
@@ -1771,7 +1774,8 @@ function openInviteesModal(meeting) {
         </div>
       </div>
       <div class="modal-foot">
-        <button class="btn-ghost" data-x>Close</button>
+        ${isSystemMeeting ? `<button id="inv-cancel-btn" class="btn-ghost" style="color:#f87171;border-color:rgba(248,113,113,0.4);">Cancel meeting</button>` : ''}
+        <button class="btn-ghost" data-x style="margin-left:auto;">Close</button>
       </div>
     </div>`;
   document.body.appendChild(m);
@@ -1781,6 +1785,114 @@ function openInviteesModal(meeting) {
     navigator.clipboard.writeText(b.dataset.copyLink);
     const orig = b.textContent; b.textContent = 'Copied!'; setTimeout(() => b.textContent = orig, 1200);
   }));
+  document.getElementById('inv-add-btn')?.addEventListener('click', () => { close(); openAddInviteesModal(meeting); });
+  document.getElementById('inv-cancel-btn')?.addEventListener('click', async () => {
+    if (!confirm(`Cancel "${meeting.topic || 'this meeting'}"? Registered students will be notified.`)) return;
+    try {
+      await _zoomFetch('cancel', { method:'POST', body:{ id: meeting.id } });
+      close();
+      await loadUpcomingMeetings();
+    } catch (e) { alert('Cancel failed: ' + (e.message || e)); }
+  });
+}
+
+async function openAddInviteesModal(meeting) {
+  document.getElementById('addInviteesModal')?.remove();
+  // Build pool: respect coach scoping + advanced filters + showExpired
+  let basePool = allStudents.slice();
+  if (!isPrivilegedViewer) {
+    const mine = _myCoachIdentities();
+    basePool = basePool.filter(s => _isMine(s, mine));
+  }
+  basePool = _applyAdvancedFilters(basePool);
+  if (!showExpired) basePool = basePool.filter(s => (s.derived_status || s.status) !== 'Expired');
+  // Exclude already-invited
+  const alreadyInvited = new Set((meeting.invited_student_ids || []).map(Number));
+  const pool = basePool.filter(s => !alreadyInvited.has(s.id))
+    .sort((a,b) => (a.name||'').localeCompare(b.name||''));
+
+  const sel = new Set();
+  const m = document.createElement('div');
+  m.id = 'addInviteesModal'; m.className = 'modal-bg';
+  m.innerHTML = `
+    <div class="modal-card" style="max-width:560px;">
+      <div class="modal-head">
+        <h2>Add students to meeting</h2>
+        <button class="close" data-x>×</button>
+      </div>
+      <div class="modal-body" style="grid-template-columns:1fr;">
+        <div style="font-size:0.82rem;color:var(--text-dim);margin-bottom:6px;">${escapeHtml(meeting.topic || 'Meeting')} · ${alreadyInvited.size} already invited</div>
+        <div>
+          <input id="ai-search" type="search" placeholder="Search by name or email…" style="margin-bottom:6px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.72rem;color:var(--text-dim);margin-bottom:4px;">
+            <span id="ai-count">0 selected</span>
+            <span>${pool.length} eligible</span>
+          </div>
+          <div class="sz-students" id="ai-students"></div>
+          <div style="font-size:0.72rem;color:var(--text-dim);margin-top:4px;">Each picked student gets a personal join link emailed to them.</div>
+        </div>
+        <div id="ai-result-wrap"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn-ghost" data-x>Cancel</button>
+        <button class="btn-primary" id="ai-add" disabled>Add &amp; invite (0)</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  const close = () => m.remove();
+  m.addEventListener('click', e => { if (e.target === m || e.target.matches('[data-x]')) close(); });
+
+  const listEl = document.getElementById('ai-students');
+  const countEl = document.getElementById('ai-count');
+  const addBtn = document.getElementById('ai-add');
+  const search = document.getElementById('ai-search');
+
+  function render() {
+    const q = (search.value || '').trim().toLowerCase();
+    let rows = pool;
+    if (q) rows = rows.filter(s => (s.name||'').toLowerCase().includes(q) || (s.email||'').toLowerCase().includes(q));
+    const selRows = rows.filter(s => sel.has(s.id));
+    const otherRows = rows.filter(s => !sel.has(s.id)).slice(0, 200 - selRows.length);
+    const visible = [...selRows, ...otherRows];
+    if (!visible.length) { listEl.innerHTML = '<div style="color:var(--text-dim);font-size:0.8rem;padding:6px;">No matches.</div>'; return; }
+    listEl.innerHTML = visible.map(s =>
+      `<label><input type="checkbox" data-aid="${s.id}" ${sel.has(s.id)?'checked':''}> ${escapeHtml(s.name||'(unnamed)')} <span style="color:var(--text-dim);">${escapeHtml(s.email||'no email')}</span></label>`
+    ).join('');
+    if (rows.length > visible.length) listEl.innerHTML += `<div style="color:var(--text-dim);font-size:0.72rem;padding:6px;">+ ${rows.length - visible.length} more — refine search.</div>`;
+    listEl.querySelectorAll('input[data-aid]').forEach(cb => {
+      cb.addEventListener('change', e => {
+        const id = parseInt(cb.dataset.aid, 10);
+        if (e.target.checked) sel.add(id); else sel.delete(id);
+        countEl.textContent = sel.size + ' selected';
+        addBtn.textContent = `Add & invite (${sel.size})`;
+        addBtn.disabled = sel.size === 0;
+      });
+    });
+  }
+  render();
+  search.addEventListener('input', render);
+
+  addBtn.addEventListener('click', async () => {
+    const ids = [...sel];
+    if (!ids.length) return;
+    const wrap = document.getElementById('ai-result-wrap');
+    addBtn.disabled = true; addBtn.textContent = 'Adding…';
+    try {
+      const j = await _zoomFetch('add-students', { method:'POST', body:{ id: meeting.id, student_ids: ids } });
+      const ok = (j.meeting?.registrants || []).filter(r => ids.includes(r.student_id) && !r.error).length;
+      const fail = (j.meeting?.registrants || []).filter(r => ids.includes(r.student_id) && r.error);
+      let html = `<div class="sz-result">✓ Added ${ok} student${ok===1?'':'s'}. Invitation emails sent.</div>`;
+      if (fail.length) html += `<div class="sz-result err">${fail.length} could not be added: ${fail.map(f=>escapeHtml((allStudents.find(s=>s.id===f.student_id)?.name)||'?')+': '+escapeHtml(f.error||'unknown')).join('; ')}</div>`;
+      wrap.innerHTML = html;
+      await loadUpcomingMeetings();
+      // Re-open invitees modal with the freshest data
+      const refreshed = upcomingMeetings.find(x => x.id === meeting.id);
+      setTimeout(() => { close(); if (refreshed) openInviteesModal(refreshed); }, 1400);
+    } catch (e) {
+      wrap.innerHTML = `<div class="sz-result err">Failed: ${escapeHtml(e.message || String(e))}</div>`;
+      addBtn.disabled = false; addBtn.textContent = `Add & invite (${ids.length})`;
+    }
+  });
 }
 
 async function cancelMeeting(id) {

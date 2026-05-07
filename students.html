@@ -718,6 +718,43 @@ document.getElementById('crmBackBtn').addEventListener('click', async () => {
 // Stale-while-revalidate cache: render from localStorage instantly on warm
 // reloads, then fetch fresh in the background and re-render if changed.
 const STUDENTS_CACHE_KEY = 'crm_students_v2';
+// Per-student detail cache: keyed by student id, ttl 1 hour. Used so opening
+// a student we've seen before is instant; a background refresh still hits
+// /api=get and updates the panel when the response lands.
+const STUDENT_DETAILS_KEY = 'crm_student_details_v1';
+const STUDENT_DETAILS_TTL = 60 * 60 * 1000;
+function _readStudentDetailsCache(id) {
+  try {
+    const raw = localStorage.getItem(STUDENT_DETAILS_KEY); if (!raw) return null;
+    const all = JSON.parse(raw); if (!all || typeof all !== 'object') return null;
+    const e = all[String(id)]; if (!e || !e.ts || (Date.now() - e.ts) > STUDENT_DETAILS_TTL) return null;
+    if (currentSession?.user?.id && e.user_id && e.user_id !== currentSession.user.id) return null;
+    return e.data || null;
+  } catch { return null; }
+}
+function _writeStudentDetailsCache(id, data) {
+  try {
+    const raw = localStorage.getItem(STUDENT_DETAILS_KEY);
+    const all = raw ? JSON.parse(raw) : {};
+    all[String(id)] = { ts: Date.now(), user_id: currentSession?.user?.id || null, data };
+    // Keep only the 30 most-recently-cached students to stay within ~5MB quota
+    const ids = Object.keys(all);
+    if (ids.length > 30) {
+      ids.sort((a, b) => (all[a]?.ts || 0) - (all[b]?.ts || 0));
+      while (ids.length > 30) { delete all[ids.shift()]; }
+    }
+    localStorage.setItem(STUDENT_DETAILS_KEY, JSON.stringify(all));
+  } catch (_) { /* quota errors silently ignored */ }
+}
+function _bustStudentDetailsCache(id) {
+  try {
+    const raw = localStorage.getItem(STUDENT_DETAILS_KEY); if (!raw) return;
+    const all = JSON.parse(raw); if (all && typeof all === 'object') {
+      delete all[String(id)];
+      localStorage.setItem(STUDENT_DETAILS_KEY, JSON.stringify(all));
+    }
+  } catch (_) {}
+}
 function _readStudentsCache() {
   try {
     const raw = localStorage.getItem(STUDENTS_CACHE_KEY);
@@ -1515,6 +1552,27 @@ async function openStudent(id) {
   document.body.setAttribute('data-crm-view', 'profile');
   const stu = students.find(s => s.id === id);
   if (stu) document.getElementById('crmBackName').textContent = stu.name || '(unnamed)';
+
+  // INSTANT FEEDBACK: render the profile from the list row + any cached
+  // sub-records, then refresh from the network in the background. Without
+  // this the user sees a blank pane while the round-trip + 10 DB queries
+  // complete (often 1-3s).
+  const cached = _readStudentDetailsCache(id);
+  if (stu) {
+    currentStudent = { ...(stu), ...(cached?.row || {}) };
+    currentPauses    = cached?.pauses     || [];
+    currentResigns   = cached?.resigns    || [];
+    currentAlerts    = cached?.alerts     || [];
+    currentWins      = cached?.wins       || [];
+    currentCoachNotes = cached?.coach_notes || [];
+    currentTurnovers  = cached?.turnovers   || [];
+    currentRepNotes   = cached?.rep_notes   || [];
+    currentIcNotes    = cached?.ic_notes    || [];
+    currentStudent.surveys = cached?.surveys || [];
+    profileDirty = false;
+    renderProfile();
+  }
+
   try {
     const r = await fetch(STUDENTS_BASE + '?api=get&id=' + encodeURIComponent(id), {
       headers: { Authorization: 'Bearer ' + currentSession.access_token },
@@ -1537,9 +1595,12 @@ async function openStudent(id) {
     if (currentStudent) currentStudent.surveys = Array.isArray(j.surveys) ? j.surveys : [];
     profileDirty = false;
     renderProfile();
-    // No full renderStudentList() here — _swapActiveRow already updated the highlight.
-    // (Cards can drift if counts change; a deliberate refresh button or chip-click
-    // forces a full re-render. This trade-off is worth it with 600+ students.)
+    // Save to per-student cache so the next click is instant.
+    _writeStudentDetailsCache(id, {
+      row: j.row, pauses: j.pauses, resigns: j.resigns, alerts: j.alerts,
+      wins: j.wins, coach_notes: j.coach_notes, turnovers: j.turnovers,
+      rep_notes: j.rep_notes, ic_notes: j.ic_notes, surveys: j.surveys,
+    });
   } catch (e) {
     if (e?.name === 'AbortError') return; // superseded by a later click
     alert('Failed to load student: ' + (e.message || e));

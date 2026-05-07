@@ -1711,9 +1711,11 @@ function openScheduleZoomModal(prefilledIds) {
   // Prefilled IDs (from bulk select) come pre-checked.
   const preset = new Set((prefilledIds || []).map(Number));
   let basePool = allStudents;
+  let scopedToMine = false;
   if (!isPrivilegedViewer) {
     const mine = _myCoachIdentities();
     basePool = allStudents.filter(s => _isMine(s, mine));
+    scopedToMine = true;
   }
   const pool = [...basePool].sort((a,b) => {
     const ap = preset.has(a.id) ? 0 : 1, bp = preset.has(b.id) ? 0 : 1;
@@ -1750,6 +1752,7 @@ function openScheduleZoomModal(prefilledIds) {
         </div>
         <div>
           <label>Invite students (auto-emails personal join link)</label>
+          ${scopedToMine ? `<div style="font-size:0.74rem;color:var(--accent2);background:rgba(34,211,238,0.08);border:1px solid rgba(34,211,238,0.3);border-radius:6px;padding:6px 10px;margin-bottom:8px;">Showing only your students (${pool.length}).</div>` : ''}
           <div style="display:flex;gap:6px;margin-bottom:6px;">
             <input id="sz-search" type="search" placeholder="Search by name or email…" style="flex:1;">
             <select id="sz-group" style="flex:0 0 200px;font-size:0.82rem;">

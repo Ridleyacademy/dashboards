@@ -1463,30 +1463,41 @@ function renderUpcomingMeetings() {
   if (!isPrivilegedViewer) visible = upcomingMeetings.filter(_isMyMeeting);
   if (!visible.length) { wrap.style.display = 'none'; return; }
 
-  // Highlight the first one belonging to the current user as "Next session"
-  const myMine = visible.filter(_isMyMeeting);
-  const nextMine = myMine[0] || null;
-  const others = visible.filter(m => m !== nextMine);
+  // Highlighted "Next session" card:
+  // - Coaches: their own next meeting
+  // - Admins / privileged: the next meeting overall (across the whole account)
+  let next = null;
+  let highlightLabel = 'Your next session';
+  if (isPrivilegedViewer) {
+    next = visible[0] || null; // already sorted by scheduled_start_time ascending
+    highlightLabel = 'Next session on the account';
+  } else {
+    const mine = visible.filter(_isMyMeeting);
+    next = mine[0] || null;
+  }
+  const others = visible.filter(m => m !== next);
 
   let html = '';
-  if (nextMine) {
-    const t = _fmtMeetingTime(nextMine.scheduled_start_time);
-    const invited = (nextMine.invited_student_ids || []).length;
+  if (next) {
+    const t = _fmtMeetingTime(next.scheduled_start_time);
+    const invited = (next.invited_student_ids || []).length;
+    const hostLine = next.host_email ? `<div style="font-size:0.74rem;color:var(--text-dim);margin-top:4px;">Hosted by ${escapeHtml(next.host_email)}</div>` : '';
     html += `<div style="background:linear-gradient(135deg,rgba(34,211,238,0.10),rgba(167,139,250,0.10));border:1px solid rgba(34,211,238,0.45);border-radius:14px;padding:18px 20px;margin-bottom:14px;">
-      <div style="font-size:0.72rem;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:var(--accent2);margin-bottom:8px;">Your next session</div>
+      <div style="font-size:0.72rem;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:var(--accent2);margin-bottom:8px;">${highlightLabel}</div>
       <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;">
         <div style="min-width:130px;">
           <div style="font-size:1.2rem;font-weight:800;color:var(--accent2);">${escapeHtml(t.time)}</div>
-          <div style="font-size:0.78rem;color:var(--text-dim);">${escapeHtml(t.date)} · ${nextMine.scheduled_duration_minutes||60} min</div>
+          <div style="font-size:0.78rem;color:var(--text-dim);">${escapeHtml(t.date)} · ${next.scheduled_duration_minutes||60} min</div>
         </div>
         <div style="flex:1;min-width:200px;">
-          <div style="font-size:1rem;font-weight:700;">${escapeHtml(nextMine.topic || 'Meeting')}</div>
+          <div style="font-size:1rem;font-weight:700;">${escapeHtml(next.topic || 'Meeting')}</div>
           <div style="font-size:0.78rem;color:var(--text-dim);margin-top:2px;">${invited} invitee${invited===1?'':'s'}</div>
+          ${hostLine}
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          ${nextMine.start_url ? `<button data-zm-start="${nextMine.id}" class="btn-primary" style="padding:9px 16px;font-size:0.85rem;">Start as host →</button>` : ''}
-          ${nextMine.join_url ? `<button data-zm-open="${nextMine.id}" class="btn-ghost" style="padding:9px 16px;font-size:0.85rem;">Open Zoom</button>` : ''}
-          <button data-zm-invitees="${nextMine.id}" class="btn-ghost" style="padding:9px 16px;font-size:0.85rem;">Invitees (${invited})</button>
+          ${next.start_url && _isMyMeeting(next) ? `<button data-zm-start="${next.id}" class="btn-primary" style="padding:9px 16px;font-size:0.85rem;">Start as host →</button>` : ''}
+          ${next.join_url ? `<button data-zm-open="${next.id}" class="btn-ghost" style="padding:9px 16px;font-size:0.85rem;">Open Zoom</button>` : ''}
+          <button data-zm-invitees="${next.id}" class="btn-ghost" style="padding:9px 16px;font-size:0.85rem;">Invitees (${invited})</button>
         </div>
       </div>
     </div>`;

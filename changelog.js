@@ -11,6 +11,14 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v135', title: 'Advanced Zoom settings in Schedule Zoom',
+      roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic'], items: [
+      'New collapsible "Advanced Zoom settings" section in the Schedule Zoom modal — same options Zoom offers when scheduling on the website.',
+      'Toggle: waiting room, join before host, mute on entry, host video, participants\' video, require passcode.',
+      'Auto-recording: None / Local / Cloud.',
+      'Approval type: auto-approve or manual-approve registrants.',
+      'Alternative hosts: comma-separated list of co-hosts (must be Licensed users on the same Zoom account).',
+    ]},
     { version: 'v134', title: 'Schedule Zoom & Groups on a coach\'s behalf',
       roles: ['mentorship', 'sales_manager', 'ms_ic', 'delivery_ic'], items: [
       'Admins / Mentorship I-C / Delivery I-C can now create Zoom meetings on behalf of any coach. The meeting is hosted under the coach\'s Zoom account, and the meeting card attributes it to them.',

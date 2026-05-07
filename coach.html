@@ -1743,6 +1743,54 @@ function openScheduleZoomModal(prefilledIds) {
         </div>
         <div><label>Notes (internal, not sent to students)</label>
           <textarea id="sz-notes" style="min-height:60px;" placeholder="Optional"></textarea></div>
+        <details id="sz-advanced" style="margin-top:6px;">
+          <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;font-size:0.82rem;font-weight:700;color:var(--text-dim);padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;user-select:none;">
+            <span style="display:inline-block;width:0;height:0;border-left:5px solid currentColor;border-top:4px solid transparent;border-bottom:4px solid transparent;transition:transform 0.15s;" class="sz-adv-caret"></span>
+            Advanced Zoom settings
+            <span style="margin-left:auto;font-size:0.7rem;font-weight:500;">click to expand</span>
+          </summary>
+          <div style="padding:14px 6px 0;display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.82rem;font-weight:500;text-transform:none;letter-spacing:0;">
+              <input type="checkbox" id="sz-waiting" checked> Waiting room
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.82rem;font-weight:500;text-transform:none;letter-spacing:0;">
+              <input type="checkbox" id="sz-jbh"> Allow join before host
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.82rem;font-weight:500;text-transform:none;letter-spacing:0;">
+              <input type="checkbox" id="sz-mute" checked> Mute participants on entry
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.82rem;font-weight:500;text-transform:none;letter-spacing:0;">
+              <input type="checkbox" id="sz-host-video"> Start with host video on
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.82rem;font-weight:500;text-transform:none;letter-spacing:0;">
+              <input type="checkbox" id="sz-part-video"> Start with participants' video on
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.82rem;font-weight:500;text-transform:none;letter-spacing:0;">
+              <input type="checkbox" id="sz-passcode" checked> Require passcode
+            </label>
+            <div style="grid-column:1/-1;">
+              <label>Auto-recording</label>
+              <select id="sz-record">
+                <option value="none" selected>None</option>
+                <option value="local">Local</option>
+                <option value="cloud">Cloud</option>
+              </select>
+            </div>
+            <div style="grid-column:1/-1;">
+              <label>Approval type</label>
+              <select id="sz-approval">
+                <option value="0" selected>Automatically approve registrants</option>
+                <option value="1">Manually approve registrants</option>
+              </select>
+            </div>
+            <div style="grid-column:1/-1;">
+              <label>Alternative hosts (comma-separated emails)</label>
+              <input id="sz-altHosts" type="text" placeholder="e.g. carlos@ridleyacademy.team, dan@ridleyacademy.team">
+              <div style="font-size:0.72rem;color:var(--text-dim);margin-top:4px;">Each email must be a Licensed Zoom user on this account.</div>
+            </div>
+          </div>
+        </details>
+        <style>#sz-advanced[open] > summary .sz-adv-caret{transform:rotate(90deg);}#sz-advanced[open] > summary span:last-child{display:none;}</style>
         <div id="sz-result-wrap"></div>
       </div>
       <div class="modal-foot">
@@ -1812,9 +1860,21 @@ function openScheduleZoomModal(prefilledIds) {
     const startIso = new Date(localStart).toISOString();
     const hostSel = document.getElementById('sz-host');
     const host_user_id = hostSel?.value || null;
+    // Advanced settings
+    const advanced = {
+      waiting_room: document.getElementById('sz-waiting').checked,
+      join_before_host: document.getElementById('sz-jbh').checked,
+      mute_upon_entry: document.getElementById('sz-mute').checked,
+      host_video: document.getElementById('sz-host-video').checked,
+      participant_video: document.getElementById('sz-part-video').checked,
+      passcode: document.getElementById('sz-passcode').checked,
+      auto_recording: document.getElementById('sz-record').value,
+      approval_type: parseInt(document.getElementById('sz-approval').value, 10),
+      alternative_hosts: (document.getElementById('sz-altHosts').value || '').trim(),
+    };
     const btn = document.getElementById('sz-create'); btn.disabled = true; btn.textContent = 'Creating…';
     try {
-      const j = await _zoomFetch('create', { method:'POST', body:{ topic, start_time: startIso, duration, student_ids, notes, host_user_id } });
+      const j = await _zoomFetch('create', { method:'POST', body:{ topic, start_time: startIso, duration, student_ids, notes, host_user_id, advanced } });
       const ok = (j.meeting?.registrants || []).filter(r => !r.error).length;
       const fail = (j.meeting?.registrants || []).filter(r => r.error);
       let html = `<div class="sz-result">✓ Meeting created. ${ok} student${ok===1?'':'s'} invited via Zoom email.</div>`;

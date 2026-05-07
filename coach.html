@@ -227,6 +227,29 @@
     background: rgba(52,211,153,0.1); border: 1px solid rgba(52,211,153,0.3); color: var(--accent2); }
   .sz-result.err { background: rgba(248,113,113,0.1); border-color: rgba(248,113,113,0.3); color: #f87171; }
 
+  /* Advanced Zoom settings (collapsible) */
+  #sz-advanced { grid-column: 1 / -1; margin-top: 6px; }
+  .sz-adv-summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 10px;
+    font-size: 0.82rem; font-weight: 700; color: var(--text-dim); padding: 10px 14px;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 9px; user-select: none; }
+  .sz-adv-summary::-webkit-details-marker { display: none; }
+  .sz-adv-caret { display: inline-block; width: 0; height: 0; border-left: 5px solid currentColor;
+    border-top: 4px solid transparent; border-bottom: 4px solid transparent; transition: transform 0.15s; }
+  #sz-advanced[open] > .sz-adv-summary .sz-adv-caret { transform: rotate(90deg); }
+  .sz-adv-hint { margin-left: auto; font-size: 0.7rem; font-weight: 500; color: var(--text-dim); }
+  #sz-advanced[open] > .sz-adv-summary .sz-adv-hint { display: none; }
+  .sz-adv-body { padding: 14px 4px 4px; display: flex; flex-direction: column; gap: 14px; }
+  .sz-adv-toggles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 16px; }
+  @media (max-width: 540px) { .sz-adv-toggles { grid-template-columns: 1fr; } }
+  .sz-adv-toggle { display: flex !important; align-items: center; gap: 8px;
+    font-size: 0.85rem !important; font-weight: 500 !important; color: var(--text) !important;
+    text-transform: none !important; letter-spacing: 0 !important; cursor: pointer;
+    padding: 4px 0; margin: 0 !important; }
+  .sz-adv-toggle input[type="checkbox"] { width: 16px; height: 16px; flex-shrink: 0; cursor: pointer; }
+  .sz-adv-toggle span { line-height: 1.3; }
+  .sz-adv-field { display: flex; flex-direction: column; gap: 4px; }
+  .sz-adv-help { font-size: 0.72rem; color: var(--text-dim); }
+
   /* Table */
   .tablewrap { padding: 14px 22px 40px; overflow-x: auto; }
   table.students { width: 100%; border-collapse: separate; border-spacing: 0;
@@ -1743,32 +1766,22 @@ function openScheduleZoomModal(prefilledIds) {
         </div>
         <div><label>Notes (internal, not sent to students)</label>
           <textarea id="sz-notes" style="min-height:60px;" placeholder="Optional"></textarea></div>
-        <details id="sz-advanced" style="margin-top:6px;">
-          <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;font-size:0.82rem;font-weight:700;color:var(--text-dim);padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;user-select:none;">
-            <span style="display:inline-block;width:0;height:0;border-left:5px solid currentColor;border-top:4px solid transparent;border-bottom:4px solid transparent;transition:transform 0.15s;" class="sz-adv-caret"></span>
-            Advanced Zoom settings
-            <span style="margin-left:auto;font-size:0.7rem;font-weight:500;">click to expand</span>
+        <details id="sz-advanced">
+          <summary class="sz-adv-summary">
+            <span class="sz-adv-caret"></span>
+            <span>Advanced Zoom settings</span>
+            <span class="sz-adv-hint">click to expand</span>
           </summary>
-          <div style="padding:14px 6px 0;display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-            <label style="display:flex;align-items:center;gap:8px;font-size:0.82rem;font-weight:500;text-transform:none;letter-spacing:0;">
-              <input type="checkbox" id="sz-waiting" checked> Waiting room
-            </label>
-            <label style="display:flex;align-items:center;gap:8px;font-size:0.82rem;font-weight:500;text-transform:none;letter-spacing:0;">
-              <input type="checkbox" id="sz-jbh"> Allow join before host
-            </label>
-            <label style="display:flex;align-items:center;gap:8px;font-size:0.82rem;font-weight:500;text-transform:none;letter-spacing:0;">
-              <input type="checkbox" id="sz-mute" checked> Mute participants on entry
-            </label>
-            <label style="display:flex;align-items:center;gap:8px;font-size:0.82rem;font-weight:500;text-transform:none;letter-spacing:0;">
-              <input type="checkbox" id="sz-host-video"> Start with host video on
-            </label>
-            <label style="display:flex;align-items:center;gap:8px;font-size:0.82rem;font-weight:500;text-transform:none;letter-spacing:0;">
-              <input type="checkbox" id="sz-part-video"> Start with participants' video on
-            </label>
-            <label style="display:flex;align-items:center;gap:8px;font-size:0.82rem;font-weight:500;text-transform:none;letter-spacing:0;">
-              <input type="checkbox" id="sz-passcode" checked> Require passcode
-            </label>
-            <div style="grid-column:1/-1;">
+          <div class="sz-adv-body">
+            <div class="sz-adv-toggles">
+              <label class="sz-adv-toggle"><input type="checkbox" id="sz-waiting" checked><span>Waiting room</span></label>
+              <label class="sz-adv-toggle"><input type="checkbox" id="sz-jbh"><span>Allow join before host</span></label>
+              <label class="sz-adv-toggle"><input type="checkbox" id="sz-mute" checked><span>Mute participants on entry</span></label>
+              <label class="sz-adv-toggle"><input type="checkbox" id="sz-host-video"><span>Start with host video on</span></label>
+              <label class="sz-adv-toggle"><input type="checkbox" id="sz-part-video"><span>Start with participants' video on</span></label>
+              <label class="sz-adv-toggle"><input type="checkbox" id="sz-passcode" checked><span>Require passcode</span></label>
+            </div>
+            <div class="sz-adv-field">
               <label>Auto-recording</label>
               <select id="sz-record">
                 <option value="none" selected>None</option>
@@ -1776,21 +1789,20 @@ function openScheduleZoomModal(prefilledIds) {
                 <option value="cloud">Cloud</option>
               </select>
             </div>
-            <div style="grid-column:1/-1;">
+            <div class="sz-adv-field">
               <label>Approval type</label>
               <select id="sz-approval">
                 <option value="0" selected>Automatically approve registrants</option>
                 <option value="1">Manually approve registrants</option>
               </select>
             </div>
-            <div style="grid-column:1/-1;">
+            <div class="sz-adv-field">
               <label>Alternative hosts (comma-separated emails)</label>
               <input id="sz-altHosts" type="text" placeholder="e.g. carlos@ridleyacademy.team, dan@ridleyacademy.team">
-              <div style="font-size:0.72rem;color:var(--text-dim);margin-top:4px;">Each email must be a Licensed Zoom user on this account.</div>
+              <div class="sz-adv-help">Each email must be a Licensed Zoom user on this account.</div>
             </div>
           </div>
         </details>
-        <style>#sz-advanced[open] > summary .sz-adv-caret{transform:rotate(90deg);}#sz-advanced[open] > summary span:last-child{display:none;}</style>
         <div id="sz-result-wrap"></div>
       </div>
       <div class="modal-foot">

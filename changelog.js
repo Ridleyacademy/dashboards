@@ -11,6 +11,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v136', title: 'Recurring sessions, custom passcode, timezone, captions, login required',
+      roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic'], items: [
+      'Schedule Zoom → Advanced settings now supports: recurring meetings (daily / weekly / every 2 weeks / monthly with end-after-N or end-by-date), custom passcode (override Zoom\'s auto-generated code), timezone picker (defaults to your local), enable live captions / transcription, and require Zoom login to join.',
+      'Recurring meetings keep a single Zoom link — students get one invitation that covers the whole series, and the email shows "Recurring: every week for 4 sessions" so they know.',
+    ]},
     { version: 'v135', title: 'Advanced Zoom settings in Schedule Zoom',
       roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic'], items: [
       'New collapsible "Advanced Zoom settings" section in the Schedule Zoom modal — same options Zoom offers when scheduling on the website.',

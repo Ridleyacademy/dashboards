@@ -1783,6 +1783,40 @@ function openScheduleZoomModal(prefilledIds) {
               <label class="sz-adv-toggle"><input type="checkbox" id="sz-host-video"><span>Start with host video on</span></label>
               <label class="sz-adv-toggle"><input type="checkbox" id="sz-part-video"><span>Start with participants' video on</span></label>
               <label class="sz-adv-toggle"><input type="checkbox" id="sz-passcode" checked><span>Require passcode</span></label>
+              <label class="sz-adv-toggle"><input type="checkbox" id="sz-captions"><span>Enable live captions / transcription</span></label>
+              <label class="sz-adv-toggle"><input type="checkbox" id="sz-auth"><span>Require Zoom login to join</span></label>
+            </div>
+            <div class="sz-adv-field" id="sz-passcode-wrap">
+              <label>Custom passcode (optional)</label>
+              <input id="sz-customPasscode" type="text" placeholder="Leave blank to auto-generate" maxlength="10">
+              <div class="sz-adv-help">Letters and numbers, max 10 characters. Easier to share verbally than auto-generated codes.</div>
+            </div>
+            <div class="sz-adv-field">
+              <label>Timezone</label>
+              <select id="sz-timezone"></select>
+              <div class="sz-adv-help">The meeting time displays in this timezone in Zoom. Defaults to your local timezone.</div>
+            </div>
+            <div class="sz-adv-field">
+              <label>Recurring meeting</label>
+              <select id="sz-recurrence">
+                <option value="" selected>One-time meeting</option>
+                <option value="daily">Repeat daily</option>
+                <option value="weekly">Repeat weekly</option>
+                <option value="biweekly">Repeat every 2 weeks</option>
+                <option value="monthly">Repeat monthly</option>
+              </select>
+              <div id="sz-recurrence-end" style="display:none;margin-top:8px;display:none;">
+                <label style="margin-top:6px;">End after</label>
+                <div style="display:flex;gap:8px;align-items:center;">
+                  <select id="sz-rec-end-type" style="flex:0 0 140px;">
+                    <option value="count" selected>Number of sessions</option>
+                    <option value="date">By date</option>
+                  </select>
+                  <input id="sz-rec-end-count" type="number" min="2" max="50" value="4" style="flex:1;">
+                  <input id="sz-rec-end-date" type="date" style="flex:1;display:none;">
+                </div>
+                <div class="sz-adv-help">Each session uses the same Zoom link. Students get one invitation that covers the whole series.</div>
+              </div>
             </div>
             <div class="sz-adv-field">
               <label>Auto-recording</label>
@@ -1843,6 +1877,31 @@ function openScheduleZoomModal(prefilledIds) {
   }
   renderStudentChoices();
   searchEl.addEventListener('input', renderStudentChoices);
+
+  // Populate timezone picker (common ones + user's local)
+  (() => {
+    const tzSel = document.getElementById('sz-timezone');
+    if (!tzSel) return;
+    const localTz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    const common = ['UTC','America/New_York','America/Chicago','America/Denver','America/Los_Angeles','America/Toronto','America/Mexico_City','America/Sao_Paulo','Europe/London','Europe/Paris','Europe/Berlin','Europe/Rome','Europe/Madrid','Europe/Amsterdam','Europe/Stockholm','Europe/Athens','Africa/Cairo','Africa/Johannesburg','Asia/Dubai','Asia/Tashkent','Asia/Karachi','Asia/Kolkata','Asia/Bangkok','Asia/Singapore','Asia/Hong_Kong','Asia/Tokyo','Asia/Seoul','Australia/Sydney','Australia/Melbourne','Pacific/Auckland'];
+    const set = new Set([localTz, ...common]);
+    const list = [...set].sort();
+    tzSel.innerHTML = list.map(t => `<option value="${t}" ${t === localTz ? 'selected' : ''}>${t}${t === localTz ? ' (your timezone)' : ''}</option>`).join('');
+  })();
+
+  // Toggle recurrence end-controls
+  const recSel = document.getElementById('sz-recurrence');
+  const recEndWrap = document.getElementById('sz-recurrence-end');
+  const recEndType = document.getElementById('sz-rec-end-type');
+  const recEndCount = document.getElementById('sz-rec-end-count');
+  const recEndDate = document.getElementById('sz-rec-end-date');
+  recSel.addEventListener('change', () => {
+    recEndWrap.style.display = recSel.value ? 'block' : 'none';
+  });
+  recEndType.addEventListener('change', () => {
+    if (recEndType.value === 'count') { recEndCount.style.display = ''; recEndDate.style.display = 'none'; }
+    else { recEndCount.style.display = 'none'; recEndDate.style.display = ''; }
+  });
   document.getElementById('sz-clear').addEventListener('click', () => {
     szSelected.clear();
     countEl.textContent = '0 selected';
@@ -1876,6 +1935,17 @@ function openScheduleZoomModal(prefilledIds) {
     const hostSel = document.getElementById('sz-host');
     const host_user_id = hostSel?.value || null;
     // Advanced settings
+    const recVal = document.getElementById('sz-recurrence').value;
+    let recurrence = null;
+    if (recVal) {
+      const endTypeVal = document.getElementById('sz-rec-end-type').value;
+      recurrence = {
+        type: recVal, // 'daily' | 'weekly' | 'biweekly' | 'monthly'
+        end_type: endTypeVal,
+        end_count: endTypeVal === 'count' ? parseInt(document.getElementById('sz-rec-end-count').value, 10) || 4 : null,
+        end_date: endTypeVal === 'date' ? (document.getElementById('sz-rec-end-date').value || null) : null,
+      };
+    }
     const advanced = {
       waiting_room: document.getElementById('sz-waiting').checked,
       join_before_host: document.getElementById('sz-jbh').checked,
@@ -1883,9 +1953,14 @@ function openScheduleZoomModal(prefilledIds) {
       host_video: document.getElementById('sz-host-video').checked,
       participant_video: document.getElementById('sz-part-video').checked,
       passcode: document.getElementById('sz-passcode').checked,
+      custom_passcode: (document.getElementById('sz-customPasscode').value || '').trim(),
       auto_recording: document.getElementById('sz-record').value,
       approval_type: parseInt(document.getElementById('sz-approval').value, 10),
       alternative_hosts: (document.getElementById('sz-altHosts').value || '').trim(),
+      timezone: document.getElementById('sz-timezone').value || 'UTC',
+      live_captions: document.getElementById('sz-captions').checked,
+      meeting_authentication: document.getElementById('sz-auth').checked,
+      recurrence,
     };
     const btn = document.getElementById('sz-create'); btn.disabled = true; btn.textContent = 'Creating…';
     try {

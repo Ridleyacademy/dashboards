@@ -634,17 +634,17 @@ async function onAuthed(session) {
     const addBtn = document.getElementById('addStudentBtn'); if (addBtn) addBtn.style.display = 'none';
   }
 
-  // Render from cache instantly so the page feels immediate; the network
-  // refresh runs in the background inside loadStudents().
+  // Render from cache instantly so the page feels immediate.
   const cache = _readStudentsCache();
   if (cache && cache.user_id === session.user.id) {
     students = cache.rows;
     renderStudentList();
   }
-  // Fire all data loads in parallel — none of them should block first paint.
+  // mentors + coaches in parallel (small payloads), then await loadStudents
+  // so any URL-hash openStudent below has the full list available.
   loadMentors();
   loadCoaches();
-  loadStudents();
+  await loadStudents();
   // If the URL has ?openAlert=N&student=M (from a notification click), open
   // that student then their alerts modal.
   try {
@@ -698,7 +698,7 @@ document.getElementById('deniedSignOutBtn').addEventListener('click', async () =
 // ── Data ───────────────────────────────────────────────────────
 // Stale-while-revalidate cache: render from localStorage instantly on warm
 // reloads, then fetch fresh in the background and re-render if changed.
-const STUDENTS_CACHE_KEY = 'crm_students_v1';
+const STUDENTS_CACHE_KEY = 'crm_students_v2';
 function _readStudentsCache() {
   try {
     const raw = localStorage.getItem(STUDENTS_CACHE_KEY);

@@ -1810,6 +1810,9 @@ function openScheduleZoomModal(prefilledIds) {
     basePool = allStudents.filter(s => _isMine(s, mine));
     scopedToMine = true;
   }
+  // Apply the global advanced filters too (so Schedule Zoom respects them)
+  basePool = _applyAdvancedFilters(basePool);
+  if (!showExpired) basePool = basePool.filter(s => (s.derived_status || s.status) !== 'Expired');
   const pool = [...basePool].sort((a,b) => {
     const ap = preset.has(a.id) ? 0 : 1, bp = preset.has(b.id) ? 0 : 1;
     if (ap !== bp) return ap - bp;
@@ -1846,9 +1849,10 @@ function openScheduleZoomModal(prefilledIds) {
         <div>
           <label>Invite students (auto-emails personal join link)</label>
           ${scopedToMine ? `<div style="font-size:0.74rem;color:var(--accent2);background:rgba(34,211,238,0.08);border:1px solid rgba(34,211,238,0.3);border-radius:6px;padding:6px 10px;margin-bottom:8px;">Showing only your students (${pool.length}).</div>` : ''}
-          <div style="display:flex;gap:6px;margin-bottom:6px;">
+          <div style="display:flex;gap:6px;margin-bottom:6px;align-items:center;">
             <input id="sz-search" type="search" placeholder="Search by name or email…" style="flex:1;">
-            <select id="sz-group" style="flex:0 0 200px;font-size:0.82rem;">
+            <button type="button" id="sz-filters-btn" class="btn-ghost" style="padding:7px 12px;font-size:0.78rem;border-radius:8px;display:inline-flex;align-items:center;gap:5px;white-space:nowrap;"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg> Filters<span id="sz-filters-count" style="display:none;background:var(--accent2);color:#06231a;border-radius:999px;padding:1px 6px;font-size:0.62rem;font-weight:800;">0</span></button>
+            <select id="sz-group" style="flex:0 0 180px;font-size:0.82rem;">
               <option value="">— Use a group —</option>
               ${(sessionGroups||[]).slice().sort((a,b)=> (a.name||'').localeCompare(b.name||'')).map(g => `<option value="${g.id}">${escapeHtml(g.name)} (${(g.student_ids||[]).length})</option>`).join('')}
             </select>
@@ -2016,6 +2020,28 @@ function openScheduleZoomModal(prefilledIds) {
     const list = [...set].sort();
     tzSel.innerHTML = list.map(t => `<option value="${t}" ${t === localTz ? 'selected' : ''}>${t}${t === localTz ? ' (your timezone)' : ''}</option>`).join('');
   })();
+
+  // Filters button — opens the same advanced filter modal, then rebuilds the pool
+  function _szRebuildPool() {
+    let np = isPrivilegedViewer ? allStudents.slice() : allStudents.filter(s => _isMine(s, _myCoachIdentities()));
+    np = _applyAdvancedFilters(np);
+    if (!showExpired) np = np.filter(s => (s.derived_status || s.status) !== 'Expired');
+    np.sort((a,b) => {
+      const ap = szSelected.has(a.id) ? 0 : 1, bp = szSelected.has(b.id) ? 0 : 1;
+      if (ap !== bp) return ap - bp;
+      return (a.name||'').localeCompare(b.name||'');
+    });
+    pool.length = 0;
+    for (const s of np) pool.push(s);
+    renderStudentChoices();
+    const fc = document.getElementById('sz-filters-count');
+    const n = _filtersActiveCount();
+    if (fc) { fc.textContent = n; fc.style.display = n ? '' : 'none'; }
+  }
+  const szFiltersBtn = document.getElementById('sz-filters-btn');
+  if (szFiltersBtn) szFiltersBtn.addEventListener('click', () => openFiltersModal(_szRebuildPool));
+  // Initialize the count badge
+  _szRebuildPool();
 
   // Toggle recurrence end-controls
   const recSel = document.getElementById('sz-recurrence');
@@ -2279,7 +2305,10 @@ function openGroupEditor(group) {
         <div><label>Description (optional)</label>
           <input id="ge-desc" type="text" placeholder="e.g. Beginners weekly group" value="${escapeHtml(group?.description || '')}"></div>
         <div><label>Students *</label>
-          <input id="ge-search" type="search" placeholder="Search by name or email…" style="margin-bottom:6px;">
+          <div style="display:flex;gap:6px;margin-bottom:6px;align-items:center;">
+            <input id="ge-search" type="search" placeholder="Search by name or email…" style="flex:1;">
+            <button type="button" id="ge-filters-btn" class="btn-ghost" style="padding:7px 12px;font-size:0.78rem;border-radius:8px;display:inline-flex;align-items:center;gap:5px;white-space:nowrap;"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg> Filters<span id="ge-filters-count" style="display:none;background:var(--accent2);color:#06231a;border-radius:999px;padding:1px 6px;font-size:0.62rem;font-weight:800;">0</span></button>
+          </div>
           <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.72rem;color:var(--text-dim);margin-bottom:4px;">
             <span id="ge-count">${groupSel.size} selected</span>
             <button type="button" id="ge-clear" style="background:transparent;border:none;color:var(--text-dim);cursor:pointer;text-decoration:underline;font-size:0.72rem;padding:0;">Clear all</button>
@@ -2307,12 +2336,19 @@ function openGroupEditor(group) {
       const mine = _myCoachIdentities();
       basePool = allStudents.filter(s => _isMine(s, mine));
     }
+    // Apply advanced filters
+    basePool = _applyAdvancedFilters(basePool);
+    if (!showExpired) basePool = basePool.filter(s => (s.derived_status || s.status) !== 'Expired');
     const pool = [...basePool].sort((a,b) => {
       const ap = groupSel.has(a.id) ? 0 : 1;
       const bp = groupSel.has(b.id) ? 0 : 1;
       if (ap !== bp) return ap - bp;
       return (a.name||'').localeCompare(b.name||'');
     });
+    // Update filter count badge
+    const fc = document.getElementById('ge-filters-count');
+    const fn = _filtersActiveCount();
+    if (fc) { fc.textContent = fn; fc.style.display = fn ? '' : 'none'; }
     let rows = pool;
     if (q) rows = rows.filter(s => (s.name||'').toLowerCase().includes(q) || (s.email||'').toLowerCase().includes(q));
     const selRows = rows.filter(s => groupSel.has(s.id));
@@ -2334,6 +2370,8 @@ function openGroupEditor(group) {
   renderChoices();
   searchEl.addEventListener('input', renderChoices);
   document.getElementById('ge-clear').addEventListener('click', () => { groupSel.clear(); countEl.textContent = '0 selected'; renderChoices(); });
+  const geFiltersBtn = document.getElementById('ge-filters-btn');
+  if (geFiltersBtn) geFiltersBtn.addEventListener('click', () => openFiltersModal(renderChoices));
 
   document.getElementById('ge-save').addEventListener('click', async () => {
     const name = document.getElementById('ge-name').value.trim();
@@ -2376,7 +2414,7 @@ function _uniqueValuesFor(field) {
   }
   return [...set].sort();
 }
-function openFiltersModal() {
+function openFiltersModal(onApply) {
   document.getElementById('filtersModal')?.remove();
   const m = document.createElement('div');
   m.id = 'filtersModal'; m.className = 'modal-bg';
@@ -2437,6 +2475,7 @@ function openFiltersModal() {
     filters.masterclass_level.clear(); filters.status.clear();
     filters.zoom_bucket = ''; filters.asg_sent_bucket = ''; filters.asg_recv_bucket = ''; filters.has_email = '';
     close(); renderAll();
+    if (typeof onApply === 'function') onApply();
   });
   document.getElementById('filterApply').addEventListener('click', () => {
     filters.zoom_bucket = document.getElementById('filt-zoom').value;
@@ -2444,6 +2483,7 @@ function openFiltersModal() {
     filters.asg_recv_bucket = document.getElementById('filt-asgrecv').value;
     filters.has_email = document.getElementById('filt-email').value;
     close(); renderAll();
+    if (typeof onApply === 'function') onApply();
   });
 }
 

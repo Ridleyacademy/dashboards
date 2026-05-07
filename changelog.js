@@ -11,6 +11,12 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v139', title: 'Advanced filters everywhere students are picked',
+      roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic'], items: [
+      'The Schedule Zoom modal and the New / Edit group modal now have a "Filters" button next to the search box.',
+      'Same filter set as the Coach Dashboard (Level, Module, Status, Last Zoom, Last assignment, etc.) — pick by criteria instead of scrolling.',
+      'Filter state is shared, so applying a filter on the dashboard and then opening Schedule Zoom keeps the same view.',
+    ]},
     { version: 'v138', title: 'Advanced filters on the Coach Dashboard',
       roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic'], items: [
       'New "Filters" button in the chip bar opens a modal to filter by Level, Current module, Masterclass level, Coach status, Lifecycle status, Last Zoom (never / >7d / >30d / >90d), Last assignment sent / received, and "Has email".',

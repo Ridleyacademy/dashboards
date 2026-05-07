@@ -1405,19 +1405,61 @@ async function loadPendingInvites() {
     wrap.style.display = '';
     list.innerHTML = invites.map(p => {
       const sent = p.last_email_sent_at ? new Date(p.last_email_sent_at).toLocaleString() : '—';
-      const roleLabel = p.is_admin ? 'Admin' : ((p.permissions||[]).join(', ') || 'No permissions');
-      return `<div style="background:rgba(0,0,0,0.15);border:1px solid rgba(251,191,36,0.25);border-radius:10px;padding:10px 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-        <div style="flex:1;min-width:200px;">
-          <div style="font-weight:700;font-size:0.88rem;color:var(--text);">${p.email.replace(/[<>]/g,'')}${p.first_name?' · ' + p.first_name.replace(/[<>]/g,'') : ''}</div>
-          <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px;">${roleLabel} · last sent: ${sent}</div>
+      const safeEmail = p.email.replace(/"/g,'&quot;');
+      const safeFn = (p.first_name || '').replace(/"/g,'&quot;');
+      const safeZoom = (p.zoom_host_email || '').replace(/"/g,'&quot;');
+      return `<div class="pending-row" data-email="${safeEmail}" style="background:rgba(0,0,0,0.15);border:1px solid rgba(251,191,36,0.25);border-radius:10px;padding:12px 14px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+        <div style="flex:1 1 200px;min-width:0;">
+          <div style="font-weight:700;font-size:0.88rem;color:var(--text);">${p.email.replace(/[<>]/g,'')}</div>
+          <div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;">last sent: ${sent}</div>
         </div>
-        <button class="save-btn" data-pending-resend="${p.email}" style="background:rgba(251,191,36,0.18);color:#fbbf24;border:1px solid rgba(251,191,36,0.4);font-size:0.72rem;padding:6px 12px;">Resend email</button>
-        <button class="save-btn" data-pending-revoke="${p.email}" style="background:transparent;color:#f87171;border:1px solid rgba(248,113,113,0.4);font-size:0.72rem;padding:6px 12px;">Revoke</button>
+        <input class="auth-input pending-fn" type="text" value="${safeFn}" placeholder="First name" style="flex:0 0 130px;padding:7px 10px;font-size:0.78rem;">
+        <input class="auth-input pending-zoom" type="email" value="${safeZoom}" placeholder="Zoom host email (optional)" style="flex:0 0 200px;padding:7px 10px;font-size:0.78rem;">
+        <div class="user-perms" style="flex:0 0 auto;">${permSelectHTML({ checked: p.permissions || [], isAdmin: !!p.is_admin })}</div>
+        <button class="save-btn pending-save" data-pending-save="${safeEmail}" style="font-size:0.72rem;padding:6px 12px;">Save</button>
+        <button class="save-btn" data-pending-resend="${safeEmail}" style="background:rgba(251,191,36,0.18);color:#fbbf24;border:1px solid rgba(251,191,36,0.4);font-size:0.72rem;padding:6px 12px;">Resend email</button>
+        <button class="save-btn" data-pending-revoke="${safeEmail}" style="background:transparent;color:#f87171;border:1px solid rgba(248,113,113,0.4);font-size:0.72rem;padding:6px 12px;">Revoke</button>
+        <span class="save-msg" data-pending-msg="${safeEmail}" style="flex:0 0 100%;font-size:0.72rem;"></span>
       </div>`;
     }).join('');
+    wirePermSelects(list);
+    list.querySelectorAll('[data-pending-save]').forEach(b => b.addEventListener('click', () => savePendingInvite(b)));
     list.querySelectorAll('[data-pending-resend]').forEach(b => b.addEventListener('click', () => resendPendingInvite(b)));
     list.querySelectorAll('[data-pending-revoke]').forEach(b => b.addEventListener('click', () => revokePendingInvite(b)));
   } catch (e) { console.warn('loadPendingInvites failed', e); }
+}
+
+async function savePendingInvite(btn) {
+  const email = btn.dataset.pendingSave;
+  const row = btn.closest('.pending-row');
+  if (!row) return;
+  const first_name = row.querySelector('.pending-fn')?.value.trim() || '';
+  const zoom_host_email = row.querySelector('.pending-zoom')?.value.trim().toLowerCase() || '';
+  // perm select stores its checkboxes inside a menu (closed when not focused) — query within this row
+  const sel = row.querySelector('.perm-select');
+  const menu = sel?._permMenu || sel?.querySelector('.perm-select-menu');
+  const scope = menu || row;
+  const permissions = [...scope.querySelectorAll('.perm-check')].filter(c => c.checked).map(c => c.dataset.perm);
+  const is_admin = !!scope.querySelector('.admin-check')?.checked;
+  const msg = row.querySelector('[data-pending-msg]');
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Saving…';
+  if (msg) { msg.textContent = ''; msg.style.color = ''; }
+  try {
+    const r = await fetch(INVITE_BASE + '?api=update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session_.access_token },
+      body: JSON.stringify({ email, first_name, permissions, is_admin, zoom_host_email }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Failed');
+    if (msg) { msg.style.color = 'var(--green)'; msg.textContent = '✓ Saved'; }
+    setTimeout(() => { if (msg) msg.textContent = ''; }, 2500);
+  } catch (e) {
+    if (msg) { msg.style.color = 'var(--red)'; msg.textContent = '✗ ' + (e.message || 'Failed'); }
+  } finally {
+    btn.disabled = false; btn.textContent = orig;
+  }
 }
 
 async function resendPendingInvite(btn) {

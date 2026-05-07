@@ -302,10 +302,97 @@
   /* Action row spacing */
   .profile-actions { padding: 10px 0 0 !important; gap: 8px !important; row-gap: 10px !important; border-top: 1px solid var(--border, #1f2438); margin-top: 16px; }
 
-  /* Multi-row layouts inside the profile (e.g. pause grid, resign grid) */
-  .pause-grid, .resign-grid, .alert-grid, .turnover-grid, .win-grid {
-    grid-template-columns: 1fr !important;
-    gap: 12px !important;
+  /* Profile sub-record tables (pauses, resigns) — they're <table> elements
+     with inline styles; on phones we card-stack them so nothing runs off
+     the screen. Inputs become full-width, header row is hidden, each row
+     becomes a small surface card with stacked fields. */
+  .profile-card table {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+  }
+  .profile-card table thead { display: none !important; }
+  .profile-card table tbody, .profile-card table tr, .profile-card table td {
+    display: block !important;
+    width: 100% !important;
+  }
+  .profile-card table tr {
+    background: var(--surface2, #141728) !important;
+    border: 1px solid var(--border, #1f2438) !important;
+    border-radius: 10px !important;
+    padding: 12px !important;
+    margin-bottom: 10px !important;
+  }
+  .profile-card table td {
+    padding: 6px 0 !important;
+    border: none !important;
+    text-align: left !important;
+  }
+  .profile-card table td input,
+  .profile-card table td select,
+  .profile-card table td textarea {
+    width: 100% !important;
+    box-sizing: border-box !important;
+    font-size: 0.92rem !important;
+    min-height: 44px !important;
+  }
+  /* Use the existing per-cell classes to label fields above their inputs */
+  .profile-card table td:has(.pause-start)::before    { content: 'START DATE'; }
+  .profile-card table td:has(.pause-end)::before      { content: 'END DATE (blank = ongoing)'; }
+  .profile-card table td:has(.pause-notes)::before    { content: 'NOTES'; }
+  .profile-card table td:has(.resign-date)::before    { content: 'RESIGN DATE'; }
+  .profile-card table td:has(.resign-months)::before  { content: 'MONTHS ADDED'; }
+  .profile-card table td:has(.resign-amount)::before  { content: 'AMOUNT (optional)'; }
+  .profile-card table td:has(.resign-notes)::before   { content: 'NOTES'; }
+  .profile-card table td::before {
+    display: block;
+    font-size: 0.62rem;
+    color: var(--text-dim, #3e4668);
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+  }
+  /* The 5th column on each row is usually the action button (delete, etc.) */
+  .profile-card table tr td:last-child {
+    padding-top: 10px !important;
+    border-top: 1px solid var(--border, #1f2438) !important;
+    margin-top: 6px !important;
+  }
+  .profile-card table tr td:last-child::before { display: none !important; }
+  .profile-card table tr td:last-child > * {
+    width: auto !important;
+    min-width: 0 !important;
+  }
+
+  /* Lengths / inline read-only spans inside table cells (the "12d" length) */
+  .profile-card table td span { font-size: 0.86rem; color: var(--text); }
+
+  /* Card-stack panels for alerts / wins / notes / surveys / videos / turnovers
+     — these aren't <table> but nested divs that often have inline horizontal
+     layouts. Force them to wrap. */
+  .profile-card .alert-row, .profile-card .win-row, .profile-card .turnover-row,
+  .profile-card .note-row, .profile-card .survey-row, .profile-card .video-row {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+  .profile-card .alert-row > *, .profile-card .win-row > *, .profile-card .turnover-row > *,
+  .profile-card .note-row > *, .profile-card .survey-row > *, .profile-card .video-row > * {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  /* Anything inside the profile that is rendered with inline-styled
+     `display:flex` and forgets to wrap — coerce wrap on phones. */
+  .profile-card div[style*="display:flex"]:not([style*="flex-wrap"]):not([style*="flex-direction:column"]) {
+    flex-wrap: wrap !important;
+  }
+
+  /* Long inline labels that have width set in a pixel value: cap to 100% */
+  .profile-card [style*="width:"][style*="px"]:not([style*="height"]) {
+    max-width: 100% !important;
   }
 
   /* Buttons inside the profile breathe better */

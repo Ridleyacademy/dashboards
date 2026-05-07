@@ -1798,18 +1798,22 @@ function openInviteesModal(meeting) {
 
 async function openAddInviteesModal(meeting) {
   document.getElementById('addInviteesModal')?.remove();
-  // Build pool: respect coach scoping + advanced filters + showExpired
-  let basePool = allStudents.slice();
-  if (!isPrivilegedViewer) {
-    const mine = _myCoachIdentities();
-    basePool = basePool.filter(s => _isMine(s, mine));
-  }
-  basePool = _applyAdvancedFilters(basePool);
-  if (!showExpired) basePool = basePool.filter(s => (s.derived_status || s.status) !== 'Expired');
-  // Exclude already-invited
   const alreadyInvited = new Set((meeting.invited_student_ids || []).map(Number));
-  const pool = basePool.filter(s => !alreadyInvited.has(s.id))
-    .sort((a,b) => (a.name||'').localeCompare(b.name||''));
+
+  // Pool recompute — respects coach scoping + the global advanced filters +
+  // showExpired toggle. Excludes already-invited students.
+  let pool = [];
+  function recomputePool() {
+    let basePool = allStudents.slice();
+    if (!isPrivilegedViewer) {
+      const mine = _myCoachIdentities();
+      basePool = basePool.filter(s => _isMine(s, mine));
+    }
+    basePool = _applyAdvancedFilters(basePool);
+    if (!showExpired) basePool = basePool.filter(s => (s.derived_status || s.status) !== 'Expired');
+    pool = basePool.filter(s => !alreadyInvited.has(s.id)).sort((a,b) => (a.name||'').localeCompare(b.name||''));
+  }
+  recomputePool();
 
   const sel = new Set();
   const m = document.createElement('div');
@@ -1823,10 +1827,13 @@ async function openAddInviteesModal(meeting) {
       <div class="modal-body" style="grid-template-columns:1fr;">
         <div style="font-size:0.82rem;color:var(--text-dim);margin-bottom:6px;">${escapeHtml(meeting.topic || 'Meeting')} · ${alreadyInvited.size} already invited</div>
         <div>
-          <input id="ai-search" type="search" placeholder="Search by name or email…" style="margin-bottom:6px;">
+          <div style="display:flex;gap:6px;margin-bottom:6px;align-items:center;">
+            <input id="ai-search" type="search" placeholder="Search by name or email…" style="flex:1;">
+            <button type="button" id="ai-filters-btn" class="btn-ghost" style="padding:7px 12px;font-size:0.78rem;border-radius:8px;display:inline-flex;align-items:center;gap:5px;white-space:nowrap;"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg> Filters<span id="ai-filters-count" style="display:none;background:var(--accent2);color:#06231a;border-radius:999px;padding:1px 6px;font-size:0.62rem;font-weight:800;">0</span></button>
+          </div>
           <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.72rem;color:var(--text-dim);margin-bottom:4px;">
             <span id="ai-count">0 selected</span>
-            <span>${pool.length} eligible</span>
+            <span id="ai-eligible">${pool.length} eligible</span>
           </div>
           <div class="sz-students" id="ai-students"></div>
           <div style="font-size:0.72rem;color:var(--text-dim);margin-top:4px;">Each picked student gets a personal join link emailed to them.</div>
@@ -1846,6 +1853,19 @@ async function openAddInviteesModal(meeting) {
   const countEl = document.getElementById('ai-count');
   const addBtn = document.getElementById('ai-add');
   const search = document.getElementById('ai-search');
+
+  function updateFiltersBadge() {
+    const fc = document.getElementById('ai-filters-count');
+    const n = _filtersActiveCount();
+    if (fc) { fc.textContent = n; fc.style.display = n ? '' : 'none'; }
+  }
+  updateFiltersBadge();
+  document.getElementById('ai-filters-btn').addEventListener('click', () => openFiltersModal(() => {
+    recomputePool();
+    document.getElementById('ai-eligible').textContent = pool.length + ' eligible';
+    updateFiltersBadge();
+    render();
+  }));
 
   function render() {
     const q = (search.value || '').trim().toLowerCase();

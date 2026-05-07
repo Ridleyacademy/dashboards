@@ -597,12 +597,15 @@ document.addEventListener('click', () => {
 
 async function onAuthed(session) {
   currentSession = session;
-  const email = session.user.email || '';
-  document.getElementById('userEmail').textContent = email;
+  // Effective identity (handles impersonation transparently). Real session/JWT
+  // is still used for server calls; this only swaps what the UI shows + which
+  // controls are enabled.
+  const eff = window.RidleyPerms.effective(session.user);
+  const email = eff.email || session.user.email || '';
+  document.getElementById('userEmail').textContent = email + (eff.impersonated ? ' (viewing as)' : '');
   document.getElementById('userAvatar').textContent = (email[0] || 'U').toUpperCase();
-  const am = session.user.app_metadata || {};
-  const perms = Array.isArray(am.permissions) ? am.permissions : [];
-  isAdmin = am.is_admin === true;
+  const perms = Array.isArray(eff.permissions) ? eff.permissions : [];
+  isAdmin = eff.is_admin === true;
   isCoach = perms.includes('coach');
   isPrivilegedViewer = isAdmin || perms.includes('ms_ic') || perms.includes('delivery_ic') || perms.includes('mentorship');
   if (!isAdmin && !isCoach && !isPrivilegedViewer) {
@@ -721,11 +724,22 @@ function escapeHtml(s) {
 }
 
 function _myCoachIdentities() {
-  const fn = (currentSession?.user?.user_metadata?.first_name || '').toLowerCase().trim();
-  const em = (currentSession?.user?.email || '').toLowerCase().trim();
+  // Honor impersonation: when an admin "Views as" a coach, we want to filter
+  // by THAT coach's identity, not the real admin's.
+  const eff = window.RidleyPerms?.effective(currentSession?.user);
+  const em = (eff?.email || currentSession?.user?.email || '').toLowerCase().trim();
+  // first_name is only on the real user_metadata, not in the impersonate payload.
+  // It's only used as a secondary match anyway — coach assignment by email is
+  // the primary path.
+  const fn = (eff?.impersonated ? '' : (currentSession?.user?.user_metadata?.first_name || '')).toLowerCase().trim();
   const out = new Set();
   if (fn) out.add(fn);
   if (em) out.add(em);
+  // Also try the local part of the email (e.g. "ange.bibou+test2" → "ange")
+  if (em.includes('@')) {
+    const local = em.split('@')[0].split(/[+._]/)[0];
+    if (local) out.add(local);
+  }
   return out;
 }
 function _isMine(s, mineSet) {
@@ -1670,10 +1684,15 @@ function openScheduleZoomModal(prefilledIds) {
   const pad = n => String(n).padStart(2,'0');
   const localDtVal = `${def.getFullYear()}-${pad(def.getMonth()+1)}-${pad(def.getDate())}T${pad(def.getHours())}:${pad(def.getMinutes())}`;
 
-  // Pool = ALL students; prefilledIds (from bulk select) come pre-checked.
-  // Sort: prefilled first, then alphabetical.
+  // Pool = ALL students for privileged viewers; ONLY my students for coaches.
+  // Prefilled IDs (from bulk select) come pre-checked.
   const preset = new Set((prefilledIds || []).map(Number));
-  const pool = [...allStudents].sort((a,b) => {
+  let basePool = allStudents;
+  if (!isPrivilegedViewer) {
+    const mine = _myCoachIdentities();
+    basePool = allStudents.filter(s => _isMine(s, mine));
+  }
+  const pool = [...basePool].sort((a,b) => {
     const ap = preset.has(a.id) ? 0 : 1, bp = preset.has(b.id) ? 0 : 1;
     if (ap !== bp) return ap - bp;
     return (a.name||'').localeCompare(b.name||'');
@@ -1999,7 +2018,12 @@ function openGroupEditor(group) {
   const searchEl = document.getElementById('ge-search');
   function renderChoices() {
     const q = (searchEl.value || '').trim().toLowerCase();
-    const pool = [...allStudents].sort((a,b) => {
+    let basePool = allStudents;
+    if (!isPrivilegedViewer) {
+      const mine = _myCoachIdentities();
+      basePool = allStudents.filter(s => _isMine(s, mine));
+    }
+    const pool = [...basePool].sort((a,b) => {
       const ap = groupSel.has(a.id) ? 0 : 1;
       const bp = groupSel.has(b.id) ? 0 : 1;
       if (ap !== bp) return ap - bp;

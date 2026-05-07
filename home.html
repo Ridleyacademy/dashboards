@@ -565,6 +565,13 @@
             <div class="users-count" id="usersCount">Loading team…</div>
             <button class="save-btn" id="refreshUsersBtn" style="font-size:0.7rem;">↻ Refresh</button>
           </div>
+          <div id="pendingInvitesWrap" style="display:none;margin:16px 0 24px;border:1px solid rgba(251,191,36,0.4);background:rgba(251,191,36,0.06);border-radius:14px;padding:14px 18px;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+              <span style="font-size:0.78rem;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:#fbbf24;">⌛ Pending invites</span>
+              <span id="pendingInvitesCount" style="background:rgba(251,191,36,0.2);color:#fbbf24;border-radius:999px;padding:2px 9px;font-size:0.7rem;font-weight:700;">0</span>
+            </div>
+            <div id="pendingInvitesList" style="display:flex;flex-direction:column;gap:8px;"></div>
+          </div>
           <div id="adminUserList">
             <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
           </div>
@@ -787,14 +794,14 @@ document.querySelectorAll('.admin-tab').forEach(tab => {
     document.querySelectorAll('.admin-pane').forEach(p => p.classList.remove('active'));
     tab.classList.add('active');
     document.getElementById('pane-' + tab.dataset.tab).classList.add('active');
-    if (tab.dataset.tab === 'users') loadAdminUsers();
+    if (tab.dataset.tab === 'users') { loadAdminUsers(); loadPendingInvites(); }
     if (tab.dataset.tab === 'rep-map') loadRepMappings();
     if (tab.dataset.tab === 'activity') loadActivity();
     if (tab.dataset.tab === 'sessions') loadSessions();
   });
 });
 
-document.getElementById('refreshUsersBtn').addEventListener('click', loadAdminUsers);
+document.getElementById('refreshUsersBtn').addEventListener('click', () => { loadAdminUsers(); loadPendingInvites(); });
 // Wire "View all →" on the dashboard widget to scroll into Team
 // Management → Activity tab.
 document.getElementById('recentActivityViewAll')?.addEventListener('click', e => {
@@ -1081,7 +1088,7 @@ async function loadAdminUsers() {
           ${permSelectHTML({ checked: u.permissions || [], isAdmin: !!u.is_admin })}
         </div>
         <button class="save-btn" data-id="${u.id}">Save</button>
-        ${u.email && !u.last_sign_in_at ? `<button class="resend-btn" data-id="${u.id}" data-email="${u.email}" title="Send a fresh invite link (use this if their original invite expired)" style="background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.4);color:#fbbf24;">Resend invite</button>` : ''}
+        ${u.email && !u.last_sign_in_at ? `<button class="resend-btn" data-id="${u.id}" data-email="${u.email}" title="Email a password-reset link (use this for legacy users who never signed in)" style="background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.4);color:#fbbf24;">Send reset</button>` : ''}
         ${u.email ? `<button class="reset-btn" data-id="${u.id}" data-email="${u.email}" title="Email this user a password reset link">Reset password</button>` : ''}
         ${isSelf ? '' : `<button class="impersonate-btn" data-id="${u.id}" data-email="${u.email||''}" data-admin="${u.is_admin?1:0}" data-perms="${(u.permissions||[]).join(',')}" title="See the app as this user">View as</button>`}
         ${isSelf ? '' : `<button class="delete-btn" data-id="${u.id}" data-email="${u.email||''}">Delete</button>`}
@@ -1374,26 +1381,90 @@ function formatLastLogin(iso) {
   return { text, cls };
 }
 
+async function loadPendingInvites() {
+  const wrap = document.getElementById('pendingInvitesWrap');
+  const list = document.getElementById('pendingInvitesList');
+  if (!wrap || !list) return;
+  try {
+    const r = await fetch(INVITE_BASE + '?api=list', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session_.access_token },
+    });
+    if (!r.ok) {
+      // ?api=list is GET, not POST — try GET instead. Fall through.
+    }
+    // The endpoint accepts GET — call it that way
+    const r2 = await fetch(INVITE_BASE + '?api=list', { headers: { Authorization: 'Bearer ' + session_.access_token } });
+    const j = await r2.json();
+    const invites = j.invites || [];
+    document.getElementById('pendingInvitesCount').textContent = invites.length;
+    if (!invites.length) { wrap.style.display = 'none'; return; }
+    wrap.style.display = '';
+    list.innerHTML = invites.map(p => {
+      const sent = p.last_email_sent_at ? new Date(p.last_email_sent_at).toLocaleString() : '—';
+      const roleLabel = p.is_admin ? 'Admin' : ((p.permissions||[]).join(', ') || 'No permissions');
+      return `<div style="background:rgba(0,0,0,0.15);border:1px solid rgba(251,191,36,0.25);border-radius:10px;padding:10px 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:200px;">
+          <div style="font-weight:700;font-size:0.88rem;color:var(--text);">${p.email.replace(/[<>]/g,'')}${p.first_name?' · ' + p.first_name.replace(/[<>]/g,'') : ''}</div>
+          <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px;">${roleLabel} · last sent: ${sent}</div>
+        </div>
+        <button class="save-btn" data-pending-resend="${p.email}" style="background:rgba(251,191,36,0.18);color:#fbbf24;border:1px solid rgba(251,191,36,0.4);font-size:0.72rem;padding:6px 12px;">Resend email</button>
+        <button class="save-btn" data-pending-revoke="${p.email}" style="background:transparent;color:#f87171;border:1px solid rgba(248,113,113,0.4);font-size:0.72rem;padding:6px 12px;">Revoke</button>
+      </div>`;
+    }).join('');
+    list.querySelectorAll('[data-pending-resend]').forEach(b => b.addEventListener('click', () => resendPendingInvite(b)));
+    list.querySelectorAll('[data-pending-revoke]').forEach(b => b.addEventListener('click', () => revokePendingInvite(b)));
+  } catch (e) { console.warn('loadPendingInvites failed', e); }
+}
+
+async function resendPendingInvite(btn) {
+  const email = btn.dataset.pendingResend;
+  if (!confirm(`Resend invite email to ${email}?`)) return;
+  const orig = btn.textContent; btn.disabled = true; btn.textContent = 'Sending…';
+  try {
+    const r = await fetch(INVITE_BASE + '?api=resend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session_.access_token },
+      body: JSON.stringify({ email }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Failed');
+    btn.textContent = '✓ Sent'; setTimeout(() => loadPendingInvites(), 800);
+  } catch (e) { btn.textContent = '✗ ' + (e.message || 'Failed'); btn.disabled = false; }
+}
+
+async function revokePendingInvite(btn) {
+  const email = btn.dataset.pendingRevoke;
+  if (!confirm(`Revoke invite for ${email}?\n\nThe link they received will stop working.`)) return;
+  btn.disabled = true; btn.textContent = 'Revoking…';
+  try {
+    const r = await fetch(INVITE_BASE + '?api=revoke', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session_.access_token },
+      body: JSON.stringify({ email }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Failed');
+    loadPendingInvites();
+  } catch (e) { btn.textContent = '✗ ' + (e.message || 'Failed'); btn.disabled = false; }
+}
+
+// Legacy resendInvite (for already-existing auth.users with no last_sign_in) — uses Supabase recovery
 async function resendInvite(btn) {
   const email = btn.dataset.email;
   const userId = btn.dataset.id;
   const msg = document.getElementById('msg-' + userId);
   if (!email) return;
-  if (!confirm(`Send a fresh invite link to ${email}?\n\nThis is the right action when their original invite expired.`)) return;
+  if (!confirm(`Send a password-reset email to ${email}?`)) return;
   const original = btn.textContent;
   btn.disabled = true; btn.textContent = 'Sending…';
   if (msg) { msg.textContent = ''; msg.style.color = ''; }
   try {
-    const r = await fetch(ADMIN_API_BASE.replace('admin-api','invite') + '?api=resend', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session_.access_token },
-      body: JSON.stringify({ userId, email }),
-    });
-    const j = await r.json();
-    if (!r.ok) throw new Error(j.error || 'Failed');
-    if (msg) { msg.style.color = 'var(--green)'; msg.textContent = '✓ Invite re-sent'; }
+    const { error } = await supa.auth.resetPasswordForEmail(email, { redirectTo: 'https://ridleyacademy.team/' });
+    if (error) throw error;
+    if (msg) { msg.style.color = 'var(--green)'; msg.textContent = '✓ Reset email sent'; }
   } catch (err) {
-    if (msg) { msg.style.color = 'var(--red)'; msg.textContent = err.message || 'Failed to resend'; }
+    if (msg) { msg.style.color = 'var(--red)'; msg.textContent = err.message || 'Failed'; }
   } finally {
     btn.disabled = false; btn.textContent = original;
     if (msg) setTimeout(() => { msg.textContent = ''; }, 6000);
@@ -1757,6 +1828,7 @@ document.getElementById('sendInviteBtn').addEventListener('click', async () => {
     if (document.getElementById('inviteFirstName')) document.getElementById('inviteFirstName').value = '';
     document.querySelectorAll('.invite-perm').forEach(c => c.checked = false);
     if (document.getElementById('inviteAdminCheck')) document.getElementById('inviteAdminCheck').checked = false;
+    loadPendingInvites(); // refresh the pending list
   } catch(err) {
     feedback.style.color = 'var(--red)'; feedback.textContent = err.message;
   } finally {

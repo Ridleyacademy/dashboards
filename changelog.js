@@ -11,6 +11,14 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v141', title: 'Invite system rebuilt — links never expire',
+      adminOnly: true, items: [
+      'Replaced Supabase\'s built-in magic-link invite (which expired in ~1h) with a token-based flow that stays valid until the account is created.',
+      'When you invite someone, a row is saved in pending_invites with a long random token. The email goes out from mentorship@ridleyacademy.team via Resend, with a "Create my account" button.',
+      'The link lands on a new /activate page where the user picks a password (and confirms their first name). Their account is created with the right permissions, then they\'re auto-signed-in and redirected home.',
+      'New "Pending invites" yellow card at the top of the Admin → Users tab shows everyone who hasn\'t activated yet, with Resend and Revoke buttons.',
+      'Existing users who never signed in still get the legacy "Send reset" path (which uses Supabase recovery).',
+    ]},
     { version: 'v140', title: 'Resend expired invite from Admin Panel',
       adminOnly: true, items: [
       'Bug: when an invited user didn\'t open their email in time, the invite token expired and they had no way to set their password.',

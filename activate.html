@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Create your account — Ridley Academy</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --bg: #080a14; --surface: #13141f; --border: #1f2438;
+    --text: #eaecf8; --text-dim: #7880a8; --accent: #DC2626;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+    min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px;
+    padding: 36px 32px; width: 100%; max-width: 420px; }
+  .logo-band { background: #000; border-radius: 12px; padding: 22px 16px; text-align: center; margin: -12px -8px 24px; }
+  .logo-band img { max-width: 180px; width: 100%; height: auto; display: block; margin: 0 auto; }
+  h1 { font-size: 1.4rem; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 6px; text-align: center; }
+  .sub { color: var(--text-dim); font-size: 0.84rem; text-align: center; margin: 0 0 22px; }
+  label { display: block; font-size: 0.72rem; font-weight: 700; color: var(--text-dim);
+    text-transform: uppercase; letter-spacing: 0.08em; margin: 14px 0 6px; }
+  input { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+    padding: 11px 14px; font-size: 0.86rem; color: var(--text); outline: none; }
+  input:focus { border-color: var(--accent); }
+  input[disabled] { opacity: 0.7; }
+  .btn { width: 100%; background: var(--accent); color: #fff; border: none; border-radius: 10px;
+    padding: 13px; font-size: 0.92rem; font-weight: 700; cursor: pointer; margin-top: 22px; }
+  .btn[disabled] { opacity: 0.6; cursor: wait; }
+  .msg-err { color: #f87171; font-size: 0.8rem; margin-top: 12px; text-align: center; min-height: 1em; }
+  .msg-ok  { color: #34d399; font-size: 0.8rem; margin-top: 12px; text-align: center; }
+  .center-msg { text-align: center; padding: 40px 16px; color: var(--text-dim); font-size: 0.92rem; }
+  .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--text-dim);
+    border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo-band">
+      <img src="https://cdn.accelonline.io/qyO8Dzdk80CWcn0r5CiEPA/images/eR97N7wyk0aQHAjZbTCuBw.webp" alt="Ridley Academy">
+    </div>
+    <div id="loading" class="center-msg"><span class="spinner"></span> &nbsp; Loading invite…</div>
+    <div id="invalid" class="center-msg" style="display:none;">
+      <div style="font-size:1.1rem;font-weight:700;color:var(--text);margin-bottom:6px;">This invite isn't valid</div>
+      <div id="invalidReason"></div>
+      <div style="margin-top:18px;"><a href="https://ridleyacademy.team/home">Go to Sign in →</a></div>
+    </div>
+    <div id="form" style="display:none;">
+      <h1>Create your account</h1>
+      <p class="sub">Set a password to finish setting up your Ridley Academy access.</p>
+      <form id="activateForm" autocomplete="off">
+        <label>Email</label>
+        <input id="emailField" type="email" disabled>
+        <label>Your first name</label>
+        <input id="firstNameField" type="text" placeholder="What should we call you?" required>
+        <label>Password</label>
+        <input id="passwordField" type="password" placeholder="Min 8 characters" minlength="8" required autocomplete="new-password">
+        <label>Confirm password</label>
+        <input id="confirmField" type="password" placeholder="Type it again" minlength="8" required autocomplete="new-password">
+        <button class="btn" id="activateBtn" type="submit">Create account</button>
+        <div id="msg" class="msg-err"></div>
+      </form>
+    </div>
+    <div id="success" style="display:none;" class="center-msg">
+      <div style="font-size:2rem;color:#34d399;margin-bottom:10px;">✓</div>
+      <div style="font-size:1.1rem;font-weight:700;color:var(--text);margin-bottom:6px;">Account created</div>
+      <div>Signing you in…</div>
+    </div>
+  </div>
+
+<script>
+const SUPABASE_URL = "https://pojqljrhhtnigyrtzdzz.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBvanFsanJoaHRuaWd5cnR6ZHp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTA3ODMsImV4cCI6MjA5MTM4Njc4M30.PcSBDqOzbiZxZ7IAs5efqx0gsAlAG0cj3GqUOkAmxos";
+const ACTIVATE_BASE = SUPABASE_URL + '/functions/v1/activate';
+const supa = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: true, detectSessionInUrl: false, autoRefreshToken: true } });
+
+function show(id) {
+  ['loading','form','invalid','success'].forEach(x => {
+    const el = document.getElementById(x);
+    if (el) el.style.display = x === id ? '' : 'none';
+  });
+}
+function setMsg(s, ok) {
+  const m = document.getElementById('msg');
+  m.textContent = s || '';
+  m.className = ok ? 'msg-ok' : 'msg-err';
+}
+
+const params = new URLSearchParams(window.location.search);
+const token = params.get('token');
+
+async function load() {
+  if (!token) {
+    document.getElementById('invalidReason').textContent = 'No invite token in this URL.';
+    show('invalid'); return;
+  }
+  try {
+    const r = await fetch(ACTIVATE_BASE + '?token=' + encodeURIComponent(token));
+    const j = await r.json();
+    if (!r.ok) {
+      document.getElementById('invalidReason').textContent = j.error || 'Invite not found.';
+      show('invalid'); return;
+    }
+    document.getElementById('emailField').value = j.email || '';
+    document.getElementById('firstNameField').value = j.first_name || '';
+    show('form');
+    setTimeout(() => {
+      // Focus first empty required field
+      if (!j.first_name) document.getElementById('firstNameField').focus();
+      else document.getElementById('passwordField').focus();
+    }, 100);
+  } catch (e) {
+    document.getElementById('invalidReason').textContent = e.message || 'Could not load invite.';
+    show('invalid');
+  }
+}
+
+document.getElementById('activateForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  setMsg('');
+  const password = document.getElementById('passwordField').value;
+  const confirm  = document.getElementById('confirmField').value;
+  const first_name = document.getElementById('firstNameField').value.trim();
+  if (password !== confirm) { setMsg('Passwords do not match.'); return; }
+  if (password.length < 8)  { setMsg('Password must be at least 8 characters.'); return; }
+
+  const btn = document.getElementById('activateBtn');
+  btn.disabled = true; btn.textContent = 'Creating…';
+  try {
+    const r = await fetch(ACTIVATE_BASE, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, password, first_name }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Failed');
+
+    // Sign them in immediately
+    const email = document.getElementById('emailField').value;
+    const { error: signErr } = await supa.auth.signInWithPassword({ email, password });
+    if (signErr) {
+      setMsg('Account created, but auto sign-in failed. Go to home and sign in manually.');
+      setTimeout(() => { window.location.href = '/home'; }, 1800);
+      return;
+    }
+    show('success');
+    setTimeout(() => { window.location.href = '/home'; }, 900);
+  } catch (e) {
+    setMsg(e.message || 'Failed');
+    btn.disabled = false; btn.textContent = 'Create account';
+  }
+});
+
+load();
+</script>
+</body>
+</html>

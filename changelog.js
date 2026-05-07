@@ -11,6 +11,12 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v137', title: 'Even more Zoom advanced settings',
+      roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic'], items: [
+      'New toggles: Let participants rename themselves, Watermark on screen-share, End-to-end encryption, Allow chat in meeting.',
+      'New Audio options: Telephone & computer, Computer (VoIP) only, Telephone only.',
+      'New Invitation email language picker (16 languages) for any Zoom-side notifications.',
+    ]},
     { version: 'v136', title: 'Recurring sessions, custom passcode, timezone, captions, login required',
       roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic'], items: [
       'Schedule Zoom → Advanced settings now supports: recurring meetings (daily / weekly / every 2 weeks / monthly with end-after-N or end-by-date), custom passcode (override Zoom\'s auto-generated code), timezone picker (defaults to your local), enable live captions / transcription, and require Zoom login to join.',

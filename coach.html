@@ -1785,6 +1785,41 @@ function openScheduleZoomModal(prefilledIds) {
               <label class="sz-adv-toggle"><input type="checkbox" id="sz-passcode" checked><span>Require passcode</span></label>
               <label class="sz-adv-toggle"><input type="checkbox" id="sz-captions"><span>Enable live captions / transcription</span></label>
               <label class="sz-adv-toggle"><input type="checkbox" id="sz-auth"><span>Require Zoom login to join</span></label>
+              <label class="sz-adv-toggle"><input type="checkbox" id="sz-rename" checked><span>Let participants rename themselves</span></label>
+              <label class="sz-adv-toggle"><input type="checkbox" id="sz-watermark"><span>Watermark on screen-share</span></label>
+              <label class="sz-adv-toggle"><input type="checkbox" id="sz-e2ee"><span>End-to-end encryption</span></label>
+              <label class="sz-adv-toggle"><input type="checkbox" id="sz-chat" checked><span>Allow chat in meeting</span></label>
+            </div>
+            <div class="sz-adv-field">
+              <label>Audio options</label>
+              <select id="sz-audio">
+                <option value="both" selected>Telephone &amp; computer audio</option>
+                <option value="voip">Computer audio (VoIP) only</option>
+                <option value="telephony">Telephone only</option>
+              </select>
+              <div class="sz-adv-help">Computer-only keeps phone dial-in numbers out of the invitation email.</div>
+            </div>
+            <div class="sz-adv-field">
+              <label>Invitation email language</label>
+              <select id="sz-emailLang">
+                <option value="en-US" selected>English</option>
+                <option value="es-ES">Spanish</option>
+                <option value="fr-FR">French</option>
+                <option value="de-DE">German</option>
+                <option value="it-IT">Italian</option>
+                <option value="pt-PT">Portuguese</option>
+                <option value="nl-NL">Dutch</option>
+                <option value="pl-PL">Polish</option>
+                <option value="ru-RU">Russian</option>
+                <option value="tr-TR">Turkish</option>
+                <option value="vi-VN">Vietnamese</option>
+                <option value="id-ID">Indonesian</option>
+                <option value="jp-JP">Japanese</option>
+                <option value="ko-KO">Korean</option>
+                <option value="zh-CN">Chinese (Simplified)</option>
+                <option value="zh-TW">Chinese (Traditional)</option>
+              </select>
+              <div class="sz-adv-help">Used for any Zoom-side notifications. Our own invite email always uses English.</div>
             </div>
             <div class="sz-adv-field" id="sz-passcode-wrap">
               <label>Custom passcode (optional)</label>
@@ -1960,6 +1995,12 @@ function openScheduleZoomModal(prefilledIds) {
       timezone: document.getElementById('sz-timezone').value || 'UTC',
       live_captions: document.getElementById('sz-captions').checked,
       meeting_authentication: document.getElementById('sz-auth').checked,
+      allow_rename: document.getElementById('sz-rename').checked,
+      watermark: document.getElementById('sz-watermark').checked,
+      e2ee: document.getElementById('sz-e2ee').checked,
+      chat: document.getElementById('sz-chat').checked,
+      audio: document.getElementById('sz-audio').value,
+      email_language: document.getElementById('sz-emailLang').value,
       recurrence,
     };
     const btn = document.getElementById('sz-create'); btn.disabled = true; btn.textContent = 'Creating…';

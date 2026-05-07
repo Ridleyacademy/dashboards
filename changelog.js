@@ -11,6 +11,12 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v140', title: 'Resend expired invite from Admin Panel',
+      adminOnly: true, items: [
+      'Bug: when an invited user didn\'t open their email in time, the invite token expired and they had no way to set their password.',
+      'Fix: new yellow "Resend invite" button on the Admin Panel for any user who hasn\'t signed in yet. Sends a fresh invite link.',
+      'For users who have signed in but forgot their password, "Reset password" still works as before.',
+    ]},
     { version: 'v139', title: 'Advanced filters everywhere students are picked',
       roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic'], items: [
       'The Schedule Zoom modal and the New / Edit group modal now have a "Filters" button next to the search box.',

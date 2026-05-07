@@ -1081,6 +1081,7 @@ async function loadAdminUsers() {
           ${permSelectHTML({ checked: u.permissions || [], isAdmin: !!u.is_admin })}
         </div>
         <button class="save-btn" data-id="${u.id}">Save</button>
+        ${u.email && !u.last_sign_in_at ? `<button class="resend-btn" data-id="${u.id}" data-email="${u.email}" title="Send a fresh invite link (use this if their original invite expired)" style="background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.4);color:#fbbf24;">Resend invite</button>` : ''}
         ${u.email ? `<button class="reset-btn" data-id="${u.id}" data-email="${u.email}" title="Email this user a password reset link">Reset password</button>` : ''}
         ${isSelf ? '' : `<button class="impersonate-btn" data-id="${u.id}" data-email="${u.email||''}" data-admin="${u.is_admin?1:0}" data-perms="${(u.permissions||[]).join(',')}" title="See the app as this user">View as</button>`}
         ${isSelf ? '' : `<button class="delete-btn" data-id="${u.id}" data-email="${u.email||''}">Delete</button>`}
@@ -1097,6 +1098,9 @@ async function loadAdminUsers() {
     });
     list.querySelectorAll('.reset-btn').forEach(btn => {
       btn.addEventListener('click', () => sendPasswordReset(btn));
+    });
+    list.querySelectorAll('.resend-btn').forEach(btn => {
+      btn.addEventListener('click', () => resendInvite(btn));
     });
     list.querySelectorAll('.impersonate-btn').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -1368,6 +1372,32 @@ function formatLastLogin(iso) {
   // Stale if no login for 30+ days
   const cls = days >= 30 ? 'user-meta-stale' : '';
   return { text, cls };
+}
+
+async function resendInvite(btn) {
+  const email = btn.dataset.email;
+  const userId = btn.dataset.id;
+  const msg = document.getElementById('msg-' + userId);
+  if (!email) return;
+  if (!confirm(`Send a fresh invite link to ${email}?\n\nThis is the right action when their original invite expired.`)) return;
+  const original = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Sending…';
+  if (msg) { msg.textContent = ''; msg.style.color = ''; }
+  try {
+    const r = await fetch(ADMIN_API_BASE.replace('admin-api','invite') + '?api=resend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session_.access_token },
+      body: JSON.stringify({ userId, email }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Failed');
+    if (msg) { msg.style.color = 'var(--green)'; msg.textContent = '✓ Invite re-sent'; }
+  } catch (err) {
+    if (msg) { msg.style.color = 'var(--red)'; msg.textContent = err.message || 'Failed to resend'; }
+  } finally {
+    btn.disabled = false; btn.textContent = original;
+    if (msg) setTimeout(() => { msg.textContent = ''; }, 6000);
+  }
 }
 
 async function sendPasswordReset(btn) {

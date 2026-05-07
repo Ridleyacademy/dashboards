@@ -633,9 +633,18 @@ async function onAuthed(session) {
   if (isMsRepOnly) {
     const addBtn = document.getElementById('addStudentBtn'); if (addBtn) addBtn.style.display = 'none';
   }
+
+  // Render from cache instantly so the page feels immediate; the network
+  // refresh runs in the background inside loadStudents().
+  const cache = _readStudentsCache();
+  if (cache && cache.user_id === session.user.id) {
+    students = cache.rows;
+    renderStudentList();
+  }
+  // Fire all data loads in parallel — none of them should block first paint.
   loadMentors();
   loadCoaches();
-  await loadStudents();
+  loadStudents();
   // If the URL has ?openAlert=N&student=M (from a notification click), open
   // that student then their alerts modal.
   try {
@@ -687,22 +696,56 @@ document.getElementById('deniedSignOutBtn').addEventListener('click', async () =
 });
 
 // ── Data ───────────────────────────────────────────────────────
+// Stale-while-revalidate cache: render from localStorage instantly on warm
+// reloads, then fetch fresh in the background and re-render if changed.
+const STUDENTS_CACHE_KEY = 'crm_students_v1';
+function _readStudentsCache() {
+  try {
+    const raw = localStorage.getItem(STUDENTS_CACHE_KEY);
+    if (!raw) return null;
+    const j = JSON.parse(raw);
+    if (!j || !Array.isArray(j.rows) || !j.user_id) return null;
+    if (currentSession?.user?.id && j.user_id !== currentSession.user.id) return null;
+    return j;
+  } catch { return null; }
+}
+function _writeStudentsCache(rows) {
+  try { localStorage.setItem(STUDENTS_CACHE_KEY, JSON.stringify({ rows, user_id: currentSession?.user?.id || null, ts: Date.now() })); }
+  catch (_) {}
+}
 async function loadStudents() {
   const list = document.getElementById('studentList');
-  list.innerHTML = '<div class="student-list-empty">Loading…</div>';
+
+  // 1. Render from cache instantly (stays valid for 1 hour)
+  const cache = _readStudentsCache();
+  if (cache && (Date.now() - cache.ts) < 3600_000) {
+    students = cache.rows;
+    renderStudentList();
+  } else if (!students.length) {
+    list.innerHTML = '<div class="student-list-empty">Loading…</div>';
+  }
+
+  // 2. Always fetch fresh in the background
   try {
     const r = await fetch(STUDENTS_BASE + '?api=list', { headers: { Authorization: 'Bearer ' + currentSession.access_token } });
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || 'Failed');
-    students = j.rows || [];
-    renderStudentList();
+    const rows = j.rows || [];
+    const sigPrev = students.length + ':' + (students[0]?.id || '') + ':' + (students[students.length-1]?.id || '');
+    const sigNew = rows.length + ':' + (rows[0]?.id || '') + ':' + (rows[rows.length-1]?.id || '');
+    students = rows;
+    _writeStudentsCache(rows);
+    if (sigPrev !== sigNew || !cache) renderStudentList();
   } catch (e) {
-    list.innerHTML = '';
-    const div = document.createElement('div');
-    div.className = 'student-list-empty';
-    div.style.color = 'var(--red)';
-    div.textContent = e.message || 'Failed to load';
-    list.appendChild(div);
+    if (!students.length) {
+      list.innerHTML = '';
+      const div = document.createElement('div');
+      div.className = 'student-list-empty';
+      div.style.color = 'var(--red)';
+      div.textContent = e.message || 'Failed to load';
+      list.appendChild(div);
+    }
+    console.warn('loadStudents background fetch failed', e);
   }
 }
 

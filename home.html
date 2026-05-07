@@ -932,7 +932,10 @@ async function onAuthed(session) {
     const now = new Date();
     const hr  = now.getHours();
     document.getElementById('greetTime').textContent = hr < 12 ? 'morning' : hr < 17 ? 'afternoon' : 'evening';
-    const name = email.split('@')[0].split(/[._]/)[0];
+    // Prefer the first_name they set on activation; fall back to email local-part.
+    const fnFromMeta = (session.user.user_metadata?.first_name || '').toString().trim();
+    const fallback = email.split('@')[0].split(/[+._]/)[0];
+    const name = fnFromMeta || fallback;
     document.getElementById('firstName').textContent = name.charAt(0).toUpperCase() + name.slice(1);
 
     // Date

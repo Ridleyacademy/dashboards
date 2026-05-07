@@ -1792,7 +1792,10 @@ async function cancelMeeting(id) {
   } catch (e) { alert('Cancel failed: ' + (e.message || e)); }
 }
 
-function openScheduleZoomModal(prefilledIds) {
+async function openScheduleZoomModal(prefilledIds) {
+  // Make sure the hosts list is loaded before rendering the modal so the
+  // 'Host as (coach)' picker is reliably populated for privileged users.
+  if (isPrivilegedViewer && !zoomHosts.length) { try { await loadZoomHosts(); } catch (_) {} }
   document.getElementById('szModal')?.remove();
   // Default: 24h from now, rounded to next 15-min mark
   const def = new Date(Date.now() + 24*60*60*1000);
@@ -2277,7 +2280,8 @@ async function openGroupsModal() {
   }));
 }
 
-function openGroupEditor(group) {
+async function openGroupEditor(group) {
+  if (isPrivilegedViewer && !zoomHosts.length) { try { await loadZoomHosts(); } catch (_) {} }
   document.getElementById('groupEditModal')?.remove();
   const isNew = !group;
   const groupSel = new Set((group?.student_ids || []).map(Number));
@@ -2402,8 +2406,11 @@ function openGroupEditor(group) {
 
 document.getElementById('manageGroupsBtn').addEventListener('click', openGroupsModal);
 
-// Pre-load groups + hosts in background so modals render instantly
-setTimeout(() => { loadSessionGroups(); loadZoomHosts(); }, 300);
+// Pre-load groups + hosts in background so modals render instantly.
+// Kicked off without delay so a quick click on Schedule Zoom doesn't
+// race past these and miss the Host-as picker / Group dropdown.
+loadSessionGroups();
+loadZoomHosts();
 
 // ── Advanced filters modal ─────────────────────────────────────
 function _uniqueValuesFor(field) {

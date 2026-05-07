@@ -11,6 +11,12 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v138', title: 'Advanced filters on the Coach Dashboard',
+      roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic'], items: [
+      'New "Filters" button in the chip bar opens a modal to filter by Level, Current module, Masterclass level, Coach status, Lifecycle status, Last Zoom (never / >7d / >30d / >90d), Last assignment sent / received, and "Has email".',
+      'Active filters show a counter badge on the button.',
+      'Expired students are now hidden by default. A "+ Show expired" toggle on the chip bar surfaces them with a count of how many are hidden.',
+    ]},
     { version: 'v137', title: 'Even more Zoom advanced settings',
       roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic'], items: [
       'New toggles: Let participants rename themselves, Watermark on screen-share, End-to-end encryption, Allow chat in meeting.',

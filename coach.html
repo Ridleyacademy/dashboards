@@ -227,6 +227,14 @@
     background: rgba(52,211,153,0.1); border: 1px solid rgba(52,211,153,0.3); color: var(--accent2); }
   .sz-result.err { background: rgba(248,113,113,0.1); border-color: rgba(248,113,113,0.3); color: #f87171; }
 
+  /* Filter modal chips */
+  .filter-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .filter-chip { display: inline-flex; align-items: center; padding: 5px 11px; border-radius: 999px;
+    background: var(--bg); color: var(--text); border: 1px solid var(--border); font-size: 0.76rem;
+    font-weight: 600; cursor: pointer; user-select: none; }
+  .filter-chip:hover { border-color: var(--accent2); }
+  .filter-chip.on { background: rgba(34,211,238,0.15); border-color: var(--accent2); color: var(--accent2); }
+
   /* Advanced Zoom settings (collapsible) */
   #sz-advanced { grid-column: 1 / -1; margin-top: 6px; }
   .sz-adv-summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 10px;
@@ -511,6 +519,8 @@
     <button class="chip" data-filter="atrisk">At risk <span class="chip-count" id="cnt-atrisk">0</span></button>
     <button class="chip" data-filter="expiring">Expiring <span class="chip-count" id="cnt-expiring">0</span></button>
     <button class="chip" data-filter="needs">Needs attention <span class="chip-count" id="cnt-needs">0</span></button>
+    <button class="chip" id="showExpiredBtn" title="Toggle expired students" style="background:transparent;color:var(--text-dim);border:1px dashed var(--border);">+ Show expired <span class="chip-count" id="cnt-expired">0</span></button>
+    <button id="filtersBtn" class="btn-ghost" style="padding:8px 14px;font-size:0.8rem;border-radius:9px;display:inline-flex;align-items:center;gap:6px;" title="Advanced filters"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg> Filters <span id="filtersCount" style="display:none;background:var(--accent2);color:#06231a;border-radius:999px;padding:1px 7px;font-size:0.66rem;font-weight:800;">0</span></button>
     <button id="manageGroupsBtn" class="btn-ghost" style="margin-left:auto;padding:8px 14px;font-size:0.8rem;border-radius:9px;display:inline-flex;align-items:center;gap:6px;" title="Saved student groups (re-use in Schedule Zoom)"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Groups</button>
     <button id="scheduleZoomTopBtn" class="btn-primary" style="padding:8px 14px;font-size:0.8rem;border-radius:9px;display:inline-flex;align-items:center;gap:6px;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> Schedule Zoom</button>
   </div>
@@ -821,6 +831,72 @@ function _scopedRows() {
     (s.email || '').toLowerCase().includes(q) ||
     (s.current_module || '').toLowerCase().includes(q) ||
     (s.level || '').toLowerCase().includes(q));
+
+  // Advanced filters (level, module, status, masterclass level, coach status, last-zoom bucket, etc.)
+  rows = _applyAdvancedFilters(rows);
+
+  // Hide Expired by default unless toggled on
+  if (!showExpired) rows = rows.filter(s => (s.derived_status || s.status) !== 'Expired');
+
+  return rows;
+}
+
+// Advanced filter state — multi-select sets + buckets
+const filters = {
+  level: new Set(),
+  module: new Set(),
+  coach_status: new Set(),
+  masterclass_level: new Set(),
+  status: new Set(),       // Active / Expiring soon / Paused (Expired handled separately)
+  zoom_bucket: '',         // '' | 'never' | '7' | '30' | '90'
+  asg_sent_bucket: '',     // '' | 'never' | '7' | '30'
+  asg_recv_bucket: '',     // '' | 'never' | '7' | '30'
+  has_email: '',           // '' | 'yes' | 'no'
+};
+let showExpired = false;
+
+function _filtersActiveCount() {
+  let n = 0;
+  for (const k of ['level','module','coach_status','masterclass_level','status']) n += filters[k].size > 0 ? 1 : 0;
+  for (const k of ['zoom_bucket','asg_sent_bucket','asg_recv_bucket','has_email']) n += filters[k] ? 1 : 0;
+  return n;
+}
+function _bucketDays(dateStr) {
+  if (!dateStr) return null;
+  const d = new Date(String(dateStr).slice(0,10) + 'T00:00:00Z');
+  if (isNaN(d.getTime())) return null;
+  return Math.floor((Date.now() - d.getTime()) / 86400000);
+}
+function _applyAdvancedFilters(rows) {
+  if (filters.level.size) rows = rows.filter(s => filters.level.has(s.level || ''));
+  if (filters.module.size) rows = rows.filter(s => filters.module.has(s.current_module || ''));
+  if (filters.coach_status.size) rows = rows.filter(s => filters.coach_status.has(s.coach_status || ''));
+  if (filters.masterclass_level.size) rows = rows.filter(s => filters.masterclass_level.has(s.masterclass_level || ''));
+  if (filters.status.size) rows = rows.filter(s => filters.status.has(s.derived_status || s.status || ''));
+  if (filters.zoom_bucket) rows = rows.filter(s => {
+    const days = _bucketDays(s.last_zoom_date);
+    if (filters.zoom_bucket === 'never') return days === null;
+    if (filters.zoom_bucket === '7') return days !== null && days > 7;
+    if (filters.zoom_bucket === '30') return days !== null && days > 30;
+    if (filters.zoom_bucket === '90') return days !== null && days > 90;
+    return true;
+  });
+  if (filters.asg_sent_bucket) rows = rows.filter(s => {
+    const days = _bucketDays(s.last_assignment_sent);
+    if (filters.asg_sent_bucket === 'never') return days === null;
+    if (filters.asg_sent_bucket === '7') return days !== null && days > 7;
+    if (filters.asg_sent_bucket === '30') return days !== null && days > 30;
+    return true;
+  });
+  if (filters.asg_recv_bucket) rows = rows.filter(s => {
+    const days = _bucketDays(s.last_assignment_received);
+    if (filters.asg_recv_bucket === 'never') return days === null;
+    if (filters.asg_recv_bucket === '7') return days !== null && days > 7;
+    if (filters.asg_recv_bucket === '30') return days !== null && days > 30;
+    return true;
+  });
+  if (filters.has_email === 'yes') rows = rows.filter(s => !!s.email);
+  if (filters.has_email === 'no') rows = rows.filter(s => !s.email);
   return rows;
 }
 
@@ -977,6 +1053,14 @@ function renderAll() {
   document.getElementById('cnt-atrisk').textContent = risk;
   document.getElementById('cnt-expiring').textContent = exp;
   document.getElementById('cnt-needs').textContent = active.filter(_isNeedsAttention).length;
+  // Show expired chip count: hidden expired in current scope
+  const expiredCount = scoped.filter(s => (s.derived_status || s.status) === 'Expired').length;
+  const showExpEl = document.getElementById('cnt-expired');
+  if (showExpEl) showExpEl.textContent = expiredCount;
+  // Filters button badge
+  const fc = document.getElementById('filtersCount');
+  const n = _filtersActiveCount();
+  if (fc) { fc.textContent = n; fc.style.display = n ? '' : 'none'; }
 
   // Render charts (computed on `scoped` — current coach + date range)
   renderCharts(scoped);
@@ -1081,6 +1165,15 @@ document.querySelectorAll('.chip[data-filter]').forEach(b => {
     renderAll();
   });
 });
+document.getElementById('showExpiredBtn').addEventListener('click', (e) => {
+  showExpired = !showExpired;
+  e.currentTarget.style.background = showExpired ? 'rgba(248,113,113,0.18)' : 'transparent';
+  e.currentTarget.style.color = showExpired ? '#f87171' : 'var(--text-dim)';
+  e.currentTarget.style.borderStyle = showExpired ? 'solid' : 'dashed';
+  e.currentTarget.firstChild.textContent = (showExpired ? '✓ Showing expired ' : '+ Show expired ');
+  renderAll();
+});
+document.getElementById('filtersBtn').addEventListener('click', openFiltersModal);
 document.getElementById('checkAll').addEventListener('change', (e) => {
   const rows = _filterRows(_scopedRows());
   if (e.target.checked) rows.forEach(s => selectedIds.add(s.id));
@@ -2273,6 +2366,86 @@ document.getElementById('manageGroupsBtn').addEventListener('click', openGroupsM
 
 // Pre-load groups + hosts in background so modals render instantly
 setTimeout(() => { loadSessionGroups(); loadZoomHosts(); }, 300);
+
+// ── Advanced filters modal ─────────────────────────────────────
+function _uniqueValuesFor(field) {
+  const set = new Set();
+  for (const s of allStudents) {
+    const v = s[field];
+    if (v && String(v).trim()) set.add(String(v).trim());
+  }
+  return [...set].sort();
+}
+function openFiltersModal() {
+  document.getElementById('filtersModal')?.remove();
+  const m = document.createElement('div');
+  m.id = 'filtersModal'; m.className = 'modal-bg';
+  const levels = _uniqueValuesFor('level');
+  const modules = _uniqueValuesFor('current_module');
+  const masterclass = _uniqueValuesFor('masterclass_level');
+  const coachStatuses = ['All good', 'Needs attention'];
+  const statuses = ['Active', 'Expiring soon', 'Paused'];
+  const mkChips = (key, options) => options.map(opt => {
+    const checked = filters[key].has(opt);
+    return `<button type="button" data-fkey="${key}" data-fval="${escapeHtml(opt)}" class="filter-chip ${checked?'on':''}">${escapeHtml(opt || '(blank)')}</button>`;
+  }).join('');
+  m.innerHTML = `
+    <div class="modal-card" style="max-width:680px;">
+      <div class="modal-head">
+        <h2>Filters</h2>
+        <button type="button" class="btn-ghost" id="filterReset" style="padding:6px 12px;font-size:0.78rem;">Reset all</button>
+        <button class="close" data-x>×</button>
+      </div>
+      <div class="modal-body" style="grid-template-columns:1fr;">
+        <div><label>Level</label><div class="filter-chips">${mkChips('level', levels) || '<span style="color:var(--text-dim);font-size:0.78rem;">No data.</span>'}</div></div>
+        <div><label>Current module</label><div class="filter-chips">${mkChips('module', modules) || '<span style="color:var(--text-dim);font-size:0.78rem;">No data.</span>'}</div></div>
+        <div><label>Masterclass level</label><div class="filter-chips">${mkChips('masterclass_level', masterclass) || '<span style="color:var(--text-dim);font-size:0.78rem;">No data.</span>'}</div></div>
+        <div><label>Coach status</label><div class="filter-chips">${mkChips('coach_status', coachStatuses)}</div></div>
+        <div><label>Lifecycle status</label><div class="filter-chips">${mkChips('status', statuses)}<span style="font-size:0.72rem;color:var(--text-dim);margin-left:8px;">(Expired toggled separately on the chip bar)</span></div></div>
+        <div><label>Last Zoom</label>
+          <select id="filt-zoom"><option value="">Any</option><option value="never" ${filters.zoom_bucket==='never'?'selected':''}>Never had a Zoom</option><option value="7" ${filters.zoom_bucket==='7'?'selected':''}>More than 7 days ago</option><option value="30" ${filters.zoom_bucket==='30'?'selected':''}>More than 30 days ago</option><option value="90" ${filters.zoom_bucket==='90'?'selected':''}>More than 90 days ago</option></select>
+        </div>
+        <div><label>Last assignment sent</label>
+          <select id="filt-asgsent"><option value="">Any</option><option value="never" ${filters.asg_sent_bucket==='never'?'selected':''}>Never sent</option><option value="7" ${filters.asg_sent_bucket==='7'?'selected':''}>More than 7 days ago</option><option value="30" ${filters.asg_sent_bucket==='30'?'selected':''}>More than 30 days ago</option></select>
+        </div>
+        <div><label>Last assignment received</label>
+          <select id="filt-asgrecv"><option value="">Any</option><option value="never" ${filters.asg_recv_bucket==='never'?'selected':''}>Never received</option><option value="7" ${filters.asg_recv_bucket==='7'?'selected':''}>More than 7 days ago</option><option value="30" ${filters.asg_recv_bucket==='30'?'selected':''}>More than 30 days ago</option></select>
+        </div>
+        <div><label>Has email</label>
+          <select id="filt-email"><option value="">Any</option><option value="yes" ${filters.has_email==='yes'?'selected':''}>Has email</option><option value="no" ${filters.has_email==='no'?'selected':''}>No email</option></select>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn-ghost" data-x>Close</button>
+        <button class="btn-primary" id="filterApply">Apply</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  const close = () => m.remove();
+  m.addEventListener('click', e => { if (e.target === m || e.target.matches('[data-x]')) close(); });
+
+  // Multi-select chips
+  m.querySelectorAll('[data-fkey]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const k = btn.dataset.fkey, v = btn.dataset.fval;
+      if (filters[k].has(v)) filters[k].delete(v); else filters[k].add(v);
+      btn.classList.toggle('on');
+    });
+  });
+  document.getElementById('filterReset').addEventListener('click', () => {
+    filters.level.clear(); filters.module.clear(); filters.coach_status.clear();
+    filters.masterclass_level.clear(); filters.status.clear();
+    filters.zoom_bucket = ''; filters.asg_sent_bucket = ''; filters.asg_recv_bucket = ''; filters.has_email = '';
+    close(); renderAll();
+  });
+  document.getElementById('filterApply').addEventListener('click', () => {
+    filters.zoom_bucket = document.getElementById('filt-zoom').value;
+    filters.asg_sent_bucket = document.getElementById('filt-asgsent').value;
+    filters.asg_recv_bucket = document.getElementById('filt-asgrecv').value;
+    filters.has_email = document.getElementById('filt-email').value;
+    close(); renderAll();
+  });
+}
 
 initAuth();
 </script>

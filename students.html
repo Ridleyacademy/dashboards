@@ -495,6 +495,11 @@
       <span style="font-size:0.72rem;color:var(--text-muted);" id="studentTotalCount">—</span>
     </div>
 
+    <!-- Mobile-only back bar shown when a student is open. Hidden on desktop via mobile.css. -->
+    <div class="crm-back-bar" id="crmBackBar">
+      <button id="crmBackBtn" type="button"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg> Back</button>
+      <div class="crm-back-name" id="crmBackName"></div>
+    </div>
     <div class="crm-layout">
       <!-- List -->
       <div class="student-list-card">
@@ -693,6 +698,20 @@ document.getElementById('signOutBtn').addEventListener('click', async () => {
 });
 document.getElementById('deniedSignOutBtn').addEventListener('click', async () => {
   await supa.auth.signOut(); setState('login');
+});
+// Mobile-only: back button returns from profile → list
+document.getElementById('crmBackBtn').addEventListener('click', async () => {
+  // Honor unsaved-changes prompt
+  if (profileDirty) {
+    const choice = await confirmLeaveUnsaved();
+    if (choice === 'cancel') return;
+    if (choice === 'save') { const ok = await saveStudent(); if (!ok) return; }
+    profileDirty = false;
+  }
+  document.body.removeAttribute('data-crm-view');
+  _swapActiveRow(null);
+  currentStudent = null;
+  _openStudentLatestId = null;
 });
 
 // ── Data ───────────────────────────────────────────────────────
@@ -1481,6 +1500,8 @@ async function openStudent(id) {
     profileDirty = false;
     renderProfile();
     _swapActiveRow(null);
+    document.body.setAttribute('data-crm-view', 'profile'); // 'New student' form is also profile view
+    document.getElementById('crmBackName').textContent = 'New student';
     return;
   }
   // Mark this click as the latest; any previous in-flight request gets superseded
@@ -1490,6 +1511,10 @@ async function openStudent(id) {
   _openStudentAbort = ac;
   // Immediately reflect the click in the list so it feels responsive
   _swapActiveRow(id);
+  // Mobile: switch to profile view + show student name in the back-bar
+  document.body.setAttribute('data-crm-view', 'profile');
+  const stu = students.find(s => s.id === id);
+  if (stu) document.getElementById('crmBackName').textContent = stu.name || '(unnamed)';
   try {
     const r = await fetch(STUDENTS_BASE + '?api=get&id=' + encodeURIComponent(id), {
       headers: { Authorization: 'Bearer ' + currentSession.access_token },

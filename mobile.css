@@ -142,11 +142,120 @@
   .filter-bar { flex-direction: column !important; align-items: stretch !important; }
   .filter-bar > * { width: 100% !important; }
 
-  /* Modals: nearly full width */
-  .modal-card { max-width: 100% !important; padding: 22px 18px !important; }
+  /* Modals: bottom-sheet style — slide from the bottom of the screen,
+     full width, drag-handle pill at the top, rounded top corners. */
+  .modal-bg {
+    align-items: flex-end !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+  }
+  .modal-card {
+    max-width: 100% !important;
+    width: 100% !important;
+    max-height: 92vh !important;
+    border-radius: 18px 18px 0 0 !important;
+    padding: 18px 18px 22px !important;
+    margin: 0 !important;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    position: relative;
+  }
+  .modal-card::before {
+    content: ''; display: block;
+    width: 40px; height: 4px;
+    background: var(--text-dim, #3e4668);
+    border-radius: 2px;
+    margin: 0 auto 12px; opacity: 0.5;
+  }
+  .modal-head { padding: 0 !important; margin-bottom: 12px !important; gap: 8px !important; }
+  .modal-head h2 { font-size: 1.05rem !important; }
+  .modal-body { padding: 0 !important; gap: 12px !important; grid-template-columns: 1fr !important; }
+  .modal-foot { padding: 14px 0 0 !important; flex-wrap: wrap !important; gap: 8px !important; }
+  .modal-foot button { min-height: 40px; }
 
   /* Hide admin-only column on mobile */
   body:not(.can-see-all) .admin-col { display: none !important; }
+
+  /* ── MS CRM (students.html) — show profile OR list, never both ── */
+  body[data-crm-view="profile"] .student-list-card { display: none !important; }
+  body[data-crm-view="profile"] .crm-back-bar { display: flex !important; }
+  body:not([data-crm-view="profile"]) .profile-card { display: none !important; }
+  body:not([data-crm-view="profile"]) .crm-back-bar { display: none !important; }
+  /* When in list view, the layout's single column is the list, full-width */
+  .crm-layout { gap: 12px !important; padding: 12px !important; }
+  .student-list-card { padding: 0 !important; }
+  /* Bigger, easier-to-tap student rows */
+  .student-row { padding: 12px 14px !important; min-height: 56px; }
+  /* Filter chips wrap and are larger */
+  .student-list-filterbar { flex-wrap: wrap !important; gap: 6px !important; padding: 10px !important; }
+  .list-filter-chip { font-size: 0.74rem !important; padding: 6px 12px !important; }
+  /* Profile sections stack tightly */
+  .profile-card { padding: 0 !important; }
+  .profile-actions { flex-wrap: wrap !important; gap: 6px !important; }
+  .profile-actions button { font-size: 0.75rem !important; padding: 7px 10px !important; min-height: 36px; }
+  /* Top section header (name + status badges) cleaner */
+  .profile-header { flex-direction: column !important; align-items: flex-start !important; gap: 8px !important; }
+
+  /* The new mobile-only "Back to list" bar that we'll inject from students.html */
+  .crm-back-bar {
+    display: none; position: sticky; top: 0; z-index: 50;
+    background: var(--surface, #13141f); border-bottom: 1px solid var(--border, #1f2438);
+    padding: 10px 14px; align-items: center; gap: 10px; margin: -12px -12px 12px;
+  }
+  .crm-back-bar button {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: transparent; border: 1px solid var(--border, #1f2438);
+    color: var(--text, #eaecf8); border-radius: 8px; padding: 6px 12px;
+    font-size: 0.82rem; font-weight: 600; cursor: pointer;
+  }
+  .crm-back-bar .crm-back-name { font-weight: 700; font-size: 0.9rem; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+  /* ── Coach Dashboard (coach.html) — table fits a phone ── */
+  /* Outer wrap can scroll; header row lets users see all columns */
+  .tablewrap { padding: 8px 8px 30px !important; }
+  table.students { font-size: 0.78rem !important; min-width: 720px; }
+  table.students th, table.students td { padding: 9px 8px !important; }
+  /* Sticky first column (checkbox) and second column (actions) so scrolling
+     horizontal still keeps the row identifiable */
+  table.students th:nth-child(3), table.students td:nth-child(3) {
+    position: sticky; left: 0; background: var(--surface, #0f1120); z-index: 1;
+    min-width: 140px;
+  }
+  /* KPIs tighter */
+  .kpis { padding: 12px !important; gap: 10px !important; }
+  .kpi-card { padding: 12px !important; }
+  .kpi-card .kpi-value { font-size: 1.4rem !important; }
+  .kpi-card .kpi-label { font-size: 0.65rem !important; }
+  /* Filter bar: full-width controls, wrap nicely */
+  .filterbar {
+    flex-wrap: wrap !important; gap: 8px !important; padding: 10px 12px !important;
+    align-items: stretch !important;
+  }
+  .filterbar > select, .filterbar > input[type="search"] {
+    flex: 1 1 100% !important; min-width: 0 !important;
+  }
+  .filterbar .chip { padding: 6px 10px !important; font-size: 0.75rem !important; }
+  .filterbar > button#scheduleZoomTopBtn,
+  .filterbar > button#manageGroupsBtn,
+  .filterbar > button#filtersBtn {
+    flex: 1 1 auto !important; margin: 0 !important; min-height: 40px;
+  }
+  /* Charts: stack one per row on phones, shorter */
+  .charts { grid-template-columns: 1fr !important; gap: 10px !important; padding: 0 12px !important; }
+  .chart-card { padding: 12px !important; }
+  .chart-wrap { height: 220px !important; }
+  /* Bulk action bar: wraps */
+  .bulkbar { flex-wrap: wrap !important; gap: 8px !important; padding: 10px 12px !important; }
+  .bulkbar button { font-size: 0.78rem !important; padding: 8px 12px !important; }
+
+  /* Topbar header on the dashboards: shrink the title + tighten controls */
+  .brand-title, .brand h1 { font-size: 0.92rem !important; }
+
+  /* Student profile (CRM) — make field grid single column on small phones */
+  .profile-grid { grid-template-columns: 1fr !important; gap: 12px !important; }
+
+  /* Generic helper: hide on phones */
+  .hide-on-mobile { display: none !important; }
 }
 
 /* Slightly smaller tweaks for tablet */

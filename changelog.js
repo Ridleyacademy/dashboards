@@ -11,6 +11,14 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v142', title: 'Mobile UX overhaul on the CRM and Coach Dashboard',
+      roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'], items: [
+      'Mentorship CRM on phones: opening a student now switches to a full-screen profile with a sticky "← Back" bar showing their name. The student list takes the full width when nothing is open. No more cramped split-view on small screens.',
+      'Coach Dashboard table scrolls horizontally on phones; the Name column stays sticky so rows stay identifiable.',
+      'KPIs / charts / filter bar / bulk action bar all wrap cleanly with bigger touch targets (40px+).',
+      'All modals adopt a bottom-sheet style on phones — slide up from the bottom, full width, drag-handle pill at the top, scroll inside the sheet.',
+      'Filter chips, profile-action buttons, and form fields are all bigger and easier to tap.',
+    ]},
     { version: 'v141', title: 'Invite system rebuilt — links never expire',
       adminOnly: true, items: [
       'Replaced Supabase\'s built-in magic-link invite (which expired in ~1h) with a token-based flow that stays valid until the account is created.',

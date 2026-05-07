@@ -11,6 +11,12 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v131', title: 'Admins see ALL upcoming Zoom meetings on the account',
+      adminOnly: true, items: [
+      'The Coach Dashboard now reads upcoming meetings directly from the shared Zoom account too — including any meeting created in zoom.us by hand (not just ones scheduled via this system).',
+      'Externally-scheduled meetings are tagged with a "From Zoom" pill. Reschedule/cancel/invitees actions stay disabled for them (they\'re managed from Zoom directly).',
+      'Coaches still see only meetings they host.',
+    ]},
     { version: 'v130', title: 'Coach Dashboard: Your next Zoom session card + invitees modal',
       roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic'], items: [
       'New highlighted "Your next session" card at the top of the Coach Dashboard for the logged-in coach\'s upcoming meeting.',

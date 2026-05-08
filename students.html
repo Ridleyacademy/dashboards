@@ -1652,13 +1652,13 @@ const SECTIONS = [
   ['Resources', [
     { k: 'gdrive_url',    label: 'Google Drive doc',       type: 'url', placeholder: 'https://docs.google.com/...' },
   ]],
-  ['Lifecycle', [
+  ['Admin', [
     { k: 'end_date',                 label: 'Manual end date (override)', type: 'date' },
     { k: 'survey_9month_submitted',  label: '9-month survey submitted',   type: 'checkbox' },
-  ]],
-  ['Admin', [
-    { k: 'last_activity_date', label: 'Last activity date',  type: 'date' },
-    { k: 'verified',           label: 'Verified',            type: 'checkbox' },
+    { k: 'refunded_date',            label: 'Refunded — date',            type: 'date' },
+    { k: 'refunded_amount',          label: 'Refunded — amount ($)',      type: 'number', placeholder: 'e.g. 4990' },
+    { k: 'last_activity_date',       label: 'Last activity date',         type: 'date' },
+    { k: 'verified',                 label: 'Verified',                   type: 'checkbox' },
   ]],
 ];
 

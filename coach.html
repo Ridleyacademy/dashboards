@@ -1650,11 +1650,11 @@ function _meetingCardHtml(m, opts) {
       <div class="upcoming-topic">${escapeHtml(m.topic || 'Meeting')}${sourceTag}${hostLine}</div>
       <div class="upcoming-actions">
         ${m.join_url ? `<button data-zm-open="${m.id}" title="Open the Zoom meeting">Open Zoom</button>` : ''}
-        ${!isZoomOnly ? `<button data-zm-invitees="${m.id}" title="See invited students">Invitees</button>` : ''}
+        <button data-zm-invitees="${m.id}" title="See invited students">Invitees</button>
         ${m.join_url ? `<button data-zm-copy="${m.id}" title="Copy join link">Copy link</button>` : ''}
         ${m.start_url ? `<button data-zm-start="${m.id}" title="Open host start URL">Start as host</button>` : ''}
         ${!isZoomOnly ? `<button data-zm-resched="${m.id}">Reschedule</button>` : ''}
-        ${!isZoomOnly ? `<button class="danger" data-zm-cancel="${m.id}">Cancel</button>` : ''}
+        <button class="danger" data-zm-cancel="${m.id}">Cancel</button>
       </div>
     </div>`;
 }
@@ -1704,7 +1704,7 @@ function renderUpcomingMeetings() {
           ${next.start_url && _isMyMeeting(next) ? `<button data-zm-start="${next.id}" class="btn-primary" style="padding:9px 16px;font-size:0.85rem;">Start as host →</button>` : ''}
           ${next.join_url ? `<button data-zm-open="${next.id}" class="btn-ghost" style="padding:9px 16px;font-size:0.85rem;">Open Zoom</button>` : ''}
           <button data-zm-invitees="${next.id}" class="btn-ghost" style="padding:9px 16px;font-size:0.85rem;">Invitees (${invited})</button>
-          ${next.source !== 'zoom' ? `<button data-zm-cancel="${next.id}" class="btn-ghost" style="padding:9px 16px;font-size:0.85rem;color:#f87171;border-color:rgba(248,113,113,0.4);">Cancel</button>` : ''}
+          <button data-zm-cancel="${next.id}" class="btn-ghost" style="padding:9px 16px;font-size:0.85rem;color:#f87171;border-color:rgba(248,113,113,0.4);">Cancel</button>
         </div>
       </div>
     </div>`;
@@ -1721,7 +1721,7 @@ function renderUpcomingMeetings() {
   }
   list.innerHTML = html;
 
-  list.querySelectorAll('[data-zm-cancel]').forEach(b => b.addEventListener('click', () => cancelMeeting(parseInt(b.dataset.zmCancel,10))));
+  list.querySelectorAll('[data-zm-cancel]').forEach(b => b.addEventListener('click', () => cancelMeeting(b.dataset.zmCancel)));
   list.querySelectorAll('[data-zm-resched]').forEach(b => b.addEventListener('click', () => openRescheduleModal(parseInt(b.dataset.zmResched,10))));
   list.querySelectorAll('[data-zm-copy]').forEach(b => b.addEventListener('click', () => {
     const m = upcomingMeetings.find(x => x.id == b.dataset.zmCopy);
@@ -1745,7 +1745,10 @@ function openInviteesModal(meeting) {
   document.getElementById('inviteesModal')?.remove();
   const t = _fmtMeetingTime(meeting.scheduled_start_time);
   const regs = meeting.registrants || [];
-  const isSystemMeeting = meeting.source !== 'zoom' && typeof meeting.id === 'number';
+  // We now support cancel + add-students for externally-created (zoom-only)
+  // meetings too — the edge function adopts the meeting into our DB on first
+  // add. Keep the flag for downstream conditionals but always allow these.
+  const isSystemMeeting = true;
   const m = document.createElement('div');
   m.id = 'inviteesModal'; m.className = 'modal-bg';
   m.innerHTML = `
@@ -1795,7 +1798,10 @@ function openInviteesModal(meeting) {
   document.getElementById('inv-cancel-btn')?.addEventListener('click', async () => {
     if (!confirm(`Cancel "${meeting.topic || 'this meeting'}"? Registered students will be notified.`)) return;
     try {
-      await _zoomFetch('cancel', { method:'POST', body:{ id: meeting.id } });
+      const body = (typeof meeting.id === 'string' && meeting.id.startsWith('zoom-'))
+        ? { zoom_meeting_id: meeting.id.slice(5) }
+        : { id: Number(meeting.id) };
+      await _zoomFetch('cancel', { method:'POST', body });
       close();
       await loadUpcomingMeetings();
     } catch (e) { alert('Cancel failed: ' + (e.message || e)); }
@@ -1904,7 +1910,10 @@ async function openAddInviteesModal(meeting) {
     const wrap = document.getElementById('ai-result-wrap');
     addBtn.disabled = true; addBtn.textContent = 'Adding…';
     try {
-      const j = await _zoomFetch('add-students', { method:'POST', body:{ id: meeting.id, student_ids: ids } });
+      const reqBody = (typeof meeting.id === 'string' && meeting.id.startsWith('zoom-'))
+        ? { zoom_meeting_id: meeting.id.slice(5), student_ids: ids, topic: meeting.topic, scheduled_start_time: meeting.scheduled_start_time, scheduled_duration_minutes: meeting.scheduled_duration_minutes, host_email: meeting.host_email }
+        : { id: Number(meeting.id), student_ids: ids };
+      const j = await _zoomFetch('add-students', { method:'POST', body: reqBody });
       const ok = (j.meeting?.registrants || []).filter(r => ids.includes(r.student_id) && !r.error).length;
       const fail = (j.meeting?.registrants || []).filter(r => ids.includes(r.student_id) && r.error);
       let html = `<div class="sz-result">✓ Added ${ok} student${ok===1?'':'s'}. Invitation emails sent.</div>`;
@@ -1922,10 +1931,15 @@ async function openAddInviteesModal(meeting) {
 }
 
 async function cancelMeeting(id) {
-  const m = upcomingMeetings.find(x => x.id === id);
+  // id may be a numeric DB row id, the same as a string, or "zoom-<zoomMeetingId>"
+  // for externally-created meetings. Match either way.
+  const m = upcomingMeetings.find(x => String(x.id) === String(id));
   if (!confirm(`Cancel "${m?.topic || 'this meeting'}"? Registered students will be notified by Zoom.`)) return;
   try {
-    await _zoomFetch('cancel', { method:'POST', body:{ id } });
+    const body = (typeof id === 'string' && id.startsWith('zoom-'))
+      ? { zoom_meeting_id: id.slice(5) }
+      : { id: Number(id) };
+    await _zoomFetch('cancel', { method:'POST', body });
     await loadUpcomingMeetings();
   } catch (e) { alert('Cancel failed: ' + (e.message || e)); }
 }

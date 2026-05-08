@@ -337,12 +337,20 @@ async function api(path, opts = {}) {
 }
 
 async function loadAutomations() {
+  const list = document.getElementById('eaList');
+  list.innerHTML = '<div style="color:var(--text-dim);padding:16px;font-size:0.84rem;">Loading…</div>';
   try {
     const j = await api('?api=list');
     automations = j.rows || [];
+    console.log('[email-automations] loaded', automations.length, 'rows:', automations);
+    if (!automations.length) {
+      list.innerHTML = '<div style="color:var(--text-dim);padding:16px;font-size:0.84rem;">No automations found yet. Click <strong>+ New automation</strong> to make one.</div>';
+      return;
+    }
     renderList();
   } catch (e) {
-    document.getElementById('eaList').innerHTML = `<div style="color:var(--red);padding:16px;font-size:0.84rem;">${escapeHtml(e.message || e)}</div>`;
+    console.error('[email-automations] load failed:', e);
+    list.innerHTML = `<div style="color:var(--red);padding:16px;font-size:0.84rem;"><strong>Failed to load:</strong><br>${escapeHtml(e.message || e)}</div>`;
   }
 }
 

@@ -1104,19 +1104,19 @@ function renderAll() {
       const noteSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8z"/><polyline points="14 3 14 8 19 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>`;
       const noteBadge = noteCount > 0 ? `<span class="note-badge">${noteCount}</span>` : '';
       return `<tr data-id="${s.id}" class="${trClasses}">
-        <td><input type="checkbox" data-rowsel="${s.id}" ${checked}></td>
-        <td><div class="row-actions">
+        <td class="col-check" data-label=""><input type="checkbox" data-rowsel="${s.id}" ${checked}></td>
+        <td class="col-actions" data-label=""><div class="row-actions">
           <button data-pin="${s.id}" class="${isPinned ? 'pinned' : ''}" title="${isPinned ? 'Unpin from top' : 'Pin to top of list'}">${pinSvg}</button>
           <button data-note="${s.id}" title="${noteCount} coach note${noteCount===1?'':'s'} — click to view or add">${noteSvg}${noteBadge}</button>
         </div></td>
-        <td><strong>${escapeHtml(s.name || '(unnamed)')}</strong><br><span style="font-size:0.72rem;color:var(--text-dim);">${escapeHtml(s.email || '')}</span></td>
-        <td>${escapeHtml(s.level || '—')}</td>
-        <td>${escapeHtml(s.current_module || '—')}</td>
-        <td>${fmt(dz, s.last_zoom_date)}</td>
-        <td>${fmt(ds, s.last_assignment_sent)}</td>
-        <td>${fmt(da, s.last_assignment_received)}</td>
-        <td class="num">${s.days_left == null ? '—' : (s.days_left + 'd')}</td>
-        <td><span class="pill ${statusClass}">${escapeHtml(status)}</span></td>
+        <td class="col-name" data-label="Name"><strong>${escapeHtml(s.name || '(unnamed)')}</strong><br><span style="font-size:0.72rem;color:var(--text-dim);">${escapeHtml(s.email || '')}</span></td>
+        <td data-label="Level">${escapeHtml(s.level || '—')}</td>
+        <td data-label="Module">${escapeHtml(s.current_module || '—')}</td>
+        <td data-label="Last Zoom">${fmt(dz, s.last_zoom_date)}</td>
+        <td data-label="Asgmt Sent">${fmt(ds, s.last_assignment_sent)}</td>
+        <td data-label="Asgmt Recv">${fmt(da, s.last_assignment_received)}</td>
+        <td class="num" data-label="Days left">${s.days_left == null ? '—' : (s.days_left + 'd')}</td>
+        <td data-label="Status"><span class="pill ${statusClass}">${escapeHtml(status)}</span></td>
       </tr>`;
     }).join('');
     // Wire row click → open profile modal (but ignore checkbox + action buttons)

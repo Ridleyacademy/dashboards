@@ -4,13 +4,24 @@
 // entries since their last seen version.
 // Entries are embedded here so we don't need a separate fetch.
 (function () {
-  const SEEN_KEY = 'changelog-seen';
+  const SEEN_KEY    = 'changelog-seen';
+  const SHOWN_AT_KEY = 'changelog-shown-at';
+  // Once we've shown the modal in the last N ms, never show it again — even
+  // if we somehow lose the SEEN_KEY (Safari PWA storage purges, SW reloads,
+  // race between show() and a hard reload, etc.). 30 days is plenty.
+  const RESHOW_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;
   // Newest first. Version is the major label only (without timestamp prefix);
   // the comparison uses array order, not string compare.
   // Each entry can carry a `roles` array to restrict who sees it.
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v143', title: 'Coach Dashboard student list now fits the phone screen',
+      roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'], items: [
+      'On phones the student list no longer scrolls horizontally — each row becomes a tall card with the student name as the header and every column (Level / Module / Last Zoom / Asgmt Sent / Asgmt Recv / Days left / Status) stacked vertically with labels on the left.',
+      'Topbar now respects the iPhone notch / Dynamic Island — content sits below the status bar instead of slipping under it.',
+      'Bug fix: the "What\'s new" modal was popping every time the page reloaded or you switched dashboards. It now stays dismissed for at least 30 days even if local storage is touched in the background.',
+    ]},
     { version: 'v142', title: 'Mobile UX overhaul on the CRM and Coach Dashboard',
       roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'], items: [
       'Mentorship CRM on phones: opening a student now switches to a full-screen profile with a sticky "← Back" bar showing their name. The student list takes the full width when nothing is open. No more cramped split-view on small screens.',
@@ -529,10 +540,21 @@
     return pool.filter(e => entryAppliesTo(e, eff));
   }
 
-  function show(entries) {
+  function markSeen(latest) {
+    try {
+      localStorage.setItem(SEEN_KEY, latest);
+      localStorage.setItem(SHOWN_AT_KEY, String(Date.now()));
+    } catch (_) {}
+  }
+
+  function show(entries, latest) {
     if (document.getElementById('changelogModal')) return;
     // Tell pwa.js to hold off on auto-reloads while this is up
     window.__changelogModalOpen = true;
+    // Persist the "seen" markers IMMEDIATELY — before any reload race can wipe
+    // the modal. If the user never gets to click "Got it", we still don't
+    // re-show on the next page load.
+    markSeen(latest);
     const m = document.createElement('div');
     m.id = 'changelogModal';
     m.style.cssText = 'position:fixed;inset:0;background:rgba(8,9,18,0.78);backdrop-filter:blur(8px);z-index:10005;display:flex;align-items:center;justify-content:center;padding:20px;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;';
@@ -564,6 +586,9 @@
     function close() {
       m.remove();
       window.__changelogModalOpen = false;
+      // Re-affirm the seen markers on close (defensive — covers any edge case
+      // where a service-worker race might have nuked them mid-display).
+      markSeen(latest);
     }
   }
 
@@ -578,20 +603,29 @@
   async function maybeShow() {
     if (!ENTRIES.length) return;
     const latest = ENTRIES[0].version;
-    let seen = '';
-    try { seen = localStorage.getItem(SEEN_KEY) || ''; } catch (_) {}
+    let seen = '', shownAt = 0;
+    try {
+      seen    = localStorage.getItem(SEEN_KEY) || '';
+      shownAt = Number(localStorage.getItem(SHOWN_AT_KEY) || '0') || 0;
+    } catch (_) {}
+    // Primary gate: this exact version has already been acknowledged.
     if (seen === latest) return;
+    // Secondary gate: even if seen-key got wiped, don't re-pop the modal if
+    // we already showed it within the cooldown window. Re-affirm the key.
+    if (shownAt && (Date.now() - shownAt) < RESHOW_COOLDOWN_MS) {
+      markSeen(latest);
+      return;
+    }
     // Wait for the session so we can filter entries by permission.
     const eff = await getEffectiveUser();
     if (!eff) return; // not signed in — skip until next visit
     const entries = pickEntriesSince(seen, eff);
     if (!entries.length) {
       // Nothing relevant to this user — still mark as seen so we don't keep checking
-      try { localStorage.setItem(SEEN_KEY, latest); } catch (_) {}
+      markSeen(latest);
       return;
     }
-    show(entries);
-    try { localStorage.setItem(SEEN_KEY, latest); } catch (_) {}
+    show(entries, latest);
   }
 
   // Delay enough to let pwa.js's first version-check + any service-worker

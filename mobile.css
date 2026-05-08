@@ -65,11 +65,13 @@
   .admin-tab-icon { width: 14px !important; height: 14px !important; }
   .admin-pane { padding: 18px 14px !important; }
 
-  /* Topbar wraps to 2 rows so buttons are reachable */
+  /* Topbar wraps to 2 rows so buttons are reachable.
+     Add iPhone notch / Dynamic Island clearance via safe-area-inset-top so the
+     sticky topbar does not slide under the system status bar. */
   .topbar {
     flex-wrap: wrap !important;
     height: auto !important;
-    padding: 8px 14px !important;
+    padding: calc(8px + env(safe-area-inset-top)) 14px 8px !important;
     gap: 6px !important;
     row-gap: 6px;
   }
@@ -238,17 +240,85 @@
   }
   .crm-back-bar .crm-back-name { font-weight: 700; font-size: 0.9rem; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
-  /* ── Coach Dashboard (coach.html) — table fits a phone ── */
-  /* Outer wrap can scroll; header row lets users see all columns */
-  .tablewrap { padding: 8px 8px 30px !important; }
-  table.students { font-size: 0.78rem !important; min-width: 720px; }
-  table.students th, table.students td { padding: 9px 8px !important; }
-  /* Sticky first column (checkbox) and second column (actions) so scrolling
-     horizontal still keeps the row identifiable */
-  table.students th:nth-child(3), table.students td:nth-child(3) {
-    position: sticky; left: 0; background: var(--surface, #0f1120); z-index: 1;
-    min-width: 140px;
+  /* ── Coach Dashboard (coach.html) — card-stack layout, no horizontal scroll ── */
+  .tablewrap { padding: 8px 12px 30px !important; overflow-x: hidden !important; }
+  table.students {
+    width: 100% !important;
+    min-width: 0 !important;
+    font-size: 0.82rem !important;
+    border-collapse: separate !important;
+    border-spacing: 0 8px !important;
   }
+  table.students thead { display: none !important; }
+  table.students, table.students tbody, table.students tr, table.students td {
+    display: block !important;
+    width: 100% !important;
+  }
+  table.students tr {
+    background: var(--surface, #0f1120) !important;
+    border: 1px solid var(--border, #1f2438) !important;
+    border-radius: 14px !important;
+    padding: 12px 14px !important;
+    margin-bottom: 8px !important;
+    position: relative;
+  }
+  table.students tr.pinned {
+    border-left: 3px solid var(--gold, #fbbf24) !important;
+  }
+  table.students td {
+    padding: 6px 0 !important;
+    border: none !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    gap: 12px !important;
+    text-align: right !important;
+    min-height: 0 !important;
+  }
+  table.students td::before {
+    content: attr(data-label);
+    color: var(--text-dim, #3e4668);
+    font-size: 0.66rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    flex-shrink: 0;
+    text-align: left;
+  }
+  /* Hide the empty data-label rows (checkbox/actions) ::before pseudo */
+  table.students td.col-check::before,
+  table.students td.col-actions::before { display: none !important; }
+  /* Checkbox cell — top-right corner of the card */
+  table.students td.col-check {
+    position: absolute !important;
+    top: 10px; right: 12px;
+    width: auto !important;
+    padding: 0 !important;
+    justify-content: flex-end !important;
+  }
+  /* Actions row — pin + note buttons, full-width below */
+  table.students td.col-actions {
+    border-top: 1px solid var(--border, #1f2438) !important;
+    margin-top: 8px !important;
+    padding-top: 10px !important;
+    justify-content: flex-end !important;
+  }
+  /* Name cell — bigger, left-aligned, no label prefix */
+  table.students td.col-name {
+    text-align: left !important;
+    padding: 4px 36px 10px 0 !important;
+    border-bottom: 1px solid var(--border, #1f2438) !important;
+    margin-bottom: 6px !important;
+  }
+  table.students td.col-name::before { display: none !important; }
+  table.students td.col-name strong {
+    font-size: 0.95rem;
+    color: var(--text, #e9ecf5);
+    display: block;
+    margin-bottom: 2px;
+  }
+  /* Right-side values nudged smaller so labels don't crowd */
+  table.students td .pill { font-size: 0.7rem; }
   /* KPIs tighter */
   .kpis { padding: 12px !important; gap: 10px !important; }
   .kpi-card { padding: 12px !important; }

@@ -16,6 +16,12 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v144', title: 'Student profile popup is now mobile-friendly',
+      roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'], items: [
+      'Tapping a student on the Coach Dashboard opens a clean bottom-sheet on phones — title at the top, "Full profile ↗" link on its own row, close button in a 44px tap target in the corner.',
+      'All fields stack in a single column with proper spacing and 48px-tall inputs.',
+      'Sticky footer with full-width Save / Cancel buttons that respect the iPhone home indicator (safe-area-inset-bottom).',
+    ]},
     { version: 'v143', title: 'Coach Dashboard student list now fits the phone screen',
       roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'], items: [
       'On phones the student list no longer scrolls horizontally — each row becomes a tall card with the student name as the header and every column (Level / Module / Last Zoom / Asgmt Sent / Asgmt Recv / Days left / Status) stacked vertically with labels on the left.',

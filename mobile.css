@@ -626,7 +626,9 @@
   display: flex !important;
   align-items: center !important;
   gap: 10px !important;
-  padding: 12px 32px !important;
+  /* Always reserve space for the iPhone notch / Dynamic Island in PWA standalone
+     mode. On non-PWA / desktop, env(safe-area-inset-top) is 0 so this is a no-op. */
+  padding: calc(12px + env(safe-area-inset-top)) 32px 12px !important;
   height: auto !important;
   min-height: 56px;
 }

@@ -207,15 +207,23 @@
     justify-content: center !important;
     color: var(--text, #e9ecf5) !important;
   }
-  /* Secondary actions (e.g. "Full profile ↗") drop to their own row */
+  /* Secondary actions (e.g. "Full profile ↗", "+ Add students") drop to their
+     own row below the title — applies to ANY button/link inside modal-head. */
   .modal-head a.btn-ghost,
-  .modal-head .btn-ghost {
+  .modal-head a.btn-primary,
+  .modal-head .btn-ghost,
+  .modal-head .btn-primary,
+  .modal-head .btn-secondary,
+  .modal-head > button:not(.close),
+  .modal-head > a:not(.close) {
     flex: 1 1 100% !important;
     text-align: center !important;
     margin-top: 4px !important;
-    padding: 9px 12px !important;
-    font-size: 0.82rem !important;
+    padding: 11px 14px !important;
+    font-size: 0.85rem !important;
     border-radius: 10px !important;
+    min-height: 44px !important;
+    box-sizing: border-box !important;
   }
   /* Body: single column, with REAL spacing between fields. Don't let it
      create its own scroll — modal-card scrolls instead so the bottom-sheet

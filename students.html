@@ -1240,6 +1240,7 @@ function renderStudentList() {
     if (s.verified)        tinyBadges.push('<span class="badge ver" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;">✓</span>');
     if (s.open_alerts_count) tinyBadges.push(`<span class="badge exp" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;" title="${s.open_alerts_count} unresolved alert${s.open_alerts_count !== 1 ? 's' : ''}">⚠ ${s.open_alerts_count}</span>`);
     if (s.derived_status === 'Paused') tinyBadges.push('<span class="badge win" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;" title="Paused">⏸</span>');
+    if (s.refunded_date) tinyBadges.push(`<span class="badge exp" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;background:rgba(244,114,182,0.18);color:#f472b6;" title="Refunded on ${s.refunded_date}${s.refunded_amount != null ? ' — $' + s.refunded_amount : ''}">↩ Refunded</span>`);
     if (_dupCache.has(s.id)) tinyBadges.push('<span class="badge exp" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;background:rgba(167,139,250,0.18);color:#a78bfa;" title="Possible duplicate of another student (same email or name)">⎘ dup</span>');
     if (tinyBadges.length) nameEl.insertAdjacentHTML('beforeend', tinyBadges.join(''));
     const metaParts = [];
@@ -2150,6 +2151,10 @@ function renderProfile() {
   }
   if (currentWins.length) badges.push(`<span class="badge win">★ ${currentWins.length} win${currentWins.length !== 1 ? 's' : ''}</span>`);
   if (s.verified)         badges.push('<span class="badge ver">✓ Verified</span>');
+  if (s.refunded_date) {
+    const amt = s.refunded_amount != null ? ` — $${Number(s.refunded_amount).toLocaleString()}` : '';
+    badges.push(`<span class="badge exp" style="background:rgba(244,114,182,0.18);color:#f472b6;border:1px solid rgba(244,114,182,0.4);">↩ Refunded ${s.refunded_date}${amt}</span>`);
+  }
 
   card.innerHTML = `
     <div class="profile-head">

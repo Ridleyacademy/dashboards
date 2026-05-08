@@ -18,6 +18,7 @@
     { href: 'declarations.html', id: 'declarations', roles: ['rep', 'sales_manager'] },
     { href: 'students.html',     id: 'students',     roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'] },
     { href: 'coach.html',        id: 'coach',        roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic'] },
+    { href: 'email-automations.html', id: 'email_automations', roles: [], adminOnly: true },
   ];
 
   // Resolve impersonation: when an admin "Views as" another user, all UI

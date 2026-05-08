@@ -38,6 +38,10 @@
       href: 'coach.html', label: 'Coach Dashboard',
       svg: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>',
     },
+    {
+      href: 'email-automations.html', label: 'Email Automations', adminOnly: true,
+      svg: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 7l-10 6L2 7"/></svg>',
+    },
   ];
 
   function build() {
@@ -46,7 +50,18 @@
 
     const currentFile = (window.location.pathname || '').split('/').pop() || 'home.html';
 
-    const html = ITEMS.map(it => {
+    // Filter admin-only items if the current effective user is not admin.
+    let visible = ITEMS;
+    try {
+      if (window.RidleyPerms && typeof window.RidleyPerms.effective === 'function') {
+        const sess = window.__ridleySession;
+        const eff = sess ? window.RidleyPerms.effective(sess.user) : null;
+        const isAdmin = !!eff?.is_admin;
+        if (!isAdmin) visible = ITEMS.filter(it => !it.adminOnly);
+      }
+    } catch (_) {}
+
+    const html = visible.map(it => {
       const isActive = it.href === currentFile;
       return `<a href="${it.href}" class="nav-menu-link${isActive ? ' active' : ''}">${it.svg}<span>${it.label}</span></a>`;
     }).join('');

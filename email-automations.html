@@ -270,6 +270,7 @@ let automations = [];
 let currentAutomation = null;
 let quill = null;
 let allStudents = [];
+let availableEvents = []; // {key,label,recipient,vars,in_use}
 
 function setState(s) { document.body.dataset.state = s; const lg = document.getElementById('login'); if (lg) lg.style.display = s === 'login' ? '' : 'none'; }
 function syncThemeBtn() { const b = document.getElementById('themeBtn'); if (b) b.textContent = document.body.classList.contains('light') ? '🌙' : '☀️'; }
@@ -322,7 +323,28 @@ async function boot() {
   document.getElementById('userEmail').textContent = session.user.email || '';
   document.getElementById('userAvatar').textContent = (session.user.email || 'A').slice(0, 1).toUpperCase();
   setState('dashboard');
-  await loadAutomations();
+  await Promise.all([loadAutomations(), loadAvailableEvents()]);
+}
+
+function triggerOptionsHtml(a) {
+  // Build the <select> options for the trigger picker on a non-system row.
+  // Disable any event already used by another enabled automation (except this one).
+  const isManual = a.trigger_type === 'manual';
+  let opts = `<option value="manual" ${isManual ? 'selected' : ''}>Manual broadcast (you pick recipients)</option>`;
+  for (const ev of availableEvents) {
+    const blocked = ev.in_use && ev.key !== a.trigger_event;
+    const label = ev.label + (blocked ? ' — already in use' : '');
+    const sel = a.trigger_event === ev.key ? 'selected' : '';
+    opts += `<option value="${escapeHtml(ev.key)}" ${sel} ${blocked ? 'disabled' : ''}>${escapeHtml(label)}</option>`;
+  }
+  return opts;
+}
+
+async function loadAvailableEvents() {
+  try {
+    const j = await api('?api=available-events');
+    availableEvents = j.events || [];
+  } catch (e) { console.warn('available-events failed', e); availableEvents = []; }
 }
 
 async function api(path, opts = {}) {
@@ -401,7 +423,12 @@ function renderEditor() {
           <input type="checkbox" id="ea-enabled" ${a.enabled ? 'checked' : ''}> Enabled
         </label>
       </div>
-      <div class="ea-editor-row"><label>Trigger</label><input value="${escapeHtml(a.trigger_type === 'manual' ? 'Manual broadcast' : (a.trigger_event || a.trigger_type))}" readonly></div>
+      <div class="ea-editor-row">
+        <label>Trigger</label>
+        ${a.is_system
+          ? `<input value="${escapeHtml(a.trigger_event || 'Manual broadcast')}" readonly title="System automation triggers can\\'t be re-targeted (you can still toggle Enabled).">`
+          : `<select id="ea-trigger">${triggerOptionsHtml(a)}</select>`}
+      </div>
       <div class="ea-editor-row"><label>Recipient</label><input value="${escapeHtml(a.recipient_type)}" readonly></div>
       <div class="ea-editor-row"><label>Subject</label><input id="ea-subject" value="${escapeHtml(a.subject)}"></div>
       <div style="margin-top:14px;"><label style="font-size:0.72rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:6px;">Email body</label><div id="ea-quill"></div></div>
@@ -466,10 +493,23 @@ async function saveAutomation() {
       text_body: document.getElementById('ea-text').value,
       enabled: document.getElementById('ea-enabled').checked,
     };
+    // Trigger select only exists on non-system rows.
+    const trigSel = document.getElementById('ea-trigger');
+    if (trigSel) {
+      if (trigSel.value === 'manual') {
+        body.trigger_type = 'manual';
+        body.trigger_event = null;
+      } else {
+        body.trigger_type = 'event';
+        body.trigger_event = trigSel.value;
+      }
+    }
     const j = await api('?api=update&id=' + currentAutomation.id, { method: 'POST', body });
     currentAutomation = j.row;
     msg.className = 'ea-msg ok'; msg.textContent = 'Saved.';
-    await loadAutomations();
+    await Promise.all([loadAutomations(), loadAvailableEvents()]);
+    // Re-render so the variable list / chips update if the trigger changed.
+    renderEditor();
   } catch (e) { msg.className = 'ea-msg err'; msg.textContent = 'Failed: ' + e.message; }
 }
 
@@ -503,13 +543,74 @@ async function deleteAutomation() {
   } catch (e) { alert('Delete failed: ' + e.message); }
 }
 
-document.getElementById('newBtn')?.addEventListener('click', async () => {
-  try {
-    const j = await api('?api=create', { method: 'POST', body: { name: 'Untitled broadcast', subject: 'Hello {{firstName}}', html_body: '<p>Hi {{firstName}},</p><p>Write your message here…</p>', text_body: 'Hi {{firstName}}, write your message here.', recipient_type: 'student', variables_available: ['firstName', 'email', 'coachName'] } });
-    await loadAutomations();
-    openAutomation(j.row.id);
-  } catch (e) { alert('Create failed: ' + e.message); }
-});
+document.getElementById('newBtn')?.addEventListener('click', openNewAutomationModal);
+
+function openNewAutomationModal() {
+  document.getElementById('newAutoModal')?.remove();
+  // Available options: Manual + every event NOT already in use.
+  const eventOpts = availableEvents
+    .filter(e => !e.in_use)
+    .map(e => `<option value="${escapeHtml(e.key)}">${escapeHtml(e.label)}</option>`)
+    .join('');
+  const m = document.createElement('div');
+  m.id = 'newAutoModal'; m.className = 'modal-bg';
+  m.innerHTML = `
+    <div class="modal-card">
+      <div class="modal-head"><h2>New email automation</h2><button class="close" data-x>×</button></div>
+      <div class="modal-body">
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          <div>
+            <label style="font-size:0.74rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:6px;">Name</label>
+            <input id="na-name" placeholder="e.g. Re-engage students who paused" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:10px 14px;color:var(--text);font:inherit;font-size:0.92rem;">
+          </div>
+          <div>
+            <label style="font-size:0.74rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:6px;">When should it send?</label>
+            <select id="na-trigger" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:10px 14px;color:var(--text);font:inherit;font-size:0.92rem;">
+              <option value="manual" selected>Manual broadcast — you pick recipients each time</option>
+              ${eventOpts}
+            </select>
+            <div style="font-size:0.74rem;color:var(--text-dim);margin-top:6px;">Manual = a button you press to email a list of students. Event = fires automatically when something happens in the system.</div>
+          </div>
+          <div id="na-vars-preview" style="font-size:0.78rem;color:var(--text-dim);background:var(--surface2);border:1px dashed var(--border);border-radius:9px;padding:10px 12px;"></div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn-ghost" data-x>Cancel</button>
+        <button class="btn-primary" id="na-create">Create automation</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  const close = () => m.remove();
+  m.addEventListener('click', e => { if (e.target === m || e.target.matches('[data-x]')) close(); });
+
+  const trigSel = document.getElementById('na-trigger');
+  const varsPreview = document.getElementById('na-vars-preview');
+  function updateVarsPreview() {
+    if (trigSel.value === 'manual') {
+      varsPreview.innerHTML = `Available variables: <code>{{firstName}}</code> <code>{{email}}</code> <code>{{coachName}}</code>`;
+    } else {
+      const evt = availableEvents.find(e => e.key === trigSel.value);
+      if (!evt) return;
+      varsPreview.innerHTML = `Available variables: ${(evt.vars || []).map(v => `<code>{{${v}}}</code>`).join(' ')}`;
+    }
+  }
+  updateVarsPreview();
+  trigSel.addEventListener('change', updateVarsPreview);
+
+  document.getElementById('na-create').addEventListener('click', async () => {
+    const trig = trigSel.value;
+    const name = document.getElementById('na-name').value.trim() || (trig === 'manual' ? 'Untitled broadcast' : (availableEvents.find(e => e.key === trig)?.label || 'New automation'));
+    try {
+      const body = trig === 'manual'
+        ? { name, trigger_type: 'manual', subject: 'Hello {{firstName}}', html_body: '<p>Hi {{firstName}},</p><p>Write your message here…</p>', text_body: 'Hi {{firstName}}, write your message here.' }
+        : { name, trigger_type: 'event', trigger_event: trig, subject: 'New {{topic}}', html_body: '<p>Hi {{firstName}},</p><p>Write the message that will go out for this event…</p>', text_body: 'Hi {{firstName}},...' };
+      const j = await api('?api=create', { method: 'POST', body });
+      close();
+      await Promise.all([loadAutomations(), loadAvailableEvents()]);
+      openAutomation(j.row.id);
+    } catch (e) { alert('Create failed: ' + e.message); }
+  });
+}
 
 async function openBroadcastModal() {
   await saveAutomation();

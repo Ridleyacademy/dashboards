@@ -16,6 +16,14 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v159', title: 'Email Automations — every email now editable',
+      adminOnly: true, items: [
+      'Phase 1: new admin-only "Email Automations" dashboard — list of every transactional email the system sends, with a Quill rich-text editor, variable-insertion chips, Save / Send-test / Duplicate / Broadcast / Send-history.',
+      'Phase 2: refactored the Zoom invite / reschedule / cancel emails (zoom-meetings v18), the pause-ended email (check-pause-endings v2), and the account-invite email (invite v36) to load their templates from the database. Editing them in the dashboard now changes what the system actually sends.',
+      'Round-out: alerts (opened + resolved), turnovers (opened + closed), survey-received and video-received notifications also moved onto the system (send-email v21). They now ship as branded HTML through Resend with first-name personalization and dashboard-deep-link buttons. SMTP is kept as a fallback for any kind that does not yet have a template.',
+      'Every send is logged in email_automation_sends — open the Send history tab on any automation to see who got what, when, and the resend_id.',
+      'Manual broadcasts: duplicate any system template into a manual one, edit it, and pick a list of students to email.',
+    ]},
     { version: 'v144', title: 'Student profile popup is now mobile-friendly',
       roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'], items: [
       'Tapping a student on the Coach Dashboard opens a clean bottom-sheet on phones — title at the top, "Full profile ↗" link on its own row, close button in a 44px tap target in the corner.',

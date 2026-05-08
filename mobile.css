@@ -240,7 +240,9 @@
   .modal-body > div { display: block; }
   .modal-body .full { grid-column: 1 / -1 !important; }
   .modal-body label { display: block !important; font-size: 0.7rem !important; margin-bottom: 8px !important; }
-  .modal-body input, .modal-body select, .modal-body textarea {
+  .modal-body input:not([type="checkbox"]):not([type="radio"]),
+  .modal-body select,
+  .modal-body textarea {
     padding: 12px 14px !important;
     font-size: 0.95rem !important;
     min-height: 46px !important;
@@ -249,6 +251,17 @@
     min-width: 0 !important;
     max-width: 100% !important;
     box-sizing: border-box !important;
+  }
+  /* Checkboxes and radios stay native-sized — never force them to the
+     46px min-height meant for text fields. */
+  .modal-body input[type="checkbox"],
+  .modal-body input[type="radio"] {
+    width: 16px !important;
+    height: 16px !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    flex-shrink: 0;
   }
   /* iOS gives datetime-local + date a hefty intrinsic width — shrink it. */
   .modal-body input[type="datetime-local"],
@@ -340,7 +353,8 @@
   }
   #szModal .sz-students label:last-child { border-bottom: none; }
   #szModal .sz-students label input[type="checkbox"] {
-    width: 22px !important; height: 22px !important;
+    width: 16px !important; height: 16px !important;
+    min-height: 0 !important;
     flex-shrink: 0;
     margin-top: 2px;
   }

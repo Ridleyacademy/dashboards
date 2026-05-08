@@ -1,1 +1,1 @@
-2026-05-08T04:00:00Z-v151-cancel-zoom-only
+2026-05-08T04:30:00Z-v152-checkbox-size

@@ -1931,9 +1931,12 @@ async function cancelMeeting(id) {
 }
 
 async function openScheduleZoomModal(prefilledIds) {
-  // Make sure the hosts list is loaded before rendering the modal so the
-  // 'Host as (coach)' picker is reliably populated for privileged users.
-  if (isPrivilegedViewer && !zoomHosts.length) { try { await loadZoomHosts(); } catch (_) {} }
+  // Don't block the modal on loading hosts — render immediately and populate
+  // the "Host as (coach)" dropdown when the request resolves. zoomHosts is
+  // already pre-warmed at page-init, so the modal usually has it instantly.
+  const hostsLoading = isPrivilegedViewer && !zoomHosts.length
+    ? loadZoomHosts().catch(() => {})
+    : null;
   document.getElementById('szModal')?.remove();
   // Default: 24h from now, rounded to next 15-min mark
   const def = new Date(Date.now() + 24*60*60*1000);
@@ -1971,8 +1974,8 @@ async function openScheduleZoomModal(prefilledIds) {
         <button class="close" data-x>×</button>
       </div>
       <div class="modal-body" style="grid-template-columns:1fr;">
-        ${isPrivilegedViewer && zoomHosts.length ? `
-        <div><label>Host as (coach)</label>
+        ${isPrivilegedViewer ? `
+        <div id="sz-host-wrap"><label>Host as (coach)</label>
           <select id="sz-host">
             <option value="">— Me (${escapeHtml(currentSession.user.email||'')}) —</option>
             ${zoomHosts.filter(h => h.id !== currentSession.user.id).map(h => `<option value="${h.id}" ${h.zoom_host_email ? '' : 'disabled'}>${escapeHtml(_hostLabel(h))}${h.zoom_host_email ? '' : ' — no Zoom email mapped'}</option>`).join('')}
@@ -2123,6 +2126,20 @@ async function openScheduleZoomModal(prefilledIds) {
   document.body.appendChild(m);
   const close = () => m.remove();
   m.addEventListener('click', e => { if (e.target === m || e.target.matches('[data-x]')) close(); });
+
+  // If we deferred loading the hosts list, refresh the dropdown when it lands.
+  if (hostsLoading) {
+    hostsLoading.then(() => {
+      const sel = document.getElementById('sz-host');
+      if (!sel || !zoomHosts.length) return;
+      const prev = sel.value;
+      sel.innerHTML = `<option value="">— Me (${escapeHtml(currentSession.user.email||'')}) —</option>` +
+        zoomHosts.filter(h => h.id !== currentSession.user.id).map(h =>
+          `<option value="${h.id}" ${h.zoom_host_email ? '' : 'disabled'}>${escapeHtml(_hostLabel(h))}${h.zoom_host_email ? '' : ' — no Zoom email mapped'}</option>`
+        ).join('');
+      if (prev) sel.value = prev;
+    });
+  }
 
   const listEl = document.getElementById('sz-students');
   const countEl = document.getElementById('sz-count');

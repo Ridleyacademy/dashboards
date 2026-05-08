@@ -295,6 +295,41 @@
   }
   .crm-back-bar .crm-back-name { font-weight: 700; font-size: 0.9rem; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
+  /* ── Coach Dashboard upcoming-meetings cards — wrap actions to next row ── */
+  .upcoming-card {
+    flex-wrap: wrap !important;
+    gap: 8px 12px !important;
+    padding: 12px 14px !important;
+  }
+  .upcoming-when {
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
+    font-size: 0.82rem !important;
+  }
+  .upcoming-topic {
+    flex: 1 1 100% !important;
+    order: 2;
+    font-size: 0.92rem;
+    line-height: 1.3;
+  }
+  .upcoming-topic small { font-size: 0.78rem !important; }
+  .upcoming-actions {
+    flex: 1 1 100% !important;
+    order: 3;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+    margin-top: 4px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border, #1f2438);
+  }
+  .upcoming-actions button {
+    flex: 1 1 calc(50% - 4px) !important;
+    min-height: 38px !important;
+    padding: 8px 10px !important;
+    font-size: 0.78rem !important;
+    white-space: nowrap;
+  }
+
   /* ── Coach Dashboard (coach.html) — card-stack layout, no horizontal scroll ── */
   .tablewrap { padding: 8px 12px 30px !important; overflow-x: hidden !important; }
   table.students {

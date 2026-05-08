@@ -9,66 +9,128 @@
 <meta name="theme-color" content="#080a14">
 <title>Email Automations — Ridley Academy</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
 <link rel="manifest" href="manifest.json">
 <link rel="stylesheet" href="skeletons.css">
-<link rel="stylesheet" href="mobile.css">
-<!-- Quill 2.0 — rich-text editor (no API key needed) -->
-<link href="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.snow.css" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="permissions.js"></script>
+<link rel="stylesheet" href="mobile.css">
+<!-- Quill 2.0 — rich-text editor (no API key) -->
+<link href="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.snow.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.js"></script>
 <style>
   :root {
-    --bg: #080a14; --surface: #0f1120; --surface2: #141728; --surface3: #191e30;
+    --bg: #080a14;
+    --surface: #0f1120; --surface2: #141728; --surface3: #191e30;
     --border: #1f2438; --border-light: #272d45;
     --text: #eaecf8; --text-muted: #7880a8; --text-dim: #3e4668;
-    --blue: #6b9eff; --green: #34d399; --red: #f87171; --gold: #fbbf24; --pink: #f472b6;
+    --blue: #6b9eff; --blue-glow: rgba(107,158,255,0.3); --blue-bg: rgba(107,158,255,0.1);
+    --green: #34d399; --green-glow: rgba(52,211,153,0.3); --green-bg: rgba(52,211,153,0.1);
+    --pink: #f472b6; --pink-glow: rgba(244,114,182,0.3); --pink-bg: rgba(244,114,182,0.1);
+    --purple: #a78bfa; --purple-bg: rgba(167,139,250,0.1);
+    --gold: #fbbf24; --gold-bg: rgba(251,191,36,0.1);
+    --red: #f87171; --cyan: #22d3ee;
     --accent: #34d399; --accent2: #22d3ee;
   }
-  body.light { --bg:#f0f2fa;--surface:#fff;--surface2:#f5f6fc;--surface3:#eceef8;--border:#dde1f2;--border-light:#ccd1e8;--text:#0f1220;--text-muted:#525b82;--text-dim:#9099be; }
+  body.light {
+    --bg: #f0f2fa; --surface: #ffffff; --surface2: #f5f6fc; --surface3: #eceef8;
+    --border: #dde1f2; --border-light: #ccd1e8;
+    --text: #0f1220; --text-muted: #525b82; --text-dim: #9099be;
+  }
+  body.light .topbar { background: rgba(255,255,255,0.9); }
+
   * { box-sizing: border-box; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
     background: var(--bg); color: var(--text); min-height: 100vh; margin: 0;
     -webkit-font-smoothing: antialiased; overflow-x: hidden;
   }
+  body::before {
+    content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background:
+      radial-gradient(ellipse at 15% 15%, rgba(107,158,255,0.07) 0%, transparent 55%),
+      radial-gradient(ellipse at 85% 85%, rgba(167,139,250,0.05) 0%, transparent 55%),
+      radial-gradient(ellipse at 80% 10%, rgba(244,114,182,0.05) 0%, transparent 50%);
+    animation: ambientShift 18s ease-in-out infinite;
+  }
+  @keyframes ambientShift { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
+  #app { position: relative; z-index: 1; }
   body[data-state="loading"] #app, body[data-state="loading"] #login,
   body[data-state="login"] #app, body[data-state="login"] #boot,
-  body[data-state="dashboard"] #login, body[data-state="dashboard"] #boot,
-  body[data-state="denied"] #app, body[data-state="denied"] #boot, body[data-state="denied"] #login { display: none; }
+  body[data-state="dashboard"] #login, body[data-state="dashboard"] #boot { display: none; }
   body[data-state="dashboard"] #app { display: block; }
-  body[data-state="denied"] #denied { display: flex; }
-  #boot, #denied { padding: 60px 20px; text-align: center; color: var(--text-dim); display: flex; align-items: center; justify-content: center; min-height: 60vh; flex-direction: column; gap: 16px; }
-  #login { padding: 60px 20px; max-width: 420px; margin: 0 auto; }
-  #login h1 { font-size: 1.4rem; margin: 0 0 6px; letter-spacing: -0.02em; }
-  #login p { font-size: 0.85rem; color: var(--text-muted); margin: 0 0 22px; }
-  .auth-input { width: 100%; background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 10px; padding: 11px 14px; font: inherit; font-size: 0.92rem; margin-bottom: 10px; }
-  .auth-btn { width: 100%; background: linear-gradient(135deg, #34d399, #10b981); color: #06231a; border: none; border-radius: 10px; padding: 12px; font-weight: 800; font-size: 0.92rem; cursor: pointer; }
+  #boot { padding: 60px 20px; text-align: center; color: var(--text-dim); }
 
-  /* Topbar */
-  .topbar { display: flex; align-items: center; gap: 10px; padding: 12px 32px; background: rgba(8,10,20,0.85); backdrop-filter: blur(20px); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; }
-  .topbar-logo { width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0; background: linear-gradient(135deg, #6b9eff, #a78bfa); display: flex; align-items: center; justify-content: center; box-shadow: 0 0 14px rgba(107,158,255,0.4); }
+  /* Topbar — identical to other dashboards */
+  .topbar {
+    display: flex; align-items: center; gap: 10px; padding: 12px 32px;
+    background: rgba(8,10,20,0.85); backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100;
+  }
+  .topbar-logo {
+    width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0;
+    background: linear-gradient(135deg, #6b9eff, #a78bfa);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 14px rgba(107,158,255,0.4);
+  }
   .topbar-brand { font-size: 0.9rem; font-weight: 700; letter-spacing: -0.02em; }
   .topbar-spacer { flex: 1; }
-  .tbtn { border: none; border-radius: 8px; padding: 6px 12px; font-size: 0.74rem; font-weight: 600; cursor: pointer; }
+  .tbtn { border: none; border-radius: 8px; padding: 6px 12px; font-size: 0.74rem; font-weight: 600; cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 5px; }
   .tbtn-ghost { background: var(--surface2); color: var(--text-muted); border: 1px solid var(--border); }
-  .user-pill { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 4px 14px 4px 4px; }
-  .user-pill-av { width: 24px; height: 24px; border-radius: 50%; background: linear-gradient(135deg, #6b9eff, #a78bfa); color: #fff; font-size: 0.62rem; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+  .tbtn-ghost:hover { color: var(--text); border-color: var(--border-light); }
+
+  .nav-dropdown { position: relative; }
+  .nav-dropdown-menu {
+    display: none; position: absolute; top: calc(100% + 8px); right: 0;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    padding: 6px; min-width: 200px;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+    z-index: 200;
+  }
+  .nav-dropdown-menu.open { display: block; }
+  .nav-menu-link {
+    display: flex; align-items: center; gap: 10px; padding: 9px 13px; font-size: 0.78rem;
+    font-weight: 600; color: var(--text-muted); text-decoration: none; border-radius: 9px;
+    transition: all 0.12s;
+  }
+  .nav-menu-link:hover { background: var(--surface2); color: var(--text); }
+  .nav-menu-link.active { color: var(--green); background: rgba(52,211,153,0.08); }
+  .nav-menu-link svg { flex-shrink: 0; }
+
+  .user-pill { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 4px 14px 4px 4px; cursor: default; }
+  .user-pill-av { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; background: linear-gradient(135deg, #6b9eff, #a78bfa); color: #fff; font-size: 0.62rem; font-weight: 800; display: flex; align-items: center; justify-content: center; }
   .user-pill-email { font-size: 0.73rem; color: var(--text-muted); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  @media(max-width:700px) { .topbar { padding: 10px 16px; gap: 6px; } }
+
+  /* Login screen — same shape as the other dashboards */
+  #login { max-width: 380px; margin: 60px auto; padding: 30px 28px; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 14px; }
+  #login h1 { font-size: 1.4rem; margin: 0 0 6px; letter-spacing: -0.02em; }
+  #login p { font-size: 0.85rem; color: var(--text-muted); margin: 0 0 22px; }
+  #login form { display: flex; flex-direction: column; gap: 12px; }
+  #login input { background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+    border-radius: 9px; padding: 10px 12px; font-size: 0.95rem; font: inherit; }
+  #login button { background: linear-gradient(135deg, #34d399, #10b981); color: #06231a;
+    border: none; border-radius: 9px; padding: 11px; font-weight: 800; cursor: pointer; }
+  #login .err { color: var(--red); font-size: 0.82rem; min-height: 1em; }
 
   .main { padding: 24px 32px 80px; max-width: 1280px; margin: 0 auto; }
-  .page-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; gap: 16px; flex-wrap: wrap; }
-  .page-title { font-size: 1.4rem; font-weight: 800; letter-spacing: -0.02em; margin: 0; }
-  .page-sub { font-size: 0.84rem; color: var(--text-muted); margin: 4px 0 0; }
+  .page-head { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 22px; gap: 16px; flex-wrap: wrap; }
+  .page-title { font-size: 1.4rem; font-weight: 800; letter-spacing: -0.02em; margin: 0; display: flex; align-items: center; gap: 10px; }
+  .page-sub { font-size: 0.84rem; color: var(--text-muted); margin: 4px 0 0; max-width: 720px; }
+  .btn-primary { background: linear-gradient(135deg, #34d399, #10b981); color: #06231a; border: none; border-radius: 9px; padding: 10px 18px; font-weight: 800; font-size: 0.85rem; cursor: pointer; }
+  .btn-ghost { background: var(--surface2); color: var(--text); border: 1px solid var(--border); border-radius: 9px; padding: 9px 14px; font-weight: 700; font-size: 0.82rem; cursor: pointer; }
+  .btn-ghost:hover { border-color: var(--border-light); }
+  .btn-danger { background: rgba(248,113,113,0.12); color: var(--red); border: 1px solid rgba(248,113,113,0.4); border-radius: 9px; padding: 9px 14px; font-weight: 700; font-size: 0.82rem; cursor: pointer; }
 
-  /* Layout: list (left) + editor (right) */
+  /* Two-pane layout */
   .ea-layout { display: grid; grid-template-columns: 360px 1fr; gap: 20px; }
-  .ea-list-card, .ea-editor-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px; }
+  .ea-list-card, .ea-editor-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; }
   .ea-list-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
   .ea-list-head h2 { font-size: 0.95rem; margin: 0; }
-  .ea-list { display: flex; flex-direction: column; gap: 6px; max-height: calc(100vh - 220px); overflow-y: auto; }
-  .ea-row { padding: 12px; border: 1px solid var(--border); border-radius: 10px; cursor: pointer; background: var(--surface2); }
+  .ea-list { display: flex; flex-direction: column; gap: 6px; max-height: calc(100vh - 240px); overflow-y: auto; padding-right: 4px; }
+  .ea-row { padding: 12px; border: 1px solid var(--border); border-radius: 10px; cursor: pointer; background: var(--surface2); transition: border-color 0.12s; }
   .ea-row:hover { border-color: var(--accent); }
   .ea-row.selected { border-color: var(--accent); background: rgba(52,211,153,0.06); }
   .ea-row-name { font-weight: 700; font-size: 0.86rem; }
@@ -79,11 +141,6 @@
   .pill-on  { background: rgba(52,211,153,0.18); color: var(--accent); }
   .pill-off { background: rgba(248,113,113,0.18); color: var(--red); }
 
-  .btn-primary { background: linear-gradient(135deg, #34d399, #10b981); color: #06231a; border: none; border-radius: 9px; padding: 9px 16px; font-weight: 800; font-size: 0.82rem; cursor: pointer; }
-  .btn-ghost { background: var(--surface2); color: var(--text); border: 1px solid var(--border); border-radius: 9px; padding: 9px 14px; font-weight: 700; font-size: 0.82rem; cursor: pointer; }
-  .btn-ghost:hover { border-color: var(--border-light); }
-  .btn-danger { background: rgba(248,113,113,0.12); color: var(--red); border: 1px solid rgba(248,113,113,0.4); border-radius: 9px; padding: 9px 14px; font-weight: 700; font-size: 0.82rem; cursor: pointer; }
-
   .ea-editor-empty { color: var(--text-dim); padding: 60px 20px; text-align: center; }
   .ea-editor-head { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
   .ea-editor-head input.ea-name { flex: 1; min-width: 200px; background: var(--surface2); border: 1px solid var(--border); border-radius: 9px; padding: 10px 14px; color: var(--text); font: inherit; font-size: 1rem; font-weight: 700; }
@@ -91,13 +148,11 @@
   .ea-editor-row label { font-size: 0.72rem; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; min-width: 90px; }
   .ea-editor-row input, .ea-editor-row select, .ea-editor-row textarea { flex: 1; min-width: 0; background: var(--surface2); border: 1px solid var(--border); border-radius: 9px; padding: 10px 14px; color: var(--text); font: inherit; font-size: 0.88rem; }
   .ea-editor-row textarea { min-height: 60px; resize: vertical; font-family: ui-monospace, monospace; font-size: 0.82rem; }
+  .ea-meta-line { font-size: 0.74rem; color: var(--text-dim); margin-top: 8px; }
 
-  .ea-meta-line { font-size: 0.74rem; color: var(--text-dim); margin-top: 4px; }
-
-  /* Quill editor wrapper */
+  /* Quill */
   .ql-toolbar.ql-snow { background: var(--surface2); border: 1px solid var(--border); border-radius: 9px 9px 0 0; }
   .ql-container.ql-snow { background: #fff; color: #1a1a2e; border: 1px solid var(--border); border-radius: 0 0 9px 9px; min-height: 280px; font-family: -apple-system, BlinkMacSystemFont, sans-serif; font-size: 0.95rem; }
-  body.light .ql-container.ql-snow { background: #fff; }
   .ql-editor { min-height: 280px; }
   .ql-toolbar.ql-snow .ql-stroke { stroke: var(--text-muted); }
   .ql-toolbar.ql-snow .ql-fill { fill: var(--text-muted); }
@@ -108,20 +163,18 @@
   .ea-var-chip:hover { background: rgba(52,211,153,0.18); }
 
   .ea-actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
-  .ea-actions .grow { flex: 1; }
 
   .ea-msg { font-size: 0.82rem; padding: 10px 12px; border-radius: 8px; margin-top: 12px; }
   .ea-msg.ok { background: rgba(52,211,153,0.1); border: 1px solid rgba(52,211,153,0.3); color: var(--accent); }
   .ea-msg.err { background: rgba(248,113,113,0.1); border: 1px solid rgba(248,113,113,0.3); color: var(--red); }
 
-  /* Modal styles for broadcast student picker */
   .modal-bg { position: fixed; inset: 0; background: rgba(8,9,18,0.78); backdrop-filter: blur(8px); z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 20px; }
   .modal-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; max-width: 560px; width: 100%; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; }
   .modal-head { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
   .modal-head h2 { flex: 1; font-size: 1rem; font-weight: 800; margin: 0; }
   .modal-head .close { background: transparent; border: none; color: var(--text-dim); font-size: 1.5rem; cursor: pointer; }
   .modal-body { padding: 16px 20px; overflow-y: auto; flex: 1; }
-  .modal-foot { padding: 14px 20px; border-top: 1px solid var(--border); display: flex; gap: 10px; justify-content: flex-end; }
+  .modal-foot { padding: 14px 20px; border-top: 1px solid var(--border); display: flex; gap: 10px; justify-content: flex-end; align-items: center; }
   .picker-list { max-height: 50vh; overflow-y: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); }
   .picker-list label { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 0.86rem; }
   .picker-list label:last-child { border-bottom: none; }
@@ -130,10 +183,8 @@
   .ea-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
   .ea-tab { background: none; border: none; padding: 10px 16px; color: var(--text-muted); font-weight: 700; cursor: pointer; border-bottom: 2px solid transparent; font-size: 0.86rem; }
   .ea-tab.active { color: var(--text); border-bottom-color: var(--accent); }
-
   .send-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: 0.84rem; }
   .send-row:last-child { border: none; }
-  .send-row .send-status { width: 70px; }
 
   @media (max-width: 900px) {
     .ea-layout { grid-template-columns: 1fr; }
@@ -145,42 +196,51 @@
 
 <div id="boot">Loading…</div>
 
-<div id="login">
-  <h1>Ridley Academy</h1>
-  <p>Sign in to manage email automations.</p>
+<div id="login" style="display:none;">
+  <h1>📧 Email Automations</h1>
+  <p>Sign in with your Ridley Academy account.</p>
   <form id="loginForm">
-    <input class="auth-input" type="email" id="email" placeholder="you@company.com" required autocomplete="email">
-    <input class="auth-input" type="password" id="password" placeholder="••••••••" required autocomplete="current-password">
-    <button type="submit" class="auth-btn" id="signinBtn">Sign In</button>
-    <div id="loginErr" style="color:var(--red);font-size:0.82rem;margin-top:8px;text-align:center;"></div>
+    <input type="email" id="loginEmail" placeholder="email@ridleyacademy.team" required autocomplete="email">
+    <input type="password" id="loginPassword" placeholder="Password" required autocomplete="current-password">
+    <button type="submit">Sign in</button>
+    <div class="err" id="loginErr"></div>
   </form>
-</div>
-
-<div id="denied">
-  <div style="font-size:1.2rem;font-weight:700;">Admin access required</div>
-  <div style="font-size:0.86rem;color:var(--text-muted);max-width:420px;text-align:center;">Email automations are managed by admins only. Ask an admin to enable this for your account, or sign out and use a different account.</div>
-  <button class="btn-ghost" onclick="document.getElementById('signOutBtn')?.click()">Sign out</button>
 </div>
 
 <div id="app">
   <header class="topbar">
     <div class="topbar-logo">
-      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 7l-10 6L2 7"/></svg>
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0b0c14" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 7l-10 6L2 7"/></svg>
     </div>
     <div class="topbar-brand">Email Automations</div>
     <div class="topbar-spacer"></div>
-    <button id="signOutBtn" class="tbtn tbtn-ghost">Sign out</button>
-    <div class="user-pill">
-      <div class="user-pill-av" id="userAv">A</div>
-      <div class="user-pill-email" id="userEmail"></div>
+
+    <button class="tbtn tbtn-ghost" id="refreshBtn" title="Refresh data">
+      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+      Refresh
+    </button>
+    <button class="tbtn tbtn-ghost" id="themeBtn" style="font-size:1rem;padding:5px 10px;" title="Toggle theme"></button>
+
+    <div class="nav-dropdown" id="navDropdown">
+      <button class="tbtn tbtn-ghost" id="navDropdownBtn">Dashboards ▾</button>
+      <div class="nav-dropdown-menu" id="navDropMenu"></div>
     </div>
+
+    <div class="user-pill">
+      <div class="user-pill-av" id="userAvatar">U</div>
+      <div class="user-pill-email" id="userEmail">…</div>
+    </div>
+    <button class="tbtn tbtn-ghost" id="signOutBtn">
+      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      Sign Out
+    </button>
   </header>
 
   <main class="main">
     <div class="page-head">
       <div>
-        <h1 class="page-title">Email Automations</h1>
-        <div class="page-sub">View, edit, duplicate, and broadcast email templates. System automations fire on events automatically; manual ones are sent on demand.</div>
+        <h1 class="page-title">📧 Email Automations</h1>
+        <div class="page-sub">View, edit, duplicate, and broadcast email templates. System automations fire on events automatically; manual ones are sent on demand to a list of students you choose.</div>
       </div>
       <button class="btn-primary" id="newBtn">+ New automation</button>
     </div>
@@ -190,9 +250,8 @@
         <div class="ea-list-head"><h2>All automations</h2><span id="eaCount" style="font-size:0.74rem;color:var(--text-dim);">—</span></div>
         <div class="ea-list" id="eaList"></div>
       </div>
-
       <div class="ea-editor-card">
-        <div id="eaEditor"></div>
+        <div id="eaEditor"><div class="ea-editor-empty">Select an automation on the left to edit it, or click <strong>+ New automation</strong>.</div></div>
       </div>
     </div>
   </main>
@@ -203,27 +262,65 @@ const SUPABASE_URL = "https://pojqljrhhtnigyrtzdzz.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBvanFsanJoaHRuaWd5cnR6ZHp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTA3ODMsImV4cCI6MjA5MTM4Njc4M30.PcSBDqOzbiZxZ7IAs5efqx0gsAlAG0cj3GqUOkAmxos";
 const EA_BASE = SUPABASE_URL + '/functions/v1/email-automations';
 const STUDENTS_BASE = SUPABASE_URL + '/functions/v1/students';
-const supa = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
+const supa = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }});
+window.__ridleySession = null; // exposed for nav-menu / access-guard
 
-let session = null;
+let currentSession = null;
 let automations = [];
 let currentAutomation = null;
 let quill = null;
 let allStudents = [];
 
-function setState(s) { document.body.dataset.state = s; }
+function setState(s) { document.body.dataset.state = s; const lg = document.getElementById('login'); if (lg) lg.style.display = s === 'login' ? '' : 'none'; }
+function syncThemeBtn() { const b = document.getElementById('themeBtn'); if (b) b.textContent = document.body.classList.contains('light') ? '🌙' : '☀️'; }
+const savedTheme = localStorage.getItem('theme') || 'dark';
+if (savedTheme === 'light') document.body.classList.add('light');
+syncThemeBtn();
+document.getElementById('themeBtn')?.addEventListener('click', () => {
+  const isLight = document.body.classList.toggle('light');
+  localStorage.setItem('theme', isLight ? 'light' : 'dark');
+  syncThemeBtn();
+});
+
+document.getElementById('navDropdownBtn').addEventListener('click', e => {
+  e.stopPropagation();
+  document.getElementById('navDropMenu').classList.toggle('open');
+});
+document.addEventListener('click', () => document.getElementById('navDropMenu').classList.remove('open'));
+
+document.getElementById('signOutBtn').addEventListener('click', async () => { await supa.auth.signOut(); window.location.reload(); });
+
+document.getElementById('loginForm')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const errEl = document.getElementById('loginErr');
+  errEl.textContent = '';
+  const { error } = await supa.auth.signInWithPassword({ email, password });
+  if (error) errEl.textContent = error.message;
+  else boot();
+});
+
+document.getElementById('refreshBtn').addEventListener('click', loadAutomations);
+
 function escapeHtml(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-async function init() {
+async function boot() {
   setState('loading');
-  const { data: { session: sess } } = await supa.auth.getSession();
-  if (!sess) { setState('login'); return; }
-  session = sess;
-  // Admin gate
-  const eff = window.RidleyPerms.effective(sess.user);
-  if (!eff?.is_admin) { setState('denied'); return; }
-  document.getElementById('userEmail').textContent = sess.user.email || '';
-  document.getElementById('userAv').textContent = (sess.user.email || 'A').slice(0, 1).toUpperCase();
+  const { data: { session } } = await supa.auth.getSession();
+  if (!session) { setState('login'); return; }
+  currentSession = session;
+  window.__ridleySession = session;
+  const eff = window.RidleyPerms.effective(session.user);
+  // Admin gate — non-admins shouldn't even reach this URL (access-guard.js
+  // also redirects), but defend in case.
+  if (!eff?.is_admin) {
+    document.getElementById('app').innerHTML = '<div style="padding:60px 20px;text-align:center;color:var(--text-dim);font-size:0.95rem;">Email Automations is admin-only. Ask an admin to grant your account this access.</div>';
+    setState('dashboard');
+    return;
+  }
+  document.getElementById('userEmail').textContent = session.user.email || '';
+  document.getElementById('userAvatar').textContent = (session.user.email || 'A').slice(0, 1).toUpperCase();
   setState('dashboard');
   await loadAutomations();
 }
@@ -231,7 +328,7 @@ async function init() {
 async function api(path, opts = {}) {
   const r = await fetch(EA_BASE + path, {
     method: opts.method || 'GET',
-    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
     body: opts.body ? JSON.stringify(opts.body) : undefined,
   });
   const j = await r.json().catch(() => ({}));
@@ -274,17 +371,12 @@ async function openAutomation(id) {
     currentAutomation = j.row;
     renderList();
     renderEditor();
-  } catch (e) {
-    alert('Load failed: ' + e.message);
-  }
+  } catch (e) { alert('Load failed: ' + e.message); }
 }
 
 function renderEditor() {
   const ed = document.getElementById('eaEditor');
-  if (!currentAutomation) {
-    ed.innerHTML = `<div class="ea-editor-empty">Select an automation on the left to edit it, or click <strong>+ New automation</strong>.</div>`;
-    return;
-  }
+  if (!currentAutomation) { ed.innerHTML = '<div class="ea-editor-empty">Select an automation on the left to edit it, or click <strong>+ New automation</strong>.</div>'; return; }
   const a = currentAutomation;
   const vars = (a.variables_available || []).map(v =>
     `<button class="ea-var-chip" data-var="${escapeHtml(v)}" type="button">{{${escapeHtml(v)}}}</button>`
@@ -301,30 +393,12 @@ function renderEditor() {
           <input type="checkbox" id="ea-enabled" ${a.enabled ? 'checked' : ''}> Enabled
         </label>
       </div>
-      <div class="ea-editor-row">
-        <label>Trigger</label>
-        <input value="${escapeHtml(a.trigger_type === 'manual' ? 'Manual broadcast' : (a.trigger_event || a.trigger_type))}" readonly>
-      </div>
-      <div class="ea-editor-row">
-        <label>Recipient</label>
-        <input value="${escapeHtml(a.recipient_type)}" readonly>
-      </div>
-      <div class="ea-editor-row">
-        <label>Subject</label>
-        <input id="ea-subject" value="${escapeHtml(a.subject)}">
-      </div>
-      <div style="margin-top:14px;">
-        <label style="font-size:0.72rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:6px;">Email body</label>
-        <div id="ea-quill"></div>
-      </div>
-      <div style="margin-top:14px;">
-        <label style="font-size:0.72rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:6px;">Plain-text fallback (for email clients without HTML)</label>
-        <textarea id="ea-text" placeholder="Plain text version">${escapeHtml(a.text_body || '')}</textarea>
-      </div>
-      <div style="margin-top:8px;">
-        <label style="font-size:0.72rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:6px;">Click a variable to insert it where the cursor is</label>
-        <div class="ea-vars">${vars || '<em style="color:var(--text-dim);font-size:0.78rem;">No variables defined.</em>'}</div>
-      </div>
+      <div class="ea-editor-row"><label>Trigger</label><input value="${escapeHtml(a.trigger_type === 'manual' ? 'Manual broadcast' : (a.trigger_event || a.trigger_type))}" readonly></div>
+      <div class="ea-editor-row"><label>Recipient</label><input value="${escapeHtml(a.recipient_type)}" readonly></div>
+      <div class="ea-editor-row"><label>Subject</label><input id="ea-subject" value="${escapeHtml(a.subject)}"></div>
+      <div style="margin-top:14px;"><label style="font-size:0.72rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:6px;">Email body</label><div id="ea-quill"></div></div>
+      <div style="margin-top:14px;"><label style="font-size:0.72rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:6px;">Plain-text fallback</label><textarea id="ea-text">${escapeHtml(a.text_body || '')}</textarea></div>
+      <div style="margin-top:8px;"><label style="font-size:0.72rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:6px;">Click a variable to insert it where the cursor is</label><div class="ea-vars">${vars || '<em style="color:var(--text-dim);font-size:0.78rem;">No variables defined.</em>'}</div></div>
       <div class="ea-actions">
         <button class="btn-primary" id="ea-save">Save</button>
         <button class="btn-ghost" id="ea-test">Send test to me</button>
@@ -335,11 +409,8 @@ function renderEditor() {
       <div id="ea-msg"></div>
       <div class="ea-meta-line">Last updated ${new Date(a.updated_at).toLocaleString()}${a.last_edited_by_email ? ' by ' + escapeHtml(a.last_edited_by_email) : ''}</div>
     </div>
-    <div data-tabpane="history" style="display:none;">
-      <div id="ea-sends">Loading…</div>
-    </div>
+    <div data-tabpane="history" style="display:none;"><div id="ea-sends">Loading…</div></div>
   `;
-  // Init Quill
   quill = new Quill('#ea-quill', {
     theme: 'snow',
     placeholder: 'Compose the email body…',
@@ -357,22 +428,17 @@ function renderEditor() {
   });
   quill.clipboard.dangerouslyPasteHTML(a.html_body || '');
 
-  // Variable chips → insert at cursor
   ed.querySelectorAll('.ea-var-chip').forEach(b => b.addEventListener('click', () => {
     const v = '{{' + b.dataset.var + '}}';
     const range = quill.getSelection(true);
     quill.insertText(range.index, v, 'user');
     quill.setSelection(range.index + v.length, 0, 'user');
   }));
-
-  // Save
   document.getElementById('ea-save').addEventListener('click', saveAutomation);
   document.getElementById('ea-test').addEventListener('click', sendTest);
   document.getElementById('ea-duplicate').addEventListener('click', duplicateAutomation);
   document.getElementById('ea-delete')?.addEventListener('click', deleteAutomation);
   document.getElementById('ea-broadcast')?.addEventListener('click', openBroadcastModal);
-
-  // Tabs
   ed.querySelectorAll('.ea-tab').forEach(t => t.addEventListener('click', () => {
     ed.querySelectorAll('.ea-tab').forEach(x => x.classList.toggle('active', x === t));
     ed.querySelectorAll('[data-tabpane]').forEach(p => p.style.display = p.dataset.tabpane === t.dataset.tab ? '' : 'none');
@@ -396,24 +462,19 @@ async function saveAutomation() {
     currentAutomation = j.row;
     msg.className = 'ea-msg ok'; msg.textContent = 'Saved.';
     await loadAutomations();
-  } catch (e) {
-    msg.className = 'ea-msg err'; msg.textContent = 'Failed: ' + e.message;
-  }
+  } catch (e) { msg.className = 'ea-msg err'; msg.textContent = 'Failed: ' + e.message; }
 }
 
 async function sendTest() {
   const msg = document.getElementById('ea-msg');
-  const to = prompt('Send a test of "' + currentAutomation.name + '" to which email?', session.user.email);
+  const to = prompt('Send a test of "' + currentAutomation.name + '" to which email?', currentSession.user.email);
   if (!to) return;
-  // Save first so the test reflects current edits
   await saveAutomation();
   msg.className = 'ea-msg'; msg.textContent = 'Sending test…';
   try {
     await api('?api=send-test', { method: 'POST', body: { id: currentAutomation.id, to } });
     msg.className = 'ea-msg ok'; msg.textContent = `Test sent to ${to}.`;
-  } catch (e) {
-    msg.className = 'ea-msg err'; msg.textContent = 'Failed: ' + e.message;
-  }
+  } catch (e) { msg.className = 'ea-msg err'; msg.textContent = 'Failed: ' + e.message; }
 }
 
 async function duplicateAutomation() {
@@ -442,13 +503,11 @@ document.getElementById('newBtn')?.addEventListener('click', async () => {
   } catch (e) { alert('Create failed: ' + e.message); }
 });
 
-// ── Broadcast modal ───────────────────────────────────────────────────
 async function openBroadcastModal() {
-  // Save current edits first
   await saveAutomation();
   if (!allStudents.length) {
     try {
-      const r = await fetch(STUDENTS_BASE + '?api=list', { headers: { Authorization: 'Bearer ' + session.access_token } });
+      const r = await fetch(STUDENTS_BASE + '?api=list', { headers: { Authorization: 'Bearer ' + currentSession.access_token } });
       const j = await r.json();
       allStudents = j.rows || [];
     } catch (e) { alert('Failed to load students: ' + e.message); return; }
@@ -458,12 +517,9 @@ async function openBroadcastModal() {
   m.id = 'broadcastModal'; m.className = 'modal-bg';
   m.innerHTML = `
     <div class="modal-card">
-      <div class="modal-head">
-        <h2>Broadcast: ${escapeHtml(currentAutomation.name)}</h2>
-        <button class="close" data-x>×</button>
-      </div>
+      <div class="modal-head"><h2>Broadcast: ${escapeHtml(currentAutomation.name)}</h2><button class="close" data-x>×</button></div>
       <div class="modal-body">
-        <div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:10px;">Pick which students will receive this email. Save before broadcasting.</div>
+        <div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:10px;">Pick which students will receive this email.</div>
         <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center;">
           <input type="search" id="bc-search" placeholder="Search name or email…" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:9px 12px;color:var(--text);font:inherit;">
           <button class="btn-ghost" id="bc-all" type="button">All visible</button>
@@ -475,13 +531,12 @@ async function openBroadcastModal() {
       <div class="modal-foot">
         <span id="bc-msg" style="flex:1;font-size:0.8rem;color:var(--text-dim);"></span>
         <button class="btn-ghost" data-x>Cancel</button>
-        <button class="btn-primary" id="bc-send">Send 0 emails</button>
+        <button class="btn-primary" id="bc-send" disabled>Send 0 emails</button>
       </div>
     </div>`;
   document.body.appendChild(m);
   const close = () => m.remove();
   m.addEventListener('click', e => { if (e.target === m || e.target.matches('[data-x]')) close(); });
-
   const sel = new Set();
   const search = document.getElementById('bc-search');
   const list = document.getElementById('bc-list');
@@ -505,18 +560,11 @@ async function openBroadcastModal() {
   }
   render();
   search.addEventListener('input', render);
-  document.getElementById('bc-all').addEventListener('click', () => {
-    list.querySelectorAll('input[data-sid]').forEach(cb => { sel.add(parseInt(cb.dataset.sid,10)); cb.checked = true; });
-    count.textContent = sel.size + ' selected';
-    sendBtn.textContent = `Send ${sel.size} email${sel.size===1?'':'s'}`;
-    sendBtn.disabled = sel.size === 0;
-  });
+  document.getElementById('bc-all').addEventListener('click', () => { list.querySelectorAll('input[data-sid]').forEach(cb => { sel.add(parseInt(cb.dataset.sid,10)); cb.checked = true; }); count.textContent = sel.size + ' selected'; sendBtn.textContent = `Send ${sel.size}`; sendBtn.disabled = sel.size === 0; });
   document.getElementById('bc-none').addEventListener('click', () => { sel.clear(); render(); count.textContent = '0 selected'; sendBtn.textContent = 'Send 0 emails'; sendBtn.disabled = true; });
-  sendBtn.disabled = true;
-
   sendBtn.addEventListener('click', async () => {
     if (!sel.size) return;
-    if (!confirm(`Send "${currentAutomation.name}" to ${sel.size} student(s)? This cannot be undone.`)) return;
+    if (!confirm(`Send "${currentAutomation.name}" to ${sel.size} student(s)?`)) return;
     sendBtn.disabled = true; sendBtn.textContent = 'Sending…';
     const msg = document.getElementById('bc-msg');
     try {
@@ -538,7 +586,7 @@ async function loadSends() {
     if (!j.rows.length) { wrap.innerHTML = '<div style="color:var(--text-dim);padding:16px;">No sends yet.</div>'; return; }
     wrap.innerHTML = j.rows.map(s =>
       `<div class="send-row">
-        <span class="send-status pill ${s.status === 'sent' ? 'pill-on' : 'pill-off'}">${s.status}</span>
+        <span class="pill ${s.status === 'sent' ? 'pill-on' : 'pill-off'}" style="width:60px;text-align:center;">${s.status}</span>
         <div style="flex:1;">
           <div style="font-weight:600;">${escapeHtml(s.recipient_email)}</div>
           <div style="font-size:0.72rem;color:var(--text-dim);">${escapeHtml(s.subject || '')}${s.error ? ' · ' + escapeHtml(s.error) : ''}</div>
@@ -549,23 +597,13 @@ async function loadSends() {
   } catch (e) { wrap.innerHTML = `<div style="color:var(--red);padding:16px;">${escapeHtml(e.message)}</div>`; }
 }
 
-document.getElementById('signOutBtn')?.addEventListener('click', async () => {
-  await supa.auth.signOut();
-  setState('login');
-});
-document.getElementById('loginForm')?.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const email = document.getElementById('email').value.trim();
-  const password = document.getElementById('password').value;
-  const errEl = document.getElementById('loginErr');
-  errEl.textContent = '';
-  const { error } = await supa.auth.signInWithPassword({ email, password });
-  if (error) errEl.textContent = error.message;
-  else init();
-});
-
-init();
+boot();
 </script>
+<script src="access-guard.js"></script>
+<script src="theme.js"></script>
+<script src="loading-states.js" defer></script>
+<script src="notifications.js" defer></script>
+<script src="nav-menu.js" defer></script>
 <script src="changelog.js" defer></script>
 <script src="pwa.js" defer></script>
 </body>

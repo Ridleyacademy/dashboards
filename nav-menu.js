@@ -50,21 +50,15 @@
 
     const currentFile = (window.location.pathname || '').split('/').pop() || 'home.html';
 
-    // Filter admin-only items if the current effective user is not admin.
-    let visible = ITEMS;
-    try {
-      if (window.RidleyPerms && typeof window.RidleyPerms.effective === 'function') {
-        const sess = window.__ridleySession;
-        const eff = sess ? window.RidleyPerms.effective(sess.user) : null;
-        const isAdmin = !!eff?.is_admin;
-        if (!isAdmin) visible = ITEMS.filter(it => !it.adminOnly);
-      }
-    } catch (_) {}
-
-    const html = visible.map(it => {
+    // Render every item; access-guard.js (loaded on every dashboard) hides
+    // items the effective user can't access — including admin-only ones via
+    // the matching PAGES entry. Doing the filtering here would race with the
+    // session hydration and hide the item even for admins.
+    const html = ITEMS.map(it => {
       const isActive = it.href === currentFile;
       return `<a href="${it.href}" class="nav-menu-link${isActive ? ' active' : ''}">${it.svg}<span>${it.label}</span></a>`;
     }).join('');
+    // (filter via access-guard.js after session hydrates)
 
     menus.forEach(menu => { menu.innerHTML = html; });
   }

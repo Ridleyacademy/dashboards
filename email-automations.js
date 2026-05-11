@@ -1068,6 +1068,7 @@ function renderEditor() {
           <div class="ea-actions">
             <button class="btn-primary" id="ea-save">Save</button>
             <button class="btn-ghost" id="ea-test">Send test to me</button>
+            ${a.trigger_type === 'event' ? '<button class="btn-ghost" id="ea-test-fire" title="Fire this event through dispatch-event using a real student row. Sends to a single override address only.">🧪 Test fire event…</button>' : ''}
             ${a.trigger_type === 'manual' ? '<button class="btn-ghost" id="ea-broadcast">📨 Broadcast to students…</button>' : ''}
             <button class="btn-ghost" id="ea-duplicate">Duplicate</button>
             ${a.is_system ? '' : '<button class="btn-danger" id="ea-delete">Delete</button>'}
@@ -1132,6 +1133,7 @@ function renderEditor() {
   if (replyToEl)   attachAutocomplete(replyToEl,   () => currentAutomation?.variables_available || []);
   document.getElementById('ea-save').addEventListener('click', saveAutomation);
   document.getElementById('ea-test').addEventListener('click', sendTest);
+  document.getElementById('ea-test-fire')?.addEventListener('click', testFireEvent);
   document.getElementById('ea-duplicate').addEventListener('click', duplicateAutomation);
   document.getElementById('ea-delete')?.addEventListener('click', deleteAutomation);
   document.getElementById('ea-broadcast')?.addEventListener('click', openBroadcastModal);
@@ -1257,6 +1259,49 @@ async function sendTest() {
     await api('?api=send-test', { method: 'POST', body: { id: currentAutomation.id, to } });
     msg.className = 'ea-msg ok'; msg.textContent = `Test sent to ${to}.`;
   } catch (e) { msg.className = 'ea-msg err'; msg.textContent = 'Failed: ' + e.message; }
+}
+
+// ── Test-fire an event automation through the real dispatch pipeline ─────
+// Routes through email-automations?api=test-fire, which proxies to
+// dispatch-event server-side (so the dispatch secret stays out of the
+// browser). Useful for validating an event automation end-to-end against a
+// real student row — vars render exactly as they will in production.
+async function testFireEvent() {
+  const msg = document.getElementById('ea-msg');
+  if (!currentAutomation?.enabled) {
+    msg.className = 'ea-msg err';
+    msg.textContent = 'Enable the automation first — dispatch-event skips disabled automations.';
+    return;
+  }
+  await saveAutomation();
+  const override = prompt(
+    'Test-fire "' + currentAutomation.name + '" — send the actual rendered email to which address?\n\n' +
+    '(Recipient resolution is bypassed; only this address receives it.)',
+    currentSession.user.email
+  );
+  if (!override) return;
+  const studentIdStr = prompt(
+    'Use which student\'s data for variable rendering?\n\n' +
+    'Enter a student ID (number) from the CRM, or leave blank to auto-pick an active student.',
+    ''
+  );
+  const body = { id: currentAutomation.id, override_to: override };
+  if (studentIdStr && /^\d+$/.test(studentIdStr.trim())) body.student_id = Number(studentIdStr.trim());
+  msg.className = 'ea-msg'; msg.textContent = 'Firing event through dispatch-event…';
+  try {
+    const j = await api('?api=test-fire', { method: 'POST', body });
+    const d = j.dispatch || {};
+    if (d.skipped) {
+      msg.className = 'ea-msg err';
+      msg.textContent = `dispatch-event skipped: ${d.skipped}`;
+      return;
+    }
+    msg.className = 'ea-msg ok';
+    msg.textContent = `Fired ${currentAutomation.trigger_event} → ${override} (sent: ${d.sent || 0}, failed: ${d.failed || 0}${d.scheduled ? `, scheduled +${d.delay_minutes}min` : ''})`;
+  } catch (e) {
+    msg.className = 'ea-msg err';
+    msg.textContent = 'Failed: ' + e.message;
+  }
 }
 
 async function duplicateAutomation() {

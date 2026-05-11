@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v40-delays-preheader-fallbacks';
+const CACHE_NAME = 'ridley-v41-sw-null-response-fix';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [
@@ -110,30 +110,43 @@ function isHTML(req) {
     (req.method === 'GET' && req.headers.get('accept')?.includes('text/html'));
 }
 
+// Final fallback so respondWith ALWAYS gets a Response — Safari crashes the
+// page with "FetchEvent.respondWith received an error: Returned response is
+// null" if the handler ever resolves to undefined (e.g. Private Browsing where
+// the cache APIs return nothing, or a fetch error with no cached fallback).
+const OFFLINE_RESPONSE = () => new Response(
+  '<!doctype html><html><body style="font-family:-apple-system,sans-serif;text-align:center;padding:60px 20px;color:#666;"><h1>Offline</h1><p>Could not load this page. Check your connection and try again.</p></body></html>',
+  { status: 503, statusText: 'Service Unavailable', headers: { 'Content-Type': 'text/html' } }
+);
+
+async function safeMatch(req) {
+  try { return await caches.match(req); } catch { return null; }
+}
+
 // Network-first with a 3-second timeout, then fall back to cache.
 function networkFirst(req, cacheName, timeoutMs = 3000) {
   return new Promise((resolve) => {
     let resolved = false;
-    const fail = () => {
+    const finish = async (res) => {
       if (resolved) return;
       resolved = true;
-      caches.match(req).then((cached) =>
-        resolve(cached || caches.match('/home.html'))
-      );
+      if (res && res instanceof Response) { resolve(res); return; }
+      // Cache fallback chain — try the request itself, then home, then offline.
+      const cached = await safeMatch(req);
+      if (cached) { resolve(cached); return; }
+      const home = await safeMatch('/home.html');
+      if (home) { resolve(home); return; }
+      resolve(OFFLINE_RESPONSE());
     };
-    const timer = setTimeout(fail, timeoutMs);
-    fetch(req)
-      .then((res) => {
-        clearTimeout(timer);
-        if (resolved) return;
-        resolved = true;
-        if (res && res.status === 200) {
-          const copy = res.clone();
-          caches.open(cacheName).then((c) => c.put(req, copy));
-        }
-        resolve(res);
-      })
-      .catch(() => fail());
+    const timer = setTimeout(() => finish(null), timeoutMs);
+    fetch(req).then((res) => {
+      clearTimeout(timer);
+      if (res && res.status === 200) {
+        const copy = res.clone();
+        caches.open(cacheName).then((c) => c.put(req, copy)).catch(() => {});
+      }
+      finish(res);
+    }).catch(() => { clearTimeout(timer); finish(null); });
   });
 }
 
@@ -154,19 +167,19 @@ self.addEventListener('fetch', (event) => {
 
   // Static same-origin assets — stale-while-revalidate for instant load.
   if (url.origin === location.origin) {
-    event.respondWith(
-      caches.match(request).then((cached) => {
-        const fetchPromise = fetch(request)
-          .then((res) => {
-            if (res && res.status === 200) {
-              const copy = res.clone();
-              caches.open(CACHE_NAME).then((c) => c.put(request, copy));
-            }
-            return res;
-          })
-          .catch(() => cached);
-        return cached || fetchPromise;
-      })
-    );
+    event.respondWith((async () => {
+      const cached = await safeMatch(request);
+      try {
+        const res = await fetch(request);
+        if (res && res.status === 200) {
+          const copy = res.clone();
+          caches.open(CACHE_NAME).then((c) => c.put(request, copy)).catch(() => {});
+        }
+        // Prefer fresh; fall back to cached; never return undefined.
+        return res || cached || OFFLINE_RESPONSE();
+      } catch (_) {
+        return cached || OFFLINE_RESPONSE();
+      }
+    })());
   }
 });

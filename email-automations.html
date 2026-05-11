@@ -180,6 +180,22 @@
   .builder-field textarea { min-height: 72px; resize: vertical; }
   .builder-preview { padding: 16px; background: #fff; border: 1px dashed var(--border); border-radius: 9px; margin-top: 4px; color: #1a1a2e; }
 
+  /* Custom Quill block-embed wrappers — make them visually distinct in the
+     editor (the recipient's email client won't honour either selector, so
+     the styling is editor-only). */
+  .ql-editor .email-block {
+    position: relative; padding: 4px; margin: 6px 0; border-radius: 6px;
+    outline: 1.5px dashed transparent; transition: outline-color 0.12s;
+  }
+  .ql-editor .email-block:hover { outline-color: #DC2626; }
+  .ql-editor .email-block::before {
+    content: 'BLOCK'; position: absolute; top: -8px; left: 8px;
+    background: #DC2626; color: #fff; font-size: 0.55rem;
+    font-weight: 800; letter-spacing: 0.08em; padding: 1px 6px;
+    border-radius: 3px; opacity: 0; transition: opacity 0.12s;
+  }
+  .ql-editor .email-block:hover::before { opacity: 1; }
+
   .ea-actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
 
   /* Edit / preview split */
@@ -360,17 +376,48 @@ async function boot() {
 }
 
 // ── Email building blocks ───────────────────────────────────────────────────
-// All "insert X" actions build a chunk of inline-styled HTML and paste it at
-// the Quill cursor. Quill's clipboard preserves the inline styles in the
-// underlying html_body that we save, so the resulting email matches the
-// preview iframe exactly.
+// Quill strips inline `style` attributes from pasted HTML by default, which
+// would turn our buttons / callouts / images back into plain links + plain
+// text on save. Solution: register a custom BlockEmbed that stores the raw
+// HTML inside a wrapper div and reproduces it verbatim on save. A clipboard
+// matcher reads previously-saved wrapper divs back as embeds on load.
+let _emailBlockBlotRegistered = false;
+function ensureEmailBlockBlotRegistered() {
+  if (_emailBlockBlotRegistered) return;
+  const BlockEmbed = Quill.import('blots/block/embed');
+  class EmailBlockBlot extends BlockEmbed {
+    static create(value) {
+      const node = super.create();
+      node.setAttribute('contenteditable', 'false');
+      node.setAttribute('data-email-block', '1');
+      node.innerHTML = value || '';
+      return node;
+    }
+    static value(domNode) { return domNode.innerHTML; }
+  }
+  EmailBlockBlot.blotName = 'emailBlock';
+  EmailBlockBlot.tagName  = 'div';
+  EmailBlockBlot.className = 'email-block';
+  Quill.register(EmailBlockBlot, true);
+  _emailBlockBlotRegistered = true;
+}
+function registerEmailBlockClipboardMatcher() {
+  // Reads a saved <div class="email-block">…</div> back as an emailBlock embed
+  // when the html_body is pasted into Quill on load.
+  if (!quill || !quill.clipboard) return;
+  const Delta = Quill.import('delta');
+  quill.clipboard.addMatcher('div.email-block', (node) => {
+    return new Delta().insert({ emailBlock: node.innerHTML });
+  });
+}
+
 function insertHtmlAtCursor(html) {
   if (!quill) return;
   const range = quill.getSelection(true) || { index: quill.getLength(), length: 0 };
-  // Newline before + after so block elements don't merge with surrounding text
-  quill.clipboard.dangerouslyPasteHTML(range.index, '<p><br></p>' + html + '<p><br></p>', 'user');
-  // Cursor position after the inserted block
-  quill.setSelection(range.index + 2, 0, 'user');
+  // insertEmbed routes through the BlockEmbed, so inline styles survive both
+  // editor-render and the save round-trip.
+  quill.insertEmbed(range.index, 'emailBlock', html, 'user');
+  quill.setSelection(range.index + 1, 0, 'user');
   debouncedRefreshPreview();
 }
 
@@ -612,7 +659,10 @@ function openRawHtmlEditor() {
   document.getElementById('rh-html').value = quill.root.innerHTML;
   document.getElementById('rh-apply').addEventListener('click', () => {
     const html = document.getElementById('rh-html').value;
-    quill.clipboard.dangerouslyPasteHTML(html, 'user');
+    // Replace the whole body with a single email-block embed so inline styles
+    // and custom tags are preserved verbatim through the save round-trip.
+    quill.setText('', 'silent');
+    quill.insertEmbed(0, 'emailBlock', html, 'user');
     debouncedRefreshPreview();
     close();
   });
@@ -836,6 +886,7 @@ function renderEditor() {
     </div>
     <div data-tabpane="history" style="display:none;"><div id="ea-sends">Loading…</div></div>
   `;
+  ensureEmailBlockBlotRegistered();
   quill = new Quill('#ea-quill', {
     theme: 'snow',
     placeholder: 'Compose the email body…',
@@ -851,6 +902,9 @@ function renderEditor() {
       ]
     }
   });
+  // Re-hydrate any previously-saved email-block divs as embeds so Quill
+  // treats them atomically (and so their inner HTML survives the round-trip).
+  registerEmailBlockClipboardMatcher();
   quill.clipboard.dangerouslyPasteHTML(a.html_body || '');
 
   ed.querySelectorAll('.ea-var-chip').forEach(b => b.addEventListener('click', () => {

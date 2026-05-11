@@ -518,14 +518,16 @@ const PREVIEW_SAMPLES = {
 };
 function renderTplClient(tpl, vars) {
   // Supports {{name}} and {{name|fallback}} syntax to match the server.
+  // An EXPLICITLY-EMPTY var (set to '') renders as empty string. A MISSING
+  // var (undefined / not in vars) still renders the literal {{name}} so
+  // typos remain visible in previews.
   return String(tpl || '').replace(/\{\{\s*([\w]+)\s*(?:\|\s*([^}]*?)\s*)?\}\}/g, (m, name, fallback) => {
     const v = vars[name];
-    const isEmpty = v == null || v === '';
-    if (isEmpty) {
-      if (fallback != null) return fallback;
-      if (name === 'firstNameOrBlank') return '';
-      return m;
-    }
+    const isMissing = v == null;
+    const isEmptyString = v === '';
+    if (fallback != null && (isMissing || isEmptyString)) return fallback;
+    if (isMissing) return name === 'firstNameOrBlank' ? '' : m;
+    if (isEmptyString) return '';
     if (name === 'firstNameOrBlank') return ' ' + String(v);
     return String(v);
   });

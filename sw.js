@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v52-students-extracted-js';
+const CACHE_NAME = 'ridley-v53-coach-extracted-js';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [
@@ -20,6 +20,7 @@ const PRECACHE = [
   '/loading-states.js',
   '/pwa.js',
   '/students.js',
+  '/coach.js',
 ];
 
 self.addEventListener('install', (event) => {

@@ -711,6 +711,63 @@ function openImageBuilder() {
   document.getElementById('ib-insert').addEventListener('click', () => { const o = currentOpts(); if (!o.src) { alert('Image URL is required.'); return; } insertHtmlAtCursor(_imageHtml(o)); close(); });
 }
 
+// ── Snippets ────────────────────────────────────────────────────────────────
+async function openSnippetPicker() {
+  let snippets = [];
+  try { const j = await api('?api=snippets-list'); snippets = j.rows || []; } catch (e) { alert('Failed to load snippets: ' + e.message); return; }
+  document.getElementById('blockBuilderModal')?.remove();
+  const m = document.createElement('div');
+  m.id = 'blockBuilderModal'; m.className = 'modal-bg';
+  m.innerHTML = `
+    <div class="modal-card">
+      <div class="modal-head"><h2>Snippets</h2><button class="close" data-x>×</button></div>
+      <div class="modal-body">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+          <button class="btn-primary" id="sn-save-selection">+ Save current body as snippet</button>
+        </div>
+        ${snippets.length ? '' : '<div style="color:var(--text-dim);font-size:0.86rem;padding:14px;text-align:center;">No snippets yet. Save the current body as a snippet to get started, or use a snippet from another automation.</div>'}
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          ${snippets.map(s => `
+            <div class="picker-list" style="padding:0;border-radius:9px;">
+              <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;">
+                <div style="flex:1;">
+                  <div style="font-weight:700;">${escapeHtml(s.name)}</div>
+                  <div style="font-size:0.72rem;color:var(--text-dim);">${escapeHtml(s.description || '')}</div>
+                </div>
+                <button class="btn-ghost" data-insert-snippet-id="${s.id}">Insert</button>
+                <button class="btn-danger" data-delete-snippet-id="${s.id}" title="Delete snippet">×</button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+      <div class="modal-foot"><button class="btn-ghost" data-x>Close</button></div>
+    </div>`;
+  document.body.appendChild(m);
+  const close = () => m.remove();
+  m.addEventListener('click', e => { if (e.target === m || e.target.matches('[data-x]')) close(); });
+  m.querySelectorAll('[data-insert-snippet-id]').forEach(b => b.addEventListener('click', () => {
+    const id = Number(b.dataset.insertSnippetId);
+    const s = snippets.find(x => x.id === id);
+    if (s) { insertHtmlAtCursor(s.html); close(); }
+  }));
+  m.querySelectorAll('[data-delete-snippet-id]').forEach(b => b.addEventListener('click', async () => {
+    if (!confirm('Delete this snippet?')) return;
+    try { await api('?api=snippets-delete&id=' + b.dataset.deleteSnippetId, { method: 'POST' }); close(); openSnippetPicker(); }
+    catch (e) { alert('Delete failed: ' + e.message); }
+  }));
+  document.getElementById('sn-save-selection').addEventListener('click', async () => {
+    const name = prompt('Name this snippet (e.g. "Carlos signature", "CTA: Book session"):');
+    if (!name) return;
+    const html = quill.root.innerHTML;
+    try {
+      await api('?api=snippets-create', { method: 'POST', body: { name, html } });
+      close();
+      openSnippetPicker();
+    } catch (e) { alert('Save failed: ' + e.message); }
+  });
+}
+
 function openRawHtmlEditor() {
   document.getElementById('blockBuilderModal')?.remove();
   const m = document.createElement('div');
@@ -1289,6 +1346,14 @@ function renderEditor() {
             <label>To email(s)</label>
             <input id="ea-recipient-email" type="text" value="${escapeHtml(a.recipient_email||'')}" placeholder="address@example.com (comma-separated for multiple)">
           </div>
+          <div class="ea-editor-row">
+            <label title='Custom "From" name in the recipient\\'s inbox. Leave blank to use the default ("Ridley Academy Mentorship").'>From name</label>
+            <input id="ea-from-name" type="text" value="${escapeHtml(a.from_name||'')}" placeholder='e.g. "Carlos at Ridley Academy" — leave blank for default'>
+          </div>
+          <div class="ea-editor-row">
+            <label title="If a recipient hits Reply, where should the email go? Leave blank to use the default (mentorship@ridleyacademy.team).">Reply-to</label>
+            <input id="ea-reply-to" type="email" value="${escapeHtml(a.reply_to_email||'')}" placeholder="coach@ridleyacademy.team — leave blank for default">
+          </div>
           ${a.is_system ? '' : `
           <div class="ea-editor-row">
             <label title="Make this a reusable template instead of an active automation. Templates don't fire; users start new automations from them.">As template</label>
@@ -1325,6 +1390,7 @@ function renderEditor() {
               <button type="button" class="ea-block-btn" data-insert="callout"><span class="em">💡</span> Callout box</button>
               <button type="button" class="ea-block-btn" data-insert="divider"><span class="em">⎯</span> Divider</button>
               <button type="button" class="ea-block-btn" data-insert="image"><span class="em">🖼</span> Image</button>
+              <button type="button" class="ea-block-btn" data-insert="snippet" title="Insert a saved snippet (signature, CTA, etc.)"><span class="em">📋</span> Snippet</button>
               <button type="button" class="ea-block-btn" data-insert="rawhtml" title="Switch to raw HTML edit for fine control"><span class="em">⟨/⟩</span> Raw HTML</button>
             </div>
             <div id="ea-quill"></div>
@@ -1415,6 +1481,7 @@ function renderEditor() {
       if (kind === 'callout')  openCalloutBuilder();
       if (kind === 'divider')  insertHtmlAtCursor('<hr style="border:none;border-top:1px solid #eee;margin:24px 0;">');
       if (kind === 'image')    openImageBuilder();
+      if (kind === 'snippet')  openSnippetPicker();
       if (kind === 'rawhtml')  openRawHtmlEditor();
     });
   });
@@ -1483,6 +1550,8 @@ async function saveAutomation() {
       delay_minutes: _readDelayMinutes(),
       recipient_kind: document.getElementById('ea-recipient-kind')?.value || 'default',
       recipient_email: document.getElementById('ea-recipient-email')?.value?.trim() || null,
+      from_name: document.getElementById('ea-from-name')?.value?.trim() || null,
+      reply_to_email: document.getElementById('ea-reply-to')?.value?.trim() || null,
       html_body,
       text_body: document.getElementById('ea-text').value,
       enabled: document.getElementById('ea-enabled').checked,
@@ -1721,18 +1790,36 @@ async function loadSends() {
   const wrap = document.getElementById('ea-sends');
   wrap.textContent = 'Loading…';
   try {
-    const j = await api('?api=sends&id=' + currentAutomation.id);
-    if (!j.rows.length) { wrap.innerHTML = '<div style="color:var(--text-dim);padding:16px;">No sends yet.</div>'; return; }
-    wrap.innerHTML = j.rows.map(s =>
-      `<div class="send-row">
+    const [sendsRes, statsRes] = await Promise.all([
+      api('?api=sends&id=' + currentAutomation.id),
+      api('?api=stats&id=' + currentAutomation.id),
+    ]);
+    const stats = statsRes || {};
+    const rows = sendsRes.rows || [];
+    const statsBar = `
+      <div style="display:flex;gap:8px;flex-wrap:wrap;padding:12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;margin-bottom:12px;">
+        <span class="pill pill-on">${stats.sent || 0} sent</span>
+        <span class="pill pill-system">${stats.opened || 0} opened${stats.sent ? ' (' + stats.open_rate + '%)' : ''}</span>
+        <span class="pill pill-manual">${stats.clicked || 0} clicked${stats.sent ? ' (' + stats.click_rate + '%)' : ''}</span>
+        ${stats.bounced ? `<span class="pill pill-off">${stats.bounced} bounced</span>` : ''}
+        ${stats.complained ? `<span class="pill pill-off" style="background:rgba(244,114,182,0.18);color:#f472b6;">${stats.complained} complaints</span>` : ''}
+        ${stats.failed ? `<span class="pill pill-off">${stats.failed} failed</span>` : ''}
+      </div>`;
+    if (!rows.length) { wrap.innerHTML = statsBar + '<div style="color:var(--text-dim);padding:16px;">No sends yet.</div>'; return; }
+    wrap.innerHTML = statsBar + rows.map(s => {
+      const opened = s.opened_at ? `<span title="Opened ${new Date(s.opened_at).toLocaleString()}" style="color:var(--accent);font-size:0.78rem;">👁 ${s.open_count || 1}</span>` : '';
+      const clicked = s.clicked_at ? `<span title="Clicked ${new Date(s.clicked_at).toLocaleString()}" style="color:#6b9eff;font-size:0.78rem;">🖱 ${s.click_count || 1}</span>` : '';
+      const bounced = s.bounced_at ? `<span title="${escapeHtml(s.bounce_reason || 'bounced')}" style="color:var(--red);font-size:0.78rem;">⚠ bounced</span>` : '';
+      return `<div class="send-row">
         <span class="pill ${s.status === 'sent' ? 'pill-on' : 'pill-off'}" style="width:60px;text-align:center;">${s.status}</span>
         <div style="flex:1;">
           <div style="font-weight:600;">${escapeHtml(s.recipient_email)}</div>
           <div style="font-size:0.72rem;color:var(--text-dim);">${escapeHtml(s.subject || '')}${s.error ? ' · ' + escapeHtml(s.error) : ''}</div>
         </div>
+        <div style="display:flex;gap:8px;align-items:center;">${opened} ${clicked} ${bounced}</div>
         <div style="font-size:0.72rem;color:var(--text-dim);">${new Date(s.sent_at).toLocaleString()}</div>
-      </div>`
-    ).join('');
+      </div>`;
+    }).join('');
   } catch (e) { wrap.innerHTML = `<div style="color:var(--red);padding:16px;">${escapeHtml(e.message)}</div>`; }
 }
 

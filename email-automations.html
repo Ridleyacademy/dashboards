@@ -162,6 +162,24 @@
   .ea-var-chip { background: rgba(52,211,153,0.1); border: 1px solid rgba(52,211,153,0.3); color: var(--accent); border-radius: 999px; padding: 4px 10px; font-size: 0.72rem; font-weight: 700; cursor: pointer; font-family: ui-monospace, monospace; }
   .ea-var-chip:hover { background: rgba(52,211,153,0.18); }
 
+  /* Insert-block toolbar above the Quill editor */
+  .ea-block-bar { display: flex; gap: 6px; flex-wrap: wrap; padding: 8px; background: var(--surface2); border: 1px solid var(--border); border-radius: 9px 9px 0 0; border-bottom: none; }
+  .ea-block-btn { background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 7px; padding: 6px 10px; font-size: 0.78rem; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+  .ea-block-btn:hover { border-color: var(--accent); }
+  .ea-block-btn .em { font-size: 0.95rem; }
+  /* When the block-bar is attached, take the rounding off the Quill toolbar */
+  .ea-edit-pane .ql-toolbar.ql-snow { border-radius: 0; border-top: none; }
+
+  /* Color swatch row used inside builder modals */
+  .swatch-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .swatch { width: 32px; height: 32px; border-radius: 8px; border: 2px solid transparent; cursor: pointer; position: relative; }
+  .swatch.active { border-color: var(--text); box-shadow: 0 0 0 2px var(--accent); }
+  .builder-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+  .builder-field label { font-size: 0.72rem; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; }
+  .builder-field input, .builder-field select, .builder-field textarea { background: var(--surface2); border: 1px solid var(--border); border-radius: 9px; padding: 10px 14px; color: var(--text); font: inherit; font-size: 0.92rem; }
+  .builder-field textarea { min-height: 72px; resize: vertical; }
+  .builder-preview { padding: 16px; background: #fff; border: 1px dashed var(--border); border-radius: 9px; margin-top: 4px; color: #1a1a2e; }
+
   .ea-actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
 
   /* Edit / preview split */
@@ -341,6 +359,265 @@ async function boot() {
   await Promise.all([loadAutomations(), loadAvailableEvents()]);
 }
 
+// ── Email building blocks ───────────────────────────────────────────────────
+// All "insert X" actions build a chunk of inline-styled HTML and paste it at
+// the Quill cursor. Quill's clipboard preserves the inline styles in the
+// underlying html_body that we save, so the resulting email matches the
+// preview iframe exactly.
+function insertHtmlAtCursor(html) {
+  if (!quill) return;
+  const range = quill.getSelection(true) || { index: quill.getLength(), length: 0 };
+  // Newline before + after so block elements don't merge with surrounding text
+  quill.clipboard.dangerouslyPasteHTML(range.index, '<p><br></p>' + html + '<p><br></p>', 'user');
+  // Cursor position after the inserted block
+  quill.setSelection(range.index + 2, 0, 'user');
+  debouncedRefreshPreview();
+}
+
+function _variableChipsHtml(targetInputId) {
+  const vars = (currentAutomation?.variables_available || []);
+  if (!vars.length) return '<em style="color:var(--text-dim);font-size:0.78rem;">No variables for this trigger.</em>';
+  return vars.map(v => `<button class="ea-var-chip" type="button" data-insert-into="${targetInputId}" data-var="${v}">{{${v}}}</button>`).join(' ');
+}
+function _wireVariableChips(modalEl) {
+  modalEl.querySelectorAll('[data-insert-into]').forEach(chip => chip.addEventListener('click', () => {
+    const input = document.getElementById(chip.dataset.insertInto);
+    if (!input) return;
+    const v = '{{' + chip.dataset.var + '}}';
+    const start = input.selectionStart ?? input.value.length;
+    const end   = input.selectionEnd   ?? input.value.length;
+    input.value = input.value.slice(0, start) + v + input.value.slice(end);
+    input.selectionStart = input.selectionEnd = start + v.length;
+    input.focus();
+  }));
+}
+
+const BUTTON_COLORS = [
+  { name: 'Brand red',  bg: '#DC2626', fg: '#ffffff' },
+  { name: 'Black',      bg: '#1a1a2e', fg: '#ffffff' },
+  { name: 'Emerald',    bg: '#10b981', fg: '#ffffff' },
+  { name: 'Blue',       bg: '#2563eb', fg: '#ffffff' },
+  { name: 'Purple',     bg: '#7c3aed', fg: '#ffffff' },
+  { name: 'Gold',       bg: '#f59e0b', fg: '#1a1a2e' },
+  { name: 'Outline',    bg: '#ffffff', fg: '#DC2626', border: '#DC2626' },
+];
+function _buttonHtml(opts) {
+  const bg = opts.bg || '#DC2626';
+  const fg = opts.fg || '#ffffff';
+  const border = opts.border ? `border:2px solid ${opts.border};` : '';
+  const pad = opts.size === 'large' ? '14px 28px' : opts.size === 'small' ? '8px 16px' : '11px 22px';
+  const fontSize = opts.size === 'large' ? '1rem' : opts.size === 'small' ? '0.82rem' : '0.92rem';
+  const align = opts.align || 'center';
+  const label = (opts.label || 'Click here').replace(/[<>]/g, '');
+  const href = opts.href || '#';
+  return `<div style="text-align:${align};margin:18px 0;"><a href="${href}" style="display:inline-block;background:${bg};color:${fg};text-decoration:none;font-weight:700;padding:${pad};border-radius:8px;font-size:${fontSize};${border}">${label}</a></div>`;
+}
+function openButtonBuilder() {
+  document.getElementById('blockBuilderModal')?.remove();
+  const m = document.createElement('div');
+  m.id = 'blockBuilderModal'; m.className = 'modal-bg';
+  m.innerHTML = `
+    <div class="modal-card">
+      <div class="modal-head"><h2>Insert button</h2><button class="close" data-x>×</button></div>
+      <div class="modal-body">
+        <div class="builder-field">
+          <label>Button label</label>
+          <input id="bb-label" type="text" placeholder="Click here, Get started, Open dashboard…" value="Click here">
+        </div>
+        <div class="builder-field">
+          <label>Link (URL or variable)</label>
+          <input id="bb-href" type="text" placeholder="https://… or click a variable below">
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;">${_variableChipsHtml('bb-href')}</div>
+          <div style="font-size:0.72rem;color:var(--text-dim);margin-top:4px;">Pick a variable so each recipient gets their own link (e.g. <code>{{joinUrl}}</code>, <code>{{activateUrl}}</code>, <code>{{dashboardLink}}</code>).</div>
+        </div>
+        <div class="builder-field">
+          <label>Color</label>
+          <div class="swatch-row" id="bb-swatches">
+            ${BUTTON_COLORS.map((c,i) => `<button type="button" class="swatch ${i===0?'active':''}" data-i="${i}" style="background:${c.bg};${c.border?'border-color:'+c.border:''}" title="${c.name}"></button>`).join('')}
+          </div>
+        </div>
+        <div class="builder-field" style="flex-direction:row;gap:12px;align-items:center;">
+          <div style="flex:1;"><label>Size</label>
+            <select id="bb-size"><option value="medium" selected>Medium</option><option value="large">Large</option><option value="small">Small</option></select>
+          </div>
+          <div style="flex:1;"><label>Alignment</label>
+            <select id="bb-align"><option value="center" selected>Center</option><option value="left">Left</option><option value="right">Right</option></select>
+          </div>
+        </div>
+        <div style="font-size:0.72rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px;">Preview</div>
+        <div class="builder-preview" id="bb-preview"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn-ghost" data-x>Cancel</button>
+        <button class="btn-primary" id="bb-insert">Insert button</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  const close = () => m.remove();
+  m.addEventListener('click', e => { if (e.target === m || e.target.matches('[data-x]')) close(); });
+  _wireVariableChips(m);
+
+  let colorIdx = 0;
+  m.querySelectorAll('#bb-swatches .swatch').forEach(s => s.addEventListener('click', () => {
+    colorIdx = Number(s.dataset.i);
+    m.querySelectorAll('#bb-swatches .swatch').forEach(x => x.classList.toggle('active', Number(x.dataset.i) === colorIdx));
+    renderPreview();
+  }));
+  function currentOpts() {
+    const c = BUTTON_COLORS[colorIdx];
+    return {
+      label: document.getElementById('bb-label').value,
+      href:  document.getElementById('bb-href').value || '#',
+      bg: c.bg, fg: c.fg, border: c.border,
+      size:  document.getElementById('bb-size').value,
+      align: document.getElementById('bb-align').value,
+    };
+  }
+  function renderPreview() { document.getElementById('bb-preview').innerHTML = _buttonHtml(currentOpts()); }
+  m.querySelectorAll('input, select').forEach(el => el.addEventListener('input', renderPreview));
+  renderPreview();
+  document.getElementById('bb-insert').addEventListener('click', () => {
+    const opts = currentOpts();
+    if (!opts.href || opts.href === '#') { alert('Pick a link or variable for this button.'); return; }
+    insertHtmlAtCursor(_buttonHtml(opts));
+    close();
+  });
+}
+
+const CALLOUT_THEMES = [
+  { name: 'Brand red',  bg: '#fef2f2', border: '#fecaca', color: '#DC2626' },
+  { name: 'Emerald',    bg: '#f0fdf4', border: '#bbf7d0', color: '#16a34a' },
+  { name: 'Blue',       bg: '#eff6ff', border: '#bfdbfe', color: '#2563eb' },
+  { name: 'Amber',      bg: '#fffbeb', border: '#fde68a', color: '#b45309' },
+  { name: 'Gray',       bg: '#f5f6fc', border: '#dde1f2', color: '#525b82' },
+];
+function _calloutHtml(opts) {
+  const t = CALLOUT_THEMES[opts.themeIdx || 0];
+  const title = (opts.title || '').replace(/[<>]/g, '');
+  return `<div style="background:${t.bg};border:1px solid ${t.border};border-radius:10px;padding:14px 18px;margin:18px 0;">
+${title ? `<div style="font-size:0.78rem;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:${t.color};margin-bottom:6px;">${title}</div>` : ''}
+<div style="font-size:0.92rem;line-height:1.55;color:#1a1a2e;">${opts.body || ''}</div>
+</div>`;
+}
+function openCalloutBuilder() {
+  document.getElementById('blockBuilderModal')?.remove();
+  const m = document.createElement('div');
+  m.id = 'blockBuilderModal'; m.className = 'modal-bg';
+  m.innerHTML = `
+    <div class="modal-card">
+      <div class="modal-head"><h2>Insert callout box</h2><button class="close" data-x>×</button></div>
+      <div class="modal-body">
+        <div class="builder-field">
+          <label>Title (optional)</label>
+          <input id="cb-title" type="text" placeholder="DATE & TIME, WHAT'S NEXT, IMPORTANT…">
+        </div>
+        <div class="builder-field">
+          <label>Body</label>
+          <textarea id="cb-body" placeholder="The text that goes inside the box. You can use {{variables}} here.">Your message goes here.</textarea>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;">${_variableChipsHtml('cb-body')}</div>
+        </div>
+        <div class="builder-field">
+          <label>Color theme</label>
+          <div class="swatch-row" id="cb-swatches">
+            ${CALLOUT_THEMES.map((c,i) => `<button type="button" class="swatch ${i===0?'active':''}" data-i="${i}" style="background:${c.bg};border-color:${c.border};" title="${c.name}"></button>`).join('')}
+          </div>
+        </div>
+        <div style="font-size:0.72rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px;">Preview</div>
+        <div class="builder-preview" id="cb-preview"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn-ghost" data-x>Cancel</button>
+        <button class="btn-primary" id="cb-insert">Insert callout</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  const close = () => m.remove();
+  m.addEventListener('click', e => { if (e.target === m || e.target.matches('[data-x]')) close(); });
+  _wireVariableChips(m);
+
+  let themeIdx = 0;
+  m.querySelectorAll('#cb-swatches .swatch').forEach(s => s.addEventListener('click', () => {
+    themeIdx = Number(s.dataset.i);
+    m.querySelectorAll('#cb-swatches .swatch').forEach(x => x.classList.toggle('active', Number(x.dataset.i) === themeIdx));
+    renderPreview();
+  }));
+  function currentOpts() {
+    return { title: document.getElementById('cb-title').value, body: document.getElementById('cb-body').value, themeIdx };
+  }
+  function renderPreview() { document.getElementById('cb-preview').innerHTML = _calloutHtml(currentOpts()); }
+  m.querySelectorAll('input, textarea').forEach(el => el.addEventListener('input', renderPreview));
+  renderPreview();
+  document.getElementById('cb-insert').addEventListener('click', () => { insertHtmlAtCursor(_calloutHtml(currentOpts())); close(); });
+}
+
+function _imageHtml(opts) {
+  const w = opts.maxWidth ? `max-width:${opts.maxWidth}px;` : 'max-width:100%;';
+  return `<div style="text-align:${opts.align || 'center'};margin:18px 0;"><img src="${opts.src}" alt="${(opts.alt||'').replace(/[<>]/g,'')}" style="${w}height:auto;border-radius:8px;border:0;"></div>`;
+}
+function openImageBuilder() {
+  document.getElementById('blockBuilderModal')?.remove();
+  const m = document.createElement('div');
+  m.id = 'blockBuilderModal'; m.className = 'modal-bg';
+  m.innerHTML = `
+    <div class="modal-card">
+      <div class="modal-head"><h2>Insert image</h2><button class="close" data-x>×</button></div>
+      <div class="modal-body">
+        <div class="builder-field"><label>Image URL</label>
+          <input id="ib-src" type="url" placeholder="https://…">
+          <div style="font-size:0.72rem;color:var(--text-dim);margin-top:4px;">Paste a public URL. Upload images to your CDN (Dropbox / S3 / cdn.accelonline.io) and paste the direct link here.</div>
+        </div>
+        <div class="builder-field"><label>Alt text (for screen-readers / when images blocked)</label>
+          <input id="ib-alt" type="text" placeholder="Practice graph">
+        </div>
+        <div class="builder-field" style="flex-direction:row;gap:12px;">
+          <div style="flex:1;"><label>Max width (px)</label><input id="ib-width" type="number" value="480" min="80" max="560"></div>
+          <div style="flex:1;"><label>Alignment</label><select id="ib-align"><option value="center" selected>Center</option><option value="left">Left</option><option value="right">Right</option></select></div>
+        </div>
+        <div style="font-size:0.72rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px;">Preview</div>
+        <div class="builder-preview" id="ib-preview"><em style="color:#999;">Paste a URL above</em></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn-ghost" data-x>Cancel</button>
+        <button class="btn-primary" id="ib-insert">Insert image</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  const close = () => m.remove();
+  m.addEventListener('click', e => { if (e.target === m || e.target.matches('[data-x]')) close(); });
+  function currentOpts() { return { src: document.getElementById('ib-src').value.trim(), alt: document.getElementById('ib-alt').value, maxWidth: document.getElementById('ib-width').value, align: document.getElementById('ib-align').value }; }
+  function renderPreview() { const o = currentOpts(); document.getElementById('ib-preview').innerHTML = o.src ? _imageHtml(o) : '<em style="color:#999;">Paste a URL above</em>'; }
+  m.querySelectorAll('input, select').forEach(el => el.addEventListener('input', renderPreview));
+  document.getElementById('ib-insert').addEventListener('click', () => { const o = currentOpts(); if (!o.src) { alert('Image URL is required.'); return; } insertHtmlAtCursor(_imageHtml(o)); close(); });
+}
+
+function openRawHtmlEditor() {
+  document.getElementById('blockBuilderModal')?.remove();
+  const m = document.createElement('div');
+  m.id = 'blockBuilderModal'; m.className = 'modal-bg';
+  m.innerHTML = `
+    <div class="modal-card" style="max-width:760px;">
+      <div class="modal-head"><h2>Raw HTML edit</h2><button class="close" data-x>×</button></div>
+      <div class="modal-body">
+        <div style="font-size:0.78rem;color:var(--text-dim);margin-bottom:10px;">Direct access to the HTML body. Useful for fine-grained edits the visual editor can't do (custom layouts, advanced CSS, etc.). Pasted HTML is preserved verbatim when you save.</div>
+        <textarea id="rh-html" style="width:100%;min-height:380px;background:#0d0e15;color:#cad0e8;border:1px solid var(--border);border-radius:9px;padding:14px;font-family:ui-monospace,monospace;font-size:0.84rem;line-height:1.5;"></textarea>
+      </div>
+      <div class="modal-foot">
+        <button class="btn-ghost" data-x>Cancel</button>
+        <button class="btn-primary" id="rh-apply">Apply HTML</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  const close = () => m.remove();
+  m.addEventListener('click', e => { if (e.target === m || e.target.matches('[data-x]')) close(); });
+  document.getElementById('rh-html').value = quill.root.innerHTML;
+  document.getElementById('rh-apply').addEventListener('click', () => {
+    const html = document.getElementById('rh-html').value;
+    quill.clipboard.dangerouslyPasteHTML(html, 'user');
+    debouncedRefreshPreview();
+    close();
+  });
+}
+
 // ── Live preview helpers ────────────────────────────────────────────────────
 // Sample values used to render the {{vars}} so the preview reads as a real
 // email. Keep in sync with the test-send sample on the server.
@@ -401,15 +678,29 @@ function debouncedRefreshPreview() {
 }
 
 function triggerOptionsHtml(a) {
-  // Build the <select> options for the trigger picker on a non-system row.
-  // Disable any event already used by another enabled automation (except this one).
+  // Build a grouped <select> for non-system rows. Disables events that are
+  // already in use by another enabled automation, and tags 'planned' events
+  // (catalog-only, no upstream emitter yet) so admins know what's wired.
   const isManual = a.trigger_type === 'manual';
   let opts = `<option value="manual" ${isManual ? 'selected' : ''}>Manual broadcast (you pick recipients)</option>`;
+  // Bucket events by group, preserving order from availableEvents.
+  const groups = {};
   for (const ev of availableEvents) {
-    const blocked = ev.in_use && ev.key !== a.trigger_event;
-    const label = ev.label + (blocked ? ' — already in use' : '');
-    const sel = a.trigger_event === ev.key ? 'selected' : '';
-    opts += `<option value="${escapeHtml(ev.key)}" ${sel} ${blocked ? 'disabled' : ''}>${escapeHtml(label)}</option>`;
+    const g = ev.group || 'Other';
+    (groups[g] = groups[g] || []).push(ev);
+  }
+  for (const [groupName, evs] of Object.entries(groups)) {
+    opts += `<optgroup label="${escapeHtml(groupName)}">`;
+    for (const ev of evs) {
+      const blocked = ev.in_use && ev.key !== a.trigger_event;
+      const planned = ev.status === 'planned';
+      let label = ev.label;
+      if (blocked) label += ' — already in use';
+      else if (planned) label += ' (planned — needs wiring)';
+      const sel = a.trigger_event === ev.key ? 'selected' : '';
+      opts += `<option value="${escapeHtml(ev.key)}" ${sel} ${blocked ? 'disabled' : ''}>${escapeHtml(label)}</option>`;
+    }
+    opts += '</optgroup>';
   }
   return opts;
 }
@@ -507,7 +798,17 @@ function renderEditor() {
           </div>
           <div class="ea-editor-row"><label>Recipient</label><input value="${escapeHtml(a.recipient_type)}" readonly></div>
           <div class="ea-editor-row"><label>Subject</label><input id="ea-subject" value="${escapeHtml(a.subject)}"></div>
-          <div style="margin-top:14px;"><label style="font-size:0.72rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:6px;">Email body</label><div id="ea-quill"></div></div>
+          <div style="margin-top:14px;">
+            <label style="font-size:0.72rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:6px;">Email body</label>
+            <div class="ea-block-bar">
+              <button type="button" class="ea-block-btn" data-insert="button"><span class="em">🔘</span> Button</button>
+              <button type="button" class="ea-block-btn" data-insert="callout"><span class="em">💡</span> Callout box</button>
+              <button type="button" class="ea-block-btn" data-insert="divider"><span class="em">⎯</span> Divider</button>
+              <button type="button" class="ea-block-btn" data-insert="image"><span class="em">🖼</span> Image</button>
+              <button type="button" class="ea-block-btn" data-insert="rawhtml" title="Switch to raw HTML edit for fine control"><span class="em">⟨/⟩</span> Raw HTML</button>
+            </div>
+            <div id="ea-quill"></div>
+          </div>
           <div style="margin-top:14px;"><label style="font-size:0.72rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:6px;">Plain-text fallback</label><textarea id="ea-text">${escapeHtml(a.text_body || '')}</textarea></div>
           <div style="margin-top:8px;"><label style="font-size:0.72rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:6px;">Click a variable to insert it where the cursor is</label><div class="ea-vars">${vars || '<em style="color:var(--text-dim);font-size:0.78rem;">No variables defined.</em>'}</div></div>
           <div class="ea-actions">
@@ -568,6 +869,18 @@ function renderEditor() {
     ed.querySelectorAll('[data-tabpane]').forEach(p => p.style.display = p.dataset.tabpane === t.dataset.tab ? '' : 'none');
     if (t.dataset.tab === 'history') loadSends();
   }));
+
+  // ── Insert-block buttons ───────────────────────────────────────────────
+  ed.querySelectorAll('.ea-block-btn[data-insert]').forEach(b => {
+    b.addEventListener('click', () => {
+      const kind = b.dataset.insert;
+      if (kind === 'button')   openButtonBuilder();
+      if (kind === 'callout')  openCalloutBuilder();
+      if (kind === 'divider')  insertHtmlAtCursor('<hr style="border:none;border-top:1px solid #eee;margin:24px 0;">');
+      if (kind === 'image')    openImageBuilder();
+      if (kind === 'rawhtml')  openRawHtmlEditor();
+    });
+  });
 
   // ── Live preview wiring ────────────────────────────────────────────────
   quill.on('text-change', debouncedRefreshPreview);
@@ -652,11 +965,18 @@ document.getElementById('newBtn')?.addEventListener('click', openNewAutomationMo
 
 function openNewAutomationModal() {
   document.getElementById('newAutoModal')?.remove();
-  // Available options: Manual + every event NOT already in use.
-  const eventOpts = availableEvents
-    .filter(e => !e.in_use)
-    .map(e => `<option value="${escapeHtml(e.key)}">${escapeHtml(e.label)}</option>`)
-    .join('');
+  // Available options: Manual + every event NOT already in use, grouped.
+  const groups = {};
+  for (const e of availableEvents) { if (e.in_use) continue; (groups[e.group || 'Other'] = groups[e.group || 'Other'] || []).push(e); }
+  let eventOpts = '';
+  for (const [groupName, evs] of Object.entries(groups)) {
+    eventOpts += `<optgroup label="${escapeHtml(groupName)}">`;
+    for (const e of evs) {
+      const planned = e.status === 'planned' ? ' (planned — needs wiring)' : '';
+      eventOpts += `<option value="${escapeHtml(e.key)}">${escapeHtml(e.label + planned)}</option>`;
+    }
+    eventOpts += '</optgroup>';
+  }
   const m = document.createElement('div');
   m.id = 'newAutoModal'; m.className = 'modal-bg';
   m.innerHTML = `

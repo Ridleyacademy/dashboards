@@ -1359,12 +1359,15 @@ function renderEditor() {
             <input id="ea-recipient-email" type="text" value="${escapeHtml(a.recipient_email||'')}" placeholder="address@example.com (comma-separated for multiple)">
           </div>
           <div class="ea-editor-row">
-            <label title='Custom "From" name in the recipient\\'s inbox. Leave blank to use the default ("Ridley Academy Mentorship").'>From name</label>
-            <input id="ea-from-name" type="text" value="${escapeHtml(a.from_name||'')}" placeholder='e.g. "Carlos at Ridley Academy" — leave blank for default'>
+            <label title='Custom "From" name in the recipient\\'s inbox. Variables work — type {{ for autocomplete, or click a chip below. Leave blank for the default ("Ridley Academy Mentorship").'>From name</label>
+            <input id="ea-from-name" type="text" value="${escapeHtml(a.from_name||'')}" placeholder='e.g. {{coachFirstName|Ridley Academy Mentorship}}'>
           </div>
           <div class="ea-editor-row">
-            <label title="If a recipient hits Reply, where should the email go? Leave blank to use the default (mentorship@ridleyacademy.team).">Reply-to</label>
-            <input id="ea-reply-to" type="email" value="${escapeHtml(a.reply_to_email||'')}" placeholder="coach@ridleyacademy.team — leave blank for default">
+            <label title="If a recipient hits Reply, where should the email go? Variables work — e.g. {{coachEmail}} routes replies to that student's coach.">Reply-to</label>
+            <input id="ea-reply-to" type="text" value="${escapeHtml(a.reply_to_email||'')}" placeholder="e.g. {{coachEmail|mentorship@ridleyacademy.team}}">
+          </div>
+          <div style="font-size:0.72rem;color:var(--text-dim);margin:-6px 0 6px;padding-left:100px;">
+            💡 Both fields accept <code>{{variables}}</code> rendered per recipient. Try <code>{{coachEmail}}</code> in Reply-to so replies go to each student's coach.
           </div>
           ${a.is_system ? '' : `
           <div class="ea-editor-row">
@@ -1465,15 +1468,21 @@ function renderEditor() {
   wireVariablePanel(ed);
 
   // Focus tracker — chips insert into whichever field was last focused
-  const subjectEl = document.getElementById('ea-subject');
+  const subjectEl   = document.getElementById('ea-subject');
   const preheaderEl = document.getElementById('ea-preheader');
-  subjectEl?.addEventListener('focus', () => _lastFocusedField = 'ea-subject');
+  const fromNameEl  = document.getElementById('ea-from-name');
+  const replyToEl   = document.getElementById('ea-reply-to');
+  subjectEl?.addEventListener('focus',   () => _lastFocusedField = 'ea-subject');
   preheaderEl?.addEventListener('focus', () => _lastFocusedField = 'ea-preheader');
+  fromNameEl?.addEventListener('focus',  () => _lastFocusedField = 'ea-from-name');
+  replyToEl?.addEventListener('focus',   () => _lastFocusedField = 'ea-reply-to');
   quill.on('selection-change', (range) => { if (range) _lastFocusedField = 'quill'; });
 
-  // Autocomplete on {{ in subject + preheader
-  if (subjectEl) attachAutocomplete(subjectEl, () => currentAutomation?.variables_available || []);
+  // Autocomplete on {{ in subject + preheader + from-name + reply-to
+  if (subjectEl)   attachAutocomplete(subjectEl,   () => currentAutomation?.variables_available || []);
   if (preheaderEl) attachAutocomplete(preheaderEl, () => currentAutomation?.variables_available || []);
+  if (fromNameEl)  attachAutocomplete(fromNameEl,  () => currentAutomation?.variables_available || []);
+  if (replyToEl)   attachAutocomplete(replyToEl,   () => currentAutomation?.variables_available || []);
   document.getElementById('ea-save').addEventListener('click', saveAutomation);
   document.getElementById('ea-test').addEventListener('click', sendTest);
   document.getElementById('ea-duplicate').addEventListener('click', duplicateAutomation);

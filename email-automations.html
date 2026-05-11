@@ -696,9 +696,17 @@ const PREVIEW_SAMPLES = {
   dashboardLink: 'https://ridleyacademy.team/students.html?student=1',
 };
 function renderTplClient(tpl, vars) {
-  return String(tpl || '').replace(/\{\{\s*([\w]+)\s*\}\}/g, (m, name) => {
-    if (name === 'firstNameOrBlank') return vars[name] != null ? String(vars[name]) : '';
-    return vars[name] != null ? String(vars[name]) : m;
+  // Supports {{name}} and {{name|fallback}} syntax to match the server.
+  return String(tpl || '').replace(/\{\{\s*([\w]+)\s*(?:\|\s*([^}]*?)\s*)?\}\}/g, (m, name, fallback) => {
+    const v = vars[name];
+    const isEmpty = v == null || v === '';
+    if (isEmpty) {
+      if (fallback != null) return fallback;
+      if (name === 'firstNameOrBlank') return '';
+      return m;
+    }
+    if (name === 'firstNameOrBlank') return ' ' + String(v);
+    return String(v);
   });
 }
 const PREVIEW_SHELL = (innerHtml) => `<!doctype html><html><body style="margin:0;padding:0;background:#f4f4f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1a1a2e;">
@@ -712,12 +720,15 @@ const PREVIEW_SHELL = (innerHtml) => `<!doctype html><html><body style="margin:0
 </div></body></html>`;
 function refreshPreview() {
   const subjectEl = document.getElementById('ea-subject');
+  const preheaderEl = document.getElementById('ea-preheader');
   const subjectText = document.getElementById('prev-subject-text');
   const frame = document.getElementById('prev-frame');
   if (!subjectEl || !frame) return;
   const vars = { ...PREVIEW_SAMPLES };
-  // Allow per-template variable overrides via currentAutomation.variables_available — already covered by PREVIEW_SAMPLES keys.
-  subjectText.textContent = renderTplClient(subjectEl.value || '(no subject)', vars);
+  const subj = renderTplClient(subjectEl.value || '(no subject)', vars);
+  const preh = renderTplClient(preheaderEl?.value || '', vars);
+  // Inbox shows: "Subject — preheader" (gray, lighter). Mimic that.
+  subjectText.innerHTML = `${escapeHtml(subj)}${preh ? ` <span style="color:var(--text-dim);">— ${escapeHtml(preh)}</span>` : ''}`;
   const innerHtml = renderTplClient(quill?.root?.innerHTML || '', vars);
   frame.srcdoc = PREVIEW_SHELL(innerHtml);
 }
@@ -848,6 +859,27 @@ function renderEditor() {
           </div>
           <div class="ea-editor-row"><label>Recipient</label><input value="${escapeHtml(a.recipient_type)}" readonly></div>
           <div class="ea-editor-row"><label>Subject</label><input id="ea-subject" value="${escapeHtml(a.subject)}"></div>
+          <div class="ea-editor-row">
+            <label title="The hidden preview text shown in inbox under the subject. Email apps show ~60–90 chars.">Preheader</label>
+            <input id="ea-preheader" value="${escapeHtml(a.preheader || '')}" placeholder="Inbox preview text (60–90 chars)" maxlength="200">
+          </div>
+          <div class="ea-editor-row">
+            <label title="How long to wait after the trigger fires before sending.">Send delay</label>
+            <select id="ea-delay" style="flex:1;">
+              <option value="0" ${(a.delay_minutes||0)===0?'selected':''}>Send immediately</option>
+              <option value="15" ${a.delay_minutes===15?'selected':''}>15 minutes after</option>
+              <option value="60" ${a.delay_minutes===60?'selected':''}>1 hour after</option>
+              <option value="240" ${a.delay_minutes===240?'selected':''}>4 hours after</option>
+              <option value="1440" ${a.delay_minutes===1440?'selected':''}>1 day after</option>
+              <option value="2880" ${a.delay_minutes===2880?'selected':''}>2 days after</option>
+              <option value="4320" ${a.delay_minutes===4320?'selected':''}>3 days after</option>
+              <option value="10080" ${a.delay_minutes===10080?'selected':''}>1 week after</option>
+              <option value="20160" ${a.delay_minutes===20160?'selected':''}>2 weeks after</option>
+              <option value="43200" ${a.delay_minutes===43200?'selected':''}>30 days after</option>
+              <option value="custom" ${(a.delay_minutes>0 && ![15,60,240,1440,2880,4320,10080,20160,43200].includes(a.delay_minutes))?'selected':''}>Custom…</option>
+            </select>
+            <input id="ea-delay-custom" type="number" min="1" max="43200" placeholder="minutes" style="flex:0 0 110px;display:${(a.delay_minutes>0 && ![15,60,240,1440,2880,4320,10080,20160,43200].includes(a.delay_minutes))?'block':'none'};" value="${(a.delay_minutes>0 && ![15,60,240,1440,2880,4320,10080,20160,43200].includes(a.delay_minutes))?a.delay_minutes:''}">
+          </div>
           <div style="margin-top:14px;">
             <label style="font-size:0.72rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:6px;">Email body</label>
             <div class="ea-block-bar">
@@ -860,7 +892,13 @@ function renderEditor() {
             <div id="ea-quill"></div>
           </div>
           <div style="margin-top:14px;"><label style="font-size:0.72rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:6px;">Plain-text fallback</label><textarea id="ea-text">${escapeHtml(a.text_body || '')}</textarea></div>
-          <div style="margin-top:8px;"><label style="font-size:0.72rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:6px;">Click a variable to insert it where the cursor is</label><div class="ea-vars">${vars || '<em style="color:var(--text-dim);font-size:0.78rem;">No variables defined.</em>'}</div></div>
+          <div style="margin-top:8px;">
+            <label style="font-size:0.72rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:6px;">Click a variable to insert it where the cursor is</label>
+            <div class="ea-vars">${vars || '<em style="color:var(--text-dim);font-size:0.78rem;">No variables defined.</em>'}</div>
+            <div style="font-size:0.72rem;color:var(--text-dim);margin-top:8px;line-height:1.5;">
+              <strong>Pro tip:</strong> use <code style="background:var(--surface2);padding:1px 5px;border-radius:4px;">{{firstName|there}}</code> to fall back to "there" when the student has no first name on file. Works on any variable.
+            </div>
+          </div>
           <div class="ea-actions">
             <button class="btn-primary" id="ea-save">Save</button>
             <button class="btn-ghost" id="ea-test">Send test to me</button>
@@ -936,9 +974,16 @@ function renderEditor() {
     });
   });
 
+  // ── Custom-delay toggle ────────────────────────────────────────────────
+  document.getElementById('ea-delay')?.addEventListener('change', () => {
+    const sel = document.getElementById('ea-delay');
+    document.getElementById('ea-delay-custom').style.display = sel.value === 'custom' ? 'block' : 'none';
+  });
+
   // ── Live preview wiring ────────────────────────────────────────────────
   quill.on('text-change', debouncedRefreshPreview);
   document.getElementById('ea-subject')?.addEventListener('input', debouncedRefreshPreview);
+  document.getElementById('ea-preheader')?.addEventListener('input', debouncedRefreshPreview);
   document.getElementById('prev-desktop')?.addEventListener('click', () => {
     document.getElementById('prev-frame').classList.remove('mobile-w');
     document.getElementById('prev-desktop').classList.add('active');
@@ -953,6 +998,15 @@ function renderEditor() {
   setTimeout(refreshPreview, 50);
 }
 
+function _readDelayMinutes() {
+  const sel = document.getElementById('ea-delay');
+  if (!sel) return 0;
+  if (sel.value === 'custom') {
+    return Math.max(0, Number(document.getElementById('ea-delay-custom').value) || 0);
+  }
+  return Math.max(0, Number(sel.value) || 0);
+}
+
 async function saveAutomation() {
   const msg = document.getElementById('ea-msg');
   msg.className = 'ea-msg'; msg.textContent = 'Saving…';
@@ -961,6 +1015,8 @@ async function saveAutomation() {
     const body = {
       name: document.getElementById('ea-name').value.trim(),
       subject: document.getElementById('ea-subject').value.trim(),
+      preheader: document.getElementById('ea-preheader').value.trim(),
+      delay_minutes: _readDelayMinutes(),
       html_body,
       text_body: document.getElementById('ea-text').value,
       enabled: document.getElementById('ea-enabled').checked,

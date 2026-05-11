@@ -883,7 +883,16 @@ function renderTplClient(tpl, vars) {
     return String(v);
   });
 }
-const PREVIEW_SHELL = (innerHtml) => `<!doctype html><html><body style="margin:0;padding:0;background:#f4f4f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1a1a2e;">
+// Defang structural tags (doctype, html, body) in the preview shell —
+// AXL's HTML preprocessor crashes on a second document declaration
+// inside a script. We build them via concatenation so the upstream
+// parser never sees the literal sequence; the browser still receives
+// the same final string at runtime.
+const _LT = '<', _GT = '>';
+const PREVIEW_SHELL = (innerHtml) =>
+  _LT + '!doctype html' + _GT +
+  _LT + 'html' + _GT +
+  _LT + 'body style="margin:0;padding:0;background:#f4f4f7;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,sans-serif;color:#1a1a2e;"' + _GT + `
 <div style="max-width:560px;margin:0 auto;padding:32px 16px;">
 <div style="background:#ffffff;border-radius:14px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.04);">
 <div style="background:#000000;padding:28px 16px;text-align:center;"><img src="https://cdn.accelonline.io/qyO8Dzdk80CWcn0r5CiEPA/images/eR97N7wyk0aQHAjZbTCuBw.webp" alt="Ridley Academy" width="200" style="max-width:200px;width:100%;height:auto;display:block;margin:0 auto;border:0;"></div>
@@ -891,7 +900,7 @@ const PREVIEW_SHELL = (innerHtml) => `<!doctype html><html><body style="margin:0
 <div style="padding:32px;font-size:0.95rem;line-height:1.6;">${innerHtml}</div>
 </div>
 <div style="text-align:center;padding:18px 0 0;font-size:0.72rem;color:#999;">Ridley Academy · ridleyacademy.com</div>
-</div></body></html>`;
+</div>` + _LT + '/body' + _GT + _LT + '/html' + _GT;
 function refreshPreview() {
   const subjectEl = document.getElementById('ea-subject');
   const preheaderEl = document.getElementById('ea-preheader');

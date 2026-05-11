@@ -331,7 +331,13 @@
 
     <div class="ea-layout">
       <div class="ea-list-card">
-        <div class="ea-list-head"><h2>All automations</h2><span id="eaCount" style="font-size:0.74rem;color:var(--text-dim);">—</span></div>
+        <div class="ea-list-head">
+          <div style="display:flex;gap:4px;">
+            <button class="tbtn tbtn-ghost" id="tabAutomations" style="padding:6px 12px;">Automations</button>
+            <button class="tbtn tbtn-ghost" id="tabTemplates" style="padding:6px 12px;">Templates</button>
+          </div>
+          <span id="eaCount" style="font-size:0.74rem;color:var(--text-dim);">—</span>
+        </div>
         <div class="ea-list" id="eaList"></div>
       </div>
       <div class="ea-editor-card">
@@ -355,6 +361,9 @@ let currentAutomation = null;
 let quill = null;
 let allStudents = [];
 let availableEvents = []; // {key,label,recipient,vars,in_use}
+let listView = 'automations'; // or 'templates'
+let recipientKinds = []; // [{value,label}]
+let availableTemplates = []; // [{id,name,description}]
 
 function setState(s) { document.body.dataset.state = s; const lg = document.getElementById('login'); if (lg) lg.style.display = s === 'login' ? '' : 'none'; }
 function syncThemeBtn() { const b = document.getElementById('themeBtn'); if (b) b.textContent = document.body.classList.contains('light') ? '🌙' : '☀️'; }
@@ -407,7 +416,37 @@ async function boot() {
   document.getElementById('userEmail').textContent = session.user.email || '';
   document.getElementById('userAvatar').textContent = (session.user.email || 'A').slice(0, 1).toUpperCase();
   setState('dashboard');
-  await Promise.all([loadAutomations(), loadAvailableEvents()]);
+  await Promise.all([loadAutomations(), loadAvailableEvents(), loadRecipientKinds(), loadAvailableTemplates()]);
+  // Wire tabs
+  document.getElementById('tabAutomations')?.addEventListener('click', () => switchListView('automations'));
+  document.getElementById('tabTemplates')?.addEventListener('click', () => switchListView('templates'));
+  syncTabStyles();
+}
+async function loadRecipientKinds() {
+  try { const j = await api('?api=recipient-kinds'); recipientKinds = j.kinds || []; }
+  catch (e) { console.warn('recipient-kinds failed', e); recipientKinds = []; }
+}
+async function loadAvailableTemplates() {
+  try { const j = await api('?api=templates-list'); availableTemplates = j.templates || []; }
+  catch (e) { console.warn('templates-list failed', e); availableTemplates = []; }
+}
+function switchListView(view) {
+  listView = view;
+  currentAutomation = null;
+  syncTabStyles();
+  renderEditor();
+  loadAutomations();
+}
+function syncTabStyles() {
+  const a = document.getElementById('tabAutomations');
+  const t = document.getElementById('tabTemplates');
+  if (!a || !t) return;
+  const active = 'padding:6px 12px;background:var(--accent);color:#06231a;border-color:var(--accent);';
+  const inactive = 'padding:6px 12px;';
+  a.style.cssText = listView === 'automations' ? active : inactive;
+  t.style.cssText = listView === 'templates' ? active : inactive;
+  const newBtn = document.getElementById('newBtn');
+  if (newBtn) newBtn.textContent = listView === 'templates' ? '+ New template' : '+ New automation';
 }
 
 // ── Email building blocks ───────────────────────────────────────────────────
@@ -1126,11 +1165,10 @@ async function loadAutomations() {
   const list = document.getElementById('eaList');
   list.innerHTML = '<div style="color:var(--text-dim);padding:16px;font-size:0.84rem;">Loading…</div>';
   try {
-    const j = await api('?api=list');
+    const j = await api('?api=list&kind=' + (listView === 'templates' ? 'templates' : 'automations'));
     automations = j.rows || [];
-    console.log('[email-automations] loaded', automations.length, 'rows:', automations);
     if (!automations.length) {
-      list.innerHTML = '<div style="color:var(--text-dim);padding:16px;font-size:0.84rem;">No automations found yet. Click <strong>+ New automation</strong> to make one.</div>';
+      list.innerHTML = `<div style="color:var(--text-dim);padding:16px;font-size:0.84rem;">No ${listView === 'templates' ? 'templates' : 'automations'} yet. Click <strong>+ New ${listView === 'templates' ? 'template' : 'automation'}</strong> to make one.</div>`;
       return;
     }
     renderList();
@@ -1193,7 +1231,23 @@ function renderEditor() {
               ? `<input value="${escapeHtml(a.trigger_event || 'Manual broadcast')}" readonly title="System automation triggers can\\'t be re-targeted (you can still toggle Enabled).">`
               : `<select id="ea-trigger">${triggerOptionsHtml(a)}</select>`}
           </div>
-          <div class="ea-editor-row"><label>Recipient</label><input value="${escapeHtml(a.recipient_type)}" readonly></div>
+          <div class="ea-editor-row">
+            <label title="Who receives the email when the trigger fires.">Send to</label>
+            <select id="ea-recipient-kind" style="flex:1;">
+              ${recipientKinds.map(k => `<option value="${escapeHtml(k.value)}" ${(a.recipient_kind||'default')===k.value?'selected':''}>${escapeHtml(k.label)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="ea-editor-row" id="ea-recipient-email-row" style="display:${(a.recipient_kind==='specific_email')?'flex':'none'};">
+            <label>To email(s)</label>
+            <input id="ea-recipient-email" type="text" value="${escapeHtml(a.recipient_email||'')}" placeholder="address@example.com (comma-separated for multiple)">
+          </div>
+          ${a.is_system ? '' : `
+          <div class="ea-editor-row">
+            <label title="Make this a reusable template instead of an active automation. Templates don't fire; users start new automations from them.">As template</label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:0.84rem;color:var(--text-muted);cursor:pointer;flex:1;">
+              <input type="checkbox" id="ea-is-template" ${a.is_template ? 'checked' : ''}> Save as reusable template (no trigger, used as starter for new automations)
+            </label>
+          </div>`}
           <div class="ea-editor-row"><label>Subject</label><input id="ea-subject" value="${escapeHtml(a.subject)}"></div>
           <div class="ea-editor-row">
             <label title="The hidden preview text shown in inbox under the subject. Email apps show ~60–90 chars.">Preheader</label>
@@ -1322,6 +1376,11 @@ function renderEditor() {
     const sel = document.getElementById('ea-delay');
     document.getElementById('ea-delay-custom').style.display = sel.value === 'custom' ? 'block' : 'none';
   });
+  // Recipient-kind toggle — show specific-email input only when "specific_email" is picked
+  document.getElementById('ea-recipient-kind')?.addEventListener('change', () => {
+    const v = document.getElementById('ea-recipient-kind').value;
+    document.getElementById('ea-recipient-email-row').style.display = v === 'specific_email' ? 'flex' : 'none';
+  });
 
   // ── Live preview wiring ────────────────────────────────────────────────
   quill.on('text-change', debouncedRefreshPreview);
@@ -1360,10 +1419,15 @@ async function saveAutomation() {
       subject: document.getElementById('ea-subject').value.trim(),
       preheader: document.getElementById('ea-preheader').value.trim(),
       delay_minutes: _readDelayMinutes(),
+      recipient_kind: document.getElementById('ea-recipient-kind')?.value || 'default',
+      recipient_email: document.getElementById('ea-recipient-email')?.value?.trim() || null,
       html_body,
       text_body: document.getElementById('ea-text').value,
       enabled: document.getElementById('ea-enabled').checked,
     };
+    // Optional template toggle (non-system rows only)
+    const tpl = document.getElementById('ea-is-template');
+    if (tpl) body.is_template = tpl.checked;
     // Trigger select only exists on non-system rows.
     const trigSel = document.getElementById('ea-trigger');
     if (trigSel) {
@@ -1418,6 +1482,7 @@ document.getElementById('newBtn')?.addEventListener('click', openNewAutomationMo
 
 function openNewAutomationModal() {
   document.getElementById('newAutoModal')?.remove();
+  const isTemplateMode = listView === 'templates';
   // Available options: Manual + every event NOT already in use, grouped.
   const groups = {};
   for (const e of availableEvents) { if (e.in_use) continue; (groups[e.group || 'Other'] = groups[e.group || 'Other'] || []).push(e); }
@@ -1430,17 +1495,28 @@ function openNewAutomationModal() {
     }
     eventOpts += '</optgroup>';
   }
+  const templateOpts = (availableTemplates || []).map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
   const m = document.createElement('div');
   m.id = 'newAutoModal'; m.className = 'modal-bg';
   m.innerHTML = `
     <div class="modal-card">
-      <div class="modal-head"><h2>New email automation</h2><button class="close" data-x>×</button></div>
+      <div class="modal-head"><h2>${isTemplateMode ? 'New email template' : 'New email automation'}</h2><button class="close" data-x>×</button></div>
       <div class="modal-body">
         <div style="display:flex;flex-direction:column;gap:14px;">
           <div>
             <label style="font-size:0.74rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:6px;">Name</label>
-            <input id="na-name" placeholder="e.g. Re-engage students who paused" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:10px 14px;color:var(--text);font:inherit;font-size:0.92rem;">
+            <input id="na-name" placeholder="${isTemplateMode ? 'e.g. Friendly student check-in' : 'e.g. Re-engage students who paused'}" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:10px 14px;color:var(--text);font:inherit;font-size:0.92rem;">
           </div>
+          ${availableTemplates.length ? `
+          <div>
+            <label style="font-size:0.74rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:6px;">Start from a template (optional)</label>
+            <select id="na-template" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:10px 14px;color:var(--text);font:inherit;font-size:0.92rem;">
+              <option value="">Start blank</option>
+              ${templateOpts}
+            </select>
+            <div style="font-size:0.74rem;color:var(--text-dim);margin-top:4px;">Picking a template copies its subject, body, and preheader into the new ${isTemplateMode ? 'template' : 'automation'}. You can edit afterwards.</div>
+          </div>` : ''}
+          ${isTemplateMode ? '' : `
           <div>
             <label style="font-size:0.74rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:6px;">When should it send?</label>
             <select id="na-trigger" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:10px 14px;color:var(--text);font:inherit;font-size:0.92rem;">
@@ -1450,11 +1526,12 @@ function openNewAutomationModal() {
             <div style="font-size:0.74rem;color:var(--text-dim);margin-top:6px;">Manual = a button you press to email a list of students. Event = fires automatically when something happens in the system.</div>
           </div>
           <div id="na-vars-preview" style="font-size:0.78rem;color:var(--text-dim);background:var(--surface2);border:1px dashed var(--border);border-radius:9px;padding:10px 12px;"></div>
+          `}
         </div>
       </div>
       <div class="modal-foot">
         <button class="btn-ghost" data-x>Cancel</button>
-        <button class="btn-primary" id="na-create">Create automation</button>
+        <button class="btn-primary" id="na-create">${isTemplateMode ? 'Create template' : 'Create automation'}</button>
       </div>
     </div>`;
   document.body.appendChild(m);
@@ -1464,27 +1541,40 @@ function openNewAutomationModal() {
   const trigSel = document.getElementById('na-trigger');
   const varsPreview = document.getElementById('na-vars-preview');
   function updateVarsPreview() {
+    if (!trigSel || !varsPreview) return;
     if (trigSel.value === 'manual') {
-      varsPreview.innerHTML = `Available variables: <code>{{firstName}}</code> <code>{{email}}</code> <code>{{coachName}}</code>`;
+      varsPreview.innerHTML = `Available variables: <code>{{firstName}}</code> <code>{{email}}</code> <code>{{coachName}}</code> <code>{{companyName}}</code> <code>{{currentDateLong}}</code> …and more from the Student / Lifecycle / Global groups.`;
     } else {
       const evt = availableEvents.find(e => e.key === trigSel.value);
       if (!evt) return;
-      varsPreview.innerHTML = `Available variables: ${(evt.vars || []).map(v => `<code>{{${v}}}</code>`).join(' ')}`;
+      varsPreview.innerHTML = `Available variables: ${(evt.vars || []).slice(0, 12).map(v => `<code>{{${v}}}</code>`).join(' ')}${(evt.vars||[]).length > 12 ? ` and ${(evt.vars.length - 12)} more.` : ''}`;
     }
   }
-  updateVarsPreview();
-  trigSel.addEventListener('change', updateVarsPreview);
+  if (trigSel) { trigSel.addEventListener('change', updateVarsPreview); updateVarsPreview(); }
 
   document.getElementById('na-create').addEventListener('click', async () => {
-    const trig = trigSel.value;
-    const name = document.getElementById('na-name').value.trim() || (trig === 'manual' ? 'Untitled broadcast' : (availableEvents.find(e => e.key === trig)?.label || 'New automation'));
+    const trig = trigSel?.value || 'manual';
+    const tplId = document.getElementById('na-template')?.value || null;
+    const name = document.getElementById('na-name').value.trim() || (isTemplateMode ? 'Untitled template' : (trig === 'manual' ? 'Untitled broadcast' : (availableEvents.find(e => e.key === trig)?.label || 'New automation')));
     try {
-      const body = trig === 'manual'
-        ? { name, trigger_type: 'manual', subject: 'Hello {{firstName}}', html_body: '<p>Hi {{firstName}},</p><p>Write your message here…</p>', text_body: 'Hi {{firstName}}, write your message here.' }
-        : { name, trigger_type: 'event', trigger_event: trig, subject: 'New {{topic}}', html_body: '<p>Hi {{firstName}},</p><p>Write the message that will go out for this event…</p>', text_body: 'Hi {{firstName}},...' };
+      const body = {
+        name,
+        is_template: isTemplateMode,
+        from_template_id: tplId ? Number(tplId) : undefined,
+      };
+      if (!isTemplateMode) {
+        if (trig === 'manual') body.trigger_type = 'manual';
+        else { body.trigger_type = 'event'; body.trigger_event = trig; }
+      }
+      // If no template, supply default scaffolding
+      if (!tplId) {
+        body.subject = 'Hello {{firstName|there}}';
+        body.html_body = '<p>Hi {{firstName|there}},</p><p>Write your message here…</p>';
+        body.text_body = 'Hi {{firstName}}, write your message here.';
+      }
       const j = await api('?api=create', { method: 'POST', body });
       close();
-      await Promise.all([loadAutomations(), loadAvailableEvents()]);
+      await Promise.all([loadAutomations(), loadAvailableEvents(), loadAvailableTemplates()]);
       openAutomation(j.row.id);
     } catch (e) { alert('Create failed: ' + e.message); }
   });

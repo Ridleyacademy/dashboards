@@ -1115,6 +1115,54 @@ function attachAutocomplete(inputEl, getVarNames) {
   inputEl.addEventListener('blur', () => setTimeout(close, 200));
 }
 
+// ── Recipient-kind filtering ────────────────────────────────────────────────
+// Different triggers have different relevant "Send to" options. Student-side
+// events shouldn't show "All active students" (that's broadcast-only). Staff
+// events shouldn't show "The student" (those emails never go to students).
+function _naturalRecipientFor(a) {
+  if (a.trigger_type === 'event') {
+    const evt = availableEvents.find(e => e.key === a.trigger_event);
+    return evt?.recipient || 'student';
+  }
+  return 'student'; // manual broadcasts target students by default
+}
+function _defaultLabelFor(a) {
+  if (a.trigger_type === 'manual') return 'Default (the students you pick when broadcasting)';
+  const evt = availableEvents.find(e => e.key === a.trigger_event);
+  if (!evt) return 'Default (event\'s natural recipient)';
+  if (evt.recipient === 'student') return 'Default (the student)';
+  if (evt.recipient === 'custom') {
+    // Staff fan-out — describe per event
+    if (/turnover/.test(evt.key))  return 'Default (handed-to rep + assigned coach + I-Cs)';
+    if (/alert/.test(evt.key))     return 'Default (assigned coach + Mentorship I-Cs)';
+    if (/survey|video/.test(evt.key)) return 'Default (assigned coach + I-Cs)';
+    if (evt.key === 'user_invited') return 'Default (the invited person)';
+    return 'Default (event\'s natural recipient list)';
+  }
+  return 'Default';
+}
+function filteredRecipientKindsFor(a) {
+  const all = recipientKinds || [];
+  const triggerType = a.trigger_type;
+  const natural = _naturalRecipientFor(a);
+  let allowed;
+  if (triggerType === 'manual') {
+    // Broadcasts can target most things, including "all active students"
+    allowed = ['default', 'student', 'coach', 'ms_ic', 'delivery_ic', 'all_admins', 'all_active_students', 'specific_email'];
+  } else if (natural === 'student') {
+    // Student-recipient events: can redirect to coach / I-Cs / admin / specific
+    allowed = ['default', 'student', 'coach', 'ms_ic', 'delivery_ic', 'all_admins', 'specific_email'];
+  } else if (natural === 'custom') {
+    // Staff events: never go to the student; no broadcasting either
+    allowed = ['default', 'coach', 'ms_ic', 'delivery_ic', 'all_admins', 'specific_email'];
+  } else {
+    allowed = all.map(k => k.value);
+  }
+  // Re-label the "default" option in context.
+  const defaultLabel = _defaultLabelFor(a);
+  return all.filter(k => allowed.includes(k.value)).map(k => k.value === 'default' ? { ...k, label: defaultLabel } : k);
+}
+
 function triggerOptionsHtml(a) {
   // Build a grouped <select> for non-system rows. Disables events that are
   // already in use by another enabled automation, and tags 'planned' events
@@ -1234,7 +1282,7 @@ function renderEditor() {
           <div class="ea-editor-row">
             <label title="Who receives the email when the trigger fires.">Send to</label>
             <select id="ea-recipient-kind" style="flex:1;">
-              ${recipientKinds.map(k => `<option value="${escapeHtml(k.value)}" ${(a.recipient_kind||'default')===k.value?'selected':''}>${escapeHtml(k.label)}</option>`).join('')}
+              ${filteredRecipientKindsFor(a).map(k => `<option value="${escapeHtml(k.value)}" ${(a.recipient_kind||'default')===k.value?'selected':''}>${escapeHtml(k.label)}</option>`).join('')}
             </select>
           </div>
           <div class="ea-editor-row" id="ea-recipient-email-row" style="display:${(a.recipient_kind==='specific_email')?'flex':'none'};">
@@ -1380,6 +1428,20 @@ function renderEditor() {
   document.getElementById('ea-recipient-kind')?.addEventListener('change', () => {
     const v = document.getElementById('ea-recipient-kind').value;
     document.getElementById('ea-recipient-email-row').style.display = v === 'specific_email' ? 'flex' : 'none';
+  });
+  // When the trigger changes on a non-system row, the relevant "Send to"
+  // options change too — rebuild the dropdown in place.
+  document.getElementById('ea-trigger')?.addEventListener('change', () => {
+    const trigSel = document.getElementById('ea-trigger');
+    const rkSel = document.getElementById('ea-recipient-kind');
+    if (!rkSel) return;
+    const pretend = { ...currentAutomation, trigger_type: trigSel.value === 'manual' ? 'manual' : 'event', trigger_event: trigSel.value === 'manual' ? null : trigSel.value };
+    const opts = filteredRecipientKindsFor(pretend);
+    const prevValue = rkSel.value;
+    // Preserve current selection if still valid; otherwise fall back to default.
+    const newSelection = opts.some(o => o.value === prevValue) ? prevValue : 'default';
+    rkSel.innerHTML = opts.map(k => `<option value="${escapeHtml(k.value)}" ${newSelection===k.value?'selected':''}>${escapeHtml(k.label)}</option>`).join('');
+    document.getElementById('ea-recipient-email-row').style.display = newSelection === 'specific_email' ? 'flex' : 'none';
   });
 
   // ── Live preview wiring ────────────────────────────────────────────────

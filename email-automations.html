@@ -326,7 +326,10 @@
         <h1 class="page-title">📧 Email Automations</h1>
         <div class="page-sub">View, edit, duplicate, and broadcast email templates. System automations fire on events automatically; manual ones are sent on demand to a list of students you choose.</div>
       </div>
-      <button class="btn-primary" id="newBtn">+ New automation</button>
+      <div style="display:flex;gap:8px;">
+        <button class="btn-ghost" id="suppressionsBtn" title="Bounced + complained addresses (auto-flagged by Resend webhook)">🚫 Suppressions</button>
+        <button class="btn-primary" id="newBtn">+ New automation</button>
+      </div>
     </div>
 
     <div class="ea-layout">
@@ -1610,6 +1613,55 @@ async function deleteAutomation() {
 }
 
 document.getElementById('newBtn')?.addEventListener('click', openNewAutomationModal);
+document.getElementById('suppressionsBtn')?.addEventListener('click', openSuppressionsModal);
+
+async function openSuppressionsModal() {
+  let rows = [];
+  try { const j = await api('?api=suppressions-list'); rows = j.rows || []; }
+  catch (e) { alert('Failed to load suppressions: ' + e.message); return; }
+  document.getElementById('suppressionsModal')?.remove();
+  const m = document.createElement('div');
+  m.id = 'suppressionsModal'; m.className = 'modal-bg';
+  m.innerHTML = `
+    <div class="modal-card" style="max-width:680px;">
+      <div class="modal-head"><h2>Suppressed addresses</h2><button class="close" data-x>×</button></div>
+      <div class="modal-body">
+        <div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:12px;">Addresses on this list never receive automated emails. Resend adds them automatically on hard-bounce or spam complaint; you can add manual entries too.</div>
+        <div style="display:flex;gap:8px;margin-bottom:14px;">
+          <input id="sup-email" type="email" placeholder="address@example.com" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:9px 12px;color:var(--text);font:inherit;">
+          <input id="sup-reason" type="text" placeholder="reason (optional)" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:9px 12px;color:var(--text);font:inherit;">
+          <button class="btn-primary" id="sup-add">Suppress</button>
+        </div>
+        ${rows.length ? `<div style="border:1px solid var(--border);border-radius:10px;background:var(--bg);max-height:400px;overflow-y:auto;">
+          ${rows.map(r => `
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--border);">
+              <div style="flex:1;min-width:0;">
+                <div style="font-weight:600;font-size:0.86rem;">${escapeHtml(r.email)}</div>
+                <div style="font-size:0.72rem;color:var(--text-dim);">${escapeHtml(r.source || '')}${r.reason ? ' · ' + escapeHtml(r.reason) : ''} · ${new Date(r.added_at).toLocaleDateString()}</div>
+              </div>
+              <button class="btn-ghost" data-rescue="${escapeHtml(r.email)}" title="Remove from suppression list — future emails to this address will go through.">Rescue</button>
+            </div>
+          `).join('')}
+        </div>` : '<div style="color:var(--text-dim);font-size:0.86rem;padding:14px;text-align:center;">No suppressions yet.</div>'}
+      </div>
+      <div class="modal-foot"><button class="btn-ghost" data-x>Close</button></div>
+    </div>`;
+  document.body.appendChild(m);
+  const close = () => m.remove();
+  m.addEventListener('click', e => { if (e.target === m || e.target.matches('[data-x]')) close(); });
+  document.getElementById('sup-add').addEventListener('click', async () => {
+    const email = document.getElementById('sup-email').value.trim();
+    const reason = document.getElementById('sup-reason').value.trim() || 'manual';
+    if (!email.includes('@')) { alert('Enter a valid email'); return; }
+    try { await api('?api=suppressions-add', { method: 'POST', body: { email, reason } }); close(); openSuppressionsModal(); }
+    catch (e) { alert('Failed: ' + e.message); }
+  });
+  m.querySelectorAll('[data-rescue]').forEach(b => b.addEventListener('click', async () => {
+    if (!confirm(`Remove ${b.dataset.rescue} from the suppression list? Future emails to this address will go through.`)) return;
+    try { await api('?api=suppressions-remove', { method: 'POST', body: { email: b.dataset.rescue } }); close(); openSuppressionsModal(); }
+    catch (e) { alert('Failed: ' + e.message); }
+  }));
+}
 
 function openNewAutomationModal() {
   document.getElementById('newAutoModal')?.remove();

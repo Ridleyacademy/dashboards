@@ -713,7 +713,7 @@ const PREVIEW_SAMPLES = {
   joinUrl: 'https://us06web.zoom.us/j/0000000000',
   recurrenceLabel: '', recurrenceLine: '',
   icalUrl: '#', googleUrl: '#', yahooUrl: '#', outlookUrl: '#',
-  coachName: 'Carlos',
+  coachName: 'Carlos', coachFirstName: 'Carlos', coachEmail: 'carlos@ridleyacademy.team',
   activateUrl: 'https://ridleyacademy.team/activate?token=preview',
   email: 'sarah@example.com', inviterName: 'Admin',
   firstNameOrBlank: ' Sarah',
@@ -729,6 +729,46 @@ const PREVIEW_SAMPLES = {
   result: 'Closed — great call.',
   fileName: 'Module4_Practice.mov',
   dashboardLink: 'https://ridleyacademy.team/students.html?student=1',
+  studentDashboardLink: 'https://ridleyacademy.team/students.html?student=1',
+  // Student profile fields
+  phone: '+1 555 1234', status: 'Active', lifecycleStatus: 'Active',
+  mentor: 'Carlos', rep: 'Carlos', product: 'Private Mentorship',
+  level: 'Intermediate', currentModule: 'Module 5', masterclassLevel: 'Level 3',
+  coachStatus: 'All good', preferredTimeSlot: 'Tue/Thu 6pm CET',
+  concern: 'Wrist tension during arpeggios', goal: 'Play Chopin Nocturne Op.9 No.2 by June',
+  // Computed lifecycle
+  termMonths: '12', monthsLeft: '8',
+  firstPurchaseDate: 'May 1, 2025', originalEndDate: 'May 1, 2026', effectiveEndDate: 'May 14, 2026',
+  daysUntilEnd: '30', daysOverdue: '0',
+  lastZoomDate: '2026-05-01', lastAssignmentSent: '2026-04-28', lastAssignmentReceived: '2026-04-30',
+  daysSinceLastZoom: '7', daysSinceLastAssignment: '8',
+  openAlertsCount: '0', winsCount: '4', pausedDaysTotal: '14',
+  // Links
+  communityUrl: 'https://community.ridleyacademy.com/c/sarah',
+  gdriveUrl: 'https://drive.google.com/d/sarah',
+  videoUrl: 'https://www.dropbox.com/scl/fi/sarah-module4',
+  surveyUrl: 'https://typeform.com/sarah-onboarding',
+  // Globals (live-rendered for accuracy)
+  companyName: 'Ridley Academy',
+  websiteUrl: 'https://ridleyacademy.com',
+  dashboardBaseUrl: 'https://ridleyacademy.team',
+  supportEmail: 'support@ridleyacademy.com',
+  signOff: 'The Ridley Academy team',
+  logoUrl: 'https://cdn.accelonline.io/qyO8Dzdk80CWcn0r5CiEPA/images/eR97N7wyk0aQHAjZbTCuBw.webp',
+  currentYear: String(new Date().getFullYear()),
+  currentMonth: new Date().toLocaleDateString('en-US', { month: 'long' }),
+  currentDay: new Date().toLocaleDateString('en-US', { weekday: 'long' }),
+  currentDate: new Date().toLocaleDateString(),
+  currentDateLong: new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }),
+  currentTimeUtc: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' }) + ' UTC',
+  // Lifecycle event-specific (already covered by manual broadcast extras)
+  onboardedDate: 'May 1, 2026', pauseEndDate: 'June 1, 2026',
+  endDate: 'May 14, 2027', daysLeft: '30',
+  monthsAdded: '3', newEndDate: 'August 14, 2027',
+  refundedDate: '2026-05-01', refundedAmount: '4990',
+  daysSinceZoom: '21', daysSinceAssignment: '14',
+  winText: 'Nailed the Module 5 final piece',
+  resetUrl: 'https://ridleyacademy.team/forgot-password?token=preview',
 };
 function renderTplClient(tpl, vars) {
   // Supports {{name}} and {{name|fallback}} syntax to match the server.
@@ -829,6 +869,59 @@ const VAR_CATALOG = {
   fileName:            { group: 'Files',           desc: "Uploaded file name.",                                    sample: 'Module4_Practice.mov' },
   // Cross-page
   dashboardLink:       { group: 'Links',           desc: "Direct dashboard link (student profile, alert, etc.).",  sample: 'https://ridleyacademy.team/students.html?student=1' },
+  studentDashboardLink:{ group: 'Links',           desc: "Direct link to this student's CRM profile.",             sample: 'https://ridleyacademy.team/students.html?student=1' },
+  communityUrl:        { group: 'Links',           desc: "Student's Community / Circle URL (if set).",             sample: 'https://community.ridleyacademy.com/c/sarah' },
+  gdriveUrl:           { group: 'Links',           desc: "Student's Google Drive doc URL (if set).",               sample: 'https://drive.google.com/d/sarah' },
+  videoUrl:            { group: 'Links',           desc: "Student's video URL (Dropbox or manual).",               sample: 'https://www.dropbox.com/scl/fi/sarah-module4' },
+  surveyUrl:           { group: 'Links',           desc: "Student's survey URL (legacy field).",                   sample: 'https://typeform.com/sarah-onboarding' },
+
+  // Extra student profile fields
+  phone:               { group: 'Student',         desc: "Student's phone number.",                                sample: '+1 555 1234' },
+  status:              { group: 'Student',         desc: "Free-text status from the profile (Active / Lead / Paused / Cancelled / Graduated).", sample: 'Active' },
+  lifecycleStatus:     { group: 'Student',         desc: "Computed lifecycle status (Active / Expiring soon / Expired / Paused / Delayed start).", sample: 'Active' },
+  mentor:              { group: 'Student',         desc: "Mentor name on the profile.",                            sample: 'Carlos' },
+  rep:                 { group: 'Student',         desc: "Assigned sales rep / mentor name.",                      sample: 'Carlos' },
+  product:             { group: 'Student',         desc: "Product on the student record.",                         sample: 'Private Mentorship' },
+  level:               { group: 'Student',         desc: "Coach-assessed level (Beginner / Intermediate / Advanced).", sample: 'Intermediate' },
+  currentModule:       { group: 'Student',         desc: "Current module the student is working on.",              sample: 'Module 5' },
+  masterclassLevel:    { group: 'Student',         desc: "Masterclass level (Introduction / Level 1–10).",         sample: 'Level 3' },
+  coachStatus:         { group: 'Student',         desc: "Coach's free-text status flag (All good / Needs attention).", sample: 'All good' },
+  coachFirstName:      { group: 'Student',         desc: "Coach's first name (computed from coach field).",        sample: 'Carlos' },
+  coachEmail:          { group: 'Student',         desc: "Coach's email address (when matched to a user account).", sample: 'carlos@ridleyacademy.team' },
+  preferredTimeSlot:   { group: 'Student',         desc: 'Student\'s preferred schedule (e.g. "Tue/Thu 6pm CET").',sample: 'Tue/Thu 6pm CET' },
+  concern:             { group: 'Student',         desc: "Concern recorded by the coach.",                         sample: 'Wrist tension during arpeggios' },
+  goal:                { group: 'Student',         desc: "Goal recorded by the coach.",                            sample: 'Play Chopin Nocturne Op.9 No.2 by June' },
+
+  // Computed lifecycle
+  termMonths:          { group: 'Lifecycle',       desc: "Term length in months from the profile.",                sample: '12' },
+  monthsLeft:          { group: 'Lifecycle',       desc: "Months remaining (computed).",                           sample: '8' },
+  firstPurchaseDate:   { group: 'Lifecycle',       desc: "First purchase date.",                                   sample: 'May 1, 2025' },
+  originalEndDate:     { group: 'Lifecycle',       desc: "Manually-set end date (override).",                      sample: 'May 1, 2026' },
+  effectiveEndDate:    { group: 'Lifecycle',       desc: "Computed end date after pauses & resigns.",              sample: 'May 14, 2026' },
+  daysUntilEnd:        { group: 'Lifecycle',       desc: "Days remaining until effective end date.",               sample: '30' },
+  daysOverdue:         { group: 'Lifecycle',       desc: "Days past the effective end date (0 if active).",        sample: '0' },
+  lastZoomDate:        { group: 'Engagement',      desc: "Date of the student's most recent Zoom session.",        sample: '2026-05-01' },
+  lastAssignmentSent:  { group: 'Engagement',      desc: "Date of the last assignment the coach sent.",            sample: '2026-04-28' },
+  lastAssignmentReceived:{ group: 'Engagement',    desc: "Date of the last assignment the student turned in.",     sample: '2026-04-30' },
+  daysSinceLastZoom:   { group: 'Engagement',      desc: "Days since the student's last Zoom session.",            sample: '7' },
+  daysSinceLastAssignment:{ group: 'Engagement',   desc: "Days since the student's last assignment received.",     sample: '8' },
+  openAlertsCount:     { group: 'Engagement',      desc: "Count of unresolved service alerts.",                    sample: '0' },
+  winsCount:           { group: 'Engagement',      desc: "Number of wins logged for this student.",                sample: '4' },
+  pausedDaysTotal:     { group: 'Engagement',      desc: "Total days the student has spent on pause.",             sample: '14' },
+
+  // Globals — always available
+  companyName:         { group: 'Global',          desc: "Your company name.",                                     sample: 'Ridley Academy' },
+  websiteUrl:          { group: 'Global',          desc: "Public website URL.",                                    sample: 'https://ridleyacademy.com' },
+  dashboardBaseUrl:    { group: 'Global',          desc: "Dashboard base URL (use in links).",                     sample: 'https://ridleyacademy.team' },
+  supportEmail:        { group: 'Global',          desc: "Support email address.",                                 sample: 'support@ridleyacademy.com' },
+  signOff:             { group: 'Global',          desc: "Standard email sign-off.",                               sample: 'The Ridley Academy team' },
+  logoUrl:             { group: 'Global',          desc: "Logo image URL (use in custom HTML).",                   sample: 'https://cdn.accelonline.io/.../logo.webp' },
+  currentDate:         { group: 'Global',          desc: "Today's date (UTC, short).",                             sample: '5/8/2026' },
+  currentDateLong:     { group: 'Global',          desc: "Today's date (UTC, long form).",                         sample: 'Friday, May 8, 2026' },
+  currentDay:          { group: 'Global',          desc: "Today's weekday (UTC).",                                 sample: 'Friday' },
+  currentMonth:        { group: 'Global',          desc: "Current month name (UTC).",                              sample: 'May' },
+  currentYear:         { group: 'Global',          desc: "Current 4-digit year (UTC).",                            sample: '2026' },
+  currentTimeUtc:      { group: 'Global',          desc: "Current time in UTC.",                                   sample: '6:00 PM UTC' },
 };
 function _varMeta(name) { return VAR_CATALOG[name] || { group: 'Other', desc: '', sample: '' }; }
 
@@ -864,7 +957,7 @@ function renderVariablePanelHtml(varNames) {
     const m = _varMeta(v);
     (groups[m.group] = groups[m.group] || []).push({ name: v, meta: m });
   }
-  const groupOrder = ['Recipient','Student','Personalization','Session','Account','Lifecycle','Engagement','Staff alerts','Files','Links','Other'];
+  const groupOrder = ['Recipient','Student','Personalization','Session','Account','Lifecycle','Engagement','Staff alerts','Files','Links','Global','Other'];
   return `
     <div class="ea-var-panel">
       <div class="ea-var-search-row">

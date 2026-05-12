@@ -516,42 +516,42 @@ function renderAll() {
   // "Live roster" = used as scope for the Expiring KPI.
   const liveRoster = scoped.filter(_isActiveForStats);
 
-  // KPIs — % is over the same denominator the donut uses: visible scope,
-  // i.e. scoped minus rows whose status is currently toggled off (Expired
-  // when "Show expired" is off, Refunded when "Show refunded" is off).
-  // For tiles whose own status is hidden (e.g. Expired KPI while Expired
-  // is toggled off), we show the count but leave % blank to avoid the
-  // misleading "0% of a denominator that excludes me" reading.
-  const visibleScoped = scoped.filter(s => {
-    const st = statusOf(s);
-    if (st === 'Expired'  && !showExpired)  return false;
-    if (st === 'Refunded' && !showRefunded) return false;
-    return true;
-  });
-  const visDenom = visibleScoped.length;
+  // KPI tiles describe the FILTERED data the user is currently looking at
+  // (coach scope + chip filter + show-expired toggle = `rows`). Counts and
+  // % are both computed from `rows`. When no filter is active, rows ≈
+  // scoped, so KPI %s naturally line up with the donut %.
+  const rEngaged    = rows.filter(_engaged);
+  const rInactive   = rows.filter(s => !_engaged(s) && LIVE_COACHING.has(statusOf(s)));
+  const rExpiring   = rows.filter(_isExpiring).filter(_isActiveForStats);
+  const rExpired    = rows.filter(_isExpired);
+  const rPaused     = rows.filter(_isPaused);
+  const rNotOnb     = rows.filter(s => statusOf(s) === 'Not onboarded');
+  const rDelayed    = rows.filter(s => statusOf(s) === 'Delayed start');
+  const filteredDenom = rows.length;
   const pct = (n, d) => d ? Math.round(100 * n / d) + '%' : '0%';
-  const setKPI = (id, count, denom, hidePct) => {
+  const setKPI = (id, count, denom) => {
     const el  = document.getElementById('kpi-' + id);
     const pel = document.getElementById('kpi-' + id + '-pct');
     if (el)  el.textContent  = count;
-    if (pel) pel.textContent = hidePct ? '' : pct(count, denom);
+    if (pel) pel.textContent = pct(count, denom);
   };
 
-  const exp = liveRoster.filter(_isExpiring).length;
-  const notOnboarded = scoped.filter(s => statusOf(s) === 'Not onboarded').length;
-  const delayedStart = scoped.filter(s => statusOf(s) === 'Delayed start').length;
-  setKPI('active',       active.length,   visDenom);
-  setKPI('inactive',     inactive.length, visDenom);
-  setKPI('expiring',     exp,             visDenom);
-  setKPI('expired',      expired.length,  visDenom, !showExpired); // hidden when toggled off
-  setKPI('paused',       paused.length,   visDenom);
-  setKPI('notonboarded', notOnboarded,    visDenom);
-  setKPI('delayed',      delayedStart,    visDenom);
+  setKPI('active',       rEngaged.length,  filteredDenom);
+  setKPI('inactive',     rInactive.length, filteredDenom);
+  setKPI('expiring',     rExpiring.length, filteredDenom);
+  setKPI('expired',      rExpired.length,  filteredDenom);
+  setKPI('paused',       rPaused.length,   filteredDenom);
+  setKPI('notonboarded', rNotOnb.length,   filteredDenom);
+  setKPI('delayed',      rDelayed.length,  filteredDenom);
 
-  // Chip counts (All = full scope; others scoped to live roster)
+  // Chip counts — preview of what each chip would show. Computed against
+  // the full scoped roster (chips re-filter `scoped`), independent of the
+  // currently-applied chip filter.
+  const scopedInactive = liveCoaching.filter(s => !_engaged(s)).length;
+  const scopedExpiring = liveRoster.filter(_isExpiring).length;
   document.getElementById('cnt-all').textContent = scoped.length;
-  document.getElementById('cnt-inactive').textContent = inactive.length;
-  document.getElementById('cnt-expiring').textContent = exp;
+  document.getElementById('cnt-inactive').textContent = scopedInactive;
+  document.getElementById('cnt-expiring').textContent = scopedExpiring;
   document.getElementById('cnt-needs').textContent = liveCoaching.filter(_isNeedsAttention).length;
   // Show expired / refunded chip counts: number hidden in current scope when toggle is off
   const expiredCount  = scoped.filter(s => s.derived_status === 'Expired').length;

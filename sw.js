@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v76-kpi-pct-matches-donut-visible';
+const CACHE_NAME = 'ridley-v77-kpis-on-filtered-rows';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [

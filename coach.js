@@ -493,15 +493,26 @@ function renderAll() {
 
   // Buckets driven by derived_status — single source of truth.
   const statusOf  = (s) => s.derived_status || '';
-  const active    = scoped.filter(s => statusOf(s) === 'Active');
-  const inactive  = scoped.filter(s => statusOf(s) === 'Inactive');
   const expired   = scoped.filter(_isExpired);
   const paused    = scoped.filter(_isPaused);
   // Live coaching roster — only students who are currently being coached.
   // Excludes: Refunded, Expired, Paused, Not onboarded, Delayed start, Graduated, Cancelled.
-  // Includes: Active, Inactive, Expiring soon.
+  // Includes: Active, Inactive, Expiring soon (the latter is term-status, not
+  // engagement-status — see below).
   const LIVE_COACHING = new Set(['Active','Inactive','Expiring soon']);
   const liveCoaching = scoped.filter(s => LIVE_COACHING.has(statusOf(s)));
+  // Active / Inactive KPI rule (engagement-based, applied to ALL live coaching
+  // students including Expiring-soon): activity in the last 7 days → Active,
+  // otherwise → Inactive. This ensures Expiring-soon students who are still
+  // engaged get credited to Active, and silent ones to Inactive — so Active +
+  // Inactive sums to the live coaching roster.
+  const _ACTIVE_WINDOW = 7;
+  const _engaged = (s) => {
+    const d = _daysSinceActivity(s);
+    return d != null && d <= _ACTIVE_WINDOW;
+  };
+  const active    = liveCoaching.filter(_engaged);
+  const inactive  = liveCoaching.filter(s => !_engaged(s));
   // "Live roster" = used as scope for the Expiring KPI.
   const liveRoster = scoped.filter(_isActiveForStats);
 
@@ -1027,12 +1038,10 @@ function renderCharts(scoped) {
     },
   });
 
-  // 2) Days-since-last-activity histogram — restricted to Active + Inactive
-  // ONLY. Expiring-soon students are tracked by their own KPI tile and are
-  // excluded here so the "0–7d" bucket matches the Active KPI exactly
-  // (otherwise expiring-soon students with recent activity inflate 0–7d
-  // without showing in the Active count, since derived_status='Expiring soon'
-  // preempts 'Active' in the lifecycle priority).
+  // 2) Days-since-last-activity histogram — restricted to the full LIVE
+  // coaching roster (Active + Inactive + Expiring soon). The Active/Inactive
+  // KPIs are now engagement-based across this same roster, so the "0–7d"
+  // bucket equals the Active KPI exactly and "8d+" buckets sum to Inactive.
   // "Activity" = max(last_zoom_date, last_assignment_received, last_assignment_sent).
   const buckets = [
     { label: '0–7d',  test: d => d != null && d <= 7,  color: CHART_COLORS.green },
@@ -1042,7 +1051,7 @@ function renderCharts(scoped) {
     { label: '60d+',  test: d => d != null && d > 60,  color: CHART_COLORS.red },
     { label: 'Never', test: d => d == null,            color: CHART_COLORS.dim },
   ];
-  const LIVE_COACHING_HIST = new Set(['Active','Inactive']);
+  const LIVE_COACHING_HIST = new Set(['Active','Inactive','Expiring soon']);
   const active = scoped.filter(s => LIVE_COACHING_HIST.has(s.derived_status || ''));
   const zoomDaysAll = active.map(_daysSinceActivity);
   const zoomCounts = buckets.map(b => zoomDaysAll.filter(b.test).length);

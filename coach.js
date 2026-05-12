@@ -1046,6 +1046,11 @@ function renderCharts(scoped) {
     statuses.push(name); statusColors.push(CHART_COLORS.dim); statusCounts.push(count);
   }
 
+  // Percentages are over the SUM OF VISIBLE SLICES, not the whole scoped
+  // roster — so when Expired/Refunded are toggled off, the remaining slices
+  // still sum to 100%, matching what the user sees on the chart.
+  const visibleTotal = statusCounts.reduce((a, b) => a + b, 0) || 1;
+
   if (_charts.status) _charts.status.destroy();
   _charts.status = new Chart(document.getElementById('chartStatus'), {
     type: 'doughnut',
@@ -1055,7 +1060,7 @@ function renderCharts(scoped) {
       cutout: '62%',
       plugins: {
         legend: { position: 'right', labels: { boxWidth: 10, padding: 8, font: { size: 11 } } },
-        tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.parsed} (${Math.round(100*ctx.parsed/Math.max(1,scoped.length))}%)` } },
+        tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.parsed} (${Math.round(100*ctx.parsed/visibleTotal)}%)` } },
       },
     },
   });

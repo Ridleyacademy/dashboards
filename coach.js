@@ -278,11 +278,13 @@ function _scopedRows() {
   return rows;
 }
 
-// Apply the "Show expired" visibility filter — used after KPIs are computed
-// to drop expired rows from the visible table when the toggle is off.
+// Apply the "Show expired / refunded" visibility filters — used after KPIs are
+// computed to drop those rows from the visible table when toggles are off.
 function _applyShowExpiredFilter(rows) {
-  if (showExpired) return rows;
-  return rows.filter(s => (s.derived_status || s.status) !== 'Expired');
+  let out = rows;
+  if (!showExpired)  out = out.filter(s => (s.derived_status || s.status) !== 'Expired');
+  if (!showRefunded) out = out.filter(s => (s.derived_status || s.status) !== 'Refunded');
+  return out;
 }
 
 // Advanced filter state — multi-select sets + buckets
@@ -298,6 +300,7 @@ const filters = {
   has_email: '',           // '' | 'yes' | 'no'
 };
 let showExpired = false;
+let showRefunded = false;
 
 function _filtersActiveCount() {
   let n = 0;
@@ -498,10 +501,13 @@ function renderAll() {
   document.getElementById('cnt-atrisk').textContent = risk;
   document.getElementById('cnt-expiring').textContent = exp;
   document.getElementById('cnt-needs').textContent = active.filter(_isNeedsAttention).length;
-  // Show expired chip count: hidden expired in current scope
-  const expiredCount = scoped.filter(s => (s.derived_status || s.status) === 'Expired').length;
-  const showExpEl = document.getElementById('cnt-expired');
+  // Show expired / refunded chip counts: number hidden in current scope when toggle is off
+  const expiredCount  = scoped.filter(s => (s.derived_status || s.status) === 'Expired').length;
+  const refundedCount = scoped.filter(s => (s.derived_status || s.status) === 'Refunded').length;
+  const showExpEl  = document.getElementById('cnt-expired');
+  const showRefEl  = document.getElementById('cnt-refunded');
   if (showExpEl) showExpEl.textContent = expiredCount;
+  if (showRefEl) showRefEl.textContent = refundedCount;
   // Filters button badge
   const fc = document.getElementById('filtersCount');
   const n = _filtersActiveCount();
@@ -616,6 +622,14 @@ document.getElementById('showExpiredBtn').addEventListener('click', (e) => {
   e.currentTarget.style.color = showExpired ? '#f87171' : 'var(--text-dim)';
   e.currentTarget.style.borderStyle = showExpired ? 'solid' : 'dashed';
   e.currentTarget.firstChild.textContent = (showExpired ? '✓ Showing expired ' : '+ Show expired ');
+  renderAll();
+});
+document.getElementById('showRefundedBtn').addEventListener('click', (e) => {
+  showRefunded = !showRefunded;
+  e.currentTarget.style.background = showRefunded ? 'rgba(248,113,113,0.18)' : 'transparent';
+  e.currentTarget.style.color = showRefunded ? '#f87171' : 'var(--text-dim)';
+  e.currentTarget.style.borderStyle = showRefunded ? 'solid' : 'dashed';
+  e.currentTarget.firstChild.textContent = (showRefunded ? '✓ Showing refunded ' : '+ Show refunded ');
   renderAll();
 });
 document.getElementById('filtersBtn').addEventListener('click', openFiltersModal);
@@ -955,6 +969,9 @@ function renderCharts(scoped) {
   const tally = new Map();
   for (const s of scoped) {
     const k = s.derived_status || s.status || '(unknown)';
+    // Hide Expired / Refunded slices unless their toggles are on (matches table behavior).
+    if (k === 'Expired'  && !showExpired)  continue;
+    if (k === 'Refunded' && !showRefunded) continue;
     tally.set(k, (tally.get(k) || 0) + 1);
   }
   const statuses = []; const statusColors = []; const statusCounts = [];

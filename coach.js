@@ -132,9 +132,20 @@ async function quickAddCoachNote(studentId, text) {
 // from cached data, then re-fetches in the background and re-renders if anything
 // changed.
 const STUDENTS_CACHE_KEY = 'coachDash_students_v2';  // v2: bust on derived_status auto-only switch
+// Legacy keys we still READ from (for instant first-paint after a key bump).
+// The cached row shape hasn't changed — only the rendering logic that reads it
+// — so falling back to v1 is safe. The next _writeStudentsCache() will save
+// under v2 and the old entry quietly ages out.
+const STUDENTS_CACHE_LEGACY_KEYS = ['coachDash_students_v1'];
 function _readStudentsCache() {
   try {
-    const raw = localStorage.getItem(STUDENTS_CACHE_KEY);
+    let raw = localStorage.getItem(STUDENTS_CACHE_KEY);
+    if (!raw) {
+      for (const k of STUDENTS_CACHE_LEGACY_KEYS) {
+        raw = localStorage.getItem(k);
+        if (raw) break;
+      }
+    }
     if (!raw) return null;
     const j = JSON.parse(raw);
     if (!j || !Array.isArray(j.rows) || !j.user_id) return null;
@@ -1016,11 +1027,12 @@ function renderCharts(scoped) {
     },
   });
 
-  // 2) Days-since-last-activity histogram — restricted to the LIVE coaching
-  // roster (Active + Inactive + Expiring soon). Excludes Refunded, Cancelled,
-  // Graduated, Expired, Paused, Not onboarded, Delayed start — these have no
-  // expected activity, so including them would inflate the "Never" bucket
-  // with students who shouldn't be counted at all.
+  // 2) Days-since-last-activity histogram — restricted to Active + Inactive
+  // ONLY. Expiring-soon students are tracked by their own KPI tile and are
+  // excluded here so the "0–7d" bucket matches the Active KPI exactly
+  // (otherwise expiring-soon students with recent activity inflate 0–7d
+  // without showing in the Active count, since derived_status='Expiring soon'
+  // preempts 'Active' in the lifecycle priority).
   // "Activity" = max(last_zoom_date, last_assignment_received, last_assignment_sent).
   const buckets = [
     { label: '0–7d',  test: d => d != null && d <= 7,  color: CHART_COLORS.green },
@@ -1030,7 +1042,7 @@ function renderCharts(scoped) {
     { label: '60d+',  test: d => d != null && d > 60,  color: CHART_COLORS.red },
     { label: 'Never', test: d => d == null,            color: CHART_COLORS.dim },
   ];
-  const LIVE_COACHING_HIST = new Set(['Active','Inactive','Expiring soon']);
+  const LIVE_COACHING_HIST = new Set(['Active','Inactive']);
   const active = scoped.filter(s => LIVE_COACHING_HIST.has(s.derived_status || ''));
   const zoomDaysAll = active.map(_daysSinceActivity);
   const zoomCounts = buckets.map(b => zoomDaysAll.filter(b.test).length);

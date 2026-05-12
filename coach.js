@@ -1016,7 +1016,11 @@ function renderCharts(scoped) {
     },
   });
 
-  // 2) Days-since-last-activity histogram (live coaching roster only)
+  // 2) Days-since-last-activity histogram — restricted to the LIVE coaching
+  // roster (Active + Inactive + Expiring soon). Excludes Refunded, Cancelled,
+  // Graduated, Expired, Paused, Not onboarded, Delayed start — these have no
+  // expected activity, so including them would inflate the "Never" bucket
+  // with students who shouldn't be counted at all.
   // "Activity" = max(last_zoom_date, last_assignment_received, last_assignment_sent).
   const buckets = [
     { label: '0–7d',  test: d => d != null && d <= 7,  color: CHART_COLORS.green },
@@ -1026,7 +1030,8 @@ function renderCharts(scoped) {
     { label: '60d+',  test: d => d != null && d > 60,  color: CHART_COLORS.red },
     { label: 'Never', test: d => d == null,            color: CHART_COLORS.dim },
   ];
-  const active = scoped.filter(_isActiveForStats);
+  const LIVE_COACHING_HIST = new Set(['Active','Inactive','Expiring soon']);
+  const active = scoped.filter(s => LIVE_COACHING_HIST.has(s.derived_status || s.status || ''));
   const zoomDaysAll = active.map(_daysSinceActivity);
   const zoomCounts = buckets.map(b => zoomDaysAll.filter(b.test).length);
   if (_charts.zoom) _charts.zoom.destroy();

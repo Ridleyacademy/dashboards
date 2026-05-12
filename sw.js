@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v79-date-filter-by-activity-table-only';
+const CACHE_NAME = 'ridley-v80-expired-always-no-pct-expiring-no-pct';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [

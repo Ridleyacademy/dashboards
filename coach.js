@@ -527,36 +527,39 @@ function renderAll() {
   // "Live roster" = used as scope for the Expiring KPI.
   const liveRoster = scoped.filter(_isActiveForStats);
 
-  // KPI tiles describe the FILTERED data the user is currently looking at
-  // (coach scope + chip filter + show-expired toggle = `rows`). Counts and
-  // % are both computed from `rows`. When no filter is active, rows ≈
-  // scoped, so KPI %s naturally line up with the donut %.
-  // Active / Inactive are BOTH scoped to the live coaching roster so the
-  // buckets are mutually exclusive with Paused / Not onboarded / Delayed /
-  // Expired / Refunded / Graduated / Cancelled. Without this scope, a Paused
-  // student with recent activity would land in Active AND Paused, pushing
-  // the KPI sum past 100%.
-  const rLive       = rows.filter(s => LIVE_COACHING.has(statusOf(s)));
-  const rEngaged    = rLive.filter(_engaged);
-  const rInactive   = rLive.filter(s => !_engaged(s));
-  const rExpiring   = rows.filter(_isExpiring).filter(_isActiveForStats);
-  const rExpired    = rows.filter(_isExpired);
-  const rPaused     = rows.filter(_isPaused);
-  const rNotOnb     = rows.filter(s => statusOf(s) === 'Not onboarded');
-  const rDelayed    = rows.filter(s => statusOf(s) === 'Delayed start');
-  const filteredDenom = rows.length;
+  // KPIs describe the filtered table view BEFORE the Show-expired toggle —
+  // so the Expired tile always shows the real count even when expired rows
+  // are hidden from the table.
+  const preToggleRows = _filterRows(scoped);
+  // Denominator for %-bearing tiles EXCLUDES Expired and Refunded — those
+  // are reported as bare counts (no %) since they sit outside the active
+  // book. Active / Inactive / Paused / Not onboarded / Delayed start then
+  // partition this denominator cleanly.
+  const denomRows  = preToggleRows.filter(s => !_isExpired(s) && statusOf(s) !== 'Refunded');
+  const ptLive     = denomRows.filter(s => LIVE_COACHING.has(statusOf(s)));
+  const rEngaged   = ptLive.filter(_engaged);
+  const rInactive  = ptLive.filter(s => !_engaged(s));
+  const rPaused    = denomRows.filter(_isPaused);
+  const rNotOnb    = denomRows.filter(s => statusOf(s) === 'Not onboarded');
+  const rDelayed   = denomRows.filter(s => statusOf(s) === 'Delayed start');
+  // Expiring and Expired are reported as counts only — Expiring overlaps
+  // with Active/Inactive (a student can be both), Expired sits outside the
+  // book entirely. Both still show real counts regardless of toggle.
+  const rExpiring  = preToggleRows.filter(_isExpiring).filter(_isActiveForStats);
+  const rExpired   = preToggleRows.filter(_isExpired);
+  const filteredDenom = denomRows.length;
   const pct = (n, d) => d ? Math.round(100 * n / d) + '%' : '0%';
-  const setKPI = (id, count, denom) => {
+  const setKPI = (id, count, denom, hidePct) => {
     const el  = document.getElementById('kpi-' + id);
     const pel = document.getElementById('kpi-' + id + '-pct');
     if (el)  el.textContent  = count;
-    if (pel) pel.textContent = pct(count, denom);
+    if (pel) pel.textContent = hidePct ? '' : pct(count, denom);
   };
 
   setKPI('active',       rEngaged.length,  filteredDenom);
   setKPI('inactive',     rInactive.length, filteredDenom);
-  setKPI('expiring',     rExpiring.length, filteredDenom);
-  setKPI('expired',      rExpired.length,  filteredDenom);
+  setKPI('expiring',     rExpiring.length, 0, true);  // count only — overlaps with Active/Inactive
+  setKPI('expired',      rExpired.length,  0, true);  // count only — always shown, no %
   setKPI('paused',       rPaused.length,   filteredDenom);
   setKPI('notonboarded', rNotOnb.length,   filteredDenom);
   setKPI('delayed',      rDelayed.length,  filteredDenom);

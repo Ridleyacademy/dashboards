@@ -938,15 +938,36 @@ function renderCharts(scoped) {
   Chart.defaults.color = _chartTextColor();
   Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, Inter, 'Segoe UI', sans-serif";
 
-  // 1) Status distribution (donut)
-  const statuses = ['Active','Expiring soon','Not onboarded','Delayed start','Paused','Expired'];
-  const statusColors = [
-    CHART_COLORS.green, CHART_COLORS.gold, CHART_COLORS.blue,
-    CHART_COLORS.purple, CHART_COLORS.dim, CHART_COLORS.red,
+  // 1) Status distribution (donut) — shows every status that actually appears
+  // in scope, ordered by triage urgency. No "Other" bucket.
+  const STATUS_ORDER = [
+    ['Inactive',      CHART_COLORS.red],     // needs outreach now
+    ['Expired',       CHART_COLORS.pink],
+    ['Expiring soon', CHART_COLORS.gold],
+    ['Active',        CHART_COLORS.green],
+    ['Paused',        CHART_COLORS.dim],
+    ['Not onboarded', CHART_COLORS.blue],
+    ['Delayed start', CHART_COLORS.purple],
+    ['Graduated',     CHART_COLORS.cyan],
+    ['Refunded',      CHART_COLORS.dim],
+    ['Cancelled',     CHART_COLORS.dim],
   ];
-  const statusCounts = statuses.map(st => scoped.filter(s => (s.derived_status || s.status) === st).length);
-  const otherCount = scoped.length - statusCounts.reduce((a,b) => a+b, 0);
-  if (otherCount > 0) { statuses.push('Other'); statusColors.push(CHART_COLORS.cyan); statusCounts.push(otherCount); }
+  const tally = new Map();
+  for (const s of scoped) {
+    const k = s.derived_status || s.status || '(unknown)';
+    tally.set(k, (tally.get(k) || 0) + 1);
+  }
+  const statuses = []; const statusColors = []; const statusCounts = [];
+  for (const [name, color] of STATUS_ORDER) {
+    if (tally.has(name)) {
+      statuses.push(name); statusColors.push(color); statusCounts.push(tally.get(name));
+      tally.delete(name);
+    }
+  }
+  // Surface anything else that's actually in the data (future-proof) instead of hiding it as "Other"
+  for (const [name, count] of tally) {
+    statuses.push(name); statusColors.push(CHART_COLORS.dim); statusCounts.push(count);
+  }
 
   if (_charts.status) _charts.status.destroy();
   _charts.status = new Chart(document.getElementById('chartStatus'), {

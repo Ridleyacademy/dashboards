@@ -1,1 +1,1 @@
-2026-05-12T23:05:00Z-v204-active-scoped-to-live-roster
+2026-05-12T23:25:00Z-v205-date-filter-by-activity-table-only

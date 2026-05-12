@@ -262,17 +262,10 @@ function _scopedRows() {
   // Coach scope
   if (coachPick === '__mine__') rows = rows.filter(s => _isMine(s, mine));
   else if (coachPick !== '__all__') rows = rows.filter(s => (s.coach || '').toLowerCase() === coachPick.toLowerCase());
-  // Date range (joined / first_purchase_date). Wide-open sentinels = no filter.
-  // Students with no joined date are kept (a date filter shouldn't make dateless rows disappear).
-  const wide = drFrom === '0001-01-01' && drTo === '9999-12-31';
-  if (!wide) {
-    rows = rows.filter(s => {
-      const d = s.first_purchase_date || s.joined_at;
-      if (!d) return true;
-      const iso = String(d).slice(0, 10);
-      return iso >= drFrom && iso <= drTo;
-    });
-  }
+  // NOTE: the date range filter is intentionally NOT applied here. KPIs,
+  // charts, and chip counts always describe the full coach scope so the
+  // status snapshot is stable. The date range is applied later, only to
+  // the table list, and means "activity in range" — see _applyDateFilter.
   // Search
   if (q) rows = rows.filter(s =>
     (s.name || '').toLowerCase().includes(q) ||
@@ -296,6 +289,24 @@ function _applyShowExpiredFilter(rows) {
   if (!showExpired)  out = out.filter(s => s.derived_status !== 'Expired');
   if (!showRefunded) out = out.filter(s => s.derived_status !== 'Refunded');
   return out;
+}
+
+// Date range filter — applied ONLY to the table list, not to KPIs or charts.
+// Semantics: a student is "in range" if any of their activity dates
+// (last_zoom_date, last_assignment_received, last_assignment_sent) falls in
+// [drFrom, drTo]. Students with no activity at all are dropped — they have
+// nothing to say about activity in any range.
+function _applyDateFilter(rows) {
+  const wide = drFrom === '0001-01-01' && drTo === '9999-12-31';
+  if (wide) return rows;
+  return rows.filter(s => {
+    const dates = [s.last_zoom_date, s.last_assignment_received, s.last_assignment_sent];
+    return dates.some(d => {
+      if (!d) return false;
+      const iso = String(d).slice(0, 10);
+      return iso >= drFrom && iso <= drTo;
+    });
+  });
 }
 
 // Advanced filter state — multi-select sets + buckets
@@ -571,8 +582,13 @@ function renderAll() {
   const n = _filtersActiveCount();
   if (fc) { fc.textContent = n; fc.style.display = n ? '' : 'none'; }
 
-  // Render charts (computed on `scoped` — current coach + date range)
+  // Render charts (computed on `scoped` — current coach scope, NO date range)
   renderCharts(scoped);
+
+  // Apply the date-range filter only to the TABLE list — KPIs, charts, chip
+  // counts above all ignore it. Filter is by activity (zoom / asg sent /
+  // asg recv) falling in [drFrom, drTo].
+  rows = _applyDateFilter(rows);
 
   // Sort: pinned first, then at-risk, then by days since zoom desc, then name
   rows.sort((a, b) => {
@@ -694,7 +710,9 @@ document.getElementById('showRefundedBtn').addEventListener('click', (e) => {
 });
 document.getElementById('filtersBtn').addEventListener('click', openFiltersModal);
 document.getElementById('checkAll').addEventListener('change', (e) => {
-  const rows = _applyShowExpiredFilter(_filterRows(_scopedRows()));
+  // "Select all" matches what's visible in the table: scope + chip filter +
+  // show-expired toggle + date range.
+  const rows = _applyDateFilter(_applyShowExpiredFilter(_filterRows(_scopedRows())));
   if (e.target.checked) rows.forEach(s => selectedIds.add(s.id));
   else rows.forEach(s => selectedIds.delete(s.id));
   renderAll();

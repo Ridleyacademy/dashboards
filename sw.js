@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v78-active-scoped-to-live-roster';
+const CACHE_NAME = 'ridley-v79-date-filter-by-activity-table-only';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [

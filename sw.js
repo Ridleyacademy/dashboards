@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v74-donut-pct-uses-visible-total';
+const CACHE_NAME = 'ridley-v75-unified-pct-denominator';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [

@@ -516,12 +516,8 @@ function renderAll() {
   // "Live roster" = used as scope for the Expiring KPI.
   const liveRoster = scoped.filter(_isActiveForStats);
 
-  // KPIs:
-  //   Active / Inactive  → % of the live coaching roster (sums to 100%)
-  //   Everyone else      → % of all scoped students (a different scale, so the
-  //                        coach sees what slice of their whole book each
-  //                        lifecycle bucket represents)
-  const liveDenom  = liveCoaching.length;
+  // KPIs — every tile shows % of the full scoped roster (the coach's whole
+  // book in scope), so a tile's % and the donut slice's % always match.
   const totalDenom = scoped.length;
   const pct = (n, d) => d ? Math.round(100 * n / d) + '%' : '0%';
   const setKPI = (id, count, denom) => {
@@ -531,12 +527,11 @@ function renderAll() {
     if (pel) pel.textContent = pct(count, denom);
   };
 
-  setKPI('active',       active.length,   liveDenom);
-  setKPI('inactive',     inactive.length, liveDenom);
-
   const exp = liveRoster.filter(_isExpiring).length;
   const notOnboarded = scoped.filter(s => statusOf(s) === 'Not onboarded').length;
   const delayedStart = scoped.filter(s => statusOf(s) === 'Delayed start').length;
+  setKPI('active',       active.length,   totalDenom);
+  setKPI('inactive',     inactive.length, totalDenom);
   setKPI('expiring',     exp,             totalDenom);
   setKPI('expired',      expired.length,  totalDenom);
   setKPI('paused',       paused.length,   totalDenom);
@@ -1046,10 +1041,10 @@ function renderCharts(scoped) {
     statuses.push(name); statusColors.push(CHART_COLORS.dim); statusCounts.push(count);
   }
 
-  // Percentages are over the SUM OF VISIBLE SLICES, not the whole scoped
-  // roster — so when Expired/Refunded are toggled off, the remaining slices
-  // still sum to 100%, matching what the user sees on the chart.
-  const visibleTotal = statusCounts.reduce((a, b) => a + b, 0) || 1;
+  // Percentages are over the full scoped roster so they match the KPI
+  // tiles exactly. With Expired/Refunded toggled off the visible slices
+  // sum to less than 100% — that gap = the % of the book that's hidden.
+  const donutDenom = scoped.length || 1;
 
   if (_charts.status) _charts.status.destroy();
   _charts.status = new Chart(document.getElementById('chartStatus'), {
@@ -1060,7 +1055,7 @@ function renderCharts(scoped) {
       cutout: '62%',
       plugins: {
         legend: { position: 'right', labels: { boxWidth: 10, padding: 8, font: { size: 11 } } },
-        tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.parsed} (${Math.round(100*ctx.parsed/visibleTotal)}%)` } },
+        tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.parsed} (${Math.round(100*ctx.parsed/donutDenom)}%)` } },
       },
     },
   });

@@ -516,27 +516,37 @@ function renderAll() {
   // "Live roster" = used as scope for the Expiring KPI.
   const liveRoster = scoped.filter(_isActiveForStats);
 
-  // KPIs — every tile shows % of the full scoped roster (the coach's whole
-  // book in scope), so a tile's % and the donut slice's % always match.
-  const totalDenom = scoped.length;
+  // KPIs — % is over the same denominator the donut uses: visible scope,
+  // i.e. scoped minus rows whose status is currently toggled off (Expired
+  // when "Show expired" is off, Refunded when "Show refunded" is off).
+  // For tiles whose own status is hidden (e.g. Expired KPI while Expired
+  // is toggled off), we show the count but leave % blank to avoid the
+  // misleading "0% of a denominator that excludes me" reading.
+  const visibleScoped = scoped.filter(s => {
+    const st = statusOf(s);
+    if (st === 'Expired'  && !showExpired)  return false;
+    if (st === 'Refunded' && !showRefunded) return false;
+    return true;
+  });
+  const visDenom = visibleScoped.length;
   const pct = (n, d) => d ? Math.round(100 * n / d) + '%' : '0%';
-  const setKPI = (id, count, denom) => {
+  const setKPI = (id, count, denom, hidePct) => {
     const el  = document.getElementById('kpi-' + id);
     const pel = document.getElementById('kpi-' + id + '-pct');
     if (el)  el.textContent  = count;
-    if (pel) pel.textContent = pct(count, denom);
+    if (pel) pel.textContent = hidePct ? '' : pct(count, denom);
   };
 
   const exp = liveRoster.filter(_isExpiring).length;
   const notOnboarded = scoped.filter(s => statusOf(s) === 'Not onboarded').length;
   const delayedStart = scoped.filter(s => statusOf(s) === 'Delayed start').length;
-  setKPI('active',       active.length,   totalDenom);
-  setKPI('inactive',     inactive.length, totalDenom);
-  setKPI('expiring',     exp,             totalDenom);
-  setKPI('expired',      expired.length,  totalDenom);
-  setKPI('paused',       paused.length,   totalDenom);
-  setKPI('notonboarded', notOnboarded,    totalDenom);
-  setKPI('delayed',      delayedStart,    totalDenom);
+  setKPI('active',       active.length,   visDenom);
+  setKPI('inactive',     inactive.length, visDenom);
+  setKPI('expiring',     exp,             visDenom);
+  setKPI('expired',      expired.length,  visDenom, !showExpired); // hidden when toggled off
+  setKPI('paused',       paused.length,   visDenom);
+  setKPI('notonboarded', notOnboarded,    visDenom);
+  setKPI('delayed',      delayedStart,    visDenom);
 
   // Chip counts (All = full scope; others scoped to live roster)
   document.getElementById('cnt-all').textContent = scoped.length;
@@ -1041,10 +1051,10 @@ function renderCharts(scoped) {
     statuses.push(name); statusColors.push(CHART_COLORS.dim); statusCounts.push(count);
   }
 
-  // Percentages are over the full scoped roster so they match the KPI
-  // tiles exactly. With Expired/Refunded toggled off the visible slices
-  // sum to less than 100% — that gap = the % of the book that's hidden.
-  const donutDenom = scoped.length || 1;
+  // Percentages are over the sum of currently-visible slices (matches the
+  // KPI tile denominator). With Expired/Refunded toggled off, the
+  // remaining visible slices still sum to 100%.
+  const donutDenom = statusCounts.reduce((a, b) => a + b, 0) || 1;
 
   if (_charts.status) _charts.status.destroy();
   _charts.status = new Chart(document.getElementById('chartStatus'), {

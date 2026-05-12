@@ -321,7 +321,9 @@ function _applyAdvancedFilters(rows) {
   if (filters.masterclass_level.size) rows = rows.filter(s => filters.masterclass_level.has(s.masterclass_level || ''));
   if (filters.status.size) rows = rows.filter(s => filters.status.has(s.derived_status || s.status || ''));
   if (filters.zoom_bucket) rows = rows.filter(s => {
-    const days = _bucketDays(s.last_zoom_date);
+    // "Days since last zoom" filter is actually based on last activity
+    // (zoom OR assignment received OR assignment sent — whichever is most recent).
+    const days = _bucketDays(_lastActivityDate(s));
     if (filters.zoom_bucket === 'never') return days === null;
     if (filters.zoom_bucket === '7') return days !== null && days > 7;
     if (filters.zoom_bucket === '30') return days !== null && days > 30;
@@ -433,6 +435,17 @@ function _daysSince(d) {
   if (days < -1) return null;
   return days;
 }
+// Most recent of zoom / assignment-received / assignment-sent. Used wherever
+// we care about "when did this student last have ANY activity" rather than
+// the specific event type.
+function _lastActivityDate(s) {
+  const toTs = (d) => { if (!d) return -Infinity; const t = new Date(d).getTime(); const y = new Date(d).getFullYear(); return (!isNaN(t) && y >= 2020 && y <= 2100) ? t : -Infinity; };
+  const cands = [s.last_zoom_date, s.last_assignment_received, s.last_assignment_sent];
+  let best = -Infinity, bestRaw = null;
+  for (const d of cands) { const t = toTs(d); if (t > best) { best = t; bestRaw = d; } }
+  return bestRaw;
+}
+function _daysSinceActivity(s) { return _daysSince(_lastActivityDate(s)); }
 function _isAtRisk(s) {
   const dz = _daysSince(s.last_zoom_date);
   const da = _daysSince(s.last_assignment_received);
@@ -526,7 +539,8 @@ function renderAll() {
     const ai = (a.derived_status || a.status) === 'Inactive' ? 1 : 0;
     const bi = (b.derived_status || b.status) === 'Inactive' ? 1 : 0;
     if (ai !== bi) return bi - ai;
-    const az = _daysSince(a.last_zoom_date); const bz = _daysSince(b.last_zoom_date);
+    // Stale-activity first: sort by days since last activity (any of zoom / asg-recv / asg-sent), descending.
+    const az = _daysSinceActivity(a); const bz = _daysSinceActivity(b);
     const av = az == null ? -1 : az; const bv = bz == null ? -1 : bz;
     if (av !== bv) return bv - av;
     return (a.name || '').localeCompare(b.name || '');
@@ -1002,7 +1016,8 @@ function renderCharts(scoped) {
     },
   });
 
-  // 2) Days-since-zoom histogram (active-only — same as KPI)
+  // 2) Days-since-last-activity histogram (live coaching roster only)
+  // "Activity" = max(last_zoom_date, last_assignment_received, last_assignment_sent).
   const buckets = [
     { label: '0–7d',  test: d => d != null && d <= 7,  color: CHART_COLORS.green },
     { label: '8–14d', test: d => d != null && d <= 14 && d > 7,  color: CHART_COLORS.cyan },
@@ -1012,7 +1027,7 @@ function renderCharts(scoped) {
     { label: 'Never', test: d => d == null,            color: CHART_COLORS.dim },
   ];
   const active = scoped.filter(_isActiveForStats);
-  const zoomDaysAll = active.map(s => _daysSince(s.last_zoom_date));
+  const zoomDaysAll = active.map(_daysSinceActivity);
   const zoomCounts = buckets.map(b => zoomDaysAll.filter(b.test).length);
   if (_charts.zoom) _charts.zoom.destroy();
   _charts.zoom = new Chart(document.getElementById('chartZoom'), {
@@ -2095,8 +2110,8 @@ function openFiltersModal(onApply) {
         <div><label>Masterclass level</label><div class="filter-chips">${mkChips('masterclass_level', masterclass) || '<span style="color:var(--text-dim);font-size:0.78rem;">No data.</span>'}</div></div>
         <div><label>Coach status</label><div class="filter-chips">${mkChips('coach_status', coachStatuses)}</div></div>
         <div><label>Lifecycle status</label><div class="filter-chips">${mkChips('status', statuses)}<span style="font-size:0.72rem;color:var(--text-dim);margin-left:8px;">(Expired toggled separately on the chip bar)</span></div></div>
-        <div><label>Last Zoom</label>
-          <select id="filt-zoom"><option value="">Any</option><option value="never" ${filters.zoom_bucket==='never'?'selected':''}>Never had a Zoom</option><option value="7" ${filters.zoom_bucket==='7'?'selected':''}>More than 7 days ago</option><option value="30" ${filters.zoom_bucket==='30'?'selected':''}>More than 30 days ago</option><option value="90" ${filters.zoom_bucket==='90'?'selected':''}>More than 90 days ago</option></select>
+        <div><label>Last activity (zoom or assignment)</label>
+          <select id="filt-zoom"><option value="">Any</option><option value="never" ${filters.zoom_bucket==='never'?'selected':''}>Never had any activity</option><option value="7" ${filters.zoom_bucket==='7'?'selected':''}>More than 7 days ago</option><option value="30" ${filters.zoom_bucket==='30'?'selected':''}>More than 30 days ago</option><option value="90" ${filters.zoom_bucket==='90'?'selected':''}>More than 90 days ago</option></select>
         </div>
         <div><label>Last assignment sent</label>
           <select id="filt-asgsent"><option value="">Any</option><option value="never" ${filters.asg_sent_bucket==='never'?'selected':''}>Never sent</option><option value="7" ${filters.asg_sent_bucket==='7'?'selected':''}>More than 7 days ago</option><option value="30" ${filters.asg_sent_bucket==='30'?'selected':''}>More than 30 days ago</option></select>

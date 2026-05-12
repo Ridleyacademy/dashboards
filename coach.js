@@ -481,11 +481,14 @@ function renderAll() {
   // "Active for stats" = used as scope for At risk / Expiring KPIs.
   const liveRoster = scoped.filter(_isActiveForStats);
 
-  // KPIs
+  // KPIs — both Active and Inactive show count + % of the live coaching roster.
   document.getElementById('kpi-active').textContent   = active.length;
   document.getElementById('kpi-inactive').textContent = inactive.length;
-  const actPct = liveCoaching.length ? Math.round(100 * active.length / liveCoaching.length) : 0;
-  document.getElementById('kpi-active-pct').textContent = actPct + '%';
+  const denom = liveCoaching.length;
+  const actPct  = denom ? Math.round(100 * active.length   / denom) : 0;
+  const inactPct = denom ? Math.round(100 * inactive.length / denom) : 0;
+  document.getElementById('kpi-active-pct').textContent   = actPct  + '%';
+  document.getElementById('kpi-inactive-pct').textContent = inactPct + '%';
 
   const risk = liveRoster.filter(_isAtRisk).length;
   document.getElementById('kpi-risk').textContent = risk;

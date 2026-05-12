@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v61-active-pct-denom';
+const CACHE_NAME = 'ridley-v62-active-inactive-merged';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [

@@ -468,19 +468,23 @@ function renderAll() {
   rows = _applyShowExpiredFilter(rows);      // hide expired from the table only when toggle is off
 
   // Buckets driven by derived_status — single source of truth.
-  const active   = scoped.filter(s => (s.derived_status || s.status) === 'Active');
-  const inactive = scoped.filter(s => (s.derived_status || s.status) === 'Inactive');
-  const expired  = scoped.filter(_isExpired);
-  const paused   = scoped.filter(_isPaused);
-  // "Active for stats" = scope on which secondary KPIs (At risk / Expiring) compute.
-  // Live roster = everything that's not terminal/paused (Active, Inactive, Expiring soon, Not onboarded, Delayed start, etc.)
+  const statusOf  = (s) => s.derived_status || s.status || '';
+  const active    = scoped.filter(s => statusOf(s) === 'Active');
+  const inactive  = scoped.filter(s => statusOf(s) === 'Inactive');
+  const expired   = scoped.filter(_isExpired);
+  const paused    = scoped.filter(_isPaused);
+  // Live coaching roster — only students who are currently being coached.
+  // Excludes: Refunded, Expired, Paused, Not onboarded, Delayed start, Graduated, Cancelled.
+  // Includes: Active, Inactive, Expiring soon.
+  const LIVE_COACHING = new Set(['Active','Inactive','Expiring soon']);
+  const liveCoaching = scoped.filter(s => LIVE_COACHING.has(statusOf(s)));
+  // "Active for stats" = used as scope for At risk / Expiring KPIs.
   const liveRoster = scoped.filter(_isActiveForStats);
 
   // KPIs
   document.getElementById('kpi-active').textContent   = active.length;
   document.getElementById('kpi-inactive').textContent = inactive.length;
-  const aiDenom = active.length + inactive.length;
-  const actPct  = aiDenom ? Math.round(100 * active.length / aiDenom) : 0;
+  const actPct = liveCoaching.length ? Math.round(100 * active.length / liveCoaching.length) : 0;
   document.getElementById('kpi-active-pct').textContent = actPct + '%';
 
   const risk = liveRoster.filter(_isAtRisk).length;

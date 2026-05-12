@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v67-future-dates-cleaned';
+const CACHE_NAME = 'ridley-v68-sw-no-aggressive-offline';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [
@@ -126,30 +126,45 @@ async function safeMatch(req) {
   try { return await caches.match(req); } catch { return null; }
 }
 
-// Network-first with a 3-second timeout, then fall back to cache.
-function networkFirst(req, cacheName, timeoutMs = 3000) {
+// Network-first with a "slow network" fallback. Behaviour:
+//   1. Kick off the real network fetch in parallel.
+//   2. After timeoutMs, try cache. If cached → use it (snappy).
+//   3. If no cache → KEEP waiting for the network (don't bail to Offline).
+//   4. Only return OFFLINE_RESPONSE when the network has actually FAILED.
+// This avoids the "Offline" screen on first-load after a service-worker
+// upgrade, when the fresh cache is still empty and the network is slow but
+// alive.
+function networkFirst(req, cacheName, timeoutMs = 4000) {
+  const networkPromise = fetch(req).then((res) => {
+    if (res && res.status === 200) {
+      const copy = res.clone();
+      caches.open(cacheName).then((c) => c.put(req, copy)).catch(() => {});
+    }
+    return res;
+  }).catch(() => null);
+
   return new Promise((resolve) => {
-    let resolved = false;
-    const finish = async (res) => {
-      if (resolved) return;
-      resolved = true;
-      if (res && res instanceof Response) { resolve(res); return; }
-      // Cache fallback chain — try the request itself, then home, then offline.
+    let done = false;
+    const finish = (res) => { if (done) return; done = true; resolve(res); };
+
+    // Whenever network completes, prefer it (it's the most authoritative).
+    networkPromise.then((res) => { if (res) finish(res); });
+
+    // After the timeout, opportunistically use cache — but only if we still
+    // have nothing fresh. If cache is also empty, KEEP waiting for the network
+    // rather than showing Offline.
+    setTimeout(async () => {
+      if (done) return;
       const cached = await safeMatch(req);
-      if (cached) { resolve(cached); return; }
+      if (cached) { finish(cached); return; }
+      // No cache, no network yet. Wait for the network to settle.
+      const res = await networkPromise;
+      if (res) { finish(res); return; }
+      // Network truly failed and we have no cache. Try /home.html as a last
+      // shell before giving up.
       const home = await safeMatch('/home.html');
-      if (home) { resolve(home); return; }
-      resolve(OFFLINE_RESPONSE());
-    };
-    const timer = setTimeout(() => finish(null), timeoutMs);
-    fetch(req).then((res) => {
-      clearTimeout(timer);
-      if (res && res.status === 200) {
-        const copy = res.clone();
-        caches.open(cacheName).then((c) => c.put(req, copy)).catch(() => {});
-      }
-      finish(res);
-    }).catch(() => { clearTimeout(timer); finish(null); });
+      finish(home || OFFLINE_RESPONSE());
+    }, timeoutMs);
   });
 }
 

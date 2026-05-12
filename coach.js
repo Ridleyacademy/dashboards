@@ -450,7 +450,7 @@ function _isNeedsAttention(s) {
 
 function _filterRows(rows) {
   if (listFilter === 'all') return rows;
-  if (listFilter === 'atrisk') return rows.filter(_isAtRisk);
+  if (listFilter === 'inactive') return rows.filter(s => (s.derived_status || s.status) === 'Inactive');
   if (listFilter === 'expiring') return rows.filter(_isExpiring);
   if (listFilter === 'needs') return rows.filter(_isNeedsAttention);
   return rows;
@@ -478,7 +478,7 @@ function renderAll() {
   // Includes: Active, Inactive, Expiring soon.
   const LIVE_COACHING = new Set(['Active','Inactive','Expiring soon']);
   const liveCoaching = scoped.filter(s => LIVE_COACHING.has(statusOf(s)));
-  // "Active for stats" = used as scope for At risk / Expiring KPIs.
+  // "Live roster" = used as scope for the Expiring KPI.
   const liveRoster = scoped.filter(_isActiveForStats);
 
   // KPIs — both Active and Inactive show count + % of the live coaching roster.
@@ -490,8 +490,6 @@ function renderAll() {
   document.getElementById('kpi-active-pct').textContent   = actPct  + '%';
   document.getElementById('kpi-inactive-pct').textContent = inactPct + '%';
 
-  const risk = liveRoster.filter(_isAtRisk).length;
-  document.getElementById('kpi-risk').textContent = risk;
   const exp = liveRoster.filter(_isExpiring).length;
   document.getElementById('kpi-expiring').textContent = exp;
 
@@ -499,11 +497,11 @@ function renderAll() {
   document.getElementById('kpi-expired').textContent = expired.length;
   document.getElementById('kpi-paused').textContent  = paused.length;
 
-  // Chip counts (also active-only for the relevant ones; All shows full scope)
+  // Chip counts (All = full scope; others scoped to live roster)
   document.getElementById('cnt-all').textContent = scoped.length;
-  document.getElementById('cnt-atrisk').textContent = risk;
+  document.getElementById('cnt-inactive').textContent = inactive.length;
   document.getElementById('cnt-expiring').textContent = exp;
-  document.getElementById('cnt-needs').textContent = active.filter(_isNeedsAttention).length;
+  document.getElementById('cnt-needs').textContent = liveCoaching.filter(_isNeedsAttention).length;
   // Show expired / refunded chip counts: number hidden in current scope when toggle is off
   const expiredCount  = scoped.filter(s => (s.derived_status || s.status) === 'Expired').length;
   const refundedCount = scoped.filter(s => (s.derived_status || s.status) === 'Refunded').length;
@@ -524,9 +522,10 @@ function renderAll() {
     const ap = pinnedIds.has(a.id) ? 1 : 0;
     const bp = pinnedIds.has(b.id) ? 1 : 0;
     if (ap !== bp) return bp - ap;
-    const ar = _isAtRisk(a) ? 1 : 0;
-    const br = _isAtRisk(b) ? 1 : 0;
-    if (ar !== br) return br - ar;
+    // Inactive students bubble to the top (replaces the old "at risk" sort priority).
+    const ai = (a.derived_status || a.status) === 'Inactive' ? 1 : 0;
+    const bi = (b.derived_status || b.status) === 'Inactive' ? 1 : 0;
+    if (ai !== bi) return bi - ai;
     const az = _daysSince(a.last_zoom_date); const bz = _daysSince(b.last_zoom_date);
     const av = az == null ? -1 : az; const bv = bz == null ? -1 : bz;
     if (av !== bv) return bv - av;

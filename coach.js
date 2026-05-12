@@ -1001,12 +1001,15 @@ function renderCharts(scoped) {
   Chart.defaults.color = _chartTextColor();
   Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, Inter, 'Segoe UI', sans-serif";
 
-  // 1) Status distribution (donut) — shows every status that actually appears
-  // in scope, ordered by triage urgency. No "Other" bucket.
+  // 1) Status distribution (donut) — every student lands in exactly ONE slice.
+  // For students in the live coaching roster (derived_status ∈ {Active,
+  // Inactive, Expiring soon}), the slice is determined by engagement so the
+  // Active/Inactive donut counts match the Active/Inactive KPIs exactly.
+  // Expiring-soon is tracked separately via its own KPI tile — it's a
+  // term-status overlay, not a slice on this chart.
   const STATUS_ORDER = [
     ['Inactive',      CHART_COLORS.red],     // needs outreach now
     ['Expired',       CHART_COLORS.pink],
-    ['Expiring soon', CHART_COLORS.gold],
     ['Active',        CHART_COLORS.green],
     ['Paused',        CHART_COLORS.dim],
     ['Not onboarded', CHART_COLORS.blue],
@@ -1015,9 +1018,17 @@ function renderCharts(scoped) {
     ['Refunded',      CHART_COLORS.dim],
     ['Cancelled',     CHART_COLORS.dim],
   ];
+  const LIVE_COACHING_DONUT = new Set(['Active','Inactive','Expiring soon']);
+  const _DONUT_WINDOW = 7;
+  const _donutEngaged = (s) => {
+    const d = _daysSinceActivity(s);
+    return d != null && d <= _DONUT_WINDOW;
+  };
   const tally = new Map();
   for (const s of scoped) {
-    const k = s.derived_status || '(unknown)';
+    let k = s.derived_status || '(unknown)';
+    // Re-bucket live coaching roster by engagement so slices match the KPIs.
+    if (LIVE_COACHING_DONUT.has(k)) k = _donutEngaged(s) ? 'Active' : 'Inactive';
     // Hide Expired / Refunded slices unless their toggles are on (matches table behavior).
     if (k === 'Expired'  && !showExpired)  continue;
     if (k === 'Refunded' && !showRefunded) continue;

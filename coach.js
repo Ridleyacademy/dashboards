@@ -467,30 +467,26 @@ function renderAll() {
   let rows = _filterRows(scoped);
   rows = _applyShowExpiredFilter(rows);      // hide expired from the table only when toggle is off
 
-  // Split scoped into active vs paused vs expired so KPIs only reflect active
-  const active  = scoped.filter(_isActiveForStats);
-  const expired = scoped.filter(_isExpired);
-  const paused  = scoped.filter(_isPaused);
+  // Buckets driven by derived_status — single source of truth.
+  const active   = scoped.filter(s => (s.derived_status || s.status) === 'Active');
+  const inactive = scoped.filter(s => (s.derived_status || s.status) === 'Inactive');
+  const expired  = scoped.filter(_isExpired);
+  const paused   = scoped.filter(_isPaused);
+  // "Active for stats" = scope on which secondary KPIs (At risk / Expiring) compute.
+  // Live roster = everything that's not terminal/paused (Active, Inactive, Expiring soon, Not onboarded, Delayed start, etc.)
+  const liveRoster = scoped.filter(_isActiveForStats);
 
   // KPIs
-  document.getElementById('kpi-total').textContent = active.length;
-  document.getElementById('kpi-total-sub').textContent =
-    (coachPick === '__all__' ? 'all coaches' : (coachPick === '__mine__' ? 'your students' : `${coachPick}'s roster`))
-    + ' · excl. expired & paused';
-  const risk = active.filter(_isAtRisk).length;
+  document.getElementById('kpi-active').textContent   = active.length;
+  document.getElementById('kpi-inactive').textContent = inactive.length;
+  const aiDenom = active.length + inactive.length;
+  const actPct  = aiDenom ? Math.round(100 * active.length / aiDenom) : 0;
+  document.getElementById('kpi-active-pct').textContent = actPct + '%';
+
+  const risk = liveRoster.filter(_isAtRisk).length;
   document.getElementById('kpi-risk').textContent = risk;
-  const exp = active.filter(_isExpiring).length;
+  const exp = liveRoster.filter(_isExpiring).length;
   document.getElementById('kpi-expiring').textContent = exp;
-
-  // Avg days since zoom — active only
-  const zoomDays = active.map(s => _daysSince(s.last_zoom_date)).filter(d => d !== null);
-  const avgZoom = zoomDays.length ? Math.round(zoomDays.reduce((a,b)=>a+b,0) / zoomDays.length) : null;
-  document.getElementById('kpi-zoom').textContent = avgZoom == null ? '—' : avgZoom + 'd';
-
-  // % with assignment received in last 7d — active only
-  const last7 = active.filter(s => { const d = _daysSince(s.last_assignment_received); return d !== null && d <= 7; }).length;
-  const pct = active.length ? Math.round(100 * last7 / active.length) : 0;
-  document.getElementById('kpi-assignment').textContent = pct + '%';
 
   // Expired + Paused counts
   document.getElementById('kpi-expired').textContent = expired.length;

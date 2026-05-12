@@ -520,8 +520,14 @@ function renderAll() {
   // (coach scope + chip filter + show-expired toggle = `rows`). Counts and
   // % are both computed from `rows`. When no filter is active, rows ≈
   // scoped, so KPI %s naturally line up with the donut %.
-  const rEngaged    = rows.filter(_engaged);
-  const rInactive   = rows.filter(s => !_engaged(s) && LIVE_COACHING.has(statusOf(s)));
+  // Active / Inactive are BOTH scoped to the live coaching roster so the
+  // buckets are mutually exclusive with Paused / Not onboarded / Delayed /
+  // Expired / Refunded / Graduated / Cancelled. Without this scope, a Paused
+  // student with recent activity would land in Active AND Paused, pushing
+  // the KPI sum past 100%.
+  const rLive       = rows.filter(s => LIVE_COACHING.has(statusOf(s)));
+  const rEngaged    = rLive.filter(_engaged);
+  const rInactive   = rLive.filter(s => !_engaged(s));
   const rExpiring   = rows.filter(_isExpiring).filter(_isActiveForStats);
   const rExpired    = rows.filter(_isExpired);
   const rPaused     = rows.filter(_isPaused);

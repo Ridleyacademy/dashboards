@@ -272,10 +272,17 @@ function _scopedRows() {
   // Advanced filters (level, module, status, masterclass level, coach status, last-zoom bucket, etc.)
   rows = _applyAdvancedFilters(rows);
 
-  // Hide Expired by default unless toggled on
-  if (!showExpired) rows = rows.filter(s => (s.derived_status || s.status) !== 'Expired');
-
+  // NOTE: the "Show expired" filter is intentionally NOT applied here so that
+  // KPI tiles + the "Show expired" chip-count can always report the true
+  // expired count in scope. The filter is applied later in _filterRows().
   return rows;
+}
+
+// Apply the "Show expired" visibility filter — used after KPIs are computed
+// to drop expired rows from the visible table when the toggle is off.
+function _applyShowExpiredFilter(rows) {
+  if (showExpired) return rows;
+  return rows.filter(s => (s.derived_status || s.status) !== 'Expired');
 }
 
 // Advanced filter state — multi-select sets + buckets
@@ -453,8 +460,9 @@ function _isPaused(s)  { return s.derived_status === 'Paused'; }
 function _isActiveForStats(s) { return !_isExpired(s) && !_isPaused(s); }
 
 function renderAll() {
-  const scoped = _scopedRows();
-  const rows = _filterRows(scoped);
+  const scoped = _scopedRows();              // always includes expired (so KPIs see them)
+  let rows = _filterRows(scoped);
+  rows = _applyShowExpiredFilter(rows);      // hide expired from the table only when toggle is off
 
   // Split scoped into active vs paused vs expired so KPIs only reflect active
   const active  = scoped.filter(_isActiveForStats);
@@ -612,7 +620,7 @@ document.getElementById('showExpiredBtn').addEventListener('click', (e) => {
 });
 document.getElementById('filtersBtn').addEventListener('click', openFiltersModal);
 document.getElementById('checkAll').addEventListener('change', (e) => {
-  const rows = _filterRows(_scopedRows());
+  const rows = _applyShowExpiredFilter(_filterRows(_scopedRows()));
   if (e.target.checked) rows.forEach(s => selectedIds.add(s.id));
   else rows.forEach(s => selectedIds.delete(s.id));
   renderAll();

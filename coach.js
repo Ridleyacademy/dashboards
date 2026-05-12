@@ -131,7 +131,7 @@ async function quickAddCoachNote(studentId, text) {
 // Stale-while-revalidate cache for the student list — boots the page instantly
 // from cached data, then re-fetches in the background and re-renders if anything
 // changed.
-const STUDENTS_CACHE_KEY = 'coachDash_students_v1';
+const STUDENTS_CACHE_KEY = 'coachDash_students_v2';  // v2: bust on derived_status auto-only switch
 function _readStudentsCache() {
   try {
     const raw = localStorage.getItem(STUDENTS_CACHE_KEY);
@@ -282,8 +282,8 @@ function _scopedRows() {
 // computed to drop those rows from the visible table when toggles are off.
 function _applyShowExpiredFilter(rows) {
   let out = rows;
-  if (!showExpired)  out = out.filter(s => (s.derived_status || s.status) !== 'Expired');
-  if (!showRefunded) out = out.filter(s => (s.derived_status || s.status) !== 'Refunded');
+  if (!showExpired)  out = out.filter(s => s.derived_status !== 'Expired');
+  if (!showRefunded) out = out.filter(s => s.derived_status !== 'Refunded');
   return out;
 }
 
@@ -319,7 +319,7 @@ function _applyAdvancedFilters(rows) {
   if (filters.module.size) rows = rows.filter(s => filters.module.has(s.current_module || ''));
   if (filters.coach_status.size) rows = rows.filter(s => filters.coach_status.has(s.coach_status || ''));
   if (filters.masterclass_level.size) rows = rows.filter(s => filters.masterclass_level.has(s.masterclass_level || ''));
-  if (filters.status.size) rows = rows.filter(s => filters.status.has(s.derived_status || s.status || ''));
+  if (filters.status.size) rows = rows.filter(s => filters.status.has(s.derived_status || ''));
   if (filters.zoom_bucket) rows = rows.filter(s => {
     // "Days since last zoom" filter is actually based on last activity
     // (zoom OR assignment received OR assignment sent — whichever is most recent).
@@ -463,7 +463,7 @@ function _isNeedsAttention(s) {
 
 function _filterRows(rows) {
   if (listFilter === 'all') return rows;
-  if (listFilter === 'inactive') return rows.filter(s => (s.derived_status || s.status) === 'Inactive');
+  if (listFilter === 'inactive') return rows.filter(s => s.derived_status === 'Inactive');
   if (listFilter === 'expiring') return rows.filter(_isExpiring);
   if (listFilter === 'needs') return rows.filter(_isNeedsAttention);
   return rows;
@@ -481,7 +481,7 @@ function renderAll() {
   rows = _applyShowExpiredFilter(rows);      // hide expired from the table only when toggle is off
 
   // Buckets driven by derived_status — single source of truth.
-  const statusOf  = (s) => s.derived_status || s.status || '';
+  const statusOf  = (s) => s.derived_status || '';
   const active    = scoped.filter(s => statusOf(s) === 'Active');
   const inactive  = scoped.filter(s => statusOf(s) === 'Inactive');
   const expired   = scoped.filter(_isExpired);
@@ -516,8 +516,8 @@ function renderAll() {
   document.getElementById('cnt-expiring').textContent = exp;
   document.getElementById('cnt-needs').textContent = liveCoaching.filter(_isNeedsAttention).length;
   // Show expired / refunded chip counts: number hidden in current scope when toggle is off
-  const expiredCount  = scoped.filter(s => (s.derived_status || s.status) === 'Expired').length;
-  const refundedCount = scoped.filter(s => (s.derived_status || s.status) === 'Refunded').length;
+  const expiredCount  = scoped.filter(s => s.derived_status === 'Expired').length;
+  const refundedCount = scoped.filter(s => s.derived_status === 'Refunded').length;
   const showExpEl  = document.getElementById('cnt-expired');
   const showRefEl  = document.getElementById('cnt-refunded');
   if (showExpEl) showExpEl.textContent = expiredCount;
@@ -536,8 +536,8 @@ function renderAll() {
     const bp = pinnedIds.has(b.id) ? 1 : 0;
     if (ap !== bp) return bp - ap;
     // Inactive students bubble to the top (replaces the old "at risk" sort priority).
-    const ai = (a.derived_status || a.status) === 'Inactive' ? 1 : 0;
-    const bi = (b.derived_status || b.status) === 'Inactive' ? 1 : 0;
+    const ai = a.derived_status === 'Inactive' ? 1 : 0;
+    const bi = b.derived_status === 'Inactive' ? 1 : 0;
     if (ai !== bi) return bi - ai;
     // Stale-activity first: sort by days since last activity (any of zoom / asg-recv / asg-sent), descending.
     const az = _daysSinceActivity(a); const bz = _daysSinceActivity(b);
@@ -557,7 +557,7 @@ function renderAll() {
       const ds = _daysSince(s.last_assignment_sent);
       const cls = (d) => d === null ? '' : (d <= 14 ? 'fresh' : d <= 30 ? 'stale' : 'dead');
       const fmt = (d, raw) => raw ? `<span class="dsince ${cls(d)}">${d}d</span>` : '<span class="dsince" style="opacity:.4">—</span>';
-      const status = s.derived_status || s.status || '—';
+      const status = s.derived_status || "—";
       const statusClass = status === 'Expired' ? 'bad' : status === 'Expiring soon' ? 'warn' : status === 'Paused' ? 'muted' : status === 'Active' ? 'ok' : 'muted';
       const checked = selectedIds.has(s.id) ? 'checked' : '';
       const isPinned = pinnedIds.has(s.id);
@@ -984,7 +984,7 @@ function renderCharts(scoped) {
   ];
   const tally = new Map();
   for (const s of scoped) {
-    const k = s.derived_status || s.status || '(unknown)';
+    const k = s.derived_status || '(unknown)';
     // Hide Expired / Refunded slices unless their toggles are on (matches table behavior).
     if (k === 'Expired'  && !showExpired)  continue;
     if (k === 'Refunded' && !showRefunded) continue;
@@ -1031,7 +1031,7 @@ function renderCharts(scoped) {
     { label: 'Never', test: d => d == null,            color: CHART_COLORS.dim },
   ];
   const LIVE_COACHING_HIST = new Set(['Active','Inactive','Expiring soon']);
-  const active = scoped.filter(s => LIVE_COACHING_HIST.has(s.derived_status || s.status || ''));
+  const active = scoped.filter(s => LIVE_COACHING_HIST.has(s.derived_status || ''));
   const zoomDaysAll = active.map(_daysSinceActivity);
   const zoomCounts = buckets.map(b => zoomDaysAll.filter(b.test).length);
   if (_charts.zoom) _charts.zoom.destroy();
@@ -1321,7 +1321,7 @@ async function openAddInviteesModal(meeting) {
       basePool = basePool.filter(s => _isMine(s, mine));
     }
     basePool = _applyAdvancedFilters(basePool);
-    if (!showExpired) basePool = basePool.filter(s => (s.derived_status || s.status) !== 'Expired');
+    if (!showExpired) basePool = basePool.filter(s => s.derived_status !== 'Expired');
     pool = basePool.filter(s => !alreadyInvited.has(s.id)).sort((a,b) => (a.name||'').localeCompare(b.name||''));
   }
   recomputePool();
@@ -1469,7 +1469,7 @@ async function openScheduleZoomModal(prefilledIds) {
   }
   // Apply the global advanced filters too (so Schedule Zoom respects them)
   basePool = _applyAdvancedFilters(basePool);
-  if (!showExpired) basePool = basePool.filter(s => (s.derived_status || s.status) !== 'Expired');
+  if (!showExpired) basePool = basePool.filter(s => s.derived_status !== 'Expired');
   const pool = [...basePool].sort((a,b) => {
     const ap = preset.has(a.id) ? 0 : 1, bp = preset.has(b.id) ? 0 : 1;
     if (ap !== bp) return ap - bp;
@@ -1696,7 +1696,7 @@ async function openScheduleZoomModal(prefilledIds) {
   function _szRebuildPool() {
     let np = isPrivilegedViewer ? allStudents.slice() : allStudents.filter(s => _isMine(s, _myCoachIdentities()));
     np = _applyAdvancedFilters(np);
-    if (!showExpired) np = np.filter(s => (s.derived_status || s.status) !== 'Expired');
+    if (!showExpired) np = np.filter(s => s.derived_status !== 'Expired');
     np.sort((a,b) => {
       const ap = szSelected.has(a.id) ? 0 : 1, bp = szSelected.has(b.id) ? 0 : 1;
       if (ap !== bp) return ap - bp;
@@ -2010,7 +2010,7 @@ async function openGroupEditor(group) {
     }
     // Apply advanced filters
     basePool = _applyAdvancedFilters(basePool);
-    if (!showExpired) basePool = basePool.filter(s => (s.derived_status || s.status) !== 'Expired');
+    if (!showExpired) basePool = basePool.filter(s => s.derived_status !== 'Expired');
     const pool = [...basePool].sort((a,b) => {
       const ap = groupSel.has(a.id) ? 0 : 1;
       const bp = groupSel.has(b.id) ? 0 : 1;

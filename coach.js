@@ -516,21 +516,32 @@ function renderAll() {
   // "Live roster" = used as scope for the Expiring KPI.
   const liveRoster = scoped.filter(_isActiveForStats);
 
-  // KPIs — both Active and Inactive show count + % of the live coaching roster.
-  document.getElementById('kpi-active').textContent   = active.length;
-  document.getElementById('kpi-inactive').textContent = inactive.length;
-  const denom = liveCoaching.length;
-  const actPct  = denom ? Math.round(100 * active.length   / denom) : 0;
-  const inactPct = denom ? Math.round(100 * inactive.length / denom) : 0;
-  document.getElementById('kpi-active-pct').textContent   = actPct  + '%';
-  document.getElementById('kpi-inactive-pct').textContent = inactPct + '%';
+  // KPIs:
+  //   Active / Inactive  → % of the live coaching roster (sums to 100%)
+  //   Everyone else      → % of all scoped students (a different scale, so the
+  //                        coach sees what slice of their whole book each
+  //                        lifecycle bucket represents)
+  const liveDenom  = liveCoaching.length;
+  const totalDenom = scoped.length;
+  const pct = (n, d) => d ? Math.round(100 * n / d) + '%' : '0%';
+  const setKPI = (id, count, denom) => {
+    const el  = document.getElementById('kpi-' + id);
+    const pel = document.getElementById('kpi-' + id + '-pct');
+    if (el)  el.textContent  = count;
+    if (pel) pel.textContent = pct(count, denom);
+  };
+
+  setKPI('active',       active.length,   liveDenom);
+  setKPI('inactive',     inactive.length, liveDenom);
 
   const exp = liveRoster.filter(_isExpiring).length;
-  document.getElementById('kpi-expiring').textContent = exp;
-
-  // Expired + Paused counts
-  document.getElementById('kpi-expired').textContent = expired.length;
-  document.getElementById('kpi-paused').textContent  = paused.length;
+  const notOnboarded = scoped.filter(s => statusOf(s) === 'Not onboarded').length;
+  const delayedStart = scoped.filter(s => statusOf(s) === 'Delayed start').length;
+  setKPI('expiring',     exp,             totalDenom);
+  setKPI('expired',      expired.length,  totalDenom);
+  setKPI('paused',       paused.length,   totalDenom);
+  setKPI('notonboarded', notOnboarded,    totalDenom);
+  setKPI('delayed',      delayedStart,    totalDenom);
 
   // Chip counts (All = full scope; others scoped to live roster)
   document.getElementById('cnt-all').textContent = scoped.length;

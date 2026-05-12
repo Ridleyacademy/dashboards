@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v71-active-inactive-include-expiring';
+const CACHE_NAME = 'ridley-v72-kpis-add-notonboarded-delayed-and-pcts';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [

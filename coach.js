@@ -1120,6 +1120,39 @@ function openBulkEditModal() {
     const value = (valEl?.value || '').trim();
     const ids = [...selectedIds];
     const msg = document.getElementById('bf-msg'); msg.className='msg'; msg.textContent='Applying…';
+    // For the three activity-tracked date fields, write through the activity
+    // log (not the cached column). The DB trigger updates the cached column
+    // afterward, so KPIs/charts stay consistent and we preserve history.
+    const ACTIVITY_MAP = {
+      last_zoom_date:           'zoom',
+      last_assignment_sent:     'assignment_sent',
+      last_assignment_received: 'assignment_received',
+    };
+    if (ACTIVITY_MAP[field]) {
+      if (!value) { msg.className='msg err'; msg.textContent='A date is required when bulk-setting an activity field.'; return; }
+      const kind = ACTIVITY_MAP[field];
+      let okCount = 0; let failCount = 0;
+      // Fire in parallel batches of 10 to keep the edge function happy.
+      const BATCH = 10;
+      for (let i = 0; i < ids.length; i += BATCH) {
+        const batch = ids.slice(i, i + BATCH);
+        const results = await Promise.allSettled(batch.map(sid => fetch(STUDENTS_BASE + '?api=add-activity', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
+          body: JSON.stringify({ studentId: sid, kind, activity_date: value, notes: 'Bulk assigned' }),
+        }).then(r => r.json().then(j => ({ ok: r.ok, j })))));
+        for (const r of results) {
+          if (r.status === 'fulfilled' && r.value.ok) okCount++; else failCount++;
+        }
+        msg.textContent = `Logging ${i + batch.length} / ${ids.length}…`;
+      }
+      msg.className = failCount ? 'msg err' : 'msg ok';
+      msg.textContent = `Logged ${okCount} entr${okCount===1?'y':'ies'}${failCount ? `; ${failCount} failed` : ''}`;
+      await loadStudents();
+      selectedIds.clear();
+      setTimeout(close, 1000);
+      return;
+    }
     try {
       const { data, error } = await supa.rpc('bulk_update_students_field', {
         p_ids: ids, p_field: field, p_value: value || null,

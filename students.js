@@ -932,6 +932,10 @@ let currentWins   = [];
 let currentCoachNotes = [];
 let currentTurnovers  = [];
 let currentRepNotes   = [];
+// Activity log: every zoom/assignment_sent/assignment_received event. Replaces
+// the three single-value date columns as the source of truth (the columns
+// still exist as cached MAX values maintained by a DB trigger).
+let currentActivityLog = [];
 let currentIcNotes    = [];
 let profileDirty = false;
 
@@ -995,7 +999,7 @@ async function openStudent(id) {
     _openStudentLatestId = null;
     if (_openStudentAbort) { try { _openStudentAbort.abort(); } catch(_){} _openStudentAbort = null; }
     currentStudent = { id: null, name: '', status: 'Active', metadata: {} };
-    currentPauses = []; currentResigns = []; currentAlerts = []; currentWins = []; currentCoachNotes = []; currentTurnovers = []; currentRepNotes = []; currentIcNotes = [];
+    currentPauses = []; currentResigns = []; currentAlerts = []; currentWins = []; currentCoachNotes = []; currentTurnovers = []; currentRepNotes = []; currentIcNotes = []; currentActivityLog = [];
     profileDirty = false;
     renderProfile();
     _swapActiveRow(null);
@@ -1030,6 +1034,7 @@ async function openStudent(id) {
     currentTurnovers  = cached?.turnovers   || [];
     currentRepNotes   = cached?.rep_notes   || [];
     currentIcNotes    = cached?.ic_notes    || [];
+    currentActivityLog = cached?.activity_log || [];
     currentStudent.surveys = cached?.surveys || [];
     profileDirty = false;
     renderProfile();
@@ -1054,6 +1059,7 @@ async function openStudent(id) {
     currentTurnovers  = Array.isArray(j.turnovers)   ? j.turnovers   : [];
     currentRepNotes   = Array.isArray(j.rep_notes)   ? j.rep_notes   : [];
     currentIcNotes    = Array.isArray(j.ic_notes)    ? j.ic_notes    : [];
+    currentActivityLog = Array.isArray(j.activity_log) ? j.activity_log : [];
     if (currentStudent) currentStudent.surveys = Array.isArray(j.surveys) ? j.surveys : [];
     profileDirty = false;
     renderProfile();
@@ -1062,6 +1068,7 @@ async function openStudent(id) {
       row: j.row, pauses: j.pauses, resigns: j.resigns, alerts: j.alerts,
       wins: j.wins, coach_notes: j.coach_notes, turnovers: j.turnovers,
       rep_notes: j.rep_notes, ic_notes: j.ic_notes, surveys: j.surveys,
+      activity_log: j.activity_log,
     });
   } catch (e) {
     if (e?.name === 'AbortError') return; // superseded by a later click
@@ -1104,9 +1111,10 @@ const SECTIONS = [
     { k: 'masterclass_level',      label: 'Masterclass level',          type: 'select',   opts: ['Introduction', 'Level 1', 'Level 2', 'Level 3', 'Level 4', 'Level 5', 'Level 6', 'Level 7', 'Level 8', 'Level 9', 'Level 10'] },
     { k: 'current_module',         label: 'Current module',             type: 'text',     placeholder: 'e.g. Module 5' },
     { k: 'coach_status',           label: 'Coach status',               type: 'select',   opts: ['All good', 'Needs attention'] },
-    { k: 'last_assignment_sent',     label: 'Last assignment sent',     type: 'date' },
-    { k: 'last_assignment_received', label: 'Last assignment received', type: 'date' },
-    { k: 'last_zoom_date',         label: 'Last Zoom',                  type: 'date' },
+    // The three single-value last_* date fields are handled by the
+    // Activity History panel appended after this section — every event is
+    // logged in mentorship_activity_log; the cached MAX columns on the
+    // student row keep dashboards working unchanged.
     { k: 'preferred_time_slot',    label: 'Schedule',                   type: 'text', placeholder: 'e.g. Tue/Thu 6pm CET, weekends only…' },
     { k: 'concern',                label: 'Concern',                    type: 'textarea', full: true, placeholder: 'Practice constraints, problem areas…' },
     { k: 'goal',                   label: 'Goal',                       type: 'textarea', full: true, placeholder: 'What are they working toward?' },
@@ -1369,6 +1377,111 @@ async function deletePause(id) {
   } catch (e) { alert('Delete pause failed: ' + (e.message || e)); }
 }
 
+function _buildActivityHistoryPanel(_section, _openAttr) {
+  const KINDS = [
+    { key: 'zoom',                label: 'Zoom calls',          cached: currentStudent?.last_zoom_date },
+    { key: 'assignment_sent',     label: 'Assignment sent',     cached: currentStudent?.last_assignment_sent },
+    { key: 'assignment_received', label: 'Assignment received', cached: currentStudent?.last_assignment_received },
+  ];
+  const grouped = { zoom: [], assignment_sent: [], assignment_received: [] };
+  for (const e of (currentActivityLog || [])) { if (grouped[e.kind]) grouped[e.kind].push(e); }
+  const today = new Date().toISOString().slice(0, 10);
+  const inner = KINDS.map(k => {
+    const list = grouped[k.key] || [];
+    const latest = list[0]?.activity_date || k.cached || '—';
+    const rows = list.length === 0
+      ? '<div style="padding:10px;color:var(--text-muted);font-size:0.82rem;background:var(--surface2);border-radius:8px;">No history yet.</div>'
+      : `<div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;max-height:260px;overflow-y:auto;">
+          <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
+            <thead style="background:var(--surface2);color:var(--text-dim);font-size:0.66rem;text-transform:uppercase;letter-spacing:0.06em;position:sticky;top:0;">
+              <tr><th style="padding:6px 8px;text-align:left;">Date</th><th style="padding:6px 8px;text-align:left;">Notes</th><th style="padding:6px 8px;text-align:left;">Source</th><th></th></tr>
+            </thead>
+            <tbody>${list.map(e => `
+              <tr data-act-id="${e.id}">
+                <td style="padding:6px 8px;font-weight:600;">${escapeHtml(e.activity_date || '')}</td>
+                <td style="padding:6px 8px;color:var(--text-muted);">${escapeHtml(e.notes || '')}</td>
+                <td style="padding:6px 8px;color:var(--text-muted);font-size:0.72rem;">${escapeHtml((e.created_by_email || e.source || '').toString())}</td>
+                <td style="padding:6px 8px;text-align:right;"><button class="profile-delete act-del" data-aid="${e.id}" data-kind="${k.key}" style="padding:4px 10px;font-size:0.72rem;">✕</button></td>
+              </tr>`).join('')}</tbody>
+          </table>
+        </div>`;
+    return `
+      <details class="act-block" data-kind="${k.key}" open style="margin-bottom:14px;">
+        <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px;padding:6px 0;">
+          <span style="font-size:0.86rem;font-weight:700;color:var(--text);">${escapeHtml(k.label)}</span>
+          <span style="font-size:0.78rem;color:var(--text-muted);">Latest: <strong style="color:var(--text);font-weight:700;">${latest ? escapeHtml(latest) : '—'}</strong></span>
+          <span style="font-size:0.72rem;color:var(--text-muted);opacity:0.7;">(${list.length} entr${list.length===1?'y':'ies'})</span>
+          <span style="margin-left:auto;color:var(--text-muted);">▾</span>
+        </summary>
+        <div style="display:grid;grid-template-columns:160px 1fr auto;gap:8px;margin:8px 0;">
+          <input type="date" class="field-input act-date" data-kind="${k.key}" value="${today}">
+          <input type="text" class="field-input act-notes" data-kind="${k.key}" placeholder="Optional note (assignment #, topic…)" maxlength="200">
+          <button class="profile-save act-add-btn" data-kind="${k.key}" style="padding:6px 14px;font-size:0.78rem;">+ Add</button>
+        </div>
+        ${rows}
+      </details>`;
+  }).join('');
+  return _section('Activity history', inner);
+}
+
+function _wireActivityHistory() {
+  if (!currentStudent || !currentStudent.id) return;
+  document.querySelectorAll('.act-add-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const k = btn.getAttribute('data-kind');
+      const dateEl  = document.querySelector(`.act-date[data-kind="${k}"]`);
+      const notesEl = document.querySelector(`.act-notes[data-kind="${k}"]`);
+      const date = dateEl?.value;
+      if (!date) return;
+      btn.disabled = true; btn.textContent = '…';
+      try {
+        const r = await fetch(STUDENTS_BASE + '?api=add-activity', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
+          body: JSON.stringify({ studentId: currentStudent.id, kind: k, activity_date: date, notes: notesEl.value.trim() || null }),
+        });
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error || 'Failed');
+        currentActivityLog.unshift({ id: j.id, student_id: currentStudent.id, kind: k, activity_date: date, source: 'manual_entry', notes: notesEl.value.trim() || null, created_by_email: currentSession?.user?.email || null });
+        _refreshCachedFromLog();
+        renderProfile();
+      } catch (e) { alert('Add failed: ' + (e.message || e)); btn.disabled = false; btn.textContent = '+ Add'; }
+    });
+  });
+  document.querySelectorAll('.act-del').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('Delete this entry?')) return;
+      const aid = Number(btn.getAttribute('data-aid'));
+      try {
+        const r = await fetch(STUDENTS_BASE + '?api=delete-activity', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
+          body: JSON.stringify({ id: aid }),
+        });
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error || 'Failed');
+        currentActivityLog = currentActivityLog.filter(e => e.id !== aid);
+        _refreshCachedFromLog();
+        renderProfile();
+      } catch (e) { alert('Delete failed: ' + (e.message || e)); }
+    });
+  });
+}
+
+function _refreshCachedFromLog() {
+  // Mirror the DB trigger client-side so the UI updates instantly without a refetch.
+  const maxBy = (k) => currentActivityLog.filter(e => e.kind === k).map(e => e.activity_date).sort().slice(-1)[0] || null;
+  currentStudent.last_zoom_date           = maxBy('zoom');
+  currentStudent.last_assignment_sent     = maxBy('assignment_sent');
+  currentStudent.last_assignment_received = maxBy('assignment_received');
+  const idx = students.findIndex(s => s.id === currentStudent.id);
+  if (idx >= 0) Object.assign(students[idx], {
+    last_zoom_date: currentStudent.last_zoom_date,
+    last_assignment_sent: currentStudent.last_assignment_sent,
+    last_assignment_received: currentStudent.last_assignment_received,
+  });
+}
+
 function _buildResignsPanel(_section, _openAttr) {
   const fmtMoney = n => n == null ? '—' : '$' + Number(n).toLocaleString();
   const sorted = [...currentResigns].sort((a, b) =>
@@ -1589,6 +1702,7 @@ function renderProfile() {
     let html = _section(title, grid);
     if (title === 'Purchase' && !isNew) html += _buildResignsPanel(_section, _openAttr);
     if (title === 'Onboarding' && !isNew) html += _buildPausesPanel(_section, _openAttr);
+    if (title === 'Coach' && !isNew) html += _buildActivityHistoryPanel(_section, _openAttr);
     return html;
   }).join('');
 
@@ -1760,6 +1874,7 @@ function renderProfile() {
   if (!isNew) {
     _wirePauses();
     _wireResigns();
+    _wireActivityHistory();
     document.getElementById('prof-list-alerts')?.addEventListener('click', openAlertsHistoryModal);
     document.getElementById('prof-list-logs')?.addEventListener('click', openLogsChooserModal);
     document.getElementById('prof-list-videos')?.addEventListener('click', openDropboxVideosModal);

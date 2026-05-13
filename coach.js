@@ -270,7 +270,7 @@ function _scopedRows() {
   if (q) rows = rows.filter(s =>
     (s.name || '').toLowerCase().includes(q) ||
     (s.email || '').toLowerCase().includes(q) ||
-    (s.current_module || '').toLowerCase().includes(q) ||
+    (s.masterclass_level || '').toLowerCase().includes(q) ||
     (s.level || '').toLowerCase().includes(q));
 
   // Advanced filters (level, module, status, masterclass level, coach status, last-zoom bucket, etc.)
@@ -312,7 +312,6 @@ function _applyDateFilter(rows) {
 // Advanced filter state — multi-select sets + buckets
 const filters = {
   level: new Set(),
-  module: new Set(),
   coach_status: new Set(),
   masterclass_level: new Set(),
   status: new Set(),       // Active / Expiring soon / Paused (Expired handled separately)
@@ -338,7 +337,6 @@ function _bucketDays(dateStr) {
 }
 function _applyAdvancedFilters(rows) {
   if (filters.level.size) rows = rows.filter(s => filters.level.has(s.level || ''));
-  if (filters.module.size) rows = rows.filter(s => filters.module.has(s.current_module || ''));
   if (filters.coach_status.size) rows = rows.filter(s => filters.coach_status.has(s.coach_status || ''));
   if (filters.masterclass_level.size) rows = rows.filter(s => filters.masterclass_level.has(s.masterclass_level || ''));
   if (filters.status.size) rows = rows.filter(s => filters.status.has(s.derived_status || ''));
@@ -641,7 +639,7 @@ function renderAll() {
         </div></td>
         <td class="col-name" data-label="Name"><strong>${escapeHtml(s.name || '(unnamed)')}</strong><br><span style="font-size:0.72rem;color:var(--text-dim);">${escapeHtml(s.email || '')}</span></td>
         <td data-label="Level">${escapeHtml(s.level || '—')}</td>
-        <td data-label="Module">${escapeHtml(s.current_module || '—')}</td>
+        <td data-label="Masterclass">${escapeHtml(s.masterclass_level || '—')}</td>
         <td data-label="Last Zoom">${fmt(dz, s.last_zoom_date)}</td>
         <td data-label="Asgmt Sent">${fmt(ds, s.last_assignment_sent)}</td>
         <td data-label="Asgmt Recv">${fmt(da, s.last_assignment_received)}</td>
@@ -886,7 +884,6 @@ async function openProfileModal(id) {
             <option ${row.level==='Intermediate'?'selected':''}>Intermediate</option>
             <option ${row.level==='Advanced'?'selected':''}>Advanced</option>
           </select></div>
-        <div><label>Current module</label><input id="pf-current_module" value="${escapeHtml(row.current_module||'')}" placeholder="e.g. Module 5"></div>
         <div><label>Coach status</label>
           <select id="pf-coach_status">
             <option value="">—</option>
@@ -1029,7 +1026,7 @@ async function openProfileModal(id) {
   document.getElementById('pf-save').addEventListener('click', async () => {
     // last_zoom_date / last_assignment_sent / last_assignment_received are now
     // managed by the activity log — they're NOT in this payload.
-    const fields = ['coach','level','current_module','coach_status','masterclass_level','preferred_time_slot','concern','goal'];
+    const fields = ['coach','level','coach_status','masterclass_level','preferred_time_slot','concern','goal'];
     const payload = { id: row.id };
     fields.forEach(f => { payload[f] = document.getElementById('pf-'+f).value || null; });
     const msg = document.getElementById('pf-msg'); msg.className='msg'; msg.textContent='Saving…';
@@ -1071,7 +1068,6 @@ function openBulkEditModal() {
             <option value="last_assignment_sent">Last assignment sent</option>
             <option value="last_assignment_received">Last assignment received</option>
             <option value="level">Level</option>
-            <option value="current_module">Current module</option>
             <option value="coach_status">Coach status</option>
             <option value="coach">Coach</option>
             <option value="masterclass_level">Masterclass level</option>
@@ -1107,7 +1103,7 @@ function openBulkEditModal() {
     } else if (['concern','goal'].includes(f)) {
       html += `<textarea id="bf-value" style="min-height:80px;"></textarea>`;
     } else {
-      html += `<input id="bf-value" type="text" placeholder="${f === 'current_module' ? 'e.g. Module 5' : ''}">`;
+      html += `<input id="bf-value" type="text">`;
     }
     wrap.innerHTML = html;
   }
@@ -2326,7 +2322,6 @@ function openFiltersModal(onApply) {
   const m = document.createElement('div');
   m.id = 'filtersModal'; m.className = 'modal-bg';
   const levels = _uniqueValuesFor('level');
-  const modules = _uniqueValuesFor('current_module');
   const masterclass = _uniqueValuesFor('masterclass_level');
   const coachStatuses = ['All good', 'Needs attention'];
   const statuses = ['Active', 'Expiring soon', 'Paused'];
@@ -2343,7 +2338,6 @@ function openFiltersModal(onApply) {
       </div>
       <div class="modal-body" style="grid-template-columns:1fr;">
         <div><label>Level</label><div class="filter-chips">${mkChips('level', levels) || '<span style="color:var(--text-dim);font-size:0.78rem;">No data.</span>'}</div></div>
-        <div><label>Current module</label><div class="filter-chips">${mkChips('module', modules) || '<span style="color:var(--text-dim);font-size:0.78rem;">No data.</span>'}</div></div>
         <div><label>Masterclass level</label><div class="filter-chips">${mkChips('masterclass_level', masterclass) || '<span style="color:var(--text-dim);font-size:0.78rem;">No data.</span>'}</div></div>
         <div><label>Coach status</label><div class="filter-chips">${mkChips('coach_status', coachStatuses)}</div></div>
         <div><label>Lifecycle status</label><div class="filter-chips">${mkChips('status', statuses)}<span style="font-size:0.72rem;color:var(--text-dim);margin-left:8px;">(Expired toggled separately on the chip bar)</span></div></div>
@@ -2378,7 +2372,7 @@ function openFiltersModal(onApply) {
     });
   });
   document.getElementById('filterReset').addEventListener('click', () => {
-    filters.level.clear(); filters.module.clear(); filters.coach_status.clear();
+    filters.level.clear(); filters.coach_status.clear();
     filters.masterclass_level.clear(); filters.status.clear();
     filters.zoom_bucket = ''; filters.asg_sent_bucket = ''; filters.asg_recv_bucket = ''; filters.has_email = '';
     close(); renderAll();

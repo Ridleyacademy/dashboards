@@ -302,7 +302,6 @@ const advFilters = {
   product:         [],
   derived_status:  [],
   level:           [],
-  current_module:  [],
   masterclass_level:[],
   coach_status:    [],
   months_count:    [],
@@ -384,7 +383,6 @@ function _applyAdvFilters(rows) {
     if (!matchArr('product',        s.product || '(none)')) return false;
     if (!matchArr('derived_status', s.derived_status || s.status || '(none)')) return false;
     if (!matchArr('level',          s.level || '(none)')) return false;
-    if (!matchArr('current_module', s.current_module || '(none)')) return false;
     if (!matchArr('masterclass_level', s.masterclass_level || '(none)')) return false;
     if (!matchArr('coach_status',   s.coach_status || '(none)')) return false;
     if (!matchArr('months_count',   String(s.months_count ?? 12))) return false;
@@ -475,7 +473,6 @@ function renderAdvFilterPanel() {
       ${sectionMulti('level', '🎚 Level', _uniqueValues('level', '(none)'))}
     </div>
     <div class="adv-filter-grid">
-      ${sectionMulti('current_module', '📘 Current module', _uniqueValues('current_module', '(none)'))}
       ${sectionMulti('masterclass_level', ICONS.music() + ' Masterclass level', _uniqueValues('masterclass_level', '(none)'))}
     </div>
     ${sectionMulti('months_count', '📆 Term length (months)', _uniqueValues('months_count', '12'))}
@@ -519,7 +516,7 @@ function _activeFilterChipLabel(key, val) {
   const labelMap = {
     coach: 'Coach', mentor: 'Rep', product: 'Product',
     derived_status: 'Status', level: 'Level',
-    current_module: 'Module', masterclass_level: 'Masterclass',
+    masterclass_level: 'Masterclass',
     coach_status: 'Coach status', months_count: 'Term',
     days_left_bucket: 'Time left', inactive_days_bucket: 'Inactive',
     verified: 'Verified', has_open_alerts: 'Alerts',
@@ -824,7 +821,7 @@ function renderOverviewPane() {
           <th>Status</th>
           <th>Coach</th>
           <th>Level</th>
-          <th>Module</th>
+          <th>Masterclass</th>
           <th>Coach status</th>
           <th>Last assignment</th>
           <th>Last Zoom</th>
@@ -854,7 +851,7 @@ function renderOverviewPane() {
     tr.querySelector('.ov-status').textContent      = s.derived_status || s.status || '';
     tr.querySelector('.ov-coach').textContent       = s.coach || '—';
     tr.querySelector('.ov-level').textContent       = s.level || '—';
-    tr.querySelector('.ov-module').textContent      = s.current_module || '—';
+    tr.querySelector('.ov-module').textContent      = s.masterclass_level || '—';
     tr.querySelector('.ov-coachstatus').textContent = s.coach_status || '—';
     tr.querySelector('.ov-zoom').textContent        = s.last_zoom_date ? String(s.last_zoom_date).slice(0,10) : '—';
     tr.addEventListener('click', () => {
@@ -1120,7 +1117,6 @@ const SECTIONS = [
   ['Coach', [
     { k: 'level',                  label: 'Level',                      type: 'select',   opts: ['Beginner', 'Intermediate', 'Advanced'] },
     { k: 'masterclass_level',      label: 'Masterclass level',          type: 'select',   opts: ['Introduction', 'Level 1', 'Level 2', 'Level 3', 'Level 4', 'Level 5', 'Level 6', 'Level 7', 'Level 8', 'Level 9', 'Level 10'] },
-    { k: 'current_module',         label: 'Current module',             type: 'text',     placeholder: 'e.g. Module 5' },
     { k: 'coach_status',           label: 'Coach status',               type: 'select',   opts: ['All good', 'Needs attention'] },
     // The three single-value last_* date fields are handled by the
     // Activity History panel appended after this section — every event is

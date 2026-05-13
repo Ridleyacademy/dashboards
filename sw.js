@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v83-crm-default-filter-coach-and-rep';
+const CACHE_NAME = 'ridley-v84-merge-module-into-masterclass-level';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [

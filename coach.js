@@ -165,37 +165,60 @@ async function loadStudents(opts) {
   const tbody = document.getElementById('studentTbody');
   const force = !!(opts && opts.force);
 
+  // Diagnostic timing — surfaces in DevTools console so we can see exactly
+  // which phase is slow if the page feels stuck.
+  const t0 = performance.now();
+  const stamp = (label) => console.log(`[loadStudents] ${label}: ${Math.round(performance.now() - t0)}ms`);
+
+  // Best-effort: clear ANY orphaned student caches from older versions. If
+  // a hung tab from a prior session left a partial write behind, this also
+  // unblocks it cleanly. Cheap and only runs once per call.
+  try {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('coachDash_students_') && k !== STUDENTS_CACHE_KEY) {
+        localStorage.removeItem(k);
+      }
+    }
+  } catch (_) {}
+
   // 1. Show cached data instantly (if fresh enough — 1 hour cap)
   const cache = _readStudentsCache();
+  stamp(cache ? `cache hit (${cache.rows?.length || 0} rows)` : 'cache miss');
   if (!force && cache && (Date.now() - cache.ts) < 3600_000) {
     allStudents = cache.rows;
     populateCoachPicker();
     renderAll();
+    stamp('initial render done');
   } else if (!allStudents.length) {
     tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:24px;color:var(--text-dim);">Loading…</td></tr>';
   }
 
   // 2. Always fetch fresh in the background
   try {
+    stamp('fetch start');
     const r = await fetch(STUDENTS_BASE + '?api=list', {
       headers: { Authorization: 'Bearer ' + currentSession.access_token },
     });
+    stamp(`fetch headers: ${r.status}`);
     const j = await r.json();
+    stamp('json parsed');
     if (!r.ok) throw new Error(j.error || 'Failed');
     const rows = j.rows || [];
-    // Diff: only re-render if something changed (cheap signature)
     const sigPrev = allStudents.length + ':' + (allStudents[0]?.id || '');
     const sigNew = rows.length + ':' + (rows[0]?.id || '');
     allStudents = rows;
     _writeStudentsCache(rows);
+    stamp('cache written');
     if (sigPrev !== sigNew || force || !cache) {
       populateCoachPicker();
       renderAll();
     } else {
-      // Same shape — quietly refresh in case fields changed
       renderAll();
     }
+    stamp('background render done');
   } catch (e) {
+    stamp(`error: ${e?.message || e}`);
     if (!allStudents.length) tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:24px;color:#f87171;">Failed to load: ${escapeHtml(e.message || e)}</td></tr>`;
     console.warn('loadStudents background fetch failed', e);
   }

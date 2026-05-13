@@ -325,7 +325,7 @@ let showRefunded = false;
 
 function _filtersActiveCount() {
   let n = 0;
-  for (const k of ['level','module','coach_status','masterclass_level','status']) n += filters[k].size > 0 ? 1 : 0;
+  for (const k of ['level','coach_status','masterclass_level','status']) n += filters[k].size > 0 ? 1 : 0;
   for (const k of ['zoom_bucket','asg_sent_bucket','asg_recv_bucket','has_email']) n += filters[k] ? 1 : 0;
   return n;
 }

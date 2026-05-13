@@ -908,7 +908,6 @@ async function openProfileModal(id) {
         <button type="button" class="btn-ghost pf-jump-logs" title="View / add logs (coach notes, wins, rep notes, IC notes, turnovers)" style="padding:6px 12px;font-size:0.78rem;">
           📋 Logs${(row.coach_notes_count|0) > 0 ? ` <span style="background:rgba(34,211,238,0.18);color:#22d3ee;border-radius:9px;padding:1px 7px;margin-left:4px;font-size:0.7rem;font-weight:800;">${row.coach_notes_count}</span>` : ''}
         </button>
-        <button type="button" class="btn-ghost pf-jump-activity" title="Jump to activity history" style="padding:6px 12px;font-size:0.78rem;">⏱ Activity log</button>
         <a href="students.html?student=${row.id}" target="_blank" class="btn-ghost" title="Open in full CRM">Full profile ↗</a>
         <button class="close" data-x>×</button>
       </div>
@@ -956,11 +955,6 @@ async function openProfileModal(id) {
   m.querySelector('.pf-jump-logs')?.addEventListener('click', (e) => {
     openCoachLogsModal(row.id, row.name || '', e.currentTarget);
   });
-  m.querySelector('.pf-jump-activity')?.addEventListener('click', () => {
-    const target = m.querySelector('#pf-activity');
-    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  });
-
   // Render the activity-history block (replaces the three single-date inputs).
   // The last_* date columns on mentorship_students are auto-maintained by a
   // trigger that recomputes MAX(activity_date) per kind on every insert/delete

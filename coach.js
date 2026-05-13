@@ -914,7 +914,7 @@ async function openProfileModal(id) {
       </div>
       <div class="modal-body">
         <div><label>Email</label><input id="pf-email" value="${escapeHtml(row.email||'')}" readonly></div>
-        <div><label>Coach</label><input id="pf-coach" value="${escapeHtml(row.coach||'')}"></div>
+        <div><label>Coach</label><input id="pf-coach" value="${escapeHtml(row.coach||'')}" readonly title="Coach is managed in the full CRM"></div>
         <div><label>Level</label>
           <select id="pf-level">
             <option value="">—</option><option ${row.level==='Beginner'?'selected':''}>Beginner</option>
@@ -1103,7 +1103,9 @@ async function openProfileModal(id) {
   document.getElementById('pf-save').addEventListener('click', async () => {
     // last_zoom_date / last_assignment_sent / last_assignment_received are now
     // managed by the activity log — they're NOT in this payload.
-    const fields = ['coach','level','coach_status','masterclass_level','preferred_time_slot','concern','goal'];
+    // coach is intentionally omitted — read-only in the coach dashboard;
+    // coach assignment changes happen in the full CRM (or by an admin).
+    const fields = ['level','coach_status','masterclass_level','preferred_time_slot','concern','goal'];
     const payload = { id: row.id };
     fields.forEach(f => { payload[f] = document.getElementById('pf-'+f).value || null; });
     const msg = document.getElementById('pf-msg'); msg.className='msg'; msg.textContent='Saving…';

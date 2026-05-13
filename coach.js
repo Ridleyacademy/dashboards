@@ -1128,19 +1128,25 @@ async function openProfileModal(id) {
 // for this student. Clicking 'Coach notes' opens the existing inline
 // quick-note popover (the most common case). Other types link to the CRM
 // where their full add/edit forms live.
+let _logsLatestId = null;
+let _logsAbort = null;
+
 async function openCoachLogsModal(studentId, studentName, anchorEl) {
+  _logsLatestId = studentId;
+  if (_logsAbort) { try { _logsAbort.abort(); } catch (_) {} }
+  const ac = new AbortController();
+  _logsAbort = ac;
+
+  // Render immediately with the count we already know (coach_notes from the
+  // list cache) and 'loading' placeholders for the other 4 types. Avoids the
+  // 1-3s blank-screen wait while ?api=get runs.
   document.getElementById('coachLogsModal')?.remove();
-  let wins = [], coachNotes = [], repNotes = [], icNotes = [], turnovers = [];
-  try {
-    const r = await fetch(STUDENTS_BASE + '?api=get&id=' + encodeURIComponent(studentId), {
-      headers: { Authorization: 'Bearer ' + currentSession.access_token },
-    });
-    const j = await r.json();
-    if (r.ok) {
-      wins = j.wins || []; coachNotes = j.coach_notes || []; repNotes = j.rep_notes || [];
-      icNotes = j.ic_notes || []; turnovers = j.turnovers || [];
-    }
-  } catch (_) {}
+  const cached = allStudents.find(s => s.id === studentId);
+  let coachNotesCount = cached?.coach_notes_count || 0;
+  let winsCount       = cached?.wins_count       || 0;
+  let repNotesCount   = cached?.rep_notes_count   || 0;
+  let icNotesCount    = cached?.ic_notes_count    || 0;
+  let turnoversCount  = cached?.turnovers_count   || 0;
 
   const m = document.createElement('div');
   m.id = 'coachLogsModal';
@@ -1161,12 +1167,12 @@ async function openCoachLogsModal(studentId, studentName, anchorEl) {
         <h2>📋 Logs · ${escapeHtml(studentName || '(unnamed)')}</h2>
         <button class="close" data-x>×</button>
       </div>
-      <div class="modal-body" style="grid-template-columns:1fr;">
-        ${card('📝', 'Coach notes',  coachNotes.length, 'notes',     '#a78bfa', 'Session notes, observations, follow-ups.')}
-        ${card('🏆', 'Wins',         wins.length,       'wins',      '#fbbf24', 'Milestones, auditions, breakthroughs.')}
-        ${card('💼', 'Rep notes',    repNotes.length,   'repnotes',  '#60a5fa', 'Notes from REGs / sales reps.')}
-        ${card('🎯', 'I/C notes',    icNotes.length,    'icnotes',   '#f472b6', 'Initial-call notes — onboarding, intent, fit.')}
-        ${card('🔄', 'Turnovers',    turnovers.length,  'turnovers', '#34d399', 'Hand-offs to a rep — log + outcome.')}
+      <div class="modal-body" style="grid-template-columns:1fr;" id="coachLogsBody">
+        ${card('📝', 'Coach notes',  coachNotesCount, 'notes',     '#a78bfa', 'Session notes, observations, follow-ups.')}
+        ${card('🏆', 'Wins',         winsCount,       'wins',      '#fbbf24', 'Milestones, auditions, breakthroughs.')}
+        ${card('💼', 'Rep notes',    repNotesCount,   'repnotes',  '#60a5fa', 'Notes from REGs / sales reps.')}
+        ${card('🎯', 'I/C notes',    icNotesCount,    'icnotes',   '#f472b6', 'Initial-call notes — onboarding, intent, fit.')}
+        ${card('🔄', 'Turnovers',    turnoversCount,  'turnovers', '#34d399', 'Hand-offs to a rep — log + outcome.')}
       </div>
       <div class="modal-foot">
         <span class="msg"></span>
@@ -1197,6 +1203,44 @@ async function openCoachLogsModal(studentId, studentName, anchorEl) {
     b.addEventListener('mouseenter', () => { b.style.borderColor = 'var(--accent2, #22d3ee)'; b.style.background = 'rgba(255,255,255,0.03)'; });
     b.addEventListener('mouseleave', () => { b.style.borderColor = 'var(--border)'; b.style.background = 'transparent'; });
   });
+
+  // Background refresh — fetch authoritative counts and re-render the cards
+  // if anything changed. Skipped if the user has since clicked elsewhere
+  // (another student, closed the modal, etc.).
+  (async () => {
+    try {
+      const r = await fetch(STUDENTS_BASE + '?api=get&id=' + encodeURIComponent(studentId), {
+        headers: { Authorization: 'Bearer ' + currentSession.access_token },
+        signal: ac.signal,
+      });
+      if (_logsLatestId !== studentId) return;
+      const j = await r.json();
+      if (_logsLatestId !== studentId) return;
+      if (!r.ok) return;
+      const wins = j.wins || [], coachNotes = j.coach_notes || [], repNotes = j.rep_notes || [];
+      const icNotes = j.ic_notes || [], turnovers = j.turnovers || [];
+      // Only re-render if our modal is still mounted AND a count actually changed
+      const body = document.getElementById('coachLogsBody');
+      if (!body) return;
+      const changed = coachNotes.length !== coachNotesCount || wins.length !== winsCount
+        || repNotes.length !== repNotesCount || icNotes.length !== icNotesCount || turnovers.length !== turnoversCount;
+      if (!changed) return;
+      coachNotesCount = coachNotes.length; winsCount = wins.length; repNotesCount = repNotes.length;
+      icNotesCount = icNotes.length; turnoversCount = turnovers.length;
+      body.innerHTML = [
+        card('📝', 'Coach notes',  coachNotesCount, 'notes',     '#a78bfa', 'Session notes, observations, follow-ups.'),
+        card('🏆', 'Wins',         winsCount,       'wins',      '#fbbf24', 'Milestones, auditions, breakthroughs.'),
+        card('💼', 'Rep notes',    repNotesCount,   'repnotes',  '#60a5fa', 'Notes from REGs / sales reps.'),
+        card('🎯', 'I/C notes',    icNotesCount,    'icnotes',   '#f472b6', 'Initial-call notes — onboarding, intent, fit.'),
+        card('🔄', 'Turnovers',    turnoversCount,  'turnovers', '#34d399', 'Hand-offs to a rep — log + outcome.'),
+      ].join('');
+      // Re-wire hover handlers on the new buttons
+      body.querySelectorAll('.log-card').forEach(b => {
+        b.addEventListener('mouseenter', () => { b.style.borderColor = 'var(--accent2, #22d3ee)'; b.style.background = 'rgba(255,255,255,0.03)'; });
+        b.addEventListener('mouseleave', () => { b.style.borderColor = 'var(--border)'; b.style.background = 'transparent'; });
+      });
+    } catch (_) { /* abort or network noise — leave the cached counts in place */ }
+  })();
 }
 
 // ── Coach-board inline Alerts modal ─────────────────────────────────────
@@ -1204,7 +1248,14 @@ async function openCoachLogsModal(studentId, studentName, anchorEl) {
 // one and resolve open ones, all without leaving the dashboard. Same actions
 // the CRM's openAlertsHistoryModal exposes; uses the same edge-function
 // endpoints (add-alert / resolve-alert).
+let _alertsLatestId = null;
+let _alertsAbort = null;
+
 async function openCoachAlertsModal(studentId, studentName) {
+  _alertsLatestId = studentId;
+  if (_alertsAbort) { try { _alertsAbort.abort(); } catch (_) {} }
+  const ac = new AbortController();
+  _alertsAbort = ac;
   document.getElementById('coachAlertsModal')?.remove();
   const m = document.createElement('div');
   m.id = 'coachAlertsModal';
@@ -1235,10 +1286,13 @@ async function openCoachAlertsModal(studentId, studentName) {
     try {
       const r = await fetch(STUDENTS_BASE + '?api=get&id=' + encodeURIComponent(studentId), {
         headers: { Authorization: 'Bearer ' + currentSession.access_token },
+        signal: ac.signal,
       });
+      if (_alertsLatestId !== studentId) return;
       const j = await r.json();
+      if (_alertsLatestId !== studentId) return;
       if (r.ok) alerts = j.alerts || [];
-    } catch (_) {}
+    } catch (e) { if (e?.name === 'AbortError') return; }
     const sorted = [...alerts].sort((a, b) => {
       const ao = a.status === 'open' ? 0 : 1, bo = b.status === 'open' ? 0 : 1;
       if (ao !== bo) return ao - bo;

@@ -947,11 +947,7 @@ async function openProfileModal(id) {
 
   // Header quick-access buttons
   m.querySelector('.pf-jump-alerts')?.addEventListener('click', () => {
-    // Open the CRM full profile, which auto-opens the alerts modal when the
-    // openAlerts param is present. We pass alert id=1 as a hint that any
-    // alert opener will accept; students.js falls back to the alerts history
-    // modal if the id doesn't match a specific alert.
-    window.open(`students.html?student=${row.id}&openAlerts=1`, '_blank');
+    openCoachAlertsModal(row.id, row.name || '');
   });
   m.querySelector('.pf-jump-notes')?.addEventListener('click', (e) => {
     // Open the existing quick-note popover anchored to the header button.
@@ -1128,6 +1124,112 @@ async function openProfileModal(id) {
 }
 
 // ── Bulk edit modal ───────────────────────────────────────────
+// ── Coach-board inline Alerts modal ─────────────────────────────────────
+// Lists this student's alerts (open + resolved), lets the coach file a new
+// one and resolve open ones, all without leaving the dashboard. Same actions
+// the CRM's openAlertsHistoryModal exposes; uses the same edge-function
+// endpoints (add-alert / resolve-alert).
+async function openCoachAlertsModal(studentId, studentName) {
+  document.getElementById('coachAlertsModal')?.remove();
+  const m = document.createElement('div');
+  m.id = 'coachAlertsModal';
+  m.className = 'modal-bg';
+  m.style.zIndex = '10100';  // above the underlying profile modal
+  m.innerHTML = `
+    <div class="modal-card" style="max-width:680px;">
+      <div class="modal-head">
+        <h2>🔔 Alerts · ${escapeHtml(studentName || '(unnamed)')}</h2>
+        <button class="close" data-x>×</button>
+      </div>
+      <div class="modal-body" id="caBody" style="grid-template-columns:1fr;">
+        <div style="color:var(--text-dim);">Loading…</div>
+      </div>
+      <div class="modal-foot">
+        <span class="msg" id="caMsg"></span>
+        <button class="btn-ghost" data-x>Close</button>
+        <button class="btn-primary" id="caAddBtn">+ New alert</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  m.addEventListener('click', e => { if (e.target === m || e.target.matches('[data-x]')) m.remove(); });
+
+  async function load() {
+    const body = document.getElementById('caBody');
+    if (body) body.innerHTML = '<div style="color:var(--text-dim);">Loading…</div>';
+    let alerts = [];
+    try {
+      const r = await fetch(STUDENTS_BASE + '?api=get&id=' + encodeURIComponent(studentId), {
+        headers: { Authorization: 'Bearer ' + currentSession.access_token },
+      });
+      const j = await r.json();
+      if (r.ok) alerts = j.alerts || [];
+    } catch (_) {}
+    const sorted = [...alerts].sort((a, b) => {
+      const ao = a.status === 'open' ? 0 : 1, bo = b.status === 'open' ? 0 : 1;
+      if (ao !== bo) return ao - bo;
+      return String(b.created_at || '').localeCompare(String(a.created_at || ''));
+    });
+    if (!body) return;
+    if (sorted.length === 0) {
+      body.innerHTML = '<div style="color:var(--text-dim);font-size:0.86rem;padding:18px 0;">No alerts yet. Click "+ New alert" to file one.</div>';
+    } else {
+      body.innerHTML = sorted.map(a => {
+        const open = a.status === 'open';
+        const when = a.created_at ? new Date(a.created_at).toLocaleString() : '';
+        return `
+          <div style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px;${open ? 'background:rgba(248,113,113,0.06);' : ''}">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap;">
+              <span class="pill ${open ? 'bad' : 'ok'}" style="font-size:0.7rem;">${open ? '🔔 Open' : '✓ Resolved'}</span>
+              <strong>${escapeHtml(a.title || '')}</strong>
+              <span style="margin-left:auto;color:var(--text-dim);font-size:0.72rem;">${escapeHtml(when)}</span>
+            </div>
+            ${a.description ? `<div style="color:var(--text-dim);font-size:0.82rem;margin-bottom:6px;white-space:pre-wrap;">${escapeHtml(a.description)}</div>` : ''}
+            <div style="font-size:0.72rem;color:var(--text-dim);">By ${escapeHtml(a.created_by_email || 'unknown')}</div>
+            ${!open && a.resolution_note ? `<div style="font-size:0.78rem;color:var(--text-dim);margin-top:6px;padding-top:6px;border-top:1px dashed var(--border);"><strong>Resolution:</strong> ${escapeHtml(a.resolution_note)}</div>` : ''}
+            ${open ? `<button class="btn-ghost ca-resolve" data-aid="${a.id}" style="margin-top:8px;padding:5px 12px;font-size:0.76rem;">Mark resolved</button>` : ''}
+          </div>`;
+      }).join('');
+      body.querySelectorAll('.ca-resolve').forEach(b => b.addEventListener('click', async () => {
+        const aid = Number(b.getAttribute('data-aid'));
+        const note = prompt('Resolution note (required):');
+        if (!note || !note.trim()) return;
+        const msg = document.getElementById('caMsg'); if (msg) { msg.className = 'msg'; msg.textContent = 'Resolving…'; }
+        try {
+          const r = await fetch(STUDENTS_BASE + '?api=resolve-alert', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
+            body: JSON.stringify({ id: aid, resolution_note: note.trim() }),
+          });
+          const j = await r.json();
+          if (!r.ok) throw new Error(j.error || 'Failed');
+          await load();
+          if (msg) { msg.className = 'msg ok'; msg.textContent = 'Resolved'; setTimeout(() => msg.textContent = '', 1500); }
+        } catch (e) { if (msg) { msg.className = 'msg err'; msg.textContent = e.message || e; } }
+      }));
+    }
+  }
+
+  document.getElementById('caAddBtn').addEventListener('click', async () => {
+    const title = prompt('Alert title (required):');
+    if (!title || !title.trim()) return;
+    const description = prompt('Details (optional):') || null;
+    const msg = document.getElementById('caMsg'); if (msg) { msg.className = 'msg'; msg.textContent = 'Filing…'; }
+    try {
+      const r = await fetch(STUDENTS_BASE + '?api=add-alert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
+        body: JSON.stringify({ studentId, title: title.trim(), description }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'Failed');
+      await load();
+      if (msg) { msg.className = 'msg ok'; msg.textContent = `Alert filed (${j.recipients_count || 0} notified)`; setTimeout(() => msg.textContent = '', 1500); }
+    } catch (e) { if (msg) { msg.className = 'msg err'; msg.textContent = e.message || e; } }
+  });
+
+  load();
+}
+
 function openBulkEditModal() {
   if (!selectedIds.size) return;
   document.getElementById('bulkModal')?.remove();

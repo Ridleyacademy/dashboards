@@ -305,7 +305,7 @@
   }
   /* Coach-notes popover (matches CRM behavior — list + add) */
   .note-popover {
-    position: fixed; z-index: 9001;
+    position: fixed; z-index: 10100;  /* above .modal-bg (10000) so it's usable from the student profile modal */
     background: var(--surface); border: 1px solid var(--border-light);
     border-radius: 14px; padding: 14px; width: 420px; max-width: calc(100vw - 24px);
     max-height: 70vh; display: flex; flex-direction: column;

@@ -393,6 +393,34 @@
     width: 100%; background: var(--surface2); border: 1px solid var(--border);
     color: var(--text); border-radius: 9px; padding: 9px 11px; font: inherit; font-size: 0.85rem; }
   .modal-body textarea { min-height: 80px; resize: vertical; }
+
+  /* Activity-history block inside the profile modal */
+  .pf-activity { display: flex; flex-direction: column; gap: 10px; }
+  .pf-act-block { background: var(--surface-2, rgba(255,255,255,0.03));
+    border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+  .pf-act-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .pf-act-title { font-size: 0.82rem; font-weight: 800; color: var(--text); flex: 0 0 auto; }
+  .pf-act-latest { font-size: 0.76rem; color: var(--text-dim); flex: 1 1 auto; }
+  .pf-act-latest strong { color: var(--text); font-weight: 700; }
+  .pf-act-count { color: var(--text-dim); opacity: 0.7; margin-left: 6px; }
+  .pf-act-toggle { padding: 6px 12px !important; font-size: 0.76rem !important; }
+  .pf-act-body { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border); }
+  .pf-act-add { display: grid; grid-template-columns: 160px 1fr auto; gap: 8px; margin-bottom: 8px; }
+  .pf-act-add input { padding: 7px 10px !important; font-size: 0.82rem !important; }
+  .pf-act-add .btn-primary { padding: 7px 14px !important; font-size: 0.82rem !important; }
+  .pf-act-list { display: flex; flex-direction: column; gap: 4px; max-height: 260px; overflow-y: auto; }
+  .pf-act-empty { font-size: 0.76rem; color: var(--text-dim); padding: 6px 0; font-style: italic; }
+  .pf-act-row { display: grid; grid-template-columns: 100px 1fr 140px 28px; gap: 8px;
+    align-items: center; padding: 5px 8px; font-size: 0.78rem;
+    border-radius: 6px; transition: background 0.1s; }
+  .pf-act-row:hover { background: rgba(255,255,255,0.04); }
+  .pf-act-row-date { font-weight: 600; color: var(--text); }
+  .pf-act-row-notes { color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pf-act-row-meta { color: var(--text-dim); opacity: 0.7; font-size: 0.72rem; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pf-act-del { background: transparent; border: none; color: var(--text-dim);
+    width: 22px; height: 22px; border-radius: 4px; font-size: 1.05rem; cursor: pointer; line-height: 1; }
+  .pf-act-del:hover { background: rgba(248,113,113,0.18); color: #f87171; }
+
   .modal-foot { padding: 14px 22px; border-top: 1px solid var(--border);
     display: flex; gap: 10px; justify-content: flex-end; align-items: center; }
   .modal-foot .msg { flex: 1; font-size: 0.78rem; color: var(--text-dim); }

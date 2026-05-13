@@ -857,6 +857,7 @@ async function openProfileModal(id) {
   document.getElementById('profileModal')?.remove();
   // Fetch fresh
   let row;
+  let activityLog = [];
   try {
     const r = await fetch(STUDENTS_BASE + '?api=get&id=' + encodeURIComponent(id), {
       headers: { Authorization: 'Bearer ' + currentSession.access_token },
@@ -864,6 +865,7 @@ async function openProfileModal(id) {
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || 'Failed');
     row = j.row;
+    activityLog = Array.isArray(j.activity_log) ? j.activity_log : [];
   } catch (e) { alert('Failed to load: ' + (e.message || e)); return; }
 
   const m = document.createElement('div');
@@ -892,9 +894,9 @@ async function openProfileModal(id) {
             <option ${row.coach_status==='Needs attention'?'selected':''}>Needs attention</option>
           </select></div>
         <div><label>Masterclass level</label><input id="pf-masterclass_level" value="${escapeHtml(row.masterclass_level||'')}" placeholder="LEVEL 1"></div>
-        <div><label>Last Zoom</label><input id="pf-last_zoom_date" type="date" value="${row.last_zoom_date||''}"></div>
-        <div><label>Last assignment sent</label><input id="pf-last_assignment_sent" type="date" value="${row.last_assignment_sent||''}"></div>
-        <div><label>Last assignment received</label><input id="pf-last_assignment_received" type="date" value="${row.last_assignment_received||''}"></div>
+        <div class="full"><label>Activity history</label>
+          <div id="pf-activity" class="pf-activity"></div>
+        </div>
         <div><label>Schedule</label><input id="pf-preferred_time_slot" value="${escapeHtml(row.preferred_time_slot||'')}" placeholder="e.g. Tue/Thu 6pm CET"></div>
         <div class="full"><label>Concern</label><textarea id="pf-concern" placeholder="Practice constraints, problem areas…">${escapeHtml(row.concern||'')}</textarea></div>
         <div class="full"><label>Goal</label><textarea id="pf-goal" placeholder="What are they working toward?">${escapeHtml(row.goal||'')}</textarea></div>
@@ -909,8 +911,125 @@ async function openProfileModal(id) {
   const close = () => m.remove();
   m.addEventListener('click', e => { if (e.target === m || e.target.matches('[data-x]')) close(); });
 
+  // Render the activity-history block (replaces the three single-date inputs).
+  // The last_* date columns on mentorship_students are auto-maintained by a
+  // trigger that recomputes MAX(activity_date) per kind on every insert/delete
+  // against mentorship_activity_log — so we never POST those columns from this
+  // modal anymore. The log is the source of truth.
+  renderActivityHistory();
+
+  function renderActivityHistory() {
+    const wrap = document.getElementById('pf-activity');
+    if (!wrap) return;
+    const KINDS = [
+      { key: 'zoom',                 label: 'Zoom calls',            cached: row.last_zoom_date },
+      { key: 'assignment_sent',      label: 'Assignment sent',       cached: row.last_assignment_sent },
+      { key: 'assignment_received',  label: 'Assignment received',   cached: row.last_assignment_received },
+    ];
+    const grouped = { zoom: [], assignment_sent: [], assignment_received: [] };
+    for (const e of activityLog) { if (grouped[e.kind]) grouped[e.kind].push(e); }
+    // Each kind is sorted newest-first by the backend already.
+    const today = new Date().toISOString().slice(0, 10);
+    wrap.innerHTML = KINDS.map(k => {
+      const list = grouped[k.key] || [];
+      const latest = list[0]?.activity_date || k.cached || '—';
+      return `
+        <div class="pf-act-block" data-kind="${k.key}">
+          <div class="pf-act-head">
+            <div class="pf-act-title">${escapeHtml(k.label)}</div>
+            <div class="pf-act-latest">Latest: <strong>${latest ? escapeHtml(latest) : '—'}</strong> <span class="pf-act-count">(${list.length} entr${list.length===1?'y':'ies'})</span></div>
+            <button class="btn-ghost pf-act-toggle" data-kind="${k.key}" type="button">${list.length ? '▾ History' : '+ Add'}</button>
+          </div>
+          <div class="pf-act-body" data-kind="${k.key}" style="display:none;">
+            <div class="pf-act-add">
+              <input type="date" class="pf-act-date" data-kind="${k.key}" value="${today}">
+              <input type="text" class="pf-act-notes" data-kind="${k.key}" placeholder="Optional note (assignment #, topic…)" maxlength="200">
+              <button class="btn-primary pf-act-add-btn" data-kind="${k.key}" type="button">Add</button>
+            </div>
+            <div class="pf-act-list" data-kind="${k.key}">
+              ${list.length === 0 ? '<div class="pf-act-empty">No history yet.</div>' : list.map(e => `
+                <div class="pf-act-row" data-id="${e.id}">
+                  <div class="pf-act-row-date">${escapeHtml(e.activity_date || '')}</div>
+                  <div class="pf-act-row-notes">${escapeHtml(e.notes || '')}</div>
+                  <div class="pf-act-row-meta">${escapeHtml((e.created_by_email || e.source || '').toString())}</div>
+                  <button class="pf-act-del" data-id="${e.id}" data-kind="${k.key}" title="Delete this entry" type="button">×</button>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        </div>`;
+    }).join('');
+
+    // Toggle disclosure
+    wrap.querySelectorAll('.pf-act-toggle').forEach(b => b.addEventListener('click', () => {
+      const k = b.getAttribute('data-kind');
+      const body = wrap.querySelector(`.pf-act-body[data-kind="${k}"]`);
+      const show = body.style.display === 'none';
+      body.style.display = show ? '' : 'none';
+    }));
+
+    // Add a new log entry
+    wrap.querySelectorAll('.pf-act-add-btn').forEach(b => b.addEventListener('click', async () => {
+      const k = b.getAttribute('data-kind');
+      const dateEl  = wrap.querySelector(`.pf-act-date[data-kind="${k}"]`);
+      const notesEl = wrap.querySelector(`.pf-act-notes[data-kind="${k}"]`);
+      const date = dateEl.value;
+      if (!date) return;
+      b.disabled = true; b.textContent = '…';
+      try {
+        const r = await fetch(STUDENTS_BASE + '?api=add-activity', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
+          body: JSON.stringify({ studentId: row.id, kind: k, activity_date: date, notes: notesEl.value.trim() || null }),
+        });
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error || 'Failed');
+        activityLog.unshift({ id: j.id, student_id: row.id, kind: k, activity_date: date, source: 'manual_entry', notes: notesEl.value.trim() || null, created_by_email: currentSession?.user?.email || null });
+        // Update cached row + the dashboard row so the table reflects the new max.
+        if (k === 'zoom')                  row.last_zoom_date           = activityLog.filter(e=>e.kind==='zoom').map(e=>e.activity_date).sort().slice(-1)[0] || null;
+        if (k === 'assignment_sent')       row.last_assignment_sent     = activityLog.filter(e=>e.kind==='assignment_sent').map(e=>e.activity_date).sort().slice(-1)[0] || null;
+        if (k === 'assignment_received')   row.last_assignment_received = activityLog.filter(e=>e.kind==='assignment_received').map(e=>e.activity_date).sort().slice(-1)[0] || null;
+        const idx = allStudents.findIndex(s => s.id === row.id);
+        if (idx >= 0) Object.assign(allStudents[idx], { last_zoom_date: row.last_zoom_date, last_assignment_sent: row.last_assignment_sent, last_assignment_received: row.last_assignment_received });
+        notesEl.value = '';
+        renderActivityHistory();
+        // Keep the just-edited section open
+        wrap.querySelector(`.pf-act-body[data-kind="${k}"]`).style.display = '';
+      } catch (e) { alert('Add failed: ' + (e.message || e)); }
+      finally { b.disabled = false; b.textContent = 'Add'; }
+    }));
+
+    // Delete an entry
+    wrap.querySelectorAll('.pf-act-del').forEach(b => b.addEventListener('click', async () => {
+      const eid = Number(b.getAttribute('data-id'));
+      const k = b.getAttribute('data-kind');
+      if (!confirm('Delete this entry? The cached "Latest" value will roll back to the next most-recent date.')) return;
+      try {
+        const r = await fetch(STUDENTS_BASE + '?api=delete-activity', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
+          body: JSON.stringify({ id: eid }),
+        });
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error || 'Failed');
+        activityLog = activityLog.filter(e => e.id !== eid);
+        const list = activityLog.filter(e => e.kind === k).map(e => e.activity_date).sort();
+        const newest = list.slice(-1)[0] || null;
+        if (k === 'zoom')                row.last_zoom_date           = newest;
+        if (k === 'assignment_sent')     row.last_assignment_sent     = newest;
+        if (k === 'assignment_received') row.last_assignment_received = newest;
+        const idx = allStudents.findIndex(s => s.id === row.id);
+        if (idx >= 0) Object.assign(allStudents[idx], { last_zoom_date: row.last_zoom_date, last_assignment_sent: row.last_assignment_sent, last_assignment_received: row.last_assignment_received });
+        renderActivityHistory();
+        wrap.querySelector(`.pf-act-body[data-kind="${k}"]`).style.display = '';
+      } catch (e) { alert('Delete failed: ' + (e.message || e)); }
+    }));
+  }
+
   document.getElementById('pf-save').addEventListener('click', async () => {
-    const fields = ['coach','level','current_module','coach_status','masterclass_level','last_zoom_date','last_assignment_sent','last_assignment_received','preferred_time_slot','concern','goal'];
+    // last_zoom_date / last_assignment_sent / last_assignment_received are now
+    // managed by the activity log — they're NOT in this payload.
+    const fields = ['coach','level','current_module','coach_status','masterclass_level','preferred_time_slot','concern','goal'];
     const payload = { id: row.id };
     fields.forEach(f => { payload[f] = document.getElementById('pf-'+f).value || null; });
     const msg = document.getElementById('pf-msg'); msg.className='msg'; msg.textContent='Saving…';

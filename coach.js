@@ -2420,18 +2420,19 @@ function _canEditGroup(g) {
   return isPrivilegedViewer || (currentSession?.user?.id && g.owner_id === currentSession.user.id);
 }
 
+// Click-lock so rapid clicks on the Groups button don't stack multiple modals.
+let _groupsOpening = false;
+
 async function openGroupsModal() {
-  await loadSessionGroups();
+  if (_groupsOpening) return;
+  _groupsOpening = true;
   document.getElementById('groupsModal')?.remove();
+
+  // 1. Render the modal IMMEDIATELY using whatever we already have in
+  //    sessionGroups (populated on dashboard boot). Avoids the 1-3s wait for
+  //    the list_session_groups RPC to roundtrip before the user sees anything.
   const m = document.createElement('div');
   m.id = 'groupsModal'; m.className = 'modal-bg';
-  const myId = currentSession?.user?.id;
-  const mineFirst = [...sessionGroups].sort((a,b) => {
-    const am = a.owner_id === myId ? 0 : 1;
-    const bm = b.owner_id === myId ? 0 : 1;
-    if (am !== bm) return am - bm;
-    return (a.name||'').localeCompare(b.name||'');
-  });
   m.innerHTML = `
     <div class="modal-card" style="max-width:620px;">
       <div class="modal-head">
@@ -2441,50 +2442,77 @@ async function openGroupsModal() {
       </div>
       <div class="modal-body" style="grid-template-columns:1fr;">
         <div id="groupsList" style="display:flex;flex-direction:column;gap:8px;max-height:480px;overflow-y:auto;"></div>
-        ${!sessionGroups.length ? '<div style="text-align:center;color:var(--text-dim);padding:18px;font-size:0.86rem;">No groups yet. Click <strong>+ New group</strong> to create one.</div>' : ''}
+        <div id="groupsEmpty" style="display:none;text-align:center;color:var(--text-dim);padding:18px;font-size:0.86rem;">No groups yet. Click <strong>+ New group</strong> to create one.</div>
       </div>
       <div class="modal-foot">
         <button class="btn-ghost" data-x>Close</button>
       </div>
     </div>`;
   document.body.appendChild(m);
+  _groupsOpening = false;
   const close = () => m.remove();
   m.addEventListener('click', e => { if (e.target === m || e.target.matches('[data-x]')) close(); });
-
-  const list = document.getElementById('groupsList');
-  list.innerHTML = mineFirst.map(g => {
-    const ids = g.student_ids || [];
-    const names = ids.map(id => allStudents.find(s => s.id === id)?.name).filter(Boolean);
-    const ownerLabel = g.owner_id === myId ? 'You' : (g.owner_email || 'Unknown');
-    const canEdit = _canEditGroup(g);
-    return `<div style="border:1px solid var(--border);border-radius:10px;padding:12px 14px;background:var(--surface);">
-      <div style="display:flex;align-items:center;gap:10px;">
-        <div style="flex:1;">
-          <div style="font-weight:700;font-size:0.95rem;">${escapeHtml(g.name)}</div>
-          <div style="font-size:0.74rem;color:var(--text-dim);">${ids.length} student${ids.length===1?'':'s'} · Owner: ${escapeHtml(ownerLabel)}${g.description ? ' · ' + escapeHtml(g.description) : ''}</div>
-          ${names.length ? `<div style="font-size:0.74rem;color:var(--text-dim);margin-top:4px;">${escapeHtml(names.slice(0,5).join(', '))}${names.length>5 ? ' +' + (names.length-5) + ' more' : ''}</div>` : ''}
-        </div>
-        ${canEdit ? `<button data-edit-group="${g.id}" class="btn-ghost" style="padding:6px 12px;font-size:0.75rem;">Edit</button>` : ''}
-        ${canEdit ? `<button data-delete-group="${g.id}" class="btn-ghost" style="padding:6px 10px;font-size:0.75rem;color:#f87171;">Delete</button>` : ''}
-      </div>
-    </div>`;
-  }).join('');
-
   document.getElementById('groupNewBtn').addEventListener('click', () => { close(); openGroupEditor(null); });
-  list.querySelectorAll('[data-edit-group]').forEach(b => b.addEventListener('click', () => {
-    const g = sessionGroups.find(x => String(x.id) === b.dataset.editGroup);
-    if (g) { close(); openGroupEditor(g); }
-  }));
-  list.querySelectorAll('[data-delete-group]').forEach(b => b.addEventListener('click', async () => {
-    const g = sessionGroups.find(x => String(x.id) === b.dataset.deleteGroup);
-    if (!g) return;
-    if (!confirm(`Delete group "${g.name}"? This can't be undone.`)) return;
-    try {
-      const { error } = await supa.from('mentorship_session_groups').delete().eq('id', g.id);
-      if (error) throw error;
-      close(); openGroupsModal();
-    } catch (e) { alert('Delete failed: ' + (e.message || e)); }
-  }));
+
+  // Render whatever sessionGroups has now (might be empty on cold boot)
+  renderGroupsList();
+
+  // 2. Background refresh — fetch authoritative list; only re-render if it
+  //    changed since the snapshot we rendered from.
+  const snapshotKey = JSON.stringify((sessionGroups || []).map(g => g.id + ':' + (g.student_ids||[]).length).sort());
+  try {
+    await loadSessionGroups();
+    const newKey = JSON.stringify((sessionGroups || []).map(g => g.id + ':' + (g.student_ids||[]).length).sort());
+    if (newKey !== snapshotKey && document.getElementById('groupsModal') === m) renderGroupsList();
+  } catch (_) { /* keep showing the cached list */ }
+
+  function renderGroupsList() {
+    const myId = currentSession?.user?.id;
+    const mineFirst = [...sessionGroups].sort((a,b) => {
+      const am = a.owner_id === myId ? 0 : 1;
+      const bm = b.owner_id === myId ? 0 : 1;
+      if (am !== bm) return am - bm;
+      return (a.name||'').localeCompare(b.name||'');
+    });
+    const list = document.getElementById('groupsList');
+    const empty = document.getElementById('groupsEmpty');
+    if (!list) return;
+    if (mineFirst.length === 0) { list.innerHTML = ''; if (empty) empty.style.display = ''; return; }
+    if (empty) empty.style.display = 'none';
+    list.innerHTML = mineFirst.map(g => {
+      const ids = g.student_ids || [];
+      const names = ids.map(id => allStudents.find(s => s.id === id)?.name).filter(Boolean);
+      const ownerLabel = g.owner_id === myId ? 'You' : (g.owner_email || 'Unknown');
+      const canEdit = _canEditGroup(g);
+      return `<div style="border:1px solid var(--border);border-radius:10px;padding:12px 14px;background:var(--surface);">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="flex:1;">
+            <div style="font-weight:700;font-size:0.95rem;">${escapeHtml(g.name)}</div>
+            <div style="font-size:0.74rem;color:var(--text-dim);">${ids.length} student${ids.length===1?'':'s'} · Owner: ${escapeHtml(ownerLabel)}${g.description ? ' · ' + escapeHtml(g.description) : ''}</div>
+            ${names.length ? `<div style="font-size:0.74rem;color:var(--text-dim);margin-top:4px;">${escapeHtml(names.slice(0,5).join(', '))}${names.length>5 ? ' +' + (names.length-5) + ' more' : ''}</div>` : ''}
+          </div>
+          ${canEdit ? `<button data-edit-group="${g.id}" class="btn-ghost" style="padding:6px 12px;font-size:0.75rem;">Edit</button>` : ''}
+          ${canEdit ? `<button data-delete-group="${g.id}" class="btn-ghost" style="padding:6px 10px;font-size:0.75rem;color:#f87171;">Delete</button>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+    list.querySelectorAll('[data-edit-group]').forEach(b => b.addEventListener('click', () => {
+      const g = sessionGroups.find(x => String(x.id) === b.dataset.editGroup);
+      if (g) { close(); openGroupEditor(g); }
+    }));
+    list.querySelectorAll('[data-delete-group]').forEach(b => b.addEventListener('click', async () => {
+      const g = sessionGroups.find(x => String(x.id) === b.dataset.deleteGroup);
+      if (!g) return;
+      if (!confirm(`Delete group "${g.name}"? This can't be undone.`)) return;
+      try {
+        const { error } = await supa.from('mentorship_session_groups').delete().eq('id', g.id);
+        if (error) throw error;
+        // Refresh the list in place rather than closing-and-reopening.
+        await loadSessionGroups();
+        renderGroupsList();
+      } catch (e) { alert('Delete failed: ' + (e.message || e)); }
+    }));
+  }
 }
 
 async function openGroupEditor(group) {

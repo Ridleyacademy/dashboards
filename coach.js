@@ -851,20 +851,46 @@ async function openQuickNotePopover(anchorEl, studentId, studentName) {
 }
 
 // ── Profile modal: minimal coach-relevant editor ──────────────
+// Re-entrancy guards: only the LATEST click produces a modal. A previous
+// in-flight fetch is aborted so its (stale) response cannot pop up over the
+// user's current selection.
+let _profileLatestId = null;
+let _profileAbort = null;
+
 async function openProfileModal(id) {
+  _profileLatestId = id;
+  if (_profileAbort) { try { _profileAbort.abort(); } catch (_) {} }
+  const ac = new AbortController();
+  _profileAbort = ac;
+
   document.getElementById('profileModal')?.remove();
-  // Fetch fresh
-  let row;
+
+  // Render the modal IMMEDIATELY from the row we already have in the list
+  // (allStudents). activity_log starts empty and is patched in once the
+  // network response lands. Avoids a 1-3s blank-screen wait while ?api=get
+  // runs ~10 parallel DB queries.
+  const cached = allStudents.find(s => s.id === id);
+  let row = cached ? { ...cached } : null;
   let activityLog = [];
-  try {
-    const r = await fetch(STUDENTS_BASE + '?api=get&id=' + encodeURIComponent(id), {
-      headers: { Authorization: 'Bearer ' + currentSession.access_token },
-    });
-    const j = await r.json();
-    if (!r.ok) throw new Error(j.error || 'Failed');
-    row = j.row;
-    activityLog = Array.isArray(j.activity_log) ? j.activity_log : [];
-  } catch (e) { alert('Failed to load: ' + (e.message || e)); return; }
+  if (!row) {
+    // No cache (rare) — fall through to the fetch path which will alert on error.
+    try {
+      const r0 = await fetch(STUDENTS_BASE + '?api=get&id=' + encodeURIComponent(id), {
+        headers: { Authorization: 'Bearer ' + currentSession.access_token },
+        signal: ac.signal,
+      });
+      if (_profileLatestId !== id) return;
+      const j0 = await r0.json();
+      if (_profileLatestId !== id) return;
+      if (!r0.ok) throw new Error(j0.error || 'Failed');
+      row = j0.row;
+      activityLog = Array.isArray(j0.activity_log) ? j0.activity_log : [];
+    } catch (e) {
+      if (e?.name === 'AbortError') return;
+      alert('Failed to load: ' + (e.message || e));
+      return;
+    }
+  }
 
   const m = document.createElement('div');
   m.id = 'profileModal'; m.className = 'modal-bg';
@@ -918,6 +944,30 @@ async function openProfileModal(id) {
   // against mentorship_activity_log — so we never POST those columns from this
   // modal anymore. The log is the source of truth.
   renderActivityHistory();
+
+  // Background refresh: pull the activity_log from the server and re-render
+  // the Activity History section once it lands. Other fields are already
+  // accurate from the list cache, so we don't disturb the rest of the modal.
+  if (cached) {
+    (async () => {
+      try {
+        const r = await fetch(STUDENTS_BASE + '?api=get&id=' + encodeURIComponent(id), {
+          headers: { Authorization: 'Bearer ' + currentSession.access_token },
+          signal: ac.signal,
+        });
+        if (_profileLatestId !== id) return;
+        const j = await r.json();
+        if (_profileLatestId !== id) return;
+        if (!r.ok) return;
+        const log = Array.isArray(j.activity_log) ? j.activity_log : [];
+        // Only re-render if the modal is still ours and the log actually has new entries.
+        if (!document.getElementById('profileModal')) return;
+        if (log.length === activityLog.length) return;
+        activityLog = log;
+        renderActivityHistory();
+      } catch (e) { /* swallow — partial view is still usable */ }
+    })();
+  }
 
   function renderActivityHistory() {
     const wrap = document.getElementById('pf-activity');

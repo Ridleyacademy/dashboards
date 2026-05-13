@@ -91,7 +91,12 @@ async function onAuthed(session) {
   isMsRepOnly = !isAdmin && ps.includes('ms_rep')
     && !ps.includes('mentorship') && !ps.includes('sales_manager')
     && !ps.includes('coach') && !ps.includes('ms_ic') && !ps.includes('delivery_ic');
-  if (isCoachOnly) {
+  // Default-to-mine for both Coach and MS-Rep roles. Mentorship I/C and
+  // Delivery I/C don't trigger the auto-filter — they see everyone by default.
+  // _isMine matches the user against either coach OR rep on the student row.
+  const isOwnerView = (isCoachOnly || isMsRepOnly)
+    && !ps.includes('mentorship') && !ps.includes('ms_ic') && !ps.includes('delivery_ic');
+  if (isOwnerView) {
     listFilter = 'mine';
     document.querySelectorAll('#listFilterBar [data-filter]').forEach(b => b.classList.toggle('active', b.dataset.filter === 'mine'));
   }
@@ -591,9 +596,15 @@ function _myCoachIdentities() {
   return out;
 }
 function _isMine(s, mineSet) {
+  // "Mine" matches the current user as the student's coach OR rep. Covers
+  // coaches (default-filtered to coach match), MS reps (default-filtered to
+  // rep match), and users who hold both roles. Mentorship I/C and Delivery
+  // I/C never auto-filter — they see everyone by default.
   const c = (s.coach || '').toLowerCase().trim();
-  if (!c) return false;
-  return mineSet.has(c);
+  const r = (s.rep   || '').toLowerCase().trim();
+  if (c && mineSet.has(c)) return true;
+  if (r && mineSet.has(r)) return true;
+  return false;
 }
 function _staleDaysSince(s) {
   // Returns ∞ if no last_assignment_received; else days since then.

@@ -5,6 +5,33 @@
 (function () {
   let swRegistration = null;
 
+  // Manual reset escape-hatch. Type window.RidleyReset() in DevTools console
+  // (or visit any page with ?reset=1) to wipe ALL service workers, caches,
+  // and localStorage entries for this origin, then hard-reload. Useful when
+  // the page seems stuck or corrupted from a half-applied update.
+  window.RidleyReset = async function () {
+    console.log('[Ridley] reset: unregistering SWs');
+    try {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map((r) => r.unregister()));
+    } catch (_) {}
+    console.log('[Ridley] reset: clearing caches');
+    try {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((k) => caches.delete(k)));
+    } catch (_) {}
+    console.log('[Ridley] reset: clearing localStorage');
+    try { localStorage.clear(); } catch (_) {}
+    try { sessionStorage.clear(); } catch (_) {}
+    console.log('[Ridley] reset: reloading');
+    window.location.replace(window.location.pathname + '?_cleanboot=' + Date.now());
+  };
+  // URL trigger so users on locked-down browsers can invoke it without DevTools.
+  if (new URLSearchParams(window.location.search).get('reset') === '1') {
+    window.RidleyReset();
+    return;
+  }
+
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', async () => {
       try {

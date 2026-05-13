@@ -898,6 +898,13 @@ async function openProfileModal(id) {
     <div class="modal-card">
       <div class="modal-head">
         <h2>${escapeHtml(row.name || '(unnamed)')}</h2>
+        <button type="button" class="btn-ghost pf-jump-alerts" title="Open alerts for this student in the CRM" style="padding:6px 12px;font-size:0.78rem;">
+          🔔 Alerts${(row.open_alerts_count|0) > 0 ? ` <span style="background:#f87171;color:#1a0f0f;border-radius:9px;padding:1px 7px;margin-left:4px;font-size:0.7rem;font-weight:800;">${row.open_alerts_count}</span>` : ''}
+        </button>
+        <button type="button" class="btn-ghost pf-jump-notes" title="View / add coach notes" style="padding:6px 12px;font-size:0.78rem;">
+          📝 Notes${(row.coach_notes_count|0) > 0 ? ` <span style="background:rgba(34,211,238,0.18);color:#22d3ee;border-radius:9px;padding:1px 7px;margin-left:4px;font-size:0.7rem;font-weight:800;">${row.coach_notes_count}</span>` : ''}
+        </button>
+        <button type="button" class="btn-ghost pf-jump-activity" title="Jump to activity history" style="padding:6px 12px;font-size:0.78rem;">⏱ Activity log</button>
         <a href="students.html?student=${row.id}" target="_blank" class="btn-ghost" title="Open in full CRM">Full profile ↗</a>
         <button class="close" data-x>×</button>
       </div>
@@ -937,6 +944,23 @@ async function openProfileModal(id) {
   document.body.appendChild(m);
   const close = () => m.remove();
   m.addEventListener('click', e => { if (e.target === m || e.target.matches('[data-x]')) close(); });
+
+  // Header quick-access buttons
+  m.querySelector('.pf-jump-alerts')?.addEventListener('click', () => {
+    // Open the CRM full profile, which auto-opens the alerts modal when the
+    // openAlerts param is present. We pass alert id=1 as a hint that any
+    // alert opener will accept; students.js falls back to the alerts history
+    // modal if the id doesn't match a specific alert.
+    window.open(`students.html?student=${row.id}&openAlerts=1`, '_blank');
+  });
+  m.querySelector('.pf-jump-notes')?.addEventListener('click', (e) => {
+    // Open the existing quick-note popover anchored to the header button.
+    try { openQuickNotePopover(e.currentTarget, row.id, row.name || ''); } catch (_) {}
+  });
+  m.querySelector('.pf-jump-activity')?.addEventListener('click', () => {
+    const target = m.querySelector('#pf-activity');
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
 
   // Render the activity-history block (replaces the three single-date inputs).
   // The last_* date columns on mentorship_students are auto-maintained by a

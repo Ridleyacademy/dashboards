@@ -116,16 +116,18 @@ async function onAuthed(session) {
   loadMentors();
   loadCoaches();
   await loadStudents();
-  // If the URL has ?openAlert=N&student=M (from a notification click), open
-  // that student then their alerts modal.
+  // URL params honored on first load:
+  //   ?student=N&openAlert=K   open student then jump to a specific alert
+  //   ?student=N&openAlerts=1  open student then open the alerts history modal
+  //                            (used by the coach board's Alerts quick-jump button)
   try {
     const u = new URL(window.location.href);
     const sid = parseInt(u.searchParams.get('student') || '0', 10);
     const aid = parseInt(u.searchParams.get('openAlert') || '0', 10);
+    const openAllAlerts = u.searchParams.get('openAlerts') === '1';
     if (sid) {
       await openStudent(sid);
-      if (aid) setTimeout(() => { try { openAlertsHistoryModal(); } catch (_) {} }, 80);
-      // Clean the URL so back-button doesn't re-trigger.
+      if (aid || openAllAlerts) setTimeout(() => { try { openAlertsHistoryModal(); } catch (_) {} }, 80);
       history.replaceState({}, '', window.location.pathname);
     }
   } catch (_) {}

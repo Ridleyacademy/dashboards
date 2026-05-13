@@ -901,8 +901,8 @@ async function openProfileModal(id) {
         <button type="button" class="btn-ghost pf-jump-alerts" title="Open alerts for this student in the CRM" style="padding:6px 12px;font-size:0.78rem;">
           🔔 Alerts${(row.open_alerts_count|0) > 0 ? ` <span style="background:#f87171;color:#1a0f0f;border-radius:9px;padding:1px 7px;margin-left:4px;font-size:0.7rem;font-weight:800;">${row.open_alerts_count}</span>` : ''}
         </button>
-        <button type="button" class="btn-ghost pf-jump-notes" title="View / add coach notes" style="padding:6px 12px;font-size:0.78rem;">
-          📝 Notes${(row.coach_notes_count|0) > 0 ? ` <span style="background:rgba(34,211,238,0.18);color:#22d3ee;border-radius:9px;padding:1px 7px;margin-left:4px;font-size:0.7rem;font-weight:800;">${row.coach_notes_count}</span>` : ''}
+        <button type="button" class="btn-ghost pf-jump-logs" title="View / add logs (coach notes, wins, rep notes, IC notes, turnovers)" style="padding:6px 12px;font-size:0.78rem;">
+          📋 Logs${(row.coach_notes_count|0) > 0 ? ` <span style="background:rgba(34,211,238,0.18);color:#22d3ee;border-radius:9px;padding:1px 7px;margin-left:4px;font-size:0.7rem;font-weight:800;">${row.coach_notes_count}</span>` : ''}
         </button>
         <button type="button" class="btn-ghost pf-jump-activity" title="Jump to activity history" style="padding:6px 12px;font-size:0.78rem;">⏱ Activity log</button>
         <a href="students.html?student=${row.id}" target="_blank" class="btn-ghost" title="Open in full CRM">Full profile ↗</a>
@@ -949,9 +949,8 @@ async function openProfileModal(id) {
   m.querySelector('.pf-jump-alerts')?.addEventListener('click', () => {
     openCoachAlertsModal(row.id, row.name || '');
   });
-  m.querySelector('.pf-jump-notes')?.addEventListener('click', (e) => {
-    // Open the existing quick-note popover anchored to the header button.
-    try { openQuickNotePopover(e.currentTarget, row.id, row.name || ''); } catch (_) {}
+  m.querySelector('.pf-jump-logs')?.addEventListener('click', (e) => {
+    openCoachLogsModal(row.id, row.name || '', e.currentTarget);
   });
   m.querySelector('.pf-jump-activity')?.addEventListener('click', () => {
     const target = m.querySelector('#pf-activity');
@@ -1124,6 +1123,82 @@ async function openProfileModal(id) {
 }
 
 // ── Bulk edit modal ───────────────────────────────────────────
+// ── Coach-board inline Logs chooser ────────────────────────────────────
+// Mirrors the CRM's openLogsChooserModal. Shows counts for the 5 log types
+// for this student. Clicking 'Coach notes' opens the existing inline
+// quick-note popover (the most common case). Other types link to the CRM
+// where their full add/edit forms live.
+async function openCoachLogsModal(studentId, studentName, anchorEl) {
+  document.getElementById('coachLogsModal')?.remove();
+  let wins = [], coachNotes = [], repNotes = [], icNotes = [], turnovers = [];
+  try {
+    const r = await fetch(STUDENTS_BASE + '?api=get&id=' + encodeURIComponent(studentId), {
+      headers: { Authorization: 'Bearer ' + currentSession.access_token },
+    });
+    const j = await r.json();
+    if (r.ok) {
+      wins = j.wins || []; coachNotes = j.coach_notes || []; repNotes = j.rep_notes || [];
+      icNotes = j.ic_notes || []; turnovers = j.turnovers || [];
+    }
+  } catch (_) {}
+
+  const m = document.createElement('div');
+  m.id = 'coachLogsModal';
+  m.className = 'modal-bg';
+  m.style.zIndex = '10100';
+  const card = (icon, label, count, act, color, sub) => `
+    <button type="button" class="log-card" data-act="${act}" style="display:flex;align-items:center;gap:12px;padding:14px;border:1px solid var(--border);border-radius:10px;background:transparent;cursor:pointer;text-align:left;color:inherit;font:inherit;width:100%;margin-bottom:8px;transition:border-color 0.12s,background 0.12s;">
+      <span style="font-size:1.3rem;">${icon}</span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:700;font-size:0.92rem;">${label}</div>
+        <div style="font-size:0.72rem;color:var(--text-dim);">${sub}</div>
+      </div>
+      <span style="background:${count ? color : 'rgba(255,255,255,0.05)'};color:${count ? '#0b0c14' : 'var(--text-dim)'};border-radius:999px;padding:2px 9px;font-size:0.74rem;font-weight:800;min-width:24px;text-align:center;">${count}</span>
+    </button>`;
+  m.innerHTML = `
+    <div class="modal-card" style="max-width:560px;">
+      <div class="modal-head">
+        <h2>📋 Logs · ${escapeHtml(studentName || '(unnamed)')}</h2>
+        <button class="close" data-x>×</button>
+      </div>
+      <div class="modal-body" style="grid-template-columns:1fr;">
+        ${card('📝', 'Coach notes',  coachNotes.length, 'notes',     '#a78bfa', 'Session notes, observations, follow-ups.')}
+        ${card('🏆', 'Wins',         wins.length,       'wins',      '#fbbf24', 'Milestones, auditions, breakthroughs.')}
+        ${card('💼', 'Rep notes',    repNotes.length,   'repnotes',  '#60a5fa', 'Notes from REGs / sales reps.')}
+        ${card('🎯', 'I/C notes',    icNotes.length,    'icnotes',   '#f472b6', 'Initial-call notes — onboarding, intent, fit.')}
+        ${card('🔄', 'Turnovers',    turnovers.length,  'turnovers', '#34d399', 'Hand-offs to a rep — log + outcome.')}
+      </div>
+      <div class="modal-foot">
+        <span class="msg"></span>
+        <button class="btn-ghost" data-x>Close</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  m.addEventListener('click', (e) => {
+    if (e.target === m || e.target.matches('[data-x]')) { m.remove(); return; }
+    const btn = e.target.closest('[data-act]');
+    if (!btn) return;
+    const act = btn.dataset.act;
+    m.remove();
+    if (act === 'notes') {
+      // Coach notes: open the existing inline popover, anchored to the
+      // 'Logs' header button on the underlying profile modal.
+      const anchor = document.querySelector('.pf-jump-logs') || anchorEl || document.body;
+      openQuickNotePopover(anchor, studentId, studentName);
+    } else {
+      // Other log types live in the CRM (their forms are heavier). Open
+      // the full profile in a new tab so the coach lands on the right
+      // student with the logs picker available.
+      window.open(`students.html?student=${studentId}`, '_blank');
+    }
+  });
+  // Hover affordance
+  m.querySelectorAll('.log-card').forEach(b => {
+    b.addEventListener('mouseenter', () => { b.style.borderColor = 'var(--accent2, #22d3ee)'; b.style.background = 'rgba(255,255,255,0.03)'; });
+    b.addEventListener('mouseleave', () => { b.style.borderColor = 'var(--border)'; b.style.background = 'transparent'; });
+  });
+}
+
 // ── Coach-board inline Alerts modal ─────────────────────────────────────
 // Lists this student's alerts (open + resolved), lets the coach file a new
 // one and resolve open ones, all without leaving the dashboard. Same actions

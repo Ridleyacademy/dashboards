@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v89-inline-alerts-modal-notes-fix';
+const CACHE_NAME = 'ridley-v90-logs-chooser-matches-crm';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [

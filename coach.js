@@ -2636,7 +2636,20 @@ function openFiltersModal(onApply) {
   const levels = _uniqueValuesFor('level');
   const masterclass = _uniqueValuesFor('masterclass_level');
   const coachStatuses = ['All good', 'Needs attention'];
-  const statuses = ['Active', 'Expiring soon', 'Paused'];
+  // Every possible derived_status value the lifecycle computer can produce,
+  // ordered by triage urgency. Expired + Refunded are intentionally NOT here
+  // because they're surfaced via dedicated chip-bar toggles ('+ Show expired'
+  // / '+ Show refunded') alongside the main filter chips.
+  const statuses = [
+    'Inactive',
+    'Expiring soon',
+    'Active',
+    'Paused',
+    'Not onboarded',
+    'Delayed start',
+    'Graduated',
+    'Cancelled',
+  ];
   const mkChips = (key, options) => options.map(opt => {
     const checked = filters[key].has(opt);
     return `<button type="button" data-fkey="${key}" data-fval="${escapeHtml(opt)}" class="filter-chip ${checked?'on':''}">${escapeHtml(opt || '(blank)')}</button>`;

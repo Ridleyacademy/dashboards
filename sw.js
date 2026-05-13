@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v94-remove-activity-log-button';
+const CACHE_NAME = 'ridley-v95-lifecycle-filter-all-statuses';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [

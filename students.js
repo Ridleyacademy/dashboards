@@ -1116,7 +1116,7 @@ const SECTIONS = [
   // appears via SECTION_RENDERERS below.
   ['Coach', [
     { k: 'level',                  label: 'Level',                      type: 'select',   opts: ['Beginner', 'Intermediate', 'Advanced'] },
-    { k: 'masterclass_level',      label: 'Masterclass level',          type: 'select',   opts: ['Introduction', 'Level 1', 'Level 2', 'Level 3', 'Level 4', 'Level 5', 'Level 6', 'Level 7', 'Level 8', 'Level 9', 'Level 10'] },
+    { k: 'masterclass_level',      label: 'Masterclass level',          type: 'select',   opts: ['INTRODUCTION', 'LEVEL 1', 'LEVEL 2', 'LEVEL 3', 'LEVEL 4', 'LEVEL 5', 'LEVEL 6', 'LEVEL 7', 'LEVEL 8', 'LEVEL 9', 'LEVEL 10'] },
     { k: 'coach_status',           label: 'Coach status',               type: 'select',   opts: ['All good', 'Needs attention'] },
     // The three single-value last_* date fields are handled by the
     // Activity History panel appended after this section — every event is

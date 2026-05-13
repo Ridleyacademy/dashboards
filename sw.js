@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v85-fix-filters-module-undefined-crash';
+const CACHE_NAME = 'ridley-v86-masterclass-dropdown-uppercase';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [

@@ -890,7 +890,11 @@ async function openProfileModal(id) {
             <option ${row.coach_status==='All good'?'selected':''}>All good</option>
             <option ${row.coach_status==='Needs attention'?'selected':''}>Needs attention</option>
           </select></div>
-        <div><label>Masterclass level</label><input id="pf-masterclass_level" value="${escapeHtml(row.masterclass_level||'')}" placeholder="LEVEL 1"></div>
+        <div><label>Masterclass level</label>
+          <select id="pf-masterclass_level">
+            <option value="">—</option>
+            ${['INTRODUCTION','LEVEL 1','LEVEL 2','LEVEL 3','LEVEL 4','LEVEL 5','LEVEL 6','LEVEL 7','LEVEL 8','LEVEL 9','LEVEL 10'].map(v => `<option value="${v}" ${row.masterclass_level===v?'selected':''}>${v}</option>`).join('')}
+          </select></div>
         <div class="full"><label>Activity history</label>
           <div id="pf-activity" class="pf-activity"></div>
         </div>
@@ -1098,6 +1102,9 @@ function openBulkEditModal() {
       html += `<input id="bf-value" type="date">`;
     } else if (f === 'level') {
       html += `<select id="bf-value"><option value="">— clear —</option><option>Beginner</option><option>Intermediate</option><option>Advanced</option></select>`;
+    } else if (f === 'masterclass_level') {
+      const opts = ['INTRODUCTION','LEVEL 1','LEVEL 2','LEVEL 3','LEVEL 4','LEVEL 5','LEVEL 6','LEVEL 7','LEVEL 8','LEVEL 9','LEVEL 10'];
+      html += `<select id="bf-value"><option value="">— clear —</option>${opts.map(o => `<option>${o}</option>`).join('')}</select>`;
     } else if (f === 'coach_status') {
       html += `<select id="bf-value"><option value="">— clear —</option><option>All good</option><option>Needs attention</option></select>`;
     } else if (['concern','goal'].includes(f)) {

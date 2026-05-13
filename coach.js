@@ -131,12 +131,16 @@ async function quickAddCoachNote(studentId, text) {
 // Stale-while-revalidate cache for the student list — boots the page instantly
 // from cached data, then re-fetches in the background and re-renders if anything
 // changed.
-const STUDENTS_CACHE_KEY = 'coachDash_students_v2';  // v2: bust on derived_status auto-only switch
+const STUDENTS_CACHE_KEY = 'coachDash_students_v3';  // v3: bust on activity-log + refund-import + module merge
 // Legacy keys we still READ from (for instant first-paint after a key bump).
 // The cached row shape hasn't changed — only the rendering logic that reads it
 // — so falling back to v1 is safe. The next _writeStudentsCache() will save
 // under v2 and the old entry quietly ages out.
-const STUDENTS_CACHE_LEGACY_KEYS = ['coachDash_students_v1'];
+// We deliberately do NOT fall back to v1 or v2 here. Those caches predate the
+// activity-log + refund-import + module-merge changes; reading them would
+// render stale numbers (e.g. Active=0 because last_zoom_date wasn't populated
+// the same way). Forcing a fresh fetch on next load.
+const STUDENTS_CACHE_LEGACY_KEYS = [];
 function _readStudentsCache() {
   try {
     let raw = localStorage.getItem(STUDENTS_CACHE_KEY);

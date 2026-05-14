@@ -137,6 +137,159 @@
   .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); backdrop-filter: blur(4px); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 16px; }
   .modal-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; max-width: 480px; width: 100%; padding: 22px; }
   .modal-card h3 { margin: 0 0 12px; }
+
+  /* ── Org Board column view ───────────────────────────────────── */
+  /* When the Org tab is active, hide the standard list/detail split
+     and show the full-width board instead. */
+  body[data-tab="org"] .ax-layout { display: none; }
+  body[data-tab="org"] #orgBoardView { display: block; }
+  #orgBoardView { display: none; }
+
+  .org-board-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 4px 10px; gap: 12px;
+  }
+  .org-board-header h3 { margin: 0; font-size: 1rem; color: var(--text); }
+  .org-board-header .hint { font-size: 0.78rem; color: var(--text-dim); }
+
+  .org-board {
+    display: flex; gap: 14px;
+    overflow-x: auto; overflow-y: visible;
+    padding: 6px 4px 24px;
+    min-height: 60vh;
+    scroll-snap-type: x proximity;
+  }
+  .org-board::-webkit-scrollbar { height: 12px; }
+  .org-board::-webkit-scrollbar-thumb { background: var(--surface3); border-radius: 6px; }
+
+  /* Division = top-level column */
+  .org-col-division {
+    flex: 0 0 auto;
+    width: 520px; max-width: 88vw;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex; flex-direction: column;
+    scroll-snap-align: start;
+  }
+  .org-col-division-head {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px;
+    cursor: pointer;
+    background: var(--surface2);
+  }
+  .org-col-division-head:hover { background: var(--surface3); }
+  .org-col-division-stripe { width: 4px; height: 22px; border-radius: 2px; }
+  .org-col-division-title { font-weight: 700; font-size: 0.96rem; flex: 1; letter-spacing: -0.01em; }
+  .org-col-division-meta { font-size: 0.72rem; color: var(--text-dim); }
+
+  /* Body of a division = horizontal row of department sub-columns */
+  .org-col-departments {
+    display: flex; gap: 10px;
+    overflow-x: auto;
+    padding: 10px;
+    min-height: 240px;
+    flex: 1;
+  }
+  .org-col-departments::-webkit-scrollbar { height: 10px; }
+
+  /* Department = sub-column inside a division */
+  .org-col-department {
+    flex: 0 0 auto;
+    width: 220px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px;
+    display: flex; flex-direction: column; gap: 6px;
+    max-height: 540px;
+  }
+  .org-col-department-head {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 0.84rem; font-weight: 700;
+    cursor: pointer; padding: 2px 4px; border-radius: 6px;
+  }
+  .org-col-department-head:hover { background: var(--surface3); }
+  .org-col-department-head .title { flex: 1; }
+  .org-col-department-head .count { font-size: 0.66rem; color: var(--text-dim); }
+  .org-col-department-posts { display: flex; flex-direction: column; gap: 5px; overflow-y: auto; flex: 1; }
+
+  /* Post card */
+  .org-post-card {
+    background: var(--surface3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    cursor: pointer;
+    display: flex; flex-direction: column; gap: 4px;
+    transition: border-color .12s, background .12s;
+  }
+  .org-post-card:hover { background: var(--surface); border-color: var(--border-light); }
+  .org-post-card-title { font-weight: 600; font-size: 0.84rem; }
+  .org-post-card-meta { font-size: 0.7rem; color: var(--text-dim); display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .org-post-card-role { padding: 1px 6px; border-radius: 4px; background: rgba(107,158,255,.18); color: var(--blue); font-weight: 600; }
+  .org-post-card-holders { display: flex; align-items: center; margin-top: 2px; }
+  .org-post-card-holders .havatar {
+    width: 18px; height: 18px; border-radius: 50%;
+    background: var(--blue); color: #0b0c14;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 0.6rem; font-weight: 700;
+    margin-left: -4px; border: 1.5px solid var(--surface3);
+  }
+  .org-post-card-holders .havatar:first-child { margin-left: 0; }
+  .org-post-card-holders .vacant { font-size: 0.7rem; color: var(--text-dim); font-style: italic; }
+
+  /* "+ Add" pill buttons inside the board */
+  .org-add-btn {
+    padding: 7px 10px; background: transparent;
+    border: 1px dashed var(--border); border-radius: 8px;
+    color: var(--text-dim); cursor: pointer; font-size: 0.78rem;
+    text-align: center;
+  }
+  .org-add-btn:hover { color: var(--text); border-color: var(--accent); background: rgba(52,211,153,.05); }
+  .org-add-division {
+    flex: 0 0 auto; width: 200px; min-height: 80px;
+    display: flex; align-items: center; justify-content: center;
+    border: 2px dashed var(--border); border-radius: 12px;
+    background: transparent; color: var(--text-dim); cursor: pointer;
+    font-size: 0.86rem; font-weight: 600;
+  }
+  .org-add-division:hover { color: var(--accent); border-color: var(--accent); }
+
+  /* Side drawer for editing */
+  .org-drawer-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.55); backdrop-filter: blur(3px);
+    z-index: 900;
+  }
+  .org-drawer {
+    position: fixed; top: 0; right: 0; bottom: 0;
+    width: 520px; max-width: 100vw;
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    z-index: 1000;
+    overflow-y: auto;
+    box-shadow: -8px 0 32px rgba(0,0,0,.5);
+    animation: drawerSlide .18s ease-out;
+  }
+  @keyframes drawerSlide { from { transform: translateX(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+  .org-drawer-close {
+    position: sticky; top: 0;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 14px;
+    display: flex; justify-content: space-between; align-items: center;
+    z-index: 10;
+  }
+  .org-drawer-close button {
+    background: transparent; border: 0; color: var(--text-dim);
+    cursor: pointer; font-size: 1.4rem; line-height: 1; padding: 4px 8px;
+  }
+  .org-drawer-close button:hover { color: var(--text); }
+  .org-drawer-body { padding: 0; }
+  .org-drawer-body .ax-editor { padding: 18px 20px; }
 </style>
 </head>
 <body data-state="loading">
@@ -206,6 +359,15 @@
       <div class="ax-editor-card">
         <div id="axEditor"><div class="ax-editor-empty">Select an item on the left.</div></div>
       </div>
+    </div>
+
+    <!-- Full-width column board: only visible when tab=org -->
+    <div id="orgBoardView">
+      <div class="org-board-header">
+        <h3>🏛 Org Board</h3>
+        <span class="hint">Divisions = columns · Departments = sub-columns · Posts = cards. Click anything to edit.</span>
+      </div>
+      <div class="org-board" id="orgBoard"></div>
     </div>
   </main>
 </div>

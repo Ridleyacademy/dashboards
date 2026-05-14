@@ -100,12 +100,16 @@ async function refreshAll() {
 function switchTab(tab) {
   activeTab = tab;
   selectedId = null;
+  document.body.dataset.tab = tab; // toggles CSS for full-width org board
   document.querySelectorAll('.ax-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
   document.getElementById('axEditor').innerHTML = '<div class="ax-editor-empty">Select an item on the left.</div>';
   document.getElementById('axListTitle').textContent = tab === 'users' ? 'Users' : tab === 'roles' ? 'Roles' : 'Org Board';
   const addBtn = document.getElementById('axAddBtn');
-  if (tab === 'users') addBtn.style.display = 'none';
-  else { addBtn.style.display = ''; addBtn.textContent = tab === 'roles' ? '+ Role' : '+ Division'; }
+  // Org tab uses the full-width board (no list/detail split), so the add button
+  // in the left-list header isn't needed.
+  if (tab === 'users' || tab === 'org') addBtn.style.display = 'none';
+  else { addBtn.style.display = ''; addBtn.textContent = '+ Role'; }
+  closeDrawer();
   refreshTab();
 }
 
@@ -320,67 +324,160 @@ async function deleteRole(rid) {
 // ═══════════════════════════════════════════════════════════════════════
 // ORG BOARD TAB
 // ═══════════════════════════════════════════════════════════════════════
+// ── Org board: holders index ────────────────────────────────────────────
+// We fetch every active holder once per org-tab load so we can render the
+// avatar stack on each post card without an extra request per card.
+let activeHoldersByPost = {}; // { [postId]: [{user_id, started_at}, …] }
+
 async function loadOrgTab() {
-  const list = document.getElementById('axList');
-  list.innerHTML = '<div style="padding:14px;color:var(--text-dim);font-size:0.84rem;">Loading…</div>';
+  const board = document.getElementById('orgBoard');
+  board.innerHTML = '<div style="padding:24px;color:var(--text-dim);font-size:0.84rem;">Loading…</div>';
   try {
-    const [d, dep, p] = await Promise.all([
+    const [d, dep, p, h] = await Promise.all([
       api('?api=divisions'),
       api('?api=departments'),
       api('?api=posts'),
+      api('?api=post-holders'),
     ]);
     divisionsData = d.rows || [];
     departmentsData = dep.rows || [];
     postsData = p.rows || [];
+    activeHoldersByPost = {};
+    for (const row of (h.rows || [])) {
+      if (row.ended_at) continue;
+      (activeHoldersByPost[row.post_id] ||= []).push(row);
+    }
     document.getElementById('axCount').textContent = `${divisionsData.length} div · ${departmentsData.length} dept · ${postsData.length} posts`;
-    renderOrgTree();
-  } catch (e) { list.innerHTML = `<div style="padding:14px;color:var(--red);">${escapeHtml(e.message)}</div>`; }
+    renderOrgBoard();
+  } catch (e) { board.innerHTML = `<div style="padding:24px;color:var(--red);font-size:0.84rem;">${escapeHtml(e.message)}</div>`; }
 }
 
-function renderOrgTree() {
-  const list = document.getElementById('axList');
+function renderOrgBoard() {
+  const board = document.getElementById('orgBoard');
   if (!divisionsData.length) {
-    list.innerHTML = '<div style="padding:14px;color:var(--text-dim);font-size:0.84rem;">No divisions yet. Click <strong>+ Division</strong> to start.</div>';
+    board.innerHTML = `
+      <button class="org-add-division" id="org-first-div">
+        + Add your first division
+      </button>`;
+    document.getElementById('org-first-div').addEventListener('click', openCreateDivisionModal);
     return;
   }
-  list.innerHTML = '<div class="org-tree" style="padding:8px;">' + divisionsData.map(d => {
+  const divsHtml = divisionsData.map(d => {
     const depts = departmentsData.filter(x => x.division_id === d.id);
-    const deptHtml = depts.map(dep => {
-      const posts = postsData.filter(x => x.department_id === dep.id);
-      const postHtml = posts.map(po => `
-        <div class="org-node ${selectedKind === 'post' && selectedId === po.id ? 'selected' : ''}" data-kind="post" data-id="${po.id}">
-          <span style="color:var(--blue);">▸</span>
-          <span>${escapeHtml(po.name)}</span>
-        </div>`).join('');
-      return `
-        <div class="org-node ${selectedKind === 'department' && selectedId === dep.id ? 'selected' : ''}" data-kind="department" data-id="${dep.id}">
-          <span style="color:var(--text-muted);">▾</span>
-          <span style="font-weight:600;">${escapeHtml(dep.name)}</span>
-          <span class="org-badge">${posts.length}</span>
-        </div>
-        <div class="org-node-children">${postHtml}</div>`;
-    }).join('');
+    const totalPosts = postsData.filter(p => depts.some(dep => dep.id === p.department_id)).length;
+    const deptsHtml = depts.map(dep => renderDepartmentSubColumn(dep)).join('') +
+      `<button class="org-add-btn" style="align-self:flex-start;margin-top:4px;" data-add-dept="${d.id}">+ Department</button>`;
     return `
-      <div class="org-node ${selectedKind === 'division' && selectedId === d.id ? 'selected' : ''}" data-kind="division" data-id="${d.id}">
-        <span class="role-chip-dot" style="background:${d.color}"></span>
-        <span style="font-weight:700;font-size:0.92rem;">${escapeHtml(d.name)}</span>
-        <span class="org-badge">${depts.length}</span>
-      </div>
-      <div class="org-node-children">${deptHtml}</div>`;
-  }).join('') + '</div>';
+      <div class="org-col-division">
+        <div class="org-col-division-head" data-kind="division" data-id="${d.id}">
+          <div class="org-col-division-stripe" style="background:${d.color || '#6b9eff'};"></div>
+          <div class="org-col-division-title">${escapeHtml(d.name)}</div>
+          <div class="org-col-division-meta">${depts.length} dept · ${totalPosts} posts</div>
+        </div>
+        <div class="org-col-departments">${deptsHtml}</div>
+      </div>`;
+  }).join('');
+  board.innerHTML = divsHtml +
+    '<button class="org-add-division" id="org-add-div">+ Division</button>';
 
-  list.querySelectorAll('.org-node').forEach(n => n.addEventListener('click', e => {
+  // Wire clicks
+  board.querySelectorAll('.org-col-division-head').forEach(el => el.addEventListener('click', e => {
     e.stopPropagation();
-    const kind = n.dataset.kind;
-    const id = parseInt(n.dataset.id, 10);
-    openOrgEditor(kind, id);
+    openOrgEditor('division', Number(el.dataset.id));
   }));
+  board.querySelectorAll('.org-col-department-head').forEach(el => el.addEventListener('click', e => {
+    e.stopPropagation();
+    openOrgEditor('department', Number(el.dataset.id));
+  }));
+  board.querySelectorAll('.org-post-card').forEach(el => el.addEventListener('click', e => {
+    e.stopPropagation();
+    openOrgEditor('post', Number(el.dataset.id));
+  }));
+  board.querySelectorAll('[data-add-dept]').forEach(el => el.addEventListener('click', e => {
+    e.stopPropagation();
+    openCreateDepartmentModal(Number(el.dataset.addDept));
+  }));
+  board.querySelectorAll('[data-add-post]').forEach(el => el.addEventListener('click', e => {
+    e.stopPropagation();
+    openCreatePostModal(Number(el.dataset.addPost));
+  }));
+  document.getElementById('org-add-div')?.addEventListener('click', openCreateDivisionModal);
 }
+
+function renderDepartmentSubColumn(dep) {
+  const posts = postsData.filter(x => x.department_id === dep.id);
+  const postsHtml = posts.map(po => renderPostCard(po)).join('') ||
+    '<div style="color:var(--text-dim);font-size:0.74rem;font-style:italic;padding:6px;">No posts yet</div>';
+  return `
+    <div class="org-col-department">
+      <div class="org-col-department-head" data-kind="department" data-id="${dep.id}">
+        <span class="title">${escapeHtml(dep.name)}</span>
+        <span class="count">${posts.length}</span>
+      </div>
+      <div class="org-col-department-posts">${postsHtml}</div>
+      <button class="org-add-btn" data-add-post="${dep.id}">+ Post</button>
+    </div>`;
+}
+
+function renderPostCard(po) {
+  const role = po.default_role_id ? roles.find(r => r.id === po.default_role_id) : null;
+  const holders = activeHoldersByPost[po.id] || [];
+  const avatars = holders.slice(0, 4).map(h => {
+    const u = usersData.find(x => x.id === h.user_id);
+    const initial = (u?.email || '?').slice(0, 1).toUpperCase();
+    return `<span class="havatar" title="${escapeHtml(u?.email || h.user_id)}">${escapeHtml(initial)}</span>`;
+  }).join('');
+  const extra = holders.length > 4 ? `<span class="havatar" style="background:var(--surface3);color:var(--text-muted);">+${holders.length - 4}</span>` : '';
+  const holdersHtml = holders.length
+    ? `<div class="org-post-card-holders">${avatars}${extra}</div>`
+    : '<div class="org-post-card-holders"><span class="vacant">Vacant</span></div>';
+  const roleChip = role ? `<span class="org-post-card-role">${escapeHtml(role.name)}</span>` : '';
+  return `
+    <div class="org-post-card" data-id="${po.id}">
+      <div class="org-post-card-title">${escapeHtml(po.name)}</div>
+      <div class="org-post-card-meta">${roleChip}<span>${holders.length} ${holders.length === 1 ? 'holder' : 'holders'}</span></div>
+      ${holdersHtml}
+    </div>`;
+}
+
+// ── Drawer (right-side edit panel for org board items) ────────────────
+function openDrawer(innerHtml) {
+  closeDrawer();
+  const root = document.getElementById('modalRoot');
+  root.insertAdjacentHTML('beforeend',
+    `<div class="org-drawer-overlay" id="orgDrawerOverlay"></div>
+     <div class="org-drawer" id="orgDrawer">
+       <div class="org-drawer-close">
+         <span style="font-size:0.78rem;color:var(--text-dim);font-weight:600;">Editing</span>
+         <button id="orgDrawerCloseBtn" title="Close (Esc)">×</button>
+       </div>
+       <div class="org-drawer-body" id="orgDrawerBody">${innerHtml}</div>
+     </div>`);
+  document.getElementById('orgDrawerOverlay').addEventListener('click', closeDrawer);
+  document.getElementById('orgDrawerCloseBtn').addEventListener('click', closeDrawer);
+  document.addEventListener('keydown', _drawerEsc);
+}
+function _drawerEsc(e) { if (e.key === 'Escape') closeDrawer(); }
+function closeDrawer() {
+  document.removeEventListener('keydown', _drawerEsc);
+  document.getElementById('orgDrawer')?.remove();
+  document.getElementById('orgDrawerOverlay')?.remove();
+  _useDrawerEditor = false;
+}
+
+// Active editor element — defaults to the main detail pane (#axEditor),
+// but openOrgEditor swaps it to the drawer's body so the same render* helpers
+// can target it without duplicating ids.
+function editorEl() {
+  if (_useDrawerEditor) return document.getElementById('axDrawerEditor');
+  return document.getElementById('axEditor');
+}
+let _useDrawerEditor = false;
 
 function openOrgEditor(kind, id) {
   selectedKind = kind; selectedId = id;
-  renderOrgTree();
-  const ed = document.getElementById('axEditor');
+  openDrawer('<div id="axDrawerEditor"><div class="ax-editor-empty">Loading…</div></div>');
+  _useDrawerEditor = true;
   if (kind === 'division') return renderDivisionEditor(divisionsData.find(x => x.id === id));
   if (kind === 'department') return renderDepartmentEditor(departmentsData.find(x => x.id === id));
   if (kind === 'post') return renderPostEditor(postsData.find(x => x.id === id));
@@ -388,7 +485,8 @@ function openOrgEditor(kind, id) {
 
 function renderDivisionEditor(d) {
   if (!d) return;
-  const ed = document.getElementById('axEditor');
+  const ed = editorEl();
+  if (!ed) return;
   ed.innerHTML = `<div class="ax-editor">
     <div class="breadcrumb">Division</div>
     <h2>${escapeHtml(d.name)}</h2>
@@ -436,7 +534,7 @@ function renderDivisionEditor(d) {
   });
   document.getElementById('d-delete').addEventListener('click', async () => {
     if (!confirm('Delete this division and all its departments + posts? This cannot be undone.')) return;
-    try { await api('?api=division-delete&id=' + d.id, { method: 'POST', body: {} }); selectedId = null; await loadOrgTab(); document.getElementById('axEditor').innerHTML = '<div class="ax-editor-empty">Division deleted.</div>'; }
+    try { await api('?api=division-delete&id=' + d.id, { method: 'POST', body: {} }); selectedId = null; closeDrawer(); await loadOrgTab(); }
     catch (e) { alert(e.message); }
   });
   loadPoliciesInto('d-policies', 'division', d.id);
@@ -444,7 +542,8 @@ function renderDivisionEditor(d) {
 
 function renderDepartmentEditor(dep) {
   if (!dep) return;
-  const ed = document.getElementById('axEditor');
+  const ed = editorEl();
+  if (!ed) return;
   const division = divisionsData.find(x => x.id === dep.division_id);
   ed.innerHTML = `<div class="ax-editor">
     <div class="breadcrumb"><a data-jump="division" data-id="${division?.id}">${escapeHtml(division?.name || 'Division')}</a> › Department</div>
@@ -490,7 +589,7 @@ function renderDepartmentEditor(dep) {
   });
   document.getElementById('dep-delete').addEventListener('click', async () => {
     if (!confirm('Delete this department and its posts?')) return;
-    try { await api('?api=department-delete&id=' + dep.id, { method: 'POST', body: {} }); selectedId = null; await loadOrgTab(); document.getElementById('axEditor').innerHTML = '<div class="ax-editor-empty">Department deleted.</div>'; }
+    try { await api('?api=department-delete&id=' + dep.id, { method: 'POST', body: {} }); selectedId = null; closeDrawer(); await loadOrgTab(); }
     catch (e) { alert(e.message); }
   });
   loadPoliciesInto('dep-policies', 'department', dep.id);
@@ -500,7 +599,8 @@ function renderPostEditor(po) {
   if (!po) return;
   const dep = departmentsData.find(x => x.id === po.department_id);
   const div = divisionsData.find(x => x.id === dep?.division_id);
-  const ed = document.getElementById('axEditor');
+  const ed = editorEl();
+  if (!ed) return;
   const roleOpts = ['<option value="">— No default role —</option>'].concat(
     roles.map(r => `<option value="${r.id}" ${po.default_role_id === r.id ? 'selected' : ''}>${escapeHtml(r.name)}</option>`)
   ).join('');
@@ -562,7 +662,7 @@ function renderPostEditor(po) {
   });
   document.getElementById('po-delete').addEventListener('click', async () => {
     if (!confirm('Delete this post and its holder history?')) return;
-    try { await api('?api=post-delete&id=' + po.id, { method: 'POST', body: {} }); selectedId = null; await loadOrgTab(); document.getElementById('axEditor').innerHTML = '<div class="ax-editor-empty">Post deleted.</div>'; }
+    try { await api('?api=post-delete&id=' + po.id, { method: 'POST', body: {} }); selectedId = null; closeDrawer(); await loadOrgTab(); }
     catch (e) { alert(e.message); }
   });
   loadPoliciesInto('po-policies', 'post', po.id);

@@ -152,6 +152,72 @@
   .org-board-header h3 { margin: 0; font-size: 1rem; color: var(--text); }
   .org-board-header .hint { font-size: 0.78rem; color: var(--text-dim); }
 
+  /* Top tier — executive posts that sit ABOVE divisions */
+  .org-top-tier {
+    display: flex; gap: 10px;
+    overflow-x: auto; padding: 4px 4px 12px;
+    margin-bottom: 10px;
+    border-bottom: 1px dashed var(--border);
+    align-items: stretch;
+  }
+  .org-top-tier::-webkit-scrollbar { height: 10px; }
+  .org-top-tier-label {
+    flex: 0 0 auto; padding: 8px 12px;
+    font-size: 0.74rem; font-weight: 700;
+    color: var(--text-dim); letter-spacing: 0.04em; text-transform: uppercase;
+    align-self: center;
+  }
+  .org-exec-card {
+    flex: 0 0 auto;
+    min-width: 260px; max-width: 320px;
+    background: linear-gradient(135deg, rgba(251,191,36,0.08), rgba(167,139,250,0.06));
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px;
+    cursor: pointer;
+    display: flex; flex-direction: column; gap: 6px;
+    position: relative;
+  }
+  .org-exec-card:hover { border-color: #fbbf24; }
+  .org-exec-card-stripe {
+    position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: var(--exec-color, #fbbf24);
+    border-radius: 12px 12px 0 0;
+  }
+  .org-exec-card-title { font-weight: 700; font-size: 0.92rem; margin-top: 2px; }
+  .org-exec-card-holder {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 0.78rem; color: var(--text);
+  }
+  .org-exec-card-holder .havatar { width: 18px; height: 18px; font-size: 0.62rem; margin: 0; background: #fbbf24; color: #0b0c14; border: 1.5px solid rgba(251,191,36,0.4); }
+  .org-exec-card-holder.vacant { color: var(--text-dim); font-style: italic; }
+  .org-exec-card-divs {
+    display: flex; flex-wrap: wrap; gap: 4px;
+    font-size: 0.7rem;
+  }
+  .org-exec-card-divs .div-chip {
+    padding: 2px 7px; border-radius: 999px;
+    background: var(--surface3); color: var(--text-muted);
+    border: 1px solid var(--border-light);
+  }
+  .org-exec-card-role {
+    font-size: 0.66rem; padding: 1px 6px; border-radius: 4px;
+    background: rgba(107,158,255,.18); color: var(--blue);
+    font-weight: 600; align-self: flex-start;
+  }
+  .org-add-exec {
+    flex: 0 0 auto; min-width: 180px;
+    display: flex; align-items: center; justify-content: center;
+    border: 2px dashed var(--border); border-radius: 12px;
+    background: transparent; color: var(--text-dim); cursor: pointer;
+    font-size: 0.82rem; font-weight: 600;
+  }
+  .org-add-exec:hover { color: #fbbf24; border-color: #fbbf24; }
+  /* When a division card is "covered" by a hovered exec post, give it a glow */
+  .org-col-division.exec-covered {
+    box-shadow: 0 0 0 2px rgba(251,191,36,.45);
+  }
+
   .org-board {
     display: flex; gap: 14px;
     overflow-x: auto; overflow-y: visible;
@@ -393,8 +459,10 @@
     <div id="orgBoardView">
       <div class="org-board-header">
         <h3>🏛 Org Board</h3>
-        <span class="hint">Divisions = columns · Departments = sub-columns · Posts = cards. Click anything to edit.</span>
+        <span class="hint">Executive posts sit on top · Divisions = columns · Departments = sub-columns · Posts = cards. Click anything to edit.</span>
       </div>
+      <!-- Top tier: executive posts above divisions -->
+      <div class="org-top-tier" id="orgTopTier"></div>
       <div class="org-board" id="orgBoard"></div>
     </div>
   </main>

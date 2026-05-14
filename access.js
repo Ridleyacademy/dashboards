@@ -330,26 +330,29 @@ async function deleteRole(rid) {
 // We fetch every active holder once per org-tab load so we can render the
 // avatar stack on each post card without an extra request per card.
 let activeHoldersByPost = {}; // { [postId]: [{user_id, started_at}, …] }
+let execPostsData = [];        // executive posts sitting above divisions
 
 async function loadOrgTab() {
   const board = document.getElementById('orgBoard');
   board.innerHTML = '<div style="padding:24px;color:var(--text-dim);font-size:0.84rem;">Loading…</div>';
   try {
-    const [d, dep, p, h] = await Promise.all([
+    const [d, dep, p, h, ex] = await Promise.all([
       api('?api=divisions'),
       api('?api=departments'),
       api('?api=posts'),
       api('?api=post-holders'),
+      api('?api=exec-posts'),
     ]);
     divisionsData = d.rows || [];
     departmentsData = dep.rows || [];
     postsData = p.rows || [];
+    execPostsData = ex.rows || [];
     activeHoldersByPost = {};
     for (const row of (h.rows || [])) {
       if (row.ended_at) continue;
       (activeHoldersByPost[row.post_id] ||= []).push(row);
     }
-    document.getElementById('axCount').textContent = `${divisionsData.length} div · ${departmentsData.length} dept · ${postsData.length} posts`;
+    document.getElementById('axCount').textContent = `${execPostsData.length} exec · ${divisionsData.length} div · ${departmentsData.length} dept · ${postsData.length} posts`;
     renderOrgBoard();
   } catch (e) { board.innerHTML = `<div style="padding:24px;color:var(--red);font-size:0.84rem;">${escapeHtml(e.message)}</div>`; }
 }
@@ -376,8 +379,54 @@ function _userOptions(selectedId, includeVacant = true) {
     sorted.map(u => `<option value="${u.id}" ${selectedId === u.id ? 'selected' : ''}>${escapeHtml(_pickerLabelFor(u))}</option>`).join('');
 }
 
+function renderTopTier() {
+  const tier = document.getElementById('orgTopTier');
+  if (!tier) return;
+  if (!execPostsData.length && !divisionsData.length) { tier.innerHTML = ''; return; }
+  const cardsHtml = execPostsData.map(ep => {
+    const holderName = _displayOf(ep.head_user_id);
+    const role = ep.default_role_id ? roles.find(r => r.id === ep.default_role_id) : null;
+    const divChips = ep.division_ids.map(did => {
+      const d = divisionsData.find(x => x.id === did);
+      return d ? `<span class="div-chip" style="border-color:${d.color}66;color:${d.color};">${escapeHtml(d.name)}</span>` : '';
+    }).join('') || '<span style="color:var(--text-dim);font-style:italic;">(no divisions linked yet)</span>';
+    const holderHtml = holderName
+      ? `<div class="org-exec-card-holder" title="${escapeHtml(_emailOf(ep.head_user_id) || '')}"><span class="havatar">${escapeHtml(_initialOf(ep.head_user_id))}</span>${escapeHtml(holderName)}</div>`
+      : `<div class="org-exec-card-holder vacant">Vacant — click to assign</div>`;
+    return `
+      <div class="org-exec-card" data-exec-id="${ep.id}" style="--exec-color:${ep.color || '#fbbf24'};">
+        <div class="org-exec-card-stripe"></div>
+        <div class="org-exec-card-title">⭐ ${escapeHtml(ep.name)}</div>
+        ${holderHtml}
+        ${role ? `<span class="org-exec-card-role">${escapeHtml(role.name)}</span>` : ''}
+        <div class="org-exec-card-divs">${divChips}</div>
+      </div>`;
+  }).join('');
+  tier.innerHTML =
+    '<div class="org-top-tier-label">Executive</div>' +
+    cardsHtml +
+    '<button class="org-add-exec" id="org-add-exec">+ Executive post</button>';
+  tier.querySelectorAll('.org-exec-card').forEach(el => {
+    const epId = Number(el.dataset.execId);
+    el.addEventListener('click', () => openExecPostEditor(epId));
+    // Hover → highlight the divisions this exec post covers.
+    el.addEventListener('mouseenter', () => {
+      const ep = execPostsData.find(x => x.id === epId);
+      if (!ep) return;
+      for (const did of ep.division_ids) {
+        document.querySelector(`.org-col-division [data-id="${did}"][data-kind="division"]`)?.closest('.org-col-division')?.classList.add('exec-covered');
+      }
+    });
+    el.addEventListener('mouseleave', () => {
+      document.querySelectorAll('.org-col-division.exec-covered').forEach(n => n.classList.remove('exec-covered'));
+    });
+  });
+  document.getElementById('org-add-exec')?.addEventListener('click', () => openExecPostEditor(null));
+}
+
 function renderOrgBoard() {
   const board = document.getElementById('orgBoard');
+  renderTopTier();
   if (!divisionsData.length) {
     board.innerHTML = `
       <button class="org-add-division" id="org-first-div">
@@ -517,6 +566,96 @@ function openOrgEditor(kind, id) {
   if (kind === 'division') return renderDivisionEditor(divisionsData.find(x => x.id === id));
   if (kind === 'department') return renderDepartmentEditor(departmentsData.find(x => x.id === id));
   if (kind === 'post') return renderPostEditor(postsData.find(x => x.id === id));
+}
+
+function openExecPostEditor(epId) {
+  openDrawer('<div id="axDrawerEditor"><div class="ax-editor-empty">Loading…</div></div>');
+  _useDrawerEditor = true;
+  const ep = epId ? execPostsData.find(x => x.id === epId) : { id: null, name: '', slug: '', description: '', default_role_id: null, head_user_id: null, color: '#fbbf24', sort_order: execPostsData.length, division_ids: [] };
+  const ed = editorEl();
+  if (!ed) return;
+  const divChecks = divisionsData.map(d => {
+    const checked = (ep.division_ids || []).includes(d.id);
+    return `<label class="div-check" style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--border);border-radius:999px;cursor:pointer;font-size:0.78rem;${checked ? 'background:rgba(251,191,36,.18);color:#fbbf24;border-color:rgba(251,191,36,.45);' : ''}">
+      <input type="checkbox" data-div-id="${d.id}" ${checked ? 'checked' : ''} style="margin:0;">
+      ${escapeHtml(d.name)}
+    </label>`;
+  }).join('');
+  ed.innerHTML = `<div class="ax-editor">
+    <div class="breadcrumb">Top tier · Executive post</div>
+    <h2>${ep.id ? '⭐ ' + escapeHtml(ep.name) : '⭐ New executive post'}</h2>
+    <div style="color:var(--text-dim);font-size:0.78rem;margin-bottom:6px;">Sits ABOVE divisions. One person, in charge of one or more divisions. The default role is auto-conferred to whoever holds this post.</div>
+
+    <div class="ax-editor-row"><label>Name</label><input id="ep-name" value="${escapeHtml(ep.name)}" placeholder="e.g. COO"></div>
+    <div class="ax-editor-row"><label>Slug</label><input id="ep-slug" value="${escapeHtml(ep.slug)}" placeholder="coo"></div>
+    <div class="ax-editor-row"><label>Description</label><textarea id="ep-desc">${escapeHtml(ep.description || '')}</textarea></div>
+    <div class="ax-editor-row"><label>Color</label><input id="ep-color" type="color" value="${escapeHtml(ep.color || '#fbbf24')}" style="max-width:80px;"></div>
+
+    <h3>Assigned to</h3>
+    <div class="ax-editor-row"><label>Holder</label><select id="ep-head"></select></div>
+    <div class="ax-editor-row"><label>Default role</label><select id="ep-role"></select></div>
+
+    <h3>Divisions overseen</h3>
+    <div style="font-size:0.74rem;color:var(--text-dim);margin-bottom:6px;">Pick every division this person is in charge of. Hover the card on the board to see them highlighted.</div>
+    <div id="ep-divs" style="display:flex;flex-wrap:wrap;gap:6px;">${divChecks}</div>
+
+    <div class="ax-actions">
+      <button class="btn-primary" id="ep-save">Save</button>
+      ${ep.id ? '<button class="small-btn" id="ep-duplicate" style="background:var(--surface3);">⧉ Duplicate</button>' : ''}
+      ${ep.id ? '<button class="btn-ghost" style="color:var(--red);" id="ep-delete">Delete</button>' : ''}
+      <span class="ax-msg" id="ep-msg"></span>
+    </div>
+  </div>`;
+
+  document.getElementById('ep-head').innerHTML = _userOptions(ep.head_user_id);
+  document.getElementById('ep-role').innerHTML = '<option value="">— No default role —</option>' + roles.map(r => `<option value="${r.id}" ${ep.default_role_id === r.id ? 'selected' : ''}>${escapeHtml(r.name)}</option>`).join('');
+
+  // Toggle chip-style highlight on check
+  ed.querySelectorAll('#ep-divs input[type="checkbox"]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const label = cb.closest('label');
+      if (cb.checked) label.style.cssText = 'display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid rgba(251,191,36,.45);border-radius:999px;cursor:pointer;font-size:0.78rem;background:rgba(251,191,36,.18);color:#fbbf24;';
+      else label.style.cssText = 'display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--border);border-radius:999px;cursor:pointer;font-size:0.78rem;';
+    });
+  });
+
+  document.getElementById('ep-save').addEventListener('click', async () => {
+    const msg = document.getElementById('ep-msg');
+    msg.className = 'ax-msg'; msg.textContent = 'Saving…';
+    try {
+      const body = {
+        name: document.getElementById('ep-name').value.trim(),
+        slug: document.getElementById('ep-slug').value.trim() || document.getElementById('ep-name').value.trim().toLowerCase().replace(/\s+/g, '_'),
+        description: document.getElementById('ep-desc').value.trim(),
+        color: document.getElementById('ep-color').value,
+        head_user_id: document.getElementById('ep-head').value || null,
+        default_role_id: document.getElementById('ep-role').value ? Number(document.getElementById('ep-role').value) : null,
+        division_ids: [...document.querySelectorAll('#ep-divs input:checked')].map(cb => Number(cb.dataset.divId)),
+        sort_order: ep.sort_order || 0,
+      };
+      if (!body.name) throw new Error('Name required');
+      let res;
+      if (ep.id) res = await api('?api=exec-post-update&id=' + ep.id, { method: 'POST', body });
+      else       res = await api('?api=exec-post-create', { method: 'POST', body });
+      msg.className = 'ax-msg ok'; msg.textContent = '✓ Saved';
+      await loadOrgTab();
+      if (res?.row?.id) openExecPostEditor(res.row.id);
+    } catch (e) { msg.className = 'ax-msg err'; msg.textContent = e.message; }
+  });
+  document.getElementById('ep-duplicate')?.addEventListener('click', async () => {
+    const newName = prompt('Name for the new executive post', ep.name + ' (copy)');
+    if (!newName) return;
+    try {
+      const res = await api('?api=exec-post-duplicate&id=' + ep.id, { method: 'POST', body: { new_name: newName } });
+      await loadOrgTab();
+      if (res?.row?.id) openExecPostEditor(res.row.id);
+    } catch (e) { alert(e.message); }
+  });
+  document.getElementById('ep-delete')?.addEventListener('click', async () => {
+    if (!confirm('Delete this executive post?')) return;
+    try { await api('?api=exec-post-delete&id=' + ep.id, { method: 'POST', body: {} }); closeDrawer(); await loadOrgTab(); }
+    catch (e) { alert(e.message); }
+  });
 }
 
 function renderDivisionEditor(d) {

@@ -352,6 +352,9 @@ async function loadOrgTab() {
   } catch (e) { board.innerHTML = `<div style="padding:24px;color:var(--red);font-size:0.84rem;">${escapeHtml(e.message)}</div>`; }
 }
 
+function _emailOf(uid) { return uid ? (usersData.find(u => u.id === uid)?.email || uid) : null; }
+function _initialOf(uid) { const e = _emailOf(uid); return e ? e.slice(0,1).toUpperCase() : '?'; }
+
 function renderOrgBoard() {
   const board = document.getElementById('orgBoard');
   if (!divisionsData.length) {
@@ -367,12 +370,21 @@ function renderOrgBoard() {
     const totalPosts = postsData.filter(p => depts.some(dep => dep.id === p.department_id)).length;
     const deptsHtml = depts.map(dep => renderDepartmentSubColumn(dep)).join('') +
       `<button class="org-add-btn" style="align-self:flex-start;margin-top:4px;" data-add-dept="${d.id}">+ Department</button>`;
+    const headEmail = _emailOf(d.head_user_id);
+    const headBadge = headEmail
+      ? `<span class="org-head-pill" title="Division Head — click to change"><span class="havatar" style="background:${d.color || '#6b9eff'};">${escapeHtml(_initialOf(d.head_user_id))}</span><span>👑 ${escapeHtml(headEmail)}</span></span>`
+      : `<span class="org-head-pill vacant" title="No Division Head — click to assign">👑 No Division Head</span>`;
     return `
       <div class="org-col-division">
         <div class="org-col-division-head" data-kind="division" data-id="${d.id}">
           <div class="org-col-division-stripe" style="background:${d.color || '#6b9eff'};"></div>
-          <div class="org-col-division-title">${escapeHtml(d.name)}</div>
-          <div class="org-col-division-meta">${depts.length} dept · ${totalPosts} posts</div>
+          <div style="flex:1;display:flex;flex-direction:column;gap:4px;min-width:0;">
+            <div class="org-col-division-title">${escapeHtml(d.name)}</div>
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+              ${headBadge}
+              <span class="org-col-division-meta">${depts.length} dept · ${totalPosts} posts</span>
+            </div>
+          </div>
         </div>
         <div class="org-col-departments">${deptsHtml}</div>
       </div>`;
@@ -408,35 +420,38 @@ function renderDepartmentSubColumn(dep) {
   const posts = postsData.filter(x => x.department_id === dep.id);
   const postsHtml = posts.map(po => renderPostCard(po)).join('') ||
     '<div style="color:var(--text-dim);font-size:0.74rem;font-style:italic;padding:6px;">No posts yet</div>';
+  const headEmail = _emailOf(dep.head_user_id);
+  const headLine = headEmail
+    ? `<div class="org-dept-head"><span class="havatar small">${escapeHtml(_initialOf(dep.head_user_id))}</span><span>🎩 ${escapeHtml(headEmail)}</span></div>`
+    : `<div class="org-dept-head vacant">🎩 No Dept Head</div>`;
   return `
     <div class="org-col-department">
       <div class="org-col-department-head" data-kind="department" data-id="${dep.id}">
         <span class="title">${escapeHtml(dep.name)}</span>
         <span class="count">${posts.length}</span>
       </div>
+      ${headLine}
       <div class="org-col-department-posts">${postsHtml}</div>
       <button class="org-add-btn" data-add-post="${dep.id}">+ Post</button>
     </div>`;
 }
 
 function renderPostCard(po) {
+  // One post = one person. Show the (single) active holder as a name+avatar,
+  // or "Vacant". If a legacy post somehow has multiple holders, we display the
+  // most recent one and silently treat the rest as inactive.
   const role = po.default_role_id ? roles.find(r => r.id === po.default_role_id) : null;
   const holders = activeHoldersByPost[po.id] || [];
-  const avatars = holders.slice(0, 4).map(h => {
-    const u = usersData.find(x => x.id === h.user_id);
-    const initial = (u?.email || '?').slice(0, 1).toUpperCase();
-    return `<span class="havatar" title="${escapeHtml(u?.email || h.user_id)}">${escapeHtml(initial)}</span>`;
-  }).join('');
-  const extra = holders.length > 4 ? `<span class="havatar" style="background:var(--surface3);color:var(--text-muted);">+${holders.length - 4}</span>` : '';
-  const holdersHtml = holders.length
-    ? `<div class="org-post-card-holders">${avatars}${extra}</div>`
-    : '<div class="org-post-card-holders"><span class="vacant">Vacant</span></div>';
+  const primary = holders[0];
+  const holderHtml = primary
+    ? `<div class="org-post-card-holders"><span class="havatar">${escapeHtml(_initialOf(primary.user_id))}</span><span class="hname">${escapeHtml(_emailOf(primary.user_id))}</span></div>`
+    : '<div class="org-post-card-holders"><span class="vacant">Vacant — click to assign</span></div>';
   const roleChip = role ? `<span class="org-post-card-role">${escapeHtml(role.name)}</span>` : '';
   return `
     <div class="org-post-card" data-id="${po.id}">
       <div class="org-post-card-title">${escapeHtml(po.name)}</div>
-      <div class="org-post-card-meta">${roleChip}<span>${holders.length} ${holders.length === 1 ? 'holder' : 'holders'}</span></div>
-      ${holdersHtml}
+      <div class="org-post-card-meta">${roleChip}</div>
+      ${holderHtml}
     </div>`;
 }
 
@@ -497,6 +512,11 @@ function renderDivisionEditor(d) {
     <div class="ax-editor-row"><label>Color</label><input id="d-color" type="color" value="${escapeHtml(d.color || '#6b9eff')}" style="max-width:80px;"></div>
     <div class="ax-editor-row"><label>Sort order</label><input id="d-sort" type="number" value="${d.sort_order || 0}" style="max-width:120px;"></div>
 
+    <h3>👑 Division Head</h3>
+    <div style="font-size:0.74rem;color:var(--text-dim);margin-bottom:6px;">The single person in charge of this whole division. The default role here is auto-conferred to them.</div>
+    <div class="ax-editor-row"><label>Head user</label><select id="d-head-user"></select></div>
+    <div class="ax-editor-row"><label>Default role</label><select id="d-head-role"></select></div>
+
     <h3>Departments</h3>
     <div id="d-depts-list" style="display:flex;flex-direction:column;gap:4px;"></div>
     <button class="small-btn" id="d-add-dept" style="margin-top:8px;">+ Add department</button>
@@ -531,6 +551,12 @@ function renderDivisionEditor(d) {
   document.getElementById('d-add-dept').addEventListener('click', () => openCreateDepartmentModal(d.id));
   document.getElementById('d-add-policy').addEventListener('click', () => openPolicyModal('division', d.id));
 
+  // Populate Head selects
+  const headUserSel = document.getElementById('d-head-user');
+  headUserSel.innerHTML = '<option value="">— Vacant —</option>' + usersData.map(u => `<option value="${u.id}" ${d.head_user_id === u.id ? 'selected' : ''}>${escapeHtml(u.email)}</option>`).join('');
+  const headRoleSel = document.getElementById('d-head-role');
+  headRoleSel.innerHTML = '<option value="">— No role —</option>' + roles.map(r => `<option value="${r.id}" ${d.head_default_role_id === r.id ? 'selected' : ''}>${escapeHtml(r.name)}</option>`).join('');
+
   // Hide editor management UI for non-admins (server enforces this too).
   const eff = window.RidleyPerms?.effective(session.user);
   if (!eff?.is_admin) {
@@ -544,6 +570,8 @@ function renderDivisionEditor(d) {
       description: document.getElementById('d-desc').value,
       color: document.getElementById('d-color').value,
       sort_order: Number(document.getElementById('d-sort').value) || 0,
+      head_user_id: document.getElementById('d-head-user').value || null,
+      head_default_role_id: document.getElementById('d-head-role').value ? Number(document.getElementById('d-head-role').value) : null,
     };
     try { await api('?api=division-update&id=' + d.id, { method: 'POST', body }); await loadOrgTab(); openOrgEditor('division', d.id); }
     catch (e) { document.getElementById('d-msg').textContent = e.message; }
@@ -570,6 +598,11 @@ function renderDepartmentEditor(dep) {
     <div class="ax-editor-row"><label>Description</label><textarea id="dep-desc">${escapeHtml(dep.description || '')}</textarea></div>
     <div class="ax-editor-row"><label>Sort order</label><input id="dep-sort" type="number" value="${dep.sort_order || 0}" style="max-width:120px;"></div>
 
+    <h3>🎩 Department Head</h3>
+    <div style="font-size:0.74rem;color:var(--text-dim);margin-bottom:6px;">The single person in charge of this department. The default role here is auto-conferred to them.</div>
+    <div class="ax-editor-row"><label>Head user</label><select id="dep-head-user"></select></div>
+    <div class="ax-editor-row"><label>Default role</label><select id="dep-head-role"></select></div>
+
     <h3>Posts</h3>
     <div id="dep-posts-list" style="display:flex;flex-direction:column;gap:4px;"></div>
     <button class="small-btn" id="dep-add-post" style="margin-top:8px;">+ Add post</button>
@@ -594,12 +627,19 @@ function renderDepartmentEditor(dep) {
 
   document.getElementById('dep-add-post').addEventListener('click', () => openCreatePostModal(dep.id));
   document.getElementById('dep-add-policy').addEventListener('click', () => openPolicyModal('department', dep.id));
+  // Populate dept head selects
+  const depHeadUserSel = document.getElementById('dep-head-user');
+  depHeadUserSel.innerHTML = '<option value="">— Vacant —</option>' + usersData.map(u => `<option value="${u.id}" ${dep.head_user_id === u.id ? 'selected' : ''}>${escapeHtml(u.email)}</option>`).join('');
+  const depHeadRoleSel = document.getElementById('dep-head-role');
+  depHeadRoleSel.innerHTML = '<option value="">— No role —</option>' + roles.map(r => `<option value="${r.id}" ${dep.head_default_role_id === r.id ? 'selected' : ''}>${escapeHtml(r.name)}</option>`).join('');
   document.getElementById('dep-save').addEventListener('click', async () => {
     const body = {
       name: document.getElementById('dep-name').value,
       slug: document.getElementById('dep-slug').value,
       description: document.getElementById('dep-desc').value,
       sort_order: Number(document.getElementById('dep-sort').value) || 0,
+      head_user_id: document.getElementById('dep-head-user').value || null,
+      head_default_role_id: document.getElementById('dep-head-role').value ? Number(document.getElementById('dep-head-role').value) : null,
     };
     try { await api('?api=department-update&id=' + dep.id, { method: 'POST', body }); await loadOrgTab(); openOrgEditor('department', dep.id); }
     catch (e) { document.getElementById('dep-msg').textContent = e.message; }
@@ -634,12 +674,14 @@ function renderPostEditor(po) {
     <div class="ax-editor-row"><label title="Whoever holds this post automatically receives this role's permissions.">Default role</label><select id="po-role">${roleOpts}</select></div>
     <div class="ax-editor-row"><label>Sort order</label><input id="po-sort" type="number" value="${po.sort_order || 0}" style="max-width:120px;"></div>
 
-    <h3>Holders <span style="font-weight:400;color:var(--text-dim);font-size:0.78rem;">(many people can hold the same post)</span></h3>
-    <div id="po-holders"></div>
-    <div style="display:flex;gap:6px;margin-top:8px;">
+    <h3>Assigned to <span style="font-weight:400;color:var(--text-dim);font-size:0.78rem;">(one person per post — duplicate the post to add another)</span></h3>
+    <div style="display:flex;gap:6px;align-items:center;">
       <select id="po-holder-pick" style="flex:1;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);"></select>
-      <button class="small-btn" id="po-add-holder">+ Add holder</button>
+      <button class="small-btn" id="po-set-holder">Assign</button>
+      <button class="small-btn" id="po-clear-holder" style="color:var(--red);">Vacate</button>
     </div>
+    <div id="po-holders" style="margin-top:6px;"></div>
+    <button class="small-btn" id="po-duplicate" style="margin-top:10px;background:var(--surface3);">⧉ Duplicate post (add another)</button>
 
     <h3>Policies & orders</h3>
     <div id="po-policies"></div>
@@ -654,16 +696,36 @@ function renderPostEditor(po) {
   </div>`;
   document.querySelectorAll('[data-jump]').forEach(a => a.addEventListener('click', e => { e.preventDefault(); openOrgEditor(a.dataset.jump, Number(a.dataset.id)); }));
 
-  // Load + render holders
-  refreshPostHolders(po.id);
-  // Populate holder picker with users not currently holding this post
+  // Single-holder picker: preselect current holder if any.
+  const currentHolder = (activeHoldersByPost[po.id] || [])[0];
   const pick = document.getElementById('po-holder-pick');
-  pick.innerHTML = usersData.map(u => `<option value="${u.id}">${escapeHtml(u.email)}</option>`).join('');
-  document.getElementById('po-add-holder').addEventListener('click', async () => {
+  pick.innerHTML = '<option value="">— Vacant —</option>' + usersData.map(u => `<option value="${u.id}" ${currentHolder?.user_id === u.id ? 'selected' : ''}>${escapeHtml(u.email)}</option>`).join('');
+  refreshPostHolders(po.id);
+  document.getElementById('po-set-holder').addEventListener('click', async () => {
     const uid = pick.value;
     if (!uid) return;
-    try { await api('?api=post-add-holder', { method: 'POST', body: { post_id: po.id, user_id: uid } }); await refreshPostHolders(po.id); await loadUsersTab(); }
-    catch (e) { alert(e.message); }
+    try {
+      await api('?api=post-add-holder', { method: 'POST', body: { post_id: po.id, user_id: uid } });
+      await loadOrgTab();
+      openOrgEditor('post', po.id);
+    } catch (e) { alert(e.message); }
+  });
+  document.getElementById('po-clear-holder').addEventListener('click', async () => {
+    if (!currentHolder) return;
+    try {
+      await api('?api=post-remove-holder', { method: 'POST', body: { post_id: po.id, user_id: currentHolder.user_id } });
+      await loadOrgTab();
+      openOrgEditor('post', po.id);
+    } catch (e) { alert(e.message); }
+  });
+  document.getElementById('po-duplicate').addEventListener('click', async () => {
+    const newName = prompt('Name for the new post (e.g. "Coach — Jane")', po.name);
+    if (!newName) return;
+    try {
+      const res = await api('?api=post-duplicate&id=' + po.id, { method: 'POST', body: { new_name: newName } });
+      await loadOrgTab();
+      if (res?.row?.id) openOrgEditor('post', res.row.id);
+    } catch (e) { alert(e.message); }
   });
 
   document.getElementById('po-add-policy').addEventListener('click', () => openPolicyModal('post', po.id));

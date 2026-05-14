@@ -240,6 +240,34 @@
   }
   .org-post-card-holders .havatar:first-child { margin-left: 0; }
   .org-post-card-holders .vacant { font-size: 0.7rem; color: var(--text-dim); font-style: italic; }
+  .org-post-card-holders .hname { font-size: 0.74rem; color: var(--text); margin-left: 6px; }
+  .org-post-card-holders .havatar { margin-left: 0; }
+
+  /* Division / Department head pills */
+  .org-head-pill {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 8px; border-radius: 999px;
+    background: rgba(251,191,36,.12); color: #fbbf24;
+    font-size: 0.7rem; font-weight: 600;
+  }
+  .org-head-pill .havatar {
+    width: 16px; height: 16px; font-size: 0.58rem;
+    border: 1.5px solid rgba(251,191,36,.4);
+    margin-right: 2px;
+  }
+  .org-head-pill.vacant { background: var(--surface3); color: var(--text-dim); font-weight: 500; font-style: italic; }
+
+  .org-dept-head {
+    font-size: 0.72rem; padding: 4px 8px;
+    background: rgba(251,191,36,.1); color: #fbbf24;
+    border-radius: 6px; display: flex; align-items: center; gap: 6px;
+    font-weight: 600;
+  }
+  .org-dept-head .havatar.small {
+    width: 16px; height: 16px; font-size: 0.58rem; margin-left: 0;
+    border: 1.5px solid rgba(251,191,36,.4); background: #fbbf24; color: #0b0c14;
+  }
+  .org-dept-head.vacant { background: var(--surface3); color: var(--text-dim); font-style: italic; font-weight: 500; }
 
   /* "+ Add" pill buttons inside the board */
   .org-add-btn {

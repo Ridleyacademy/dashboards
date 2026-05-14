@@ -755,6 +755,20 @@ const BOARDS = [
     desc: 'Coach view: KPIs across your roster, at-risk students, last-zoom tracking, and bulk-edit fields like last assignment and zoom dates.',
     tags: [{ label: 'Coach', bg: 'rgba(52,211,153,0.12)', color: '#34d399' }, { label: 'Bulk edit', bg: 'rgba(251,191,36,0.12)', color: '#fbbf24' }],
   },
+  {
+    id: 'email_automations', href: 'email-automations.html', title: 'Email Automations', permission: 'admin',
+    color: '#a78bfa', glow: 'rgba(167,139,250,0.18)', bg: 'rgba(167,139,250,0.12)',
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 7l-10 6L2 7"/></svg>`,
+    desc: 'Edit subject/body of transactional emails, fire test sends, broadcast to lists, and track open/click stats. Admin-only.',
+    tags: [{ label: 'Admin', bg: 'rgba(248,113,113,0.12)', color: '#f87171' }, { label: 'Email', bg: 'rgba(167,139,250,0.12)', color: '#a78bfa' }],
+  },
+  {
+    id: 'access', href: 'access.html', title: 'Access & Org', permission: 'admin',
+    color: '#34d399', glow: 'rgba(52,211,153,0.18)', bg: 'rgba(52,211,153,0.12)',
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 22a8 8 0 0 1 16 0"/></svg>`,
+    desc: 'Manage users, roles, and the org board (divisions → departments → posts). Invite new users, assign granular permissions, and attach policies / orders to any level. Admin-only.',
+    tags: [{ label: 'Admin', bg: 'rgba(248,113,113,0.12)', color: '#f87171' }, { label: 'RBAC', bg: 'rgba(52,211,153,0.12)', color: '#34d399' }],
+  },
 ];
 
 const supa = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {

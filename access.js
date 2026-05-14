@@ -502,8 +502,17 @@ function renderDivisionEditor(d) {
     <button class="small-btn" id="d-add-dept" style="margin-top:8px;">+ Add department</button>
 
     <h3>Policies & orders</h3>
+    <div style="font-size:0.74rem;color:var(--text-dim);margin-bottom:6px;">Policies set here cascade down to every department and post inside this division.</div>
     <div id="d-policies"></div>
-    <button class="small-btn" id="d-add-policy" style="margin-top:8px;">+ Add policy / order</button>
+    <button class="small-btn" id="d-add-policy" style="margin-top:8px;display:none;">+ Add policy / order</button>
+
+    <h3>Policy editors <span style="font-weight:400;color:var(--text-dim);font-size:0.74rem;">(admin only)</span></h3>
+    <div style="font-size:0.74rem;color:var(--text-dim);margin-bottom:6px;">These users can create / edit / delete policies and orders on this division <strong>and every department + post under it</strong>. Other users see policies read-only.</div>
+    <div id="d-editors" style="display:flex;flex-wrap:wrap;gap:4px;"></div>
+    <div style="display:flex;gap:6px;margin-top:8px;" id="d-editor-add-row">
+      <select id="d-editor-pick" style="flex:1;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);"></select>
+      <button class="small-btn" id="d-editor-add">+ Add editor</button>
+    </div>
 
     <div class="ax-actions">
       <button class="btn-primary" id="d-save">Save</button>
@@ -521,6 +530,13 @@ function renderDivisionEditor(d) {
 
   document.getElementById('d-add-dept').addEventListener('click', () => openCreateDepartmentModal(d.id));
   document.getElementById('d-add-policy').addEventListener('click', () => openPolicyModal('division', d.id));
+
+  // Hide editor management UI for non-admins (server enforces this too).
+  const eff = window.RidleyPerms?.effective(session.user);
+  if (!eff?.is_admin) {
+    document.getElementById('d-editor-add-row').style.display = 'none';
+  }
+  loadDivisionEditors(d.id);
   document.getElementById('d-save').addEventListener('click', async () => {
     const body = {
       name: document.getElementById('d-name').value,
@@ -560,7 +576,8 @@ function renderDepartmentEditor(dep) {
 
     <h3>Policies & orders</h3>
     <div id="dep-policies"></div>
-    <button class="small-btn" id="dep-add-policy" style="margin-top:8px;">+ Add policy / order</button>
+    <div style="font-size:0.74rem;color:var(--text-dim);margin-top:4px;">Policies here apply to this department + every post inside it. Policies inherited from the division above show with an "↑ from" badge.</div>
+    <button class="small-btn" id="dep-add-policy" style="margin-top:8px;display:none;">+ Add policy / order</button>
 
     <div class="ax-actions">
       <button class="btn-primary" id="dep-save">Save</button>
@@ -626,7 +643,8 @@ function renderPostEditor(po) {
 
     <h3>Policies & orders</h3>
     <div id="po-policies"></div>
-    <button class="small-btn" id="po-add-policy" style="margin-top:8px;">+ Add policy / order</button>
+    <div style="font-size:0.74rem;color:var(--text-dim);margin-top:4px;">Policies set here apply only to this post. Inherited policies from the parent department and division show with an "↑ from" badge.</div>
+    <button class="small-btn" id="po-add-policy" style="margin-top:8px;display:none;">+ Add policy / order</button>
 
     <div class="ax-actions">
       <button class="btn-primary" id="po-save">Save</button>
@@ -692,30 +710,105 @@ async function refreshPostHolders(postId) {
 }
 
 async function loadPoliciesInto(elId, scopeType, scopeId) {
+  // Uses /policies-for-scope which returns own + inherited policies.
+  // Inherited policies (from a parent department or division) are displayed
+  // read-only with a badge — clicking them jumps to the source scope.
   const el = document.getElementById(elId);
   if (!el) return;
   el.innerHTML = '<span style="color:var(--text-dim);font-size:0.82rem;">Loading…</span>';
   try {
-    const j = await api('?api=policies&scope_type=' + scopeType + '&scope_id=' + scopeId);
+    const j = await api('?api=policies-for-scope&scope_type=' + scopeType + '&scope_id=' + scopeId);
     const rows = j.rows || [];
-    if (!rows.length) { el.innerHTML = '<span style="color:var(--text-dim);font-size:0.82rem;">No policies or orders yet.</span>'; return; }
+    const canEdit = !!j.can_edit_self;
+
+    // Show / hide the "+ Add policy" button paired with this list.
+    const addBtnIdMap = { 'd-policies': 'd-add-policy', 'dep-policies': 'dep-add-policy', 'po-policies': 'po-add-policy' };
+    const addBtn = document.getElementById(addBtnIdMap[elId]);
+    if (addBtn) addBtn.style.display = canEdit ? '' : 'none';
+
+    if (!rows.length) {
+      el.innerHTML = canEdit
+        ? '<span style="color:var(--text-dim);font-size:0.82rem;">No policies or orders yet. Click <strong>+ Add policy / order</strong> to create one.</span>'
+        : '<span style="color:var(--text-dim);font-size:0.82rem;">No policies or orders apply here. Ask an admin to add you as a policy editor for this division if you need to create one.</span>';
+      return;
+    }
     el.innerHTML = rows.map(p => {
       const kindLabel = p.kind === 'order' ? 'ORDER' : p.kind === 'directive' ? 'DIRECTIVE' : 'POLICY';
       const kindColor = p.kind === 'order' ? '#fbbf24' : p.kind === 'directive' ? '#f472b6' : '#6b9eff';
       const expiry = p.expires_at ? new Date(p.expires_at) : null;
       const expired = expiry && expiry < new Date();
       const expiryText = expiry ? (expired ? `expired ${expiry.toLocaleDateString()}` : `expires ${expiry.toLocaleDateString()}`) : '';
-      return `<div style="padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;margin-top:6px;cursor:pointer;" data-pid="${p.id}">
-        <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;">
+      const inh = p.inherited_from;
+      // Inherited policies look slightly dimmer and carry an "inherited from X" badge.
+      const baseStyle = inh
+        ? 'padding:10px;background:var(--surface);border:1px dashed var(--border);border-radius:8px;margin-top:6px;cursor:pointer;opacity:0.92;'
+        : 'padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;margin-top:6px;cursor:pointer;';
+      const inhBadge = inh
+        ? `<span style="font-size:0.64rem;padding:2px 6px;border-radius:4px;background:rgba(167,139,250,.18);color:#a78bfa;font-weight:700;">↑ from ${escapeHtml(inh.type)} ${escapeHtml(inh.name)}</span>`
+        : '';
+      return `<div style="${baseStyle}" data-pid="${p.id}" data-inherited="${inh ? '1' : '0'}" data-source-type="${inh ? inh.type : scopeType}" data-source-id="${inh ? inh.id : scopeId}">
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap;">
           <span style="font-weight:600;font-size:0.88rem;">${escapeHtml(p.title)}</span>
-          <span style="font-size:0.66rem;font-weight:700;color:${kindColor};">${kindLabel}</span>
+          <span style="display:flex;gap:6px;align-items:center;">
+            ${inhBadge}
+            <span style="font-size:0.66rem;font-weight:700;color:${kindColor};">${kindLabel}</span>
+          </span>
         </div>
         ${p.body ? `<div style="font-size:0.78rem;color:var(--text-muted);margin-top:4px;white-space:pre-wrap;">${escapeHtml(p.body).slice(0, 280)}${p.body.length > 280 ? '…' : ''}</div>` : ''}
         ${expiryText ? `<div style="font-size:0.7rem;color:${expired ? 'var(--red)' : 'var(--text-dim)'};margin-top:4px;">${expiryText}</div>` : ''}
       </div>`;
     }).join('');
-    el.querySelectorAll('[data-pid]').forEach(div => div.addEventListener('click', () => openPolicyEditModal(Number(div.dataset.pid), scopeType, scopeId)));
+    el.querySelectorAll('[data-pid]').forEach(div => div.addEventListener('click', () => {
+      const inherited = div.dataset.inherited === '1';
+      if (inherited) {
+        // Inherited: jump to the source scope so the user can edit (if allowed) there.
+        const sType = div.dataset.sourceType;
+        const sId = Number(div.dataset.sourceId);
+        openOrgEditor(sType, sId);
+      } else {
+        openPolicyEditModal(Number(div.dataset.pid), scopeType, scopeId);
+      }
+    }));
   } catch (e) { el.innerHTML = `<span style="color:var(--red);font-size:0.82rem;">${escapeHtml(e.message)}</span>`; }
+}
+
+async function loadDivisionEditors(divisionId) {
+  const wrap = document.getElementById('d-editors');
+  const pick = document.getElementById('d-editor-pick');
+  if (!wrap) return;
+  wrap.innerHTML = '<span style="color:var(--text-dim);font-size:0.78rem;">Loading…</span>';
+  try {
+    const j = await api('?api=division-editors&division_id=' + divisionId);
+    const editors = j.rows || [];
+    const editorIds = new Set(editors.map(e => e.user_id));
+    wrap.innerHTML = editors.length
+      ? editors.map(e => {
+          const initial = (e.email || '?').slice(0, 1).toUpperCase();
+          return `<span class="holder-pill">
+            <span class="holder-pill-av">${escapeHtml(initial)}</span>
+            ${escapeHtml(e.email)}
+            <button title="Remove" data-uid="${e.user_id}">×</button>
+          </span>`;
+        }).join('')
+      : '<span style="color:var(--text-dim);font-size:0.78rem;">No policy editors yet — only admins can edit policies on this division.</span>';
+    wrap.querySelectorAll('button[data-uid]').forEach(b => b.addEventListener('click', async () => {
+      try { await api('?api=division-editor-remove', { method: 'POST', body: { division_id: divisionId, user_id: b.dataset.uid } }); await loadDivisionEditors(divisionId); }
+      catch (e) { alert(e.message); }
+    }));
+    // Populate dropdown with non-editor users
+    if (pick) {
+      pick.innerHTML = usersData
+        .filter(u => !editorIds.has(u.id))
+        .map(u => `<option value="${u.id}">${escapeHtml(u.email)}</option>`).join('');
+      const addBtn = document.getElementById('d-editor-add');
+      if (addBtn) addBtn.onclick = async () => {
+        const uid = pick.value;
+        if (!uid) return;
+        try { await api('?api=division-editor-add', { method: 'POST', body: { division_id: divisionId, user_id: uid } }); await loadDivisionEditors(divisionId); }
+        catch (e) { alert(e.message); }
+      };
+    }
+  } catch (e) { wrap.innerHTML = `<span style="color:var(--red);font-size:0.78rem;">${escapeHtml(e.message)}</span>`; }
 }
 
 // ═══════════════════════════════════════════════════════════════════════

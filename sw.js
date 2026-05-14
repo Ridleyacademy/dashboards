@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v99-groups-modal-instant';
+const CACHE_NAME = 'ridley-v101-access-org';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [
@@ -22,6 +22,8 @@ const PRECACHE = [
   '/students.js',
   '/coach.js',
   '/email-automations.js',
+  '/access.html',
+  '/access.js',
 ];
 
 self.addEventListener('install', (event) => {

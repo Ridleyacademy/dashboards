@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Ridleyacademy">
+<meta name="theme-color" content="#080a14">
+<title>Access & Org — Ridley Academy</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="skeletons.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="permissions.js"></script>
+<link rel="stylesheet" href="mobile.css">
+<style>
+  :root {
+    --bg: #080a14;
+    --surface: #0f1120; --surface2: #141728; --surface3: #191e30;
+    --border: #1f2438; --border-light: #272d45;
+    --text: #eaecf8; --text-muted: #7880a8; --text-dim: #3e4668;
+    --accent: #34d399;
+    --red: #f87171;
+    --blue: #6b9eff;
+  }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+  body.light { --bg: #f8fafc; --surface: #fff; --surface2: #f1f5f9; --surface3: #e2e8f0; --border: #e2e8f0; --border-light: #cbd5e1; --text: #0f172a; --text-muted: #475569; --text-dim: #94a3b8; }
+  #boot { padding: 60px 20px; text-align: center; color: var(--text-dim); }
+  #login { max-width: 420px; margin: 80px auto; padding: 30px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; }
+  #login h1 { margin: 0 0 8px; font-size: 1.4rem; }
+  #login p { color: var(--text-muted); font-size: 0.9rem; margin: 0 0 18px; }
+  #login form { display: grid; gap: 10px; }
+  #login input { padding: 10px 14px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font: inherit; }
+  #login button { padding: 10px; background: var(--accent); color: #06231a; border: 0; border-radius: 8px; font-weight: 700; cursor: pointer; }
+  .err { color: var(--red); font-size: 0.85rem; min-height: 1.2em; }
+  body[data-state="loading"] #app, body[data-state="loading"] #login { display: none; }
+  body[data-state="login"] #app, body[data-state="login"] #boot { display: none; }
+  body[data-state="dashboard"] #boot, body[data-state="dashboard"] #login { display: none; }
+  body.light .topbar { background: rgba(255,255,255,0.9); }
+  .topbar { display: flex; align-items: center; gap: 10px; padding: 12px 20px;
+    background: rgba(8,10,20,0.85); backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; }
+  .topbar-logo { width: 28px; height: 28px; border-radius: 7px; background: var(--accent);
+    display: flex; align-items: center; justify-content: center; }
+  .topbar-brand { font-size: 0.9rem; font-weight: 700; letter-spacing: -0.02em; }
+  .topbar-spacer { flex: 1; }
+  .tbtn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 0.82rem;
+    border-radius: 7px; border: 1px solid var(--border); background: var(--surface2); color: var(--text); cursor: pointer; }
+  .tbtn-ghost { background: transparent; }
+  .tbtn:hover { background: var(--surface3); }
+  .user-pill { display: flex; align-items: center; gap: 8px; padding: 4px 10px; background: var(--surface2);
+    border: 1px solid var(--border); border-radius: 999px; font-size: 0.78rem; }
+  .user-pill-av { width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: #06231a;
+    display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.74rem; }
+  .nav-dropdown { position: relative; }
+  .nav-dropdown-menu { position: absolute; top: calc(100% + 6px); right: 0; min-width: 200px; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 8px; padding: 6px; display: none; box-shadow: 0 12px 32px rgba(0,0,0,.5); z-index: 200; }
+  .nav-dropdown-menu.open { display: block; }
+  .main { max-width: 1500px; margin: 0 auto; padding: 24px 20px; }
+  .page-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 18px; flex-wrap: wrap; }
+  .page-title { font-size: 1.55rem; margin: 0 0 4px; letter-spacing: -0.02em; }
+  .page-sub { color: var(--text-muted); font-size: 0.86rem; max-width: 720px; }
+  .btn-primary { padding: 8px 14px; background: var(--accent); color: #06231a; border: 0; border-radius: 8px; font-weight: 700; cursor: pointer; font-size: 0.84rem; }
+  .btn-primary:hover { opacity: 0.92; }
+  .btn-ghost { padding: 8px 14px; background: transparent; color: var(--text); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; font-size: 0.84rem; }
+
+  /* Tabs */
+  .ax-tabs { display: flex; gap: 4px; margin-bottom: 14px; background: var(--surface); padding: 4px; border-radius: 10px; border: 1px solid var(--border); width: fit-content; }
+  .ax-tab { padding: 7px 14px; background: transparent; color: var(--text-muted); border: 0; border-radius: 7px; cursor: pointer; font-size: 0.84rem; font-weight: 600; }
+  .ax-tab.active { background: var(--accent); color: #06231a; }
+
+  /* Split layout */
+  .ax-layout { display: grid; grid-template-columns: 360px 1fr; gap: 16px; align-items: start; }
+  @media (max-width: 900px) { .ax-layout { grid-template-columns: 1fr; } }
+  .ax-list-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; position: sticky; top: 80px; max-height: calc(100vh - 110px); display: flex; flex-direction: column; }
+  .ax-list-head { padding: 10px 14px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .ax-list { overflow: auto; flex: 1; }
+  .ax-row { padding: 10px 14px; border-bottom: 1px solid var(--border); cursor: pointer; }
+  .ax-row:hover { background: var(--surface2); }
+  .ax-row.selected { background: var(--surface3); border-left: 3px solid var(--accent); padding-left: 11px; }
+  .ax-row-name { font-weight: 600; font-size: 0.9rem; }
+  .ax-row-meta { font-size: 0.74rem; color: var(--text-dim); margin-top: 3px; display: flex; gap: 6px; flex-wrap: wrap; }
+  .ax-editor-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; min-height: 360px; }
+  .ax-editor-empty { padding: 60px 20px; text-align: center; color: var(--text-dim); }
+  .ax-editor { padding: 18px 20px; }
+  .ax-editor h2 { font-size: 1.05rem; margin: 0 0 6px; }
+  .ax-editor h3 { font-size: 0.9rem; margin: 18px 0 10px; color: var(--text-muted); font-weight: 600; }
+  .ax-editor-row { display: flex; gap: 10px; align-items: center; margin: 8px 0; }
+  .ax-editor-row label { width: 110px; font-size: 0.82rem; color: var(--text-muted); }
+  .ax-editor-row input, .ax-editor-row select, .ax-editor-row textarea {
+    flex: 1; padding: 7px 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: 7px; color: var(--text); font: inherit; }
+  .ax-editor-row textarea { min-height: 80px; }
+  .ax-actions { display: flex; gap: 8px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+  .ax-msg { font-size: 0.82rem; color: var(--text-muted); flex: 1; align-self: center; }
+  .ax-msg.err { color: var(--red); }
+  .ax-msg.ok { color: var(--accent); }
+
+  /* Chips / pills */
+  .pill { display: inline-flex; align-items: center; padding: 2px 8px; font-size: 0.7rem; border-radius: 999px; background: var(--surface3); color: var(--text-muted); }
+  .pill-on { background: rgba(52,211,153,.16); color: var(--accent); }
+  .pill-admin { background: rgba(248,113,113,.18); color: var(--red); font-weight: 700; }
+  .pill-blue { background: rgba(107,158,255,.18); color: var(--blue); }
+  .role-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: var(--surface2); border: 1px solid var(--border); cursor: pointer; font-size: 0.78rem; user-select: none; }
+  .role-chip:hover { background: var(--surface3); }
+  .role-chip.on { background: rgba(52,211,153,.16); color: var(--accent); border-color: rgba(52,211,153,.4); }
+  .role-chip-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--blue); }
+  .perm-grid { display: grid; grid-template-columns: 220px 1fr; gap: 6px 12px; align-items: start; padding: 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; }
+  .perm-grid-dashboard { font-size: 0.84rem; font-weight: 600; padding: 6px 0; color: var(--text-muted); }
+  .perm-grid-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .perm-chip { padding: 4px 9px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface3); font-size: 0.74rem; cursor: pointer; user-select: none; }
+  .perm-chip.on { background: rgba(52,211,153,.18); color: var(--accent); border-color: rgba(52,211,153,.4); }
+  .effective-perms { display: flex; flex-wrap: wrap; gap: 4px; padding: 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; max-height: 240px; overflow: auto; }
+  .effective-perms .pill { font-size: 0.68rem; }
+  .breadcrumb { font-size: 0.76rem; color: var(--text-dim); margin-bottom: 8px; }
+  .breadcrumb a { color: var(--blue); text-decoration: none; cursor: pointer; }
+
+  /* Org board hierarchical list */
+  .org-tree { display: flex; flex-direction: column; gap: 4px; }
+  .org-node { padding: 8px 10px; border-radius: 7px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+  .org-node:hover { background: var(--surface2); }
+  .org-node.selected { background: var(--surface3); }
+  .org-node-children { padding-left: 22px; display: flex; flex-direction: column; gap: 2px; margin-top: 2px; }
+  .org-badge { font-size: 0.65rem; padding: 1px 6px; border-radius: 4px; background: var(--surface3); color: var(--text-dim); margin-left: auto; }
+  .small-btn { padding: 3px 8px; font-size: 0.72rem; border-radius: 6px; border: 1px solid var(--border); background: var(--surface2); color: var(--text); cursor: pointer; }
+  .small-btn:hover { background: var(--surface3); }
+
+  /* Holders panel */
+  .holder-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px 4px 4px; border-radius: 999px; background: var(--surface2); border: 1px solid var(--border); font-size: 0.76rem; margin: 2px; }
+  .holder-pill button { background: transparent; border: 0; color: var(--text-dim); cursor: pointer; font-size: 0.9rem; line-height: 1; padding: 0 4px; }
+  .holder-pill button:hover { color: var(--red); }
+  .holder-pill-av { width: 18px; height: 18px; border-radius: 50%; background: var(--blue); color: #0b0c14; display: inline-flex; align-items: center; justify-content: center; font-size: 0.62rem; font-weight: 700; }
+
+  /* Modal */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); backdrop-filter: blur(4px); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .modal-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; max-width: 480px; width: 100%; padding: 22px; }
+  .modal-card h3 { margin: 0 0 12px; }
+</style>
+</head>
+<body data-state="loading">
+
+<div id="boot">Loading…</div>
+
+<div id="login" style="display:none;">
+  <h1>🔐 Access & Org</h1>
+  <p>Sign in with your Ridley Academy account. Admin-only.</p>
+  <form id="loginForm">
+    <input type="email" id="loginEmail" placeholder="email@ridleyacademy.team" required autocomplete="email">
+    <input type="password" id="loginPassword" placeholder="Password" required autocomplete="current-password">
+    <button type="submit">Sign in</button>
+    <div class="err" id="loginErr"></div>
+  </form>
+</div>
+
+<div id="app">
+  <header class="topbar">
+    <div class="topbar-logo">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#06231a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </div>
+    <div class="topbar-brand">Access & Org</div>
+    <div class="topbar-spacer"></div>
+
+    <button class="tbtn tbtn-ghost" id="inviteBtn" title="Invite a new user">+ Invite user</button>
+    <button class="tbtn tbtn-ghost" id="refreshBtn" title="Refresh data">↻</button>
+    <button class="tbtn tbtn-ghost" id="themeBtn" style="font-size:1rem;padding:5px 10px;" title="Toggle theme"></button>
+
+    <div class="nav-dropdown" id="navDropdown">
+      <button class="tbtn tbtn-ghost" id="navDropdownBtn">Dashboards ▾</button>
+      <div class="nav-dropdown-menu" id="navDropMenu"></div>
+    </div>
+
+    <div class="user-pill">
+      <div class="user-pill-av" id="userAvatar">U</div>
+      <div class="user-pill-email" id="userEmail">…</div>
+    </div>
+    <button class="tbtn tbtn-ghost" id="signOutBtn">Sign Out</button>
+  </header>
+
+  <main class="main">
+    <div class="page-head">
+      <div>
+        <h1 class="page-title">🔐 Access & Org</h1>
+        <div class="page-sub">Manage users, roles, and the org board (divisions → departments → posts). Roles bundle granular permissions. Posts can auto-confer a role to their holders.</div>
+      </div>
+    </div>
+
+    <div class="ax-tabs">
+      <button class="ax-tab active" data-tab="users">👥 Users</button>
+      <button class="ax-tab" data-tab="roles">🎭 Roles</button>
+      <button class="ax-tab" data-tab="org">🏛 Org Board</button>
+    </div>
+
+    <div class="ax-layout">
+      <div class="ax-list-card">
+        <div class="ax-list-head">
+          <div id="axListTitle" style="font-size:0.84rem;font-weight:700;">Users</div>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <span id="axCount" style="font-size:0.72rem;color:var(--text-dim);">—</span>
+            <button class="small-btn" id="axAddBtn" style="display:none;">+ Add</button>
+          </div>
+        </div>
+        <div class="ax-list" id="axList"></div>
+      </div>
+      <div class="ax-editor-card">
+        <div id="axEditor"><div class="ax-editor-empty">Select an item on the left.</div></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div id="modalRoot"></div>
+
+<script src="access.js"></script>
+<script src="access-guard.js"></script>
+<script src="theme.js"></script>
+<script src="nav-menu.js" defer></script>
+<script src="pwa.js" defer></script>
+</body>
+</html>

@@ -19,6 +19,7 @@
     { href: 'students.html',     id: 'students',     roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'] },
     { href: 'coach.html',        id: 'coach',        roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic'] },
     { href: 'email-automations.html', id: 'email_automations', roles: [], adminOnly: true },
+    { href: 'access.html',       id: 'access',       roles: [], adminOnly: true, granular: 'users.manage' },
   ];
 
   // Resolve impersonation: when an admin "Views as" another user, all UI
@@ -48,7 +49,17 @@
       email:        user?.email || '',
       is_admin:     user?.app_metadata?.is_admin === true,
       permissions:  user?.app_metadata?.permissions || [],
+      // Granular dotted-key permissions (e.g. 'students.edit', 'users.manage').
+      // Populated by the new Access & Org dashboard; legacy `permissions` is
+      // kept in sync so all existing page checks below keep working unchanged.
+      permissions_v2: user?.app_metadata?.permissions_v2 || [],
     };
+  }
+  // Granular check used by newer code paths. Always treats is_admin as a wildcard.
+  function hasGranular(key, user) {
+    const eff = effective(user);
+    if (eff.is_admin) return true;
+    return Array.isArray(eff.permissions_v2) && eff.permissions_v2.includes(key);
   }
 
   function pageDef(href) {
@@ -81,5 +92,6 @@
     canOpen,
     canOpenWith,
     pageDef,
+    hasGranular,
   };
 })();

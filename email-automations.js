@@ -963,13 +963,40 @@ function renderList() {
   list.querySelectorAll('.ea-row').forEach(r => r.addEventListener('click', () => openAutomation(parseInt(r.dataset.id, 10))));
 }
 
+// Re-entrancy guard — rapid clicks across rows would otherwise pile up Quill
+// instances and race on currentAutomation. Track the latest requested id; if a
+// newer click lands while we're still fetching, drop the older response.
+let _openLatestId = 0;
 async function openAutomation(id) {
+  _openLatestId = id;
+  // 1. INSTANT visual feedback — paint the selected row + "Loading…" editor
+  //    pane BEFORE awaiting the network. Without this the UI looks frozen for
+  //    the duration of the round-trip (network + edge-function cold-start +
+  //    SELECT). Most of the perceived "very long to load" is this gap.
+  const list = document.getElementById('eaList');
+  if (list) list.querySelectorAll('.ea-row').forEach(r => {
+    r.classList.toggle('selected', parseInt(r.dataset.id, 10) === id);
+  });
+  // Tear down any existing Quill so its toolbar / DOM doesn't sit there stale
+  // while the new one is being fetched.
+  if (quill) { try { quill = null; } catch (_) {} }
+  const ed = document.getElementById('eaEditor');
+  if (ed) ed.innerHTML = '<div class="ea-editor-empty" style="display:flex;align-items:center;justify-content:center;gap:10px;"><span class="spinner" style="width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;display:inline-block;animation:eaSpin 0.7s linear infinite;"></span>Loading…</div>';
+  if (!document.getElementById('eaSpinKf')) {
+    const st = document.createElement('style'); st.id = 'eaSpinKf';
+    st.textContent = '@keyframes eaSpin{to{transform:rotate(360deg)}}';
+    document.head.appendChild(st);
+  }
   try {
     const j = await api('?api=get&id=' + id);
+    // A newer click landed — drop this response.
+    if (_openLatestId !== id) return;
     currentAutomation = j.row;
-    renderList();
     renderEditor();
-  } catch (e) { alert('Load failed: ' + e.message); }
+  } catch (e) {
+    if (_openLatestId !== id) return;
+    if (ed) ed.innerHTML = `<div class="ea-editor-empty" style="color:var(--red);">Load failed: ${escapeHtml(e.message)}</div>`;
+  }
 }
 
 function renderEditor() {

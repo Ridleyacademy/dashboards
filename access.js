@@ -330,29 +330,26 @@ async function deleteRole(rid) {
 // We fetch every active holder once per org-tab load so we can render the
 // avatar stack on each post card without an extra request per card.
 let activeHoldersByPost = {}; // { [postId]: [{user_id, started_at}, …] }
-let execPostsData = [];        // executive posts sitting above divisions
 
 async function loadOrgTab() {
   const board = document.getElementById('orgBoard');
   board.innerHTML = '<div style="padding:24px;color:var(--text-dim);font-size:0.84rem;">Loading…</div>';
   try {
-    const [d, dep, p, h, ex] = await Promise.all([
+    const [d, dep, p, h] = await Promise.all([
       api('?api=divisions'),
       api('?api=departments'),
       api('?api=posts'),
       api('?api=post-holders'),
-      api('?api=exec-posts'),
     ]);
     divisionsData = d.rows || [];
     departmentsData = dep.rows || [];
     postsData = p.rows || [];
-    execPostsData = ex.rows || [];
     activeHoldersByPost = {};
     for (const row of (h.rows || [])) {
       if (row.ended_at) continue;
       (activeHoldersByPost[row.post_id] ||= []).push(row);
     }
-    document.getElementById('axCount').textContent = `${execPostsData.length} exec · ${divisionsData.length} div · ${departmentsData.length} dept · ${postsData.length} posts`;
+    document.getElementById('axCount').textContent = `${divisionsData.length} div · ${departmentsData.length} dept · ${postsData.length} posts`;
     renderOrgBoard();
   } catch (e) { board.innerHTML = `<div style="padding:24px;color:var(--red);font-size:0.84rem;">${escapeHtml(e.message)}</div>`; }
 }
@@ -379,10 +376,15 @@ function _userOptions(selectedId, includeVacant = true) {
     sorted.map(u => `<option value="${u.id}" ${selectedId === u.id ? 'selected' : ''}>${escapeHtml(_pickerLabelFor(u))}</option>`).join('');
 }
 
+// DEPRECATED — Executive is now a regular Division (Div 0). This is a no-op
+// kept only so older render paths don't error.
 function renderTopTier() {
   const tier = document.getElementById('orgTopTier');
-  if (!tier) return;
-  if (!execPostsData.length && !divisionsData.length) { tier.innerHTML = ''; return; }
+  if (tier) tier.innerHTML = '';
+  return;
+  // legacy body retained as dead code below for context:
+  // eslint-disable-next-line no-unreachable
+  if (false) {
   const cardsHtml = execPostsData.map(ep => {
     const holderName = _displayOf(ep.head_user_id);
     const role = ep.default_role_id ? roles.find(r => r.id === ep.default_role_id) : null;
@@ -422,6 +424,7 @@ function renderTopTier() {
     });
   });
   document.getElementById('org-add-exec')?.addEventListener('click', () => openExecPostEditor(null));
+  } // end if(false) — dead code block
 }
 
 async function seedStandardOrg() {
@@ -446,7 +449,7 @@ function renderOrgBoard() {
     seedBtn.style.display = eff?.is_admin ? '' : 'none';
     seedBtn.onclick = seedStandardOrg;
   }
-  renderTopTier();
+  renderTopTier(); // no-op now — Executive is a regular Division
   if (!divisionsData.length) {
     board.innerHTML = `
       <div style="display:flex;flex-direction:column;align-items:center;gap:12px;padding:40px 16px;">

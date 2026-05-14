@@ -461,11 +461,10 @@
     <div id="orgBoardView">
       <div class="org-board-header">
         <h3>🏛 Org Board</h3>
-        <span class="hint">Executive posts on top · Divisions = columns · Departments = sub-columns · Posts = cards. Click anything to edit.</span>
+        <span class="hint">Divisions = columns · Departments = sub-columns · Posts = cards. The Executive Division sits on the left. Click anything to edit.</span>
         <button class="small-btn" id="orgSeedBtn" style="margin-left:auto;background:var(--surface3);" title="Create the canonical 6 divisions + 18 departments + 3 executive posts. Idempotent — won't duplicate existing items.">🏛 Seed standard org board</button>
       </div>
-      <!-- Top tier: executive posts above divisions -->
-      <div class="org-top-tier" id="orgTopTier"></div>
+      <!-- Top-tier strip removed in v235 — Executive is now Division 0. -->
       <div class="org-board" id="orgBoard"></div>
     </div>
   </main>

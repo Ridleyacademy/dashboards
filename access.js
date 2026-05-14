@@ -424,15 +424,38 @@ function renderTopTier() {
   document.getElementById('org-add-exec')?.addEventListener('click', () => openExecPostEditor(null));
 }
 
+async function seedStandardOrg() {
+  const seedBtn = document.getElementById('orgSeedBtn');
+  if (!confirm('Create the canonical Scientology-style org board?\n\n• 6 Divisions: HCO, Dissemination, Treasury, Technical, Qualifications, Public\n• 18 Departments\n• ~30 standard posts (each with Purpose)\n• 3 Executive top-tier posts: Executive Director, LRH Communicator, Cope Officer\n\nWon\'t duplicate anything that already exists. You can rename/delete anything afterwards.')) return;
+  if (seedBtn) { seedBtn.disabled = true; seedBtn.textContent = 'Seeding…'; }
+  try {
+    const res = await api('?api=seed-standard-org', { method: 'POST', body: {} });
+    await loadOrgTab();
+    const c = res.created || {};
+    alert(`✓ Seed complete — ${c.divisions || 0} divisions, ${c.departments || 0} departments, ${c.posts || 0} posts, ${c.exec_posts || 0} exec posts added.`);
+  } catch (e) { alert('Seed failed: ' + e.message); }
+  finally { if (seedBtn) { seedBtn.disabled = false; seedBtn.textContent = '🏛 Seed standard org board'; } }
+}
+
 function renderOrgBoard() {
   const board = document.getElementById('orgBoard');
+  // Wire the always-visible Seed button (admins only — it's gated server-side anyway).
+  const seedBtn = document.getElementById('orgSeedBtn');
+  if (seedBtn) {
+    const eff = window.RidleyPerms?.effective(session?.user);
+    seedBtn.style.display = eff?.is_admin ? '' : 'none';
+    seedBtn.onclick = seedStandardOrg;
+  }
   renderTopTier();
   if (!divisionsData.length) {
     board.innerHTML = `
-      <button class="org-add-division" id="org-first-div">
-        + Add your first division
-      </button>`;
+      <div style="display:flex;flex-direction:column;align-items:center;gap:12px;padding:40px 16px;">
+        <button class="org-add-division" id="org-seed-empty" style="background:rgba(167,139,250,.10);color:#a78bfa;border-color:#a78bfa;font-size:0.92rem;padding:14px 22px;min-height:auto;">🏛 Seed standard Scientology org board</button>
+        <span style="color:var(--text-dim);font-size:0.78rem;">— or —</span>
+        <button class="org-add-division" id="org-first-div" style="min-height:auto;">+ Add your first division (start blank)</button>
+      </div>`;
     document.getElementById('org-first-div').addEventListener('click', openCreateDivisionModal);
+    document.getElementById('org-seed-empty').addEventListener('click', seedStandardOrg);
     return;
   }
   const divsHtml = divisionsData.map(d => {
@@ -517,11 +540,16 @@ function renderPostCard(po) {
     ? `<div class="org-post-card-holders" title="${escapeHtml(_emailOf(primary.user_id) || '')}"><span class="havatar">${escapeHtml(_initialOf(primary.user_id))}</span><span class="hname">${escapeHtml(_displayOf(primary.user_id))}</span></div>`
     : '<div class="org-post-card-holders"><span class="vacant">Vacant — click to assign</span></div>';
   const roleChip = role ? `<span class="org-post-card-role">${escapeHtml(role.name)}</span>` : '';
+  const purposeHtml = po.purpose ? `<div class="org-post-card-purpose" title="Purpose">${escapeHtml(po.purpose)}</div>` : '';
+  const senior = po.senior_post_id ? postsData.find(x => x.id === po.senior_post_id) : null;
+  const reportsLine = senior ? `<div class="org-post-card-reports" title="Reports to">↑ reports to ${escapeHtml(senior.name)}</div>` : '';
   return `
     <div class="org-post-card" data-id="${po.id}">
       <div class="org-post-card-title">${escapeHtml(po.name)}</div>
+      ${purposeHtml}
       <div class="org-post-card-meta">${roleChip}</div>
       ${holderHtml}
+      ${reportsLine}
     </div>`;
 }
 
@@ -588,6 +616,8 @@ function openExecPostEditor(epId) {
 
     <div class="ax-editor-row"><label>Name</label><input id="ep-name" value="${escapeHtml(ep.name)}" placeholder="e.g. COO"></div>
     <div class="ax-editor-row"><label>Slug</label><input id="ep-slug" value="${escapeHtml(ep.slug)}" placeholder="coo"></div>
+    <div class="ax-editor-row"><label title="One sentence: why does this executive post exist?">Purpose</label><input id="ep-purpose" value="${escapeHtml(ep.purpose || '')}" placeholder="One sentence: why does this exec post exist?"></div>
+    <div class="ax-editor-row"><label title="The single tangible thing this exec post is accountable for delivering.">Valuable Final Product</label><input id="ep-vfp" value="${escapeHtml(ep.valuable_final_product || '')}" placeholder="The tangible thing this exec post is accountable for"></div>
     <div class="ax-editor-row"><label>Description</label><textarea id="ep-desc">${escapeHtml(ep.description || '')}</textarea></div>
     <div class="ax-editor-row"><label>Color</label><input id="ep-color" type="color" value="${escapeHtml(ep.color || '#fbbf24')}" style="max-width:80px;"></div>
 
@@ -632,6 +662,8 @@ function openExecPostEditor(epId) {
         default_role_id: document.getElementById('ep-role').value ? Number(document.getElementById('ep-role').value) : null,
         division_ids: [...document.querySelectorAll('#ep-divs input:checked')].map(cb => Number(cb.dataset.divId)),
         sort_order: ep.sort_order || 0,
+        purpose: document.getElementById('ep-purpose').value.trim(),
+        valuable_final_product: document.getElementById('ep-vfp').value.trim(),
       };
       if (!body.name) throw new Error('Name required');
       let res;
@@ -668,6 +700,8 @@ function renderDivisionEditor(d) {
 
     <div class="ax-editor-row"><label>Name</label><input id="d-name" value="${escapeHtml(d.name)}"></div>
     <div class="ax-editor-row"><label>Slug</label><input id="d-slug" value="${escapeHtml(d.slug)}"></div>
+    <div class="ax-editor-row"><label title="One sentence: why does this division exist?">Purpose</label><input id="d-purpose" value="${escapeHtml(d.purpose || '')}" placeholder="One sentence: why does this division exist?"></div>
+    <div class="ax-editor-row"><label title="The single tangible thing this division produces and ships out.">Valuable Final Product</label><input id="d-vfp" value="${escapeHtml(d.valuable_final_product || '')}" placeholder="The tangible thing this division produces and ships"></div>
     <div class="ax-editor-row"><label>Description</label><textarea id="d-desc">${escapeHtml(d.description || '')}</textarea></div>
     <div class="ax-editor-row"><label>Color</label><input id="d-color" type="color" value="${escapeHtml(d.color || '#6b9eff')}" style="max-width:80px;"></div>
     <div class="ax-editor-row"><label>Sort order</label><input id="d-sort" type="number" value="${d.sort_order || 0}" style="max-width:120px;"></div>
@@ -732,6 +766,8 @@ function renderDivisionEditor(d) {
       sort_order: Number(document.getElementById('d-sort').value) || 0,
       head_user_id: document.getElementById('d-head-user').value || null,
       head_default_role_id: document.getElementById('d-head-role').value ? Number(document.getElementById('d-head-role').value) : null,
+      purpose: document.getElementById('d-purpose').value,
+      valuable_final_product: document.getElementById('d-vfp').value,
     };
     try { await api('?api=division-update&id=' + d.id, { method: 'POST', body }); await loadOrgTab(); openOrgEditor('division', d.id); }
     catch (e) { document.getElementById('d-msg').textContent = e.message; }
@@ -755,6 +791,8 @@ function renderDepartmentEditor(dep) {
 
     <div class="ax-editor-row"><label>Name</label><input id="dep-name" value="${escapeHtml(dep.name)}"></div>
     <div class="ax-editor-row"><label>Slug</label><input id="dep-slug" value="${escapeHtml(dep.slug)}"></div>
+    <div class="ax-editor-row"><label title="One sentence: why does this department exist?">Purpose</label><input id="dep-purpose" value="${escapeHtml(dep.purpose || '')}" placeholder="One sentence: why does this department exist?"></div>
+    <div class="ax-editor-row"><label title="The single tangible thing this department produces and ships out.">Valuable Final Product</label><input id="dep-vfp" value="${escapeHtml(dep.valuable_final_product || '')}" placeholder="The tangible thing this department produces and ships"></div>
     <div class="ax-editor-row"><label>Description</label><textarea id="dep-desc">${escapeHtml(dep.description || '')}</textarea></div>
     <div class="ax-editor-row"><label>Sort order</label><input id="dep-sort" type="number" value="${dep.sort_order || 0}" style="max-width:120px;"></div>
 
@@ -800,6 +838,8 @@ function renderDepartmentEditor(dep) {
       sort_order: Number(document.getElementById('dep-sort').value) || 0,
       head_user_id: document.getElementById('dep-head-user').value || null,
       head_default_role_id: document.getElementById('dep-head-role').value ? Number(document.getElementById('dep-head-role').value) : null,
+      purpose: document.getElementById('dep-purpose').value,
+      valuable_final_product: document.getElementById('dep-vfp').value,
     };
     try { await api('?api=department-update&id=' + dep.id, { method: 'POST', body }); await loadOrgTab(); openOrgEditor('department', dep.id); }
     catch (e) { document.getElementById('dep-msg').textContent = e.message; }
@@ -830,8 +870,11 @@ function renderPostEditor(po) {
 
     <div class="ax-editor-row"><label>Name</label><input id="po-name" value="${escapeHtml(po.name)}"></div>
     <div class="ax-editor-row"><label>Slug</label><input id="po-slug" value="${escapeHtml(po.slug)}"></div>
+    <div class="ax-editor-row"><label title="One sentence: why does this post exist?">Purpose</label><input id="po-purpose" value="${escapeHtml(po.purpose || '')}" placeholder="One sentence: why does this post exist?"></div>
+    <div class="ax-editor-row"><label title="The single tangible thing this post produces and ships out.">Valuable Final Product</label><input id="po-vfp" value="${escapeHtml(po.valuable_final_product || '')}" placeholder="The tangible thing this post produces and ships"></div>
     <div class="ax-editor-row"><label>Description</label><textarea id="po-desc">${escapeHtml(po.description || '')}</textarea></div>
     <div class="ax-editor-row"><label title="Whoever holds this post automatically receives this role's permissions.">Default role</label><select id="po-role">${roleOpts}</select></div>
+    <div class="ax-editor-row"><label title="Which post does this one report up to? Leave blank to default to the Department Head.">Reports to (senior post)</label><select id="po-senior"></select></div>
     <div class="ax-editor-row"><label>Sort order</label><input id="po-sort" type="number" value="${po.sort_order || 0}" style="max-width:120px;"></div>
 
     <h3>Assigned to <span style="font-weight:400;color:var(--text-dim);font-size:0.78rem;">(one person per post — duplicate the post to add another)</span></h3>
@@ -889,6 +932,27 @@ function renderPostEditor(po) {
   });
 
   document.getElementById('po-add-policy').addEventListener('click', () => openPolicyModal('post', po.id));
+
+  // Senior-post picker: any other post in the org, grouped by department.
+  // The default-head fallback ("Reports to Dept Head") is the blank option.
+  const seniorSel = document.getElementById('po-senior');
+  const byDept = {};
+  for (const p of postsData) {
+    if (p.id === po.id) continue; // can't report to itself
+    (byDept[p.department_id] ||= []).push(p);
+  }
+  let seniorHtml = '<option value="">— Reports to Dept Head (default) —</option>';
+  for (const depRow of departmentsData) {
+    if (!byDept[depRow.id]?.length) continue;
+    const divRow = divisionsData.find(d => d.id === depRow.division_id);
+    seniorHtml += `<optgroup label="${escapeHtml((divRow?.name || '') + ' › ' + depRow.name)}">`;
+    for (const p of byDept[depRow.id]) {
+      seniorHtml += `<option value="${p.id}" ${po.senior_post_id === p.id ? 'selected' : ''}>${escapeHtml(p.name)}</option>`;
+    }
+    seniorHtml += '</optgroup>';
+  }
+  seniorSel.innerHTML = seniorHtml;
+
   document.getElementById('po-save').addEventListener('click', async () => {
     const body = {
       name: document.getElementById('po-name').value,
@@ -896,6 +960,9 @@ function renderPostEditor(po) {
       description: document.getElementById('po-desc').value,
       default_role_id: document.getElementById('po-role').value ? Number(document.getElementById('po-role').value) : null,
       sort_order: Number(document.getElementById('po-sort').value) || 0,
+      purpose: document.getElementById('po-purpose').value,
+      valuable_final_product: document.getElementById('po-vfp').value,
+      senior_post_id: document.getElementById('po-senior').value ? Number(document.getElementById('po-senior').value) : null,
     };
     try { await api('?api=post-update&id=' + po.id, { method: 'POST', body }); await loadOrgTab(); openOrgEditor('post', po.id); }
     catch (e) { document.getElementById('po-msg').textContent = e.message; }

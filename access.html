@@ -228,10 +228,12 @@
   .org-board::-webkit-scrollbar { height: 12px; }
   .org-board::-webkit-scrollbar-thumb { background: var(--surface3); border-radius: 6px; }
 
-  /* Division = top-level column */
+  /* Division = top-level column. Width auto-grows to fit all departments
+     side-by-side (no internal horizontal scroll). Min-width = ~3 depts. */
   .org-col-division {
     flex: 0 0 auto;
-    width: 520px; max-width: 88vw;
+    width: auto;
+    min-width: 700px;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 12px;
@@ -251,20 +253,20 @@
   .org-col-division-title { font-weight: 700; font-size: 0.96rem; flex: 1; letter-spacing: -0.01em; }
   .org-col-division-meta { font-size: 0.72rem; color: var(--text-dim); }
 
-  /* Body of a division = horizontal row of department sub-columns */
+  /* Body of a division = horizontal row of department sub-columns.
+     No internal horizontal scroll — division width grows to fit. */
   .org-col-departments {
     display: flex; gap: 10px;
-    overflow-x: auto;
+    overflow-x: visible;
     padding: 10px;
     min-height: 240px;
     flex: 1;
   }
-  .org-col-departments::-webkit-scrollbar { height: 10px; }
 
   /* Department = sub-column inside a division */
   .org-col-department {
     flex: 0 0 auto;
-    width: 220px;
+    width: 210px;
     background: var(--surface2);
     border: 1px solid var(--border);
     border-radius: 10px;

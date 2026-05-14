@@ -137,8 +137,10 @@ async function loadUsersTab() {
     list.innerHTML = usersData.map(u => {
       const roleNames = u.role_ids.map(id => roles.find(r => r.id === id)?.name).filter(Boolean);
       const sel = u.id === selectedId ? 'selected' : '';
+      const display = (u.first_name && u.first_name.trim()) ? u.first_name.trim() : u.email;
+      const secondary = (u.first_name && u.first_name.trim()) ? u.email : '';
       return `<div class="ax-row ${sel}" data-uid="${u.id}">
-        <div class="ax-row-name">${escapeHtml(u.email)}</div>
+        <div class="ax-row-name">${escapeHtml(display)}${secondary ? `<span style="font-weight:400;color:var(--text-dim);font-size:0.74rem;margin-left:6px;">${escapeHtml(secondary)}</span>` : ''}</div>
         <div class="ax-row-meta">
           ${u.is_admin ? '<span class="pill pill-admin">Admin</span>' : ''}
           ${roleNames.slice(0,3).map(n => `<span class="pill pill-blue">${escapeHtml(n)}</span>`).join('')}
@@ -353,7 +355,26 @@ async function loadOrgTab() {
 }
 
 function _emailOf(uid) { return uid ? (usersData.find(u => u.id === uid)?.email || uid) : null; }
-function _initialOf(uid) { const e = _emailOf(uid); return e ? e.slice(0,1).toUpperCase() : '?'; }
+// Display name — first_name if set, else email, else id. Use this for
+// anything user-facing on the board / pickers / chips.
+function _displayOf(uid) {
+  if (!uid) return null;
+  const u = usersData.find(x => x.id === uid);
+  if (!u) return uid;
+  return (u.first_name && u.first_name.trim()) ? u.first_name.trim() : (u.email || uid);
+}
+// Picker label: "Carlos (carlos@…)" if there's a name; plain email otherwise.
+function _pickerLabelFor(u) {
+  const name = (u.first_name || '').trim();
+  return name ? `${name} (${u.email})` : (u.email || u.id);
+}
+function _initialOf(uid) { const d = _displayOf(uid); return d ? d.slice(0,1).toUpperCase() : '?'; }
+// All-users option list, with current selection preselected.
+function _userOptions(selectedId, includeVacant = true) {
+  const sorted = [...usersData].sort((a, b) => (_displayOf(a.id) || '').localeCompare(_displayOf(b.id) || ''));
+  return (includeVacant ? '<option value="">— Vacant —</option>' : '') +
+    sorted.map(u => `<option value="${u.id}" ${selectedId === u.id ? 'selected' : ''}>${escapeHtml(_pickerLabelFor(u))}</option>`).join('');
+}
 
 function renderOrgBoard() {
   const board = document.getElementById('orgBoard');
@@ -370,9 +391,9 @@ function renderOrgBoard() {
     const totalPosts = postsData.filter(p => depts.some(dep => dep.id === p.department_id)).length;
     const deptsHtml = depts.map(dep => renderDepartmentSubColumn(dep)).join('') +
       `<button class="org-add-btn" style="align-self:flex-start;margin-top:4px;" data-add-dept="${d.id}">+ Department</button>`;
-    const headEmail = _emailOf(d.head_user_id);
-    const headBadge = headEmail
-      ? `<span class="org-head-pill" title="Division Head — click to change"><span class="havatar" style="background:${d.color || '#6b9eff'};">${escapeHtml(_initialOf(d.head_user_id))}</span><span>👑 ${escapeHtml(headEmail)}</span></span>`
+    const headDisplay = _displayOf(d.head_user_id);
+    const headBadge = headDisplay
+      ? `<span class="org-head-pill" title="Division Head: ${escapeHtml(_emailOf(d.head_user_id) || '')} — click to change"><span class="havatar" style="background:${d.color || '#6b9eff'};">${escapeHtml(_initialOf(d.head_user_id))}</span><span>👑 ${escapeHtml(headDisplay)}</span></span>`
       : `<span class="org-head-pill vacant" title="No Division Head — click to assign">👑 No Division Head</span>`;
     return `
       <div class="org-col-division">
@@ -420,9 +441,9 @@ function renderDepartmentSubColumn(dep) {
   const posts = postsData.filter(x => x.department_id === dep.id);
   const postsHtml = posts.map(po => renderPostCard(po)).join('') ||
     '<div style="color:var(--text-dim);font-size:0.74rem;font-style:italic;padding:6px;">No posts yet</div>';
-  const headEmail = _emailOf(dep.head_user_id);
-  const headLine = headEmail
-    ? `<div class="org-dept-head"><span class="havatar small">${escapeHtml(_initialOf(dep.head_user_id))}</span><span>🎩 ${escapeHtml(headEmail)}</span></div>`
+  const headDisplay = _displayOf(dep.head_user_id);
+  const headLine = headDisplay
+    ? `<div class="org-dept-head" title="${escapeHtml(_emailOf(dep.head_user_id) || '')}"><span class="havatar small">${escapeHtml(_initialOf(dep.head_user_id))}</span><span>🎩 ${escapeHtml(headDisplay)}</span></div>`
     : `<div class="org-dept-head vacant">🎩 No Dept Head</div>`;
   return `
     <div class="org-col-department">
@@ -444,7 +465,7 @@ function renderPostCard(po) {
   const holders = activeHoldersByPost[po.id] || [];
   const primary = holders[0];
   const holderHtml = primary
-    ? `<div class="org-post-card-holders"><span class="havatar">${escapeHtml(_initialOf(primary.user_id))}</span><span class="hname">${escapeHtml(_emailOf(primary.user_id))}</span></div>`
+    ? `<div class="org-post-card-holders" title="${escapeHtml(_emailOf(primary.user_id) || '')}"><span class="havatar">${escapeHtml(_initialOf(primary.user_id))}</span><span class="hname">${escapeHtml(_displayOf(primary.user_id))}</span></div>`
     : '<div class="org-post-card-holders"><span class="vacant">Vacant — click to assign</span></div>';
   const roleChip = role ? `<span class="org-post-card-role">${escapeHtml(role.name)}</span>` : '';
   return `
@@ -553,7 +574,7 @@ function renderDivisionEditor(d) {
 
   // Populate Head selects
   const headUserSel = document.getElementById('d-head-user');
-  headUserSel.innerHTML = '<option value="">— Vacant —</option>' + usersData.map(u => `<option value="${u.id}" ${d.head_user_id === u.id ? 'selected' : ''}>${escapeHtml(u.email)}</option>`).join('');
+  headUserSel.innerHTML = _userOptions(d.head_user_id);
   const headRoleSel = document.getElementById('d-head-role');
   headRoleSel.innerHTML = '<option value="">— No role —</option>' + roles.map(r => `<option value="${r.id}" ${d.head_default_role_id === r.id ? 'selected' : ''}>${escapeHtml(r.name)}</option>`).join('');
 
@@ -629,7 +650,7 @@ function renderDepartmentEditor(dep) {
   document.getElementById('dep-add-policy').addEventListener('click', () => openPolicyModal('department', dep.id));
   // Populate dept head selects
   const depHeadUserSel = document.getElementById('dep-head-user');
-  depHeadUserSel.innerHTML = '<option value="">— Vacant —</option>' + usersData.map(u => `<option value="${u.id}" ${dep.head_user_id === u.id ? 'selected' : ''}>${escapeHtml(u.email)}</option>`).join('');
+  depHeadUserSel.innerHTML = _userOptions(dep.head_user_id);
   const depHeadRoleSel = document.getElementById('dep-head-role');
   depHeadRoleSel.innerHTML = '<option value="">— No role —</option>' + roles.map(r => `<option value="${r.id}" ${dep.head_default_role_id === r.id ? 'selected' : ''}>${escapeHtml(r.name)}</option>`).join('');
   document.getElementById('dep-save').addEventListener('click', async () => {
@@ -699,7 +720,7 @@ function renderPostEditor(po) {
   // Single-holder picker: preselect current holder if any.
   const currentHolder = (activeHoldersByPost[po.id] || [])[0];
   const pick = document.getElementById('po-holder-pick');
-  pick.innerHTML = '<option value="">— Vacant —</option>' + usersData.map(u => `<option value="${u.id}" ${currentHolder?.user_id === u.id ? 'selected' : ''}>${escapeHtml(u.email)}</option>`).join('');
+  pick.innerHTML = _userOptions(currentHolder?.user_id);
   refreshPostHolders(po.id);
   document.getElementById('po-set-holder').addEventListener('click', async () => {
     const uid = pick.value;
@@ -754,13 +775,11 @@ async function refreshPostHolders(postId) {
     const rows = (j.rows || []).filter(r => !r.ended_at);
     const wrap = document.getElementById('po-holders');
     if (!wrap) return;
-    if (!rows.length) { wrap.innerHTML = '<span style="color:var(--text-dim);font-size:0.82rem;">No current holders.</span>'; return; }
+    if (!rows.length) { wrap.innerHTML = '<span style="color:var(--text-dim);font-size:0.82rem;">No one assigned yet — pick someone above and click Assign.</span>'; return; }
     wrap.innerHTML = rows.map(r => {
-      const u = usersData.find(x => x.id === r.user_id);
-      const initial = (u?.email || '?').slice(0, 1).toUpperCase();
-      return `<span class="holder-pill">
-        <span class="holder-pill-av">${initial}</span>
-        ${escapeHtml(u?.email || r.user_id)}
+      return `<span class="holder-pill" title="${escapeHtml(_emailOf(r.user_id) || '')}">
+        <span class="holder-pill-av">${escapeHtml(_initialOf(r.user_id))}</span>
+        ${escapeHtml(_displayOf(r.user_id))}
         <button title="Remove from post" data-uid="${r.user_id}">×</button>
       </span>`;
     }).join('');
@@ -845,10 +864,9 @@ async function loadDivisionEditors(divisionId) {
     const editorIds = new Set(editors.map(e => e.user_id));
     wrap.innerHTML = editors.length
       ? editors.map(e => {
-          const initial = (e.email || '?').slice(0, 1).toUpperCase();
-          return `<span class="holder-pill">
-            <span class="holder-pill-av">${escapeHtml(initial)}</span>
-            ${escapeHtml(e.email)}
+          return `<span class="holder-pill" title="${escapeHtml(e.email)}">
+            <span class="holder-pill-av">${escapeHtml(_initialOf(e.user_id))}</span>
+            ${escapeHtml(_displayOf(e.user_id))}
             <button title="Remove" data-uid="${e.user_id}">×</button>
           </span>`;
         }).join('')
@@ -859,9 +877,10 @@ async function loadDivisionEditors(divisionId) {
     }));
     // Populate dropdown with non-editor users
     if (pick) {
-      pick.innerHTML = usersData
+      pick.innerHTML = [...usersData]
         .filter(u => !editorIds.has(u.id))
-        .map(u => `<option value="${u.id}">${escapeHtml(u.email)}</option>`).join('');
+        .sort((a, b) => (_displayOf(a.id) || '').localeCompare(_displayOf(b.id) || ''))
+        .map(u => `<option value="${u.id}">${escapeHtml(_pickerLabelFor(u))}</option>`).join('');
       const addBtn = document.getElementById('d-editor-add');
       if (addBtn) addBtn.onclick = async () => {
         const uid = pick.value;

@@ -87,10 +87,26 @@ async function api(path, opts = {}) {
 
 async function refreshAll() {
   try {
-    const catalog = await api('?api=catalog');
+    // Load catalog + org structure in parallel so the Users tab's "Posts"
+    // section can render correctly even before the user visits Org Board.
+    const [catalog, divRes, depRes, postRes, holderRes] = await Promise.all([
+      api('?api=catalog'),
+      api('?api=divisions'),
+      api('?api=departments'),
+      api('?api=posts'),
+      api('?api=post-holders'),
+    ]);
     permissions = catalog.permissions || [];
     roles = catalog.roles || [];
     rolePerms = catalog.role_permissions || [];
+    divisionsData = divRes.rows || [];
+    departmentsData = depRes.rows || [];
+    postsData = postRes.rows || [];
+    activeHoldersByPost = {};
+    for (const row of (holderRes.rows || [])) {
+      if (row.ended_at) continue;
+      (activeHoldersByPost[row.post_id] ||= []).push(row);
+    }
     await refreshTab();
   } catch (e) {
     document.getElementById('axList').innerHTML = `<div style="padding:14px;color:var(--red);font-size:0.84rem;">${escapeHtml(e.message)}</div>`;
@@ -174,35 +190,138 @@ function openUserEditor(uid) {
     grouped[d].sort().map(k => `<span class="pill pill-on">${escapeHtml(k.split('.').slice(1).join('.'))}</span>`).join('')
   ).join('') || '<span style="color:var(--text-dim);">No permissions yet.</span>';
 
+  // ── Posts the user currently holds ────────────────────────────────
+  // u.post_ids comes from the /users endpoint (active holders only).
+  const heldPosts = (u.post_ids || []).map(pid => postsData.find(p => p.id === pid)).filter(Boolean);
+  const postsHtml = heldPosts.length
+    ? heldPosts.map(p => {
+        const dep = departmentsData.find(d => d.id === p.department_id);
+        const div = divisionsData.find(d => d.id === dep?.division_id);
+        return `<div class="user-post-pill" data-pid="${p.id}">
+          <span class="user-post-path">${escapeHtml(div?.name || '?')} › ${escapeHtml(dep?.name || '?')}</span>
+          <span class="user-post-name">${escapeHtml(p.name)}</span>
+          <button class="user-post-remove" data-pid="${p.id}" title="Remove from this post">×</button>
+        </div>`;
+      }).join('')
+    : '<span style="color:var(--text-dim);font-size:0.82rem;font-style:italic;">Not assigned to any post yet.</span>';
+
+  // Posts available to assign — every post in the system, grouped by Division › Dept
+  const postOptions = ['<option value="">— Pick a post to assign —</option>'];
+  for (const div of divisionsData) {
+    const deps = departmentsData.filter(d => d.division_id === div.id);
+    for (const dep of deps) {
+      const posts = postsData.filter(p => p.department_id === dep.id);
+      if (!posts.length) continue;
+      postOptions.push(`<optgroup label="${escapeHtml(div.name + ' › ' + dep.name)}">`);
+      for (const p of posts) {
+        if ((u.post_ids || []).includes(p.id)) continue; // hide already-held
+        postOptions.push(`<option value="${p.id}">${escapeHtml(p.name)}</option>`);
+      }
+      postOptions.push('</optgroup>');
+    }
+  }
+
   ed.innerHTML = `<div class="ax-editor">
-    <h2>${escapeHtml(u.email)}</h2>
-    <div style="color:var(--text-dim);font-size:0.82rem;">Created ${u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'} · Last sign-in ${u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleString() : 'never'}</div>
+    <h2>${escapeHtml(_displayOf(uid) || u.email)}${u.is_admin ? ' <span class="pill pill-admin">Admin</span>' : ''}</h2>
+    <div style="color:var(--text-dim);font-size:0.82rem;">${escapeHtml(u.email)}</div>
+    <div style="color:var(--text-dim);font-size:0.74rem;margin-top:2px;">Created ${u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'} · Last sign-in ${u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleString() : 'never'}</div>
 
     <h3>Admin flag</h3>
-    <label style="display:flex;align-items:center;gap:8px;font-size:0.86rem;">
-      <input type="checkbox" id="u-isadmin" ${u.is_admin ? 'checked' : ''}>
-      Make this user an admin (wildcard access to everything, including Access & Org)
+    <label class="invite-admin-toggle ${u.is_admin ? '' : ''}" style="padding:10px 12px;background:${u.is_admin ? 'rgba(251,191,36,.10)' : 'var(--surface2)'};border:1px solid ${u.is_admin ? 'rgba(251,191,36,.45)' : 'var(--border)'};border-radius:10px;">
+      <input type="checkbox" id="u-isadmin" ${u.is_admin ? 'checked' : ''} style="margin-top:3px;">
+      <span class="invite-admin-text">
+        <strong>⚙️ Make admin</strong>
+        <em>Wildcard access to everything, including Access &amp; Org itself. Use sparingly.</em>
+      </span>
     </label>
 
-    <h3>Roles</h3>
+    <h3>Roles <span style="font-weight:400;color:var(--text-dim);font-size:0.74rem;">(hover any chip to see what it grants)</span></h3>
     <div style="display:flex;flex-wrap:wrap;gap:6px;" id="u-roles">${allRoles}</div>
-    <div style="font-size:0.72rem;color:var(--text-dim);margin-top:6px;">Click a role chip to toggle. Saved with the button below.</div>
+    <div style="display:flex;gap:8px;margin-top:6px;align-items:center;">
+      <button class="small-btn" id="u-copy-from" style="background:var(--surface3);">⧉ Copy from another user…</button>
+      <span style="font-size:0.7rem;color:var(--text-dim);">Click any chip to toggle. Click Save when ready.</span>
+    </div>
 
-    <h3>Effective permissions</h3>
+    <h3>🪪 Posts <span style="font-weight:400;color:var(--text-dim);font-size:0.74rem;">(where this person is posted on the Org Board)</span></h3>
+    <div id="u-posts" style="display:flex;flex-direction:column;gap:6px;">${postsHtml}</div>
+    <div style="display:flex;gap:6px;margin-top:8px;">
+      <select id="u-post-pick" style="flex:1;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);">${postOptions.join('')}</select>
+      <button class="small-btn" id="u-post-assign">Assign</button>
+    </div>
+
+    <h3>Effective permissions <span style="font-weight:400;color:var(--text-dim);font-size:0.74rem;">(role + post + grant)</span></h3>
     <div class="effective-perms" id="u-effective">${effHtml}</div>
 
     <div class="ax-actions">
-      <button class="btn-primary" id="u-save">Save</button>
-      <button class="btn-ghost"  id="u-revoke">Revoke session</button>
+      <button class="btn-primary" id="u-save">Save roles &amp; admin</button>
+      <button class="btn-ghost"  id="u-revoke">Recompute perms</button>
       <button class="btn-ghost"  style="color:var(--red);" id="u-delete">Delete user</button>
       <span class="ax-msg" id="u-msg"></span>
     </div>
   </div>`;
 
-  ed.querySelectorAll('#u-roles .role-chip').forEach(c => c.addEventListener('click', () => c.classList.toggle('on')));
+  // Role chip toggles (clicking the body toggles)
+  ed.querySelectorAll('#u-roles .role-chip').forEach(c => {
+    // Add a hover tooltip listing the perms this role grants
+    const rid = Number(c.dataset.roleId);
+    const perms = rolePerms.filter(rp => rp.role_id === rid).map(rp => rp.permission_key);
+    c.title = perms.length ? `Grants: ${perms.slice(0, 16).join(', ')}${perms.length > 16 ? ` (+${perms.length - 16} more)` : ''}` : 'No permissions yet';
+    c.addEventListener('click', () => c.classList.toggle('on'));
+  });
+
+  // Post pills: remove handler
+  ed.querySelectorAll('.user-post-remove').forEach(btn => btn.addEventListener('click', async e => {
+    e.stopPropagation();
+    const pid = Number(btn.dataset.pid);
+    if (!confirm('Remove this user from that post?')) return;
+    try {
+      await api('?api=post-remove-holder', { method: 'POST', body: { post_id: pid, user_id: uid } });
+      await loadOrgTab(); await loadUsersTab();
+      openUserEditor(uid);
+    } catch (e2) { alert(e2.message); }
+  }));
+
+  // Assign-to-post button
+  document.getElementById('u-post-assign').addEventListener('click', async () => {
+    const pid = Number(document.getElementById('u-post-pick').value);
+    if (!pid) return;
+    try {
+      await api('?api=post-add-holder', { method: 'POST', body: { post_id: pid, user_id: uid } });
+      await loadOrgTab(); await loadUsersTab();
+      openUserEditor(uid);
+    } catch (e) { alert(e.message); }
+  });
+
+  // Copy roles from another user
+  document.getElementById('u-copy-from').addEventListener('click', () => openCopyRolesPicker(uid));
+
   document.getElementById('u-save').addEventListener('click', () => saveUser(uid));
   document.getElementById('u-revoke').addEventListener('click', () => revokeUserSession(uid));
   document.getElementById('u-delete').addEventListener('click', () => deleteUser(uid));
+}
+
+function openCopyRolesPicker(targetUid) {
+  const choices = usersData.filter(u => u.id !== targetUid && (u.is_admin || u.role_ids.length))
+    .sort((a, b) => (_displayOf(a.id) || '').localeCompare(_displayOf(b.id) || ''));
+  if (!choices.length) { alert('No users with roles to copy from yet.'); return; }
+  const opts = choices.map(u => `<option value="${u.id}">${escapeHtml(_displayOf(u.id))} ${u.is_admin ? '(admin)' : `(${u.role_ids.length} roles)`}</option>`).join('');
+  showModal(`<h3>⧉ Copy roles from another user</h3>
+    <div class="ax-editor-row"><label>Copy from</label><select id="cf-source">${opts}</select></div>
+    <div style="font-size:0.74rem;color:var(--text-dim);margin:6px 0;">This will replace the current user's roles + admin flag with the chosen user's. Posts and grants are not copied.</div>
+    <div class="ax-actions"><button class="btn-primary" id="cf-apply">Copy &amp; Save</button><button class="btn-ghost" id="cf-cancel">Cancel</button></div>`);
+  document.getElementById('cf-cancel').addEventListener('click', closeModal);
+  document.getElementById('cf-apply').addEventListener('click', async () => {
+    const srcId = document.getElementById('cf-source').value;
+    const src = usersData.find(u => u.id === srcId);
+    if (!src) return;
+    try {
+      await api('?api=user-set-admin', { method: 'POST', body: { user_id: targetUid, is_admin: !!src.is_admin } });
+      await api('?api=user-set-roles', { method: 'POST', body: { user_id: targetUid, role_ids: src.role_ids } });
+      closeModal();
+      await loadUsersTab();
+      openUserEditor(targetUid);
+    } catch (e) { alert(e.message); }
+  });
 }
 
 async function saveUser(uid) {
@@ -1104,9 +1223,10 @@ async function loadDivisionEditors(divisionId) {
 // ═══════════════════════════════════════════════════════════════════════
 // MODALS
 // ═══════════════════════════════════════════════════════════════════════
-function showModal(html) {
+function showModal(html, opts = {}) {
   const root = document.getElementById('modalRoot');
-  root.innerHTML = `<div class="modal-overlay" id="modalOverlay"><div class="modal-card" onclick="event.stopPropagation()">${html}</div></div>`;
+  const wide = opts.wide ? ' invite-wide' : '';
+  root.innerHTML = `<div class="modal-overlay" id="modalOverlay"><div class="modal-card${wide}" onclick="event.stopPropagation()">${html}</div></div>`;
   document.getElementById('modalOverlay').addEventListener('click', closeModal);
 }
 function closeModal() { document.getElementById('modalRoot').innerHTML = ''; }
@@ -1222,28 +1342,213 @@ async function openPolicyEditModal(policyId, scopeType, scopeId) {
   } catch (e) { alert(e.message); }
 }
 
-function openInviteModal() {
-  const roleOpts = roles.map(r => `<label class="role-chip" data-rid="${r.id}"><input type="checkbox" style="margin-right:4px;">${escapeHtml(r.name)}</label>`).join('');
-  showModal(`<h3>Invite user</h3>
-    <div class="ax-editor-row"><label>Email</label><input id="i-email" placeholder="name@ridleyacademy.team"></div>
-    <div class="ax-editor-row"><label>First name</label><input id="i-fname" placeholder="Optional"></div>
-    <div class="ax-editor-row" style="align-items:flex-start;"><label style="padding-top:6px;">Roles</label><div style="display:flex;flex-wrap:wrap;gap:6px;flex:1;" id="i-roles">${roleOpts}</div></div>
-    <div style="font-size:0.72rem;color:var(--text-dim);margin:6px 0 0 110px;">Roles are applied after they activate their account. They'll receive an email with an activation link.</div>
-    <div class="ax-actions"><button class="btn-primary" id="i-send">Send invite</button><button class="btn-ghost" onclick="document.getElementById('modalRoot').innerHTML=''">Cancel</button><span class="ax-msg" id="i-msg"></span></div>`);
+// ═══════════════════════════════════════════════════════════════════════
+// INVITE MODAL — guided, with quick presets and live permission preview
+// ═══════════════════════════════════════════════════════════════════════
+function openInviteModal(prefillFromUid) {
+  // Hardcoded quick-pick presets: each is { label, emoji, role_slugs[], is_admin }
+  // These map to roles that may or may not exist in the system; missing roles
+  // are silently skipped at apply time.
+  const PRESETS = [
+    { key: 'coach',      emoji: '🎓', label: 'Coach',          desc: 'Music Education delivery',   role_slugs: ['coach'] },
+    { key: 'sales',      emoji: '💼', label: 'Sales Rep',      desc: 'Calls + closes',             role_slugs: ['sales'] },
+    { key: 'mentorship', emoji: '🧑‍🏫', label: 'Mentorship I/C', desc: 'Mentorship oversight',    role_slugs: ['ms_ic'] },
+    { key: 'delivery',   emoji: '📦', label: 'Delivery I/C',   desc: 'Delivery + production',      role_slugs: ['delivery_ic'] },
+    { key: 'marketing',  emoji: '📢', label: 'Marketing',      desc: 'Ads / funnels / creative',   role_slugs: ['marketing'] },
+    { key: 'finance',    emoji: '💰', label: 'Finance',        desc: 'Income + disbursements',     role_slugs: ['finance'] },
+    { key: 'admin',      emoji: '⚙️', label: 'Admin',          desc: 'Wildcard — full access',     role_slugs: [], is_admin: true },
+  ];
+
+  // If we were asked to prefill from another user, grab their roles/admin.
+  const sourceUser = prefillFromUid ? usersData.find(u => u.id === prefillFromUid) : null;
+  const prefillRoleIds = new Set(sourceUser?.role_ids || []);
+  const prefillIsAdmin = !!sourceUser?.is_admin;
+
+  // Build role grid grouped — role name + tiny dot + perm count hover.
+  const roleByPermCount = {};
+  for (const rp of rolePerms) (roleByPermCount[rp.role_id] = (roleByPermCount[rp.role_id] || 0) + 1);
+  const roleGrid = roles.map(r => {
+    const isOn = prefillRoleIds.has(r.id);
+    const permCount = roleByPermCount[r.id] || 0;
+    const permList = rolePerms.filter(rp => rp.role_id === r.id).map(rp => rp.permission_key).slice(0, 12).join(', ');
+    const moreCount = Math.max(0, permCount - 12);
+    const tooltip = permList ? permList + (moreCount ? ` … (+${moreCount} more)` : '') : 'No permissions yet';
+    return `<label class="invite-role-chip ${isOn ? 'on' : ''}" data-rid="${r.id}" data-slug="${escapeHtml(r.slug)}" title="${escapeHtml(tooltip)}">
+      <input type="checkbox" ${isOn ? 'checked' : ''}>
+      <span class="role-chip-dot" style="background:${r.color}"></span>
+      <span class="invite-role-name">${escapeHtml(r.name)}</span>
+      <span class="invite-role-count">${permCount}</span>
+    </label>`;
+  }).join('');
+
+  // Build "copy from user" dropdown — only show users with at least one role / admin
+  const copyableUsers = usersData.filter(u => u.is_admin || u.role_ids.length).sort((a, b) => (_displayOf(a.id) || '').localeCompare(_displayOf(b.id) || ''));
+  const copyFromHtml = copyableUsers.map(u => `<option value="${u.id}" ${u.id === prefillFromUid ? 'selected' : ''}>${escapeHtml(_displayOf(u.id))} ${u.is_admin ? '(admin)' : `(${u.role_ids.length} role${u.role_ids.length === 1 ? '' : 's'})`}</option>`).join('');
+
+  const presetHtml = PRESETS.map(p => `<button type="button" class="invite-preset" data-key="${p.key}" title="${escapeHtml(p.desc)}"><span class="invite-preset-emoji">${p.emoji}</span><span>${escapeHtml(p.label)}</span></button>`).join('');
+
+  showModal(`
+    <div class="invite-modal">
+      <div class="invite-header">
+        <h3>✉️ Invite a new user</h3>
+        <span class="invite-subtitle">They'll get an email with an activation link. Roles you pick now apply automatically when they sign in for the first time.</span>
+      </div>
+
+      <div class="invite-section">
+        <label class="invite-label">Email <span class="invite-required">*</span></label>
+        <input id="i-email" type="email" placeholder="name@ridleyacademy.team" class="invite-input-lg" autocomplete="off">
+      </div>
+
+      <div class="invite-grid-2">
+        <div class="invite-section">
+          <label class="invite-label">First name</label>
+          <input id="i-fname" placeholder="Carlos" autocomplete="off">
+        </div>
+        <div class="invite-section">
+          <label class="invite-label">Copy roles from existing user <span class="invite-hint">(optional)</span></label>
+          <select id="i-copy-from"><option value="">— None —</option>${copyFromHtml}</select>
+        </div>
+      </div>
+
+      <div class="invite-section">
+        <label class="invite-label">Quick presets <span class="invite-hint">(adds the matching role · click again to toggle)</span></label>
+        <div class="invite-presets">${presetHtml}</div>
+      </div>
+
+      <div class="invite-section">
+        <label class="invite-label">Roles <span class="invite-hint">(hover any chip for what it grants)</span></label>
+        <div class="invite-roles" id="i-roles">${roleGrid}</div>
+      </div>
+
+      <div class="invite-section invite-admin-row ${prefillIsAdmin ? 'warn' : ''}">
+        <label class="invite-admin-toggle">
+          <input type="checkbox" id="i-is-admin" ${prefillIsAdmin ? 'checked' : ''}>
+          <span class="invite-admin-text">
+            <strong>⚙️ Make admin</strong>
+            <em>Wildcard access to everything — including Access &amp; Org itself. Use sparingly.</em>
+          </span>
+        </label>
+      </div>
+
+      <div class="invite-section invite-preview">
+        <div class="invite-preview-label">📋 When they activate, they'll get:</div>
+        <div class="invite-preview-body" id="i-preview">—</div>
+      </div>
+
+      <div class="invite-actions">
+        <button class="btn-primary invite-send-btn" id="i-send">Send invite</button>
+        <button class="btn-ghost" id="i-cancel">Cancel</button>
+        <span class="ax-msg" id="i-msg"></span>
+      </div>
+    </div>
+  `, { wide: true });
+
+  // ── Wire everything ──────────────────────────────────────────────────
+  const roleEl = document.getElementById('i-roles');
+  const adminEl = document.getElementById('i-is-admin');
+  const previewEl = document.getElementById('i-preview');
+
+  function selectedRoleIds() {
+    return [...roleEl.querySelectorAll('input:checked')].map(cb => Number(cb.closest('[data-rid]').dataset.rid));
+  }
+  function refreshPreview() {
+    const rids = selectedRoleIds();
+    const isAdmin = adminEl.checked;
+    if (isAdmin) {
+      previewEl.innerHTML = '<span style="color:#fbbf24;font-weight:700;">⚙️ Full admin access</span> — every dashboard, every action.';
+      document.querySelector('.invite-admin-row').classList.add('warn');
+      return;
+    }
+    document.querySelector('.invite-admin-row').classList.remove('warn');
+    if (!rids.length) {
+      previewEl.innerHTML = '<span style="color:var(--text-dim);font-style:italic;">No roles selected — they\'ll have no access yet. Add at least one role above.</span>';
+      return;
+    }
+    // Aggregate distinct permissions across selected roles
+    const perms = new Set();
+    for (const rid of rids) for (const rp of rolePerms) if (rp.role_id === rid) perms.add(rp.permission_key);
+    // Group by dashboard
+    const grouped = {};
+    for (const k of perms) { const d = k.split('.')[0]; (grouped[d] ||= []).push(k.split('.').slice(1).join('.')); }
+    const rolesPicked = rids.map(rid => roles.find(r => r.id === rid)).filter(Boolean);
+    const roleChips = rolesPicked.map(r => `<span class="pill" style="background:${r.color}22;color:${r.color};border:1px solid ${r.color}55;">${escapeHtml(r.name)}</span>`).join(' ');
+    const dashChips = Object.keys(grouped).sort().map(d => `<div class="invite-preview-dash"><strong>${escapeHtml(d)}:</strong> ${grouped[d].slice(0,8).map(a => `<span class="pill pill-on">${escapeHtml(a)}</span>`).join('')} ${grouped[d].length > 8 ? `<span style="color:var(--text-dim);font-size:0.7rem;">+${grouped[d].length - 8} more</span>` : ''}</div>`).join('');
+    previewEl.innerHTML = `<div style="margin-bottom:6px;">${roleChips}</div>${dashChips}<div style="font-size:0.7rem;color:var(--text-dim);margin-top:6px;">${perms.size} total permission${perms.size === 1 ? '' : 's'} across ${Object.keys(grouped).length} dashboard${Object.keys(grouped).length === 1 ? '' : 's'}.</div>`;
+  }
+
+  // Role chip toggle (click anywhere on the label)
+  roleEl.querySelectorAll('.invite-role-chip').forEach(chip => {
+    chip.addEventListener('click', e => {
+      // Let the actual checkbox click bubble naturally; only handle clicks on the label background
+      if (e.target.tagName === 'INPUT') { setTimeout(() => { chip.classList.toggle('on', chip.querySelector('input').checked); refreshPreview(); }, 0); return; }
+      const cb = chip.querySelector('input');
+      cb.checked = !cb.checked;
+      chip.classList.toggle('on', cb.checked);
+      refreshPreview();
+    });
+  });
+
+  // Preset buttons
+  document.querySelectorAll('.invite-preset').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const preset = PRESETS.find(p => p.key === btn.dataset.key);
+      if (!preset) return;
+      if (preset.is_admin) {
+        adminEl.checked = !adminEl.checked;
+        refreshPreview();
+        return;
+      }
+      // Toggle each role in the preset
+      for (const slug of preset.role_slugs) {
+        const chip = roleEl.querySelector(`.invite-role-chip[data-slug="${slug}"]`);
+        if (!chip) continue;
+        const cb = chip.querySelector('input');
+        cb.checked = !cb.checked;
+        chip.classList.toggle('on', cb.checked);
+      }
+      refreshPreview();
+    });
+  });
+
+  // Copy-from-user dropdown
+  document.getElementById('i-copy-from').addEventListener('change', e => {
+    const uid = e.target.value;
+    const src = uid ? usersData.find(u => u.id === uid) : null;
+    const wantIds = new Set(src?.role_ids || []);
+    roleEl.querySelectorAll('.invite-role-chip').forEach(chip => {
+      const on = wantIds.has(Number(chip.dataset.rid));
+      chip.querySelector('input').checked = on;
+      chip.classList.toggle('on', on);
+    });
+    adminEl.checked = !!src?.is_admin;
+    refreshPreview();
+  });
+
+  // Admin toggle
+  adminEl.addEventListener('change', refreshPreview);
+
+  document.getElementById('i-cancel').addEventListener('click', closeModal);
+
   document.getElementById('i-send').addEventListener('click', async () => {
     const msg = document.getElementById('i-msg');
     msg.className = 'ax-msg'; msg.textContent = 'Sending…';
     try {
       const email = document.getElementById('i-email').value.trim().toLowerCase();
+      if (!email.includes('@')) throw new Error('Please enter a valid email.');
       const first_name = document.getElementById('i-fname').value.trim();
-      const selectedRoles = [...document.querySelectorAll('#i-roles input:checked')].map(cb => Number(cb.closest('[data-rid]').dataset.rid));
+      const selectedRoles = selectedRoleIds();
+      const is_admin = adminEl.checked;
+      if (!is_admin && !selectedRoles.length && !confirm('No roles selected — this user will have no access at first. Send anyway?')) {
+        msg.className = 'ax-msg'; msg.textContent = '';
+        return;
+      }
       // Derive legacy `permissions` array from selected roles' slugs so the
       // existing invite flow / activation continues to work.
       const legacyPerms = [...new Set(selectedRoles.map(rid => roles.find(r => r.id === rid)?.slug).filter(Boolean))];
       const r = await fetch(INVITE_BASE, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
-        body: JSON.stringify({ email, first_name, permissions: legacyPerms, is_admin: false }),
+        body: JSON.stringify({ email, first_name, permissions: legacyPerms, is_admin }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || 'invite failed');
@@ -1251,4 +1556,6 @@ function openInviteModal() {
       setTimeout(() => { closeModal(); loadUsersTab(); }, 800);
     } catch (e) { msg.className = 'ax-msg err'; msg.textContent = e.message; }
   });
+
+  refreshPreview();
 }

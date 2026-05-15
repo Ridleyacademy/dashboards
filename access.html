@@ -134,9 +134,103 @@
   .holder-pill-av { width: 18px; height: 18px; border-radius: 50%; background: var(--blue); color: #0b0c14; display: inline-flex; align-items: center; justify-content: center; font-size: 0.62rem; font-weight: 700; }
 
   /* Modal */
-  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); backdrop-filter: blur(4px); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 16px; }
-  .modal-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; max-width: 480px; width: 100%; padding: 22px; }
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); backdrop-filter: blur(4px); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 16px; overflow-y: auto; }
+  .modal-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; max-width: 480px; width: 100%; padding: 22px; max-height: 90vh; overflow-y: auto; }
   .modal-card h3 { margin: 0 0 12px; }
+  .modal-card.invite-wide { max-width: 680px; }
+
+  /* ── Invite modal ─────────────────────────────────────────────── */
+  .invite-modal { display: flex; flex-direction: column; gap: 14px; }
+  .invite-header h3 { margin: 0 0 4px; font-size: 1.1rem; }
+  .invite-subtitle { font-size: 0.78rem; color: var(--text-dim); line-height: 1.4; }
+  .invite-section { display: flex; flex-direction: column; gap: 6px; }
+  .invite-label { font-size: 0.76rem; font-weight: 700; color: var(--text-muted); letter-spacing: 0.02em; text-transform: uppercase; }
+  .invite-required { color: var(--red); }
+  .invite-hint { font-weight: 400; text-transform: none; color: var(--text-dim); font-size: 0.7rem; letter-spacing: 0; margin-left: 4px; }
+  .invite-input-lg { font-size: 0.96rem; padding: 10px 12px; }
+  .invite-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 560px) { .invite-grid-2 { grid-template-columns: 1fr; } }
+
+  /* Quick presets row */
+  .invite-presets {
+    display: flex; flex-wrap: wrap; gap: 6px;
+  }
+  .invite-preset {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 12px; border-radius: 999px;
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); font-size: 0.84rem; font-weight: 600;
+    cursor: pointer; transition: all .15s;
+  }
+  .invite-preset:hover { background: var(--surface3); border-color: var(--blue); }
+  .invite-preset-emoji { font-size: 1.05rem; }
+
+  /* Role chips (richer than the basic one) */
+  .invite-roles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 6px;
+  }
+  .invite-role-chip {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 10px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.84rem;
+    transition: all .15s;
+  }
+  .invite-role-chip:hover { background: var(--surface3); border-color: var(--border-light); }
+  .invite-role-chip.on { background: rgba(52, 211, 153, 0.12); border-color: #34d399; }
+  .invite-role-chip input { margin: 0; cursor: pointer; }
+  .invite-role-name { flex: 1; }
+  .invite-role-count {
+    font-size: 0.66rem; color: var(--text-dim);
+    background: var(--surface3); padding: 1px 6px; border-radius: 999px;
+  }
+  .invite-role-chip.on .invite-role-count { background: rgba(52,211,153,.2); color: #34d399; }
+
+  /* Admin toggle row — visually emphasized when on */
+  .invite-admin-row { padding: 12px 14px; border-radius: 10px; background: var(--surface2); border: 1px solid var(--border); transition: all .15s; }
+  .invite-admin-row.warn { background: rgba(251, 191, 36, 0.10); border-color: rgba(251, 191, 36, 0.45); }
+  .invite-admin-toggle { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
+  .invite-admin-toggle input { margin-top: 3px; }
+  .invite-admin-text strong { display: block; font-size: 0.92rem; }
+  .invite-admin-text em { display: block; font-size: 0.74rem; font-style: normal; color: var(--text-dim); margin-top: 2px; }
+  .invite-admin-row.warn .invite-admin-text em { color: rgba(251,191,36,.9); }
+
+  /* Live preview */
+  .invite-preview {
+    padding: 12px 14px; border-radius: 10px;
+    background: var(--surface2); border: 1px dashed var(--border-light);
+  }
+  .invite-preview-label { font-size: 0.74rem; font-weight: 700; color: var(--text-muted); margin-bottom: 6px; }
+  .invite-preview-body { font-size: 0.78rem; color: var(--text); line-height: 1.5; }
+  .invite-preview-dash { font-size: 0.74rem; color: var(--text-muted); margin: 4px 0; }
+  .invite-preview-dash strong { color: var(--text); font-size: 0.78rem; }
+  .invite-preview-dash .pill { font-size: 0.66rem; padding: 1px 6px; margin: 0 2px 2px 0; display: inline-block; }
+
+  .invite-actions { display: flex; gap: 10px; align-items: center; margin-top: 4px; }
+  .invite-send-btn { flex: 1; padding: 12px; font-size: 0.92rem; }
+  .pill-admin { background: rgba(251,191,36,.18); color: #fbbf24; font-weight: 700; }
+
+  /* User editor — post pills */
+  .user-post-pill {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 10px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.84rem;
+  }
+  .user-post-pill .user-post-path { color: var(--text-dim); font-size: 0.74rem; }
+  .user-post-pill .user-post-name { flex: 1; font-weight: 600; color: var(--text); }
+  .user-post-pill .user-post-remove {
+    background: transparent; border: 0; color: var(--text-dim);
+    cursor: pointer; font-size: 1rem; padding: 2px 6px; border-radius: 4px;
+  }
+  .user-post-pill .user-post-remove:hover { color: var(--red); background: rgba(248,113,113,.12); }
 
   /* ── Org Board column view ───────────────────────────────────── */
   /* When the Org tab is active, hide the standard list/detail split

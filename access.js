@@ -465,7 +465,8 @@ function openUserEditor(uid) {
 
     <div class="ax-actions">
       <button class="btn-primary" id="u-save">Save roles &amp; admin</button>
-      <button class="btn-ghost"  id="u-revoke">Recompute perms</button>
+      <button class="btn-ghost"  id="u-reset-pw">📧 Send password reset</button>
+      <button class="btn-ghost"  id="u-revoke">↻ Refresh access</button>
       <button class="btn-ghost"  style="color:var(--red);" id="u-delete">Delete user</button>
       <span class="ax-msg" id="u-msg"></span>
     </div>
@@ -512,6 +513,28 @@ function openUserEditor(uid) {
   document.getElementById('u-save').addEventListener('click', () => saveUser(uid));
   document.getElementById('u-revoke').addEventListener('click', () => revokeUserSession(uid));
   document.getElementById('u-delete').addEventListener('click', () => deleteUser(uid));
+  document.getElementById('u-reset-pw').addEventListener('click', async () => {
+    if (!confirm('Send a password-reset email to ' + (u.email || 'this user') + '?')) return;
+    try {
+      const r = await fetch(SUPABASE_URL + '/functions/v1/admin-api?api=send-password-reset', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+        body: JSON.stringify({ userId: uid }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || 'Failed');
+      toast('Password reset email sent to ' + u.email, 'ok');
+    } catch (e) {
+      // Graceful fallback: this endpoint may not exist on admin-api yet.
+      // Use Supabase password-reset on the user's email via the auth client (no key needed).
+      try {
+        const { error } = await supa.auth.resetPasswordForEmail(u.email, { redirectTo: window.location.origin + '/forgot-password' });
+        if (error) throw error;
+        toast('Password reset email sent to ' + u.email, 'ok');
+      } catch (e2) {
+        toast(e2.message || e.message, 'err');
+      }
+    }
+  });
 }
 
 // ── Rep Mapping subsection inside the user editor ──────────────────────
@@ -764,12 +787,10 @@ async function saveUser(uid) {
 }
 
 async function revokeUserSession(uid) {
-  if (!confirm('Force this user to sign in again on their next request?')) return;
-  // Recompute is enough to invalidate cached JWTs is not exposed by Supabase
-  // directly via edge fn here. For MVP we just trigger recompute so next refresh
-  // pulls latest perms. Full sign-out requires admin.signOut(uid).
-  try { await api('?api=user-recompute', { method: 'POST', body: { user_id: uid } }); alert('Permissions recomputed. The user will pick up the new set on their next sign-in or token refresh.'); }
-  catch (e) { alert(e.message); }
+  try {
+    await api('?api=user-recompute', { method: 'POST', body: { user_id: uid } });
+    toast('Access refreshed — they\'ll pick up the new permissions on their next sign-in or token refresh.', 'ok', 3600);
+  } catch (e) { toast(e.message, 'err'); }
 }
 
 async function deleteUser(uid) {
@@ -1812,56 +1833,69 @@ function openInviteModal(prefillFromUid) {
   const copyableUsers = usersData.filter(u => u.is_admin || u.role_ids.length).sort((a, b) => (_displayOf(a.id) || '').localeCompare(_displayOf(b.id) || ''));
   const copyFromHtml = copyableUsers.map(u => `<option value="${u.id}" ${u.id === prefillFromUid ? 'selected' : ''}>${escapeHtml(_displayOf(u.id))} ${u.is_admin ? '(admin)' : `(${u.role_ids.length} role${u.role_ids.length === 1 ? '' : 's'})`}</option>`).join('');
 
-  const presetHtml = PRESETS.map(p => `<button type="button" class="invite-preset" data-key="${p.key}" title="${escapeHtml(p.desc)}"><span class="invite-preset-emoji">${p.emoji}</span><span>${escapeHtml(p.label)}</span></button>`).join('');
+  // Big job-card grid (primary picker). Each card is a single click and
+  // sets the corresponding roles + admin flag.
+  const jobCardsHtml = PRESETS.map(p => `
+    <button type="button" class="invite-jobcard" data-key="${p.key}" title="${escapeHtml(p.desc)}">
+      <span class="invite-jobcard-emoji">${p.emoji}</span>
+      <span class="invite-jobcard-name">${escapeHtml(p.label)}</span>
+      <span class="invite-jobcard-desc">${escapeHtml(p.desc)}</span>
+    </button>`).join('') + `
+    <button type="button" class="invite-jobcard" data-key="__custom__" title="Pick roles manually">
+      <span class="invite-jobcard-emoji">✏️</span>
+      <span class="invite-jobcard-name">Custom</span>
+      <span class="invite-jobcard-desc">Pick roles manually</span>
+    </button>`;
 
   showModal(`
     <div class="invite-modal">
       <div class="invite-header">
-        <h3>✉️ Invite a new user</h3>
-        <span class="invite-subtitle">They'll get an email with an activation link. Roles you pick now apply automatically when they sign in for the first time.</span>
+        <h3>✉️ Add a person</h3>
+        <span class="invite-subtitle">They'll get an email with an activation link. Pick their job — we'll set up the right access automatically.</span>
       </div>
 
       <div class="invite-section">
-        <label class="invite-label">Recipients <span class="invite-required">*</span> <span class="invite-hint">(one row per person · press Enter to add the next)</span></label>
+        <label class="invite-label">Who's joining? <span class="invite-required">*</span></label>
         <div id="i-recipients" class="invite-recipients"></div>
-        <button class="invite-add-row" id="i-add-row" type="button">+ Add another recipient</button>
-        <span class="invite-hint" id="i-email-count" style="color:var(--text-dim);margin-top:6px;">0 valid recipients</span>
+        <button class="invite-add-row" id="i-add-row" type="button">+ Add another person</button>
+        <span class="invite-hint" id="i-email-count" style="color:var(--text-dim);margin-top:6px;">0 ready</span>
       </div>
 
       <div class="invite-section">
-        <label class="invite-label">Copy roles from existing user <span class="invite-hint">(optional)</span></label>
-        <select id="i-copy-from"><option value="">— None —</option>${copyFromHtml}</select>
+        <label class="invite-label">What's their job?</label>
+        <div class="invite-jobs">${jobCardsHtml}</div>
+        <span class="invite-hint" id="i-job-summary" style="margin-top:6px;display:block;color:var(--text-dim);">Pick a job above to set their access.</span>
       </div>
 
-      <div class="invite-section">
-        <label class="invite-label">Quick presets <span class="invite-hint">(adds the matching role · click again to toggle)</span></label>
-        <div class="invite-presets">${presetHtml}</div>
-      </div>
+      <details class="invite-advanced">
+        <summary>Advanced options</summary>
+        <div class="invite-section" style="margin-top:10px;">
+          <label class="invite-label">Or copy from an existing user</label>
+          <select id="i-copy-from"><option value="">— None —</option>${copyFromHtml}</select>
+        </div>
+        <div class="invite-section">
+          <label class="invite-label">Custom roles <span class="invite-hint">(hover for what each grants)</span></label>
+          <div class="invite-roles" id="i-roles">${roleGrid}</div>
+        </div>
+        <div class="invite-section invite-admin-row ${prefillIsAdmin ? 'warn' : ''}">
+          <label class="invite-admin-toggle">
+            <input type="checkbox" id="i-is-admin" ${prefillIsAdmin ? 'checked' : ''}>
+            <span class="invite-admin-text">
+              <strong>⚙️ Make admin</strong>
+              <em>Wildcard access to everything — including Access &amp; Org itself.</em>
+            </span>
+          </label>
+        </div>
+      </details>
 
-      <div class="invite-section">
-        <label class="invite-label">Roles <span class="invite-hint">(hover any chip for what it grants)</span></label>
-        <div class="invite-roles" id="i-roles">${roleGrid}</div>
-      </div>
-
-      <div class="invite-section invite-admin-row ${prefillIsAdmin ? 'warn' : ''}">
-        <label class="invite-admin-toggle">
-          <input type="checkbox" id="i-is-admin" ${prefillIsAdmin ? 'checked' : ''}>
-          <span class="invite-admin-text">
-            <strong>⚙️ Make admin</strong>
-            <em>Wildcard access to everything — including Access &amp; Org itself. Use sparingly.</em>
-          </span>
-        </label>
-      </div>
-
-      <div class="invite-section invite-preview">
+      <div class="invite-section invite-preview" id="i-preview-wrap">
         <div class="invite-preview-label">📋 When they activate, they'll get:</div>
         <div class="invite-preview-body" id="i-preview">—</div>
       </div>
 
       <div class="invite-actions">
-        <button class="btn-primary invite-send-btn" id="i-send">Send invite</button>
+        <button class="btn-primary invite-send-btn" id="i-send">Send invitation</button>
         <button class="btn-ghost" id="i-cancel">Cancel</button>
-        <span class="ax-msg" id="i-msg"></span>
       </div>
     </div>
   `, { wide: true });
@@ -1899,7 +1933,40 @@ function openInviteModal(prefillFromUid) {
     previewEl.innerHTML = `<div style="margin-bottom:6px;">${roleChips}</div>${dashChips}<div style="font-size:0.7rem;color:var(--text-dim);margin-top:6px;">${perms.size} total permission${perms.size === 1 ? '' : 's'} across ${Object.keys(grouped).length} dashboard${Object.keys(grouped).length === 1 ? '' : 's'}.</div>`;
   }
 
-  // Role chip toggle (click anywhere on the label)
+  // ── Job card click: SETS the role set atomically (not toggle) ──
+  document.querySelectorAll('.invite-jobcard').forEach(card => {
+    card.addEventListener('click', () => {
+      const key = card.dataset.key;
+      // Mark selected card visually
+      document.querySelectorAll('.invite-jobcard').forEach(c => c.classList.toggle('on', c === card));
+      // Clear roles + admin
+      roleEl.querySelectorAll('.invite-role-chip').forEach(c => { c.classList.remove('on'); c.querySelector('input').checked = false; });
+      adminEl.checked = false;
+      // Apply preset
+      const preset = PRESETS.find(p => p.key === key);
+      if (preset?.is_admin) {
+        adminEl.checked = true;
+      } else if (preset?.role_slugs?.length) {
+        for (const slug of preset.role_slugs) {
+          const chip = roleEl.querySelector(`.invite-role-chip[data-slug="${slug}"]`);
+          if (chip) { chip.classList.add('on'); chip.querySelector('input').checked = true; }
+        }
+      }
+      // If they picked "Custom", auto-open the Advanced panel
+      if (key === '__custom__') {
+        const det = document.querySelector('.invite-advanced'); if (det) det.open = true;
+      }
+      // Job summary text
+      const sumEl = document.getElementById('i-job-summary');
+      if (sumEl) {
+        if (preset) sumEl.innerHTML = `<strong style="color:var(--text);">${preset.emoji} ${escapeHtml(preset.label)}</strong> — ${escapeHtml(preset.desc)}`;
+        else sumEl.innerHTML = '<strong style="color:var(--text);">✏️ Custom</strong> — pick roles in Advanced below.';
+      }
+      refreshPreview();
+    });
+  });
+
+  // Role chip toggle (click anywhere on the label) — only inside Advanced
   roleEl.querySelectorAll('.invite-role-chip').forEach(chip => {
     chip.addEventListener('click', e => {
       // Let the actual checkbox click bubble naturally; only handle clicks on the label background
@@ -1911,27 +1978,8 @@ function openInviteModal(prefillFromUid) {
     });
   });
 
-  // Preset buttons
-  document.querySelectorAll('.invite-preset').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const preset = PRESETS.find(p => p.key === btn.dataset.key);
-      if (!preset) return;
-      if (preset.is_admin) {
-        adminEl.checked = !adminEl.checked;
-        refreshPreview();
-        return;
-      }
-      // Toggle each role in the preset
-      for (const slug of preset.role_slugs) {
-        const chip = roleEl.querySelector(`.invite-role-chip[data-slug="${slug}"]`);
-        if (!chip) continue;
-        const cb = chip.querySelector('input');
-        cb.checked = !cb.checked;
-        chip.classList.toggle('on', cb.checked);
-      }
-      refreshPreview();
-    });
-  });
+  // Legacy small "invite-preset" chip handler removed in v249 — the big
+  // job cards above replaced it.
 
   // Copy-from-user dropdown
   document.getElementById('i-copy-from').addEventListener('change', e => {

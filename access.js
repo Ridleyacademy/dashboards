@@ -369,10 +369,54 @@ function openUserEditor(uid) {
 function renderUserRepMap(uid) {
   const wrap = document.getElementById('u-repmap');
   if (!wrap) return;
+  const u = usersData.find(x => x.id === uid);
+  const firstName = (u?.first_name || '').trim();
   const mine = repMapProfiles.filter(p => p.user_id === uid);
   const unlinked = repMapProfiles.filter(p => !p.user_id);
   const unassignedNames = repMapUnassigned?.unassignedCallsReps || [];
   const datalistOptions = (repMapUnassigned?.allCallsReps || []).map(n => `<option value="${escapeHtml(n)}">`).join('');
+
+  // ── Smart-match suggestions when this user has no profile yet ─────────
+  // 1) Does an UNLINKED profile have calls_name == this user's first_name?
+  //    → "Looks like Jordin's profile already exists — Link it"
+  // 2) Does an UNASSIGNED Calls Log name == first_name?
+  //    → "This name is in the calls log but has no profile — Create & link"
+  // 3) Otherwise the create-new form below will pre-fill calls_name=firstName.
+  let smartSuggestion = '';
+  if (!mine.length && firstName) {
+    const fLower = firstName.toLowerCase();
+    const matchUnlinked = unlinked.find(p => (p.calls_name || '').toLowerCase() === fLower);
+    const matchUnassigned = unassignedNames.find(n => (n || '').toLowerCase() === fLower);
+    if (matchUnlinked) {
+      smartSuggestion = `
+        <div class="rep-suggest">
+          <span class="rep-suggest-emoji">💡</span>
+          <div style="flex:1;">
+            <div><strong>${escapeHtml(matchUnlinked.calls_name)}</strong> is an existing unlinked rep profile.</div>
+            <div style="font-size:0.72rem;color:var(--text-dim);">Probably this user. Link it?</div>
+          </div>
+          <button class="btn-primary" id="u-rm-suggest-link" data-id="${matchUnlinked.id}">Link to this user</button>
+        </div>`;
+    } else if (matchUnassigned) {
+      smartSuggestion = `
+        <div class="rep-suggest">
+          <span class="rep-suggest-emoji">💡</span>
+          <div style="flex:1;">
+            <div><strong>${escapeHtml(matchUnassigned)}</strong> appears in the Calls Log but has no rep profile yet.</div>
+            <div style="font-size:0.72rem;color:var(--text-dim);">Create a profile for this user with that exact name?</div>
+          </div>
+          <button class="btn-primary" id="u-rm-suggest-create" data-name="${escapeHtml(matchUnassigned)}">Create &amp; link</button>
+        </div>`;
+    }
+  }
+
+  // Pre-fill calls_name in the create-new form with the user's first name
+  // (the common case is they match — admins only need to change it when the
+  // Calls Log spelling differs from the user's stored first_name).
+  const newNameDefault = !mine.length ? firstName : '';
+  // Auto-expand the create form when user has no profile yet so admins
+  // don't need to hunt for it.
+  const createOpenAttr = !mine.length ? ' open' : '';
 
   const minePillsHtml = mine.length ? mine.map(p => {
     const aff = (p.sales_affiliates || []).join(', ');
@@ -407,6 +451,7 @@ function renderUserRepMap(uid) {
     : '';
 
   wrap.innerHTML = `
+    ${smartSuggestion}
     ${minePillsHtml}
     ${unlinked.length ? `
       <div style="margin-top:10px;display:flex;gap:6px;align-items:center;">
@@ -414,13 +459,14 @@ function renderUserRepMap(uid) {
         <button class="small-btn" id="u-rm-attach">Attach to this user</button>
       </div>
     ` : ''}
-    <details style="margin-top:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;overflow:hidden;">
-      <summary style="cursor:pointer;padding:8px 10px;font-size:0.78rem;font-weight:600;color:var(--text-muted);list-style:none;">+ Create new rep profile for this user</summary>
+    <details style="margin-top:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;overflow:hidden;"${createOpenAttr}>
+      <summary style="cursor:pointer;padding:8px 10px;font-size:0.78rem;font-weight:600;color:var(--text-muted);list-style:none;">${mine.length ? '+ Create another rep profile for this user' : '+ Set this user’s Calls Log name'}</summary>
       <div style="padding:10px;display:flex;flex-direction:column;gap:8px;">
+        ${firstName && !mine.length ? `<div style="font-size:0.72rem;color:var(--text-dim);">Default is the user’s first name (<strong>${escapeHtml(firstName)}</strong>). Change it if the Calls Log uses a different spelling for this person.</div>` : ''}
         <div class="rep-map-fields">
           <div class="rep-map-field" style="flex:1;min-width:160px;">
             <label>Calls Log Name (exact match)</label>
-            <input id="u-rm-new-name" list="u-rm-name-list" placeholder="e.g. Jordin" autocomplete="off">
+            <input id="u-rm-new-name" list="u-rm-name-list" placeholder="e.g. Jordin" autocomplete="off" value="${escapeHtml(newNameDefault)}">
             <datalist id="u-rm-name-list">${datalistOptions}</datalist>
           </div>
           <div class="rep-map-field" style="flex:2;min-width:240px;">
@@ -429,7 +475,7 @@ function renderUserRepMap(uid) {
           </div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;">
-          <button class="btn-primary" id="u-rm-create">Create &amp; link</button>
+          <button class="btn-primary" id="u-rm-create">${mine.length ? 'Create &amp; link' : 'Save Calls Log name'}</button>
           <span class="ax-msg" id="u-rm-new-msg"></span>
         </div>
       </div>
@@ -508,6 +554,25 @@ function renderUserRepMap(uid) {
     try { await setRepMapping(name, [], uid); renderUserRepMap(uid); }
     catch (e) { alert(e.message); }
   }));
+
+  // Smart-match: existing unlinked profile that matches first_name → one-click link
+  document.getElementById('u-rm-suggest-link')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    const profile = repMapProfiles.find(p => p.id === Number(btn.dataset.id));
+    if (!profile) return;
+    btn.disabled = true; btn.textContent = 'Linking…';
+    try {
+      await setRepMapping(profile.calls_name, profile.sales_affiliates || [], uid);
+      renderUserRepMap(uid);
+    } catch (err) { btn.disabled = false; btn.textContent = 'Link to this user'; alert(err.message); }
+  });
+  // Smart-match: unassigned calls-log name that matches first_name → one-click create+link
+  document.getElementById('u-rm-suggest-create')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true; btn.textContent = 'Creating…';
+    try { await setRepMapping(btn.dataset.name, [], uid); renderUserRepMap(uid); }
+    catch (err) { btn.disabled = false; btn.textContent = 'Create & link'; alert(err.message); }
+  });
 }
 
 function openCopyRolesPicker(targetUid) {

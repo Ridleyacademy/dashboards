@@ -51,7 +51,9 @@ document.getElementById('loginForm')?.addEventListener('submit', async e => {
   else boot();
 });
 document.getElementById('refreshBtn')?.addEventListener('click', refreshAll);
-document.getElementById('inviteBtn')?.addEventListener('click', openInviteModal);
+// inviteBtn removed from the topbar in v239 — the action now lives inside
+// the Users tab via the shared axAddBtn (which becomes "+ Invite user" when
+// the Users tab is active). See switchTab().
 document.querySelectorAll('.ax-tab').forEach(t => t.addEventListener('click', () => switchTab(t.dataset.tab)));
 document.getElementById('axAddBtn')?.addEventListener('click', () => onAddInTab());
 
@@ -121,10 +123,21 @@ function switchTab(tab) {
   document.getElementById('axEditor').innerHTML = '<div class="ax-editor-empty">Select an item on the left.</div>';
   document.getElementById('axListTitle').textContent = tab === 'users' ? 'Users' : tab === 'roles' ? 'Roles' : 'Org Board';
   const addBtn = document.getElementById('axAddBtn');
-  // Org tab uses the full-width board (no list/detail split), so the add button
-  // in the left-list header isn't needed.
-  if (tab === 'users' || tab === 'org') addBtn.style.display = 'none';
-  else { addBtn.style.display = ''; addBtn.textContent = '+ Role'; }
+  // Org tab uses the full-width board (no list/detail split), so the add
+  // button in the left-list header isn't needed. Users tab repurposes it as
+  // the "+ Invite user" entry point (lives inside the section, not the
+  // global topbar). Roles tab keeps it as "+ Role".
+  if (tab === 'org') {
+    addBtn.style.display = 'none';
+  } else if (tab === 'users') {
+    addBtn.style.display = '';
+    addBtn.textContent = '+ Invite user';
+    addBtn.title = 'Invite a new user';
+  } else {
+    addBtn.style.display = '';
+    addBtn.textContent = '+ Role';
+    addBtn.title = 'New role';
+  }
   closeDrawer();
   refreshTab();
 }
@@ -136,6 +149,7 @@ async function refreshTab() {
 }
 
 function onAddInTab() {
+  if (activeTab === 'users') return openInviteModal();
   if (activeTab === 'roles') return openRoleEditor(null);
   if (activeTab === 'org')   return openCreateDivisionModal();
 }

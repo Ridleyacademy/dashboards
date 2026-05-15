@@ -1419,25 +1419,15 @@ function openInviteModal(prefillFromUid) {
       </div>
 
       <div class="invite-section">
-        <label class="invite-label">Recipients <span class="invite-required">*</span> <span class="invite-hint">(one per line · each can have their own name)</span></label>
-        <textarea id="i-email" rows="5" placeholder="Examples — mix any of these formats, one per line:
-Carlos &lt;carlos@ridleyacademy.team&gt;
-Stephen, sr@ridleyacademy.com
-Jordin   jordin@ridleyacademy.team
-plain@ridleyacademy.team" class="invite-input-lg" autocomplete="off" spellcheck="false" style="font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;line-height:1.4;"></textarea>
-        <span class="invite-hint" id="i-email-count" style="color:var(--text-dim);">0 valid recipients</span>
-        <div id="i-email-preview" style="display:none;"></div>
+        <label class="invite-label">Recipients <span class="invite-required">*</span> <span class="invite-hint">(one row per person · press Enter to add the next)</span></label>
+        <div id="i-recipients" class="invite-recipients"></div>
+        <button class="invite-add-row" id="i-add-row" type="button">+ Add another recipient</button>
+        <span class="invite-hint" id="i-email-count" style="color:var(--text-dim);margin-top:6px;">0 valid recipients</span>
       </div>
 
-      <div class="invite-grid-2">
-        <div class="invite-section">
-          <label class="invite-label">First name <span class="invite-hint">(fallback for any recipient without one)</span></label>
-          <input id="i-fname" placeholder="Used only if a row above has no name" autocomplete="off">
-        </div>
-        <div class="invite-section">
-          <label class="invite-label">Copy roles from existing user <span class="invite-hint">(optional)</span></label>
-          <select id="i-copy-from"><option value="">— None —</option>${copyFromHtml}</select>
-        </div>
+      <div class="invite-section">
+        <label class="invite-label">Copy roles from existing user <span class="invite-hint">(optional)</span></label>
+        <select id="i-copy-from"><option value="">— None —</option>${copyFromHtml}</select>
       </div>
 
       <div class="invite-section">
@@ -1559,78 +1549,132 @@ plain@ridleyacademy.team" class="invite-input-lg" autocomplete="off" spellcheck=
 
   document.getElementById('i-cancel').addEventListener('click', closeModal);
 
-  // Parse a textarea blob into [{ name, email }] recipients.
-  // Each LINE is one recipient. Supported per-line formats:
-  //   Carlos <carlos@example.com>
-  //   "Carlos Day" <carlos@example.com>
-  //   Carlos, carlos@example.com
-  //   Carlos   carlos@example.com    (whitespace separated)
-  //   carlos@example.com             (no name — falls back to global First name)
-  // Returns a deduplicated list (by email).
-  function parseRecipients(blob) {
+  // ── Row-based recipient editor ────────────────────────────────────
+  // Each row = one invitee with its own first name + email. Pressing Enter
+  // in the email field of the last row auto-adds another row. Pasting a
+  // blob of emails into any email field auto-splits into rows.
+  const recipientsEl = document.getElementById('i-recipients');
+  const countEl = document.getElementById('i-email-count');
+  const isEmail = s => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+
+  function makeRow(initial = { name: '', email: '' }) {
+    const row = document.createElement('div');
+    row.className = 'invite-recipient-row';
+    row.innerHTML = `
+      <input class="invite-r-name"  placeholder="First name (optional)" autocomplete="off" value="${escapeHtml(initial.name || '')}">
+      <input class="invite-r-email" type="email" placeholder="email@ridleyacademy.team" autocomplete="off" value="${escapeHtml(initial.email || '')}">
+      <button class="invite-r-remove" type="button" title="Remove this recipient">×</button>`;
+    const emailIn = row.querySelector('.invite-r-email');
+    const nameIn  = row.querySelector('.invite-r-name');
+    const remove  = row.querySelector('.invite-r-remove');
+    emailIn.addEventListener('input', refreshRowsState);
+    nameIn.addEventListener('input', refreshRowsState);
+    // Enter on email field → add another row (or focus existing next one).
+    emailIn.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const allRows = [...recipientsEl.querySelectorAll('.invite-recipient-row')];
+        const idx = allRows.indexOf(row);
+        const next = allRows[idx + 1];
+        if (next) next.querySelector('.invite-r-name').focus();
+        else addRow().querySelector('.invite-r-name').focus();
+      }
+    });
+    // Tab on email field of the LAST row → add a new row and tab into it.
+    emailIn.addEventListener('keydown', e => {
+      if (e.key !== 'Tab' || e.shiftKey) return;
+      const allRows = [...recipientsEl.querySelectorAll('.invite-recipient-row')];
+      if (allRows[allRows.length - 1] !== row) return;
+      if (!emailIn.value.trim()) return; // only if user typed something
+      e.preventDefault();
+      addRow().querySelector('.invite-r-name').focus();
+    });
+    // Paste a blob → split into rows.
+    emailIn.addEventListener('paste', e => {
+      const text = (e.clipboardData || window.clipboardData)?.getData('text') || '';
+      if (!/[\n,;]/.test(text)) return; // single email — let it paste normally
+      e.preventDefault();
+      const parsed = parseBlob(text);
+      if (!parsed.length) return;
+      // First parsed pair fills this row, the rest get new rows.
+      emailIn.value = parsed[0].email;
+      if (parsed[0].name && !nameIn.value) nameIn.value = parsed[0].name;
+      for (let i = 1; i < parsed.length; i++) addRow(parsed[i]);
+      refreshRowsState();
+    });
+    remove.addEventListener('click', () => {
+      const allRows = [...recipientsEl.querySelectorAll('.invite-recipient-row')];
+      if (allRows.length <= 1) { nameIn.value = ''; emailIn.value = ''; refreshRowsState(); return; }
+      row.remove();
+      refreshRowsState();
+    });
+    recipientsEl.appendChild(row);
+    refreshRowsState();
+    return row;
+  }
+  function addRow(initial) { return makeRow(initial); }
+
+  // Parse a pasted blob into recipient pairs. Supports the same syntaxes the
+  // textarea used to, so users can still paste in bulk.
+  function parseBlob(blob) {
     const lines = (blob || '').split(/[\n\r]+/g).map(s => s.trim()).filter(Boolean);
     const out = []; const seen = new Set();
-    const isEmail = s => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
     for (const line of lines) {
-      // Some pasted lines have multiple emails — split on common separators
-      // but ONLY if the line has no name-style syntax (no "<>", no leading text).
       const hasAngle = /<[^>]+>/.test(line);
       const tokens = hasAngle ? [line] : line.split(/[,;]/g).map(t => t.trim()).filter(Boolean);
       for (const tok of tokens) {
         let name = '', email = '';
         const angle = tok.match(/^(.*?)<\s*([^>\s]+)\s*>\s*$/);
-        if (angle) {
-          name = angle[1].trim().replace(/^["']|["']$/g, '');
-          email = angle[2].trim().toLowerCase();
-        } else {
-          // No <>. Split on the LAST whitespace/comma so name can include spaces.
+        if (angle) { name = angle[1].trim().replace(/^["']|["']$/g, ''); email = angle[2].trim().toLowerCase(); }
+        else {
           const m = tok.match(/^(.*?)[\s,]+([^\s,]+)$/);
           if (m && isEmail(m[2])) { name = m[1].trim().replace(/^["']|["']$/g, ''); email = m[2].toLowerCase(); }
           else if (isEmail(tok)) { email = tok.toLowerCase(); }
         }
-        if (!isEmail(email)) continue;
-        if (seen.has(email)) continue;
-        seen.add(email);
-        out.push({ name, email });
+        if (!isEmail(email) || seen.has(email)) continue;
+        seen.add(email); out.push({ name, email });
       }
     }
     return out;
   }
-  const emailEl = document.getElementById('i-email');
-  const countEl = document.getElementById('i-email-count');
-  const previewEmailEl = document.getElementById('i-email-preview');
-  function updateEmailCount() {
-    const list = parseRecipients(emailEl.value);
+
+  function gatherRecipients() {
+    const rows = [...recipientsEl.querySelectorAll('.invite-recipient-row')];
+    const out = []; const seen = new Set();
+    for (const row of rows) {
+      const name = row.querySelector('.invite-r-name').value.trim();
+      const email = row.querySelector('.invite-r-email').value.trim().toLowerCase();
+      if (!isEmail(email)) continue;
+      if (seen.has(email)) continue;
+      seen.add(email); out.push({ name, email });
+    }
+    return out;
+  }
+
+  function refreshRowsState() {
+    const list = gatherRecipients();
     countEl.textContent = list.length + ' valid recipient' + (list.length === 1 ? '' : 's');
     countEl.style.color = list.length ? 'var(--accent)' : 'var(--text-dim)';
-    if (!list.length) { previewEmailEl.style.display = 'none'; return; }
-    previewEmailEl.style.display = 'block';
-    const globalName = (document.getElementById('i-fname')?.value || '').trim();
-    previewEmailEl.innerHTML = `
-      <div style="margin-top:8px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;max-height:140px;overflow-y:auto;">
-        <div style="font-size:0.72rem;color:var(--text-muted);font-weight:600;margin-bottom:6px;">Parsed recipients (${list.length})</div>
-        ${list.map(r => {
-          const effectiveName = r.name || globalName;
-          return `<div style="display:flex;align-items:center;gap:8px;padding:3px 0;font-size:0.78rem;border-bottom:1px solid var(--border);">
-            <span style="font-weight:600;color:${effectiveName ? 'var(--text)' : 'var(--text-dim)'};min-width:140px;">${escapeHtml(effectiveName || '(no name — global First name applies)')}</span>
-            <span style="color:var(--text-muted);">${escapeHtml(r.email)}</span>
-          </div>`;
-        }).join('')}
-      </div>`;
+    // Show / hide remove buttons: hide × on the only row when both fields are empty.
+    const rows = [...recipientsEl.querySelectorAll('.invite-recipient-row')];
+    if (rows.length === 1) rows[0].querySelector('.invite-r-remove').style.visibility = 'hidden';
+    else rows.forEach(r => r.querySelector('.invite-r-remove').style.visibility = 'visible');
   }
-  emailEl.addEventListener('input', updateEmailCount);
-  // Also re-render when global First name changes (it's the fallback).
-  document.getElementById('i-fname').addEventListener('input', updateEmailCount);
+
+  // Start with one empty row.
+  addRow();
+  document.getElementById('i-add-row').addEventListener('click', () => {
+    addRow().querySelector('.invite-r-name').focus();
+  });
 
   document.getElementById('i-send').addEventListener('click', async () => {
     const msg = document.getElementById('i-msg');
     const sendBtn = document.getElementById('i-send');
-    const recipients = parseRecipients(emailEl.value);
+    const recipients = gatherRecipients();
     if (!recipients.length) {
-      msg.className = 'ax-msg err'; msg.textContent = 'Please enter at least one valid email.';
+      msg.className = 'ax-msg err'; msg.textContent = 'Please add at least one recipient with a valid email.';
       return;
     }
-    const globalFirstName = document.getElementById('i-fname').value.trim();
     const selectedRoles = selectedRoleIds();
     const is_admin = adminEl.checked;
     if (!is_admin && !selectedRoles.length && !confirm('No roles selected — these invitees will have no access at first. Send anyway?')) {
@@ -1643,11 +1687,8 @@ plain@ridleyacademy.team" class="invite-input-lg" autocomplete="off" spellcheck=
     let ok = 0, failed = 0; const failures = [];
     for (let i = 0; i < recipients.length; i++) {
       const { name, email } = recipients[i];
-      // Per-recipient first name beats the global fallback. The "first name"
-      // we send is the first token of whatever the user typed.
-      const effectiveName = (name || globalFirstName || '').trim();
-      const first_name = effectiveName.split(/\s+/)[0] || '';
-      msg.className = 'ax-msg'; msg.textContent = `Sending ${i + 1} / ${recipients.length}: ${effectiveName ? effectiveName + ' · ' : ''}${email}…`;
+      const first_name = (name || '').trim().split(/\s+/)[0] || '';
+      msg.className = 'ax-msg'; msg.textContent = `Sending ${i + 1} / ${recipients.length}: ${name ? name + ' · ' : ''}${email}…`;
       try {
         const r = await fetch(INVITE_BASE, {
           method: 'POST',
@@ -1669,6 +1710,5 @@ plain@ridleyacademy.team" class="invite-input-lg" autocomplete="off" spellcheck=
     }
   });
 
-  updateEmailCount();
   refreshPreview();
 }

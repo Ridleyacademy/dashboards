@@ -215,6 +215,43 @@
   .invite-send-btn { flex: 1; padding: 12px; font-size: 0.92rem; }
   .pill-admin { background: rgba(251,191,36,.18); color: #fbbf24; font-weight: 700; }
 
+  /* Invite — row-based recipient editor */
+  .invite-recipients { display: flex; flex-direction: column; gap: 6px; }
+  .invite-recipient-row {
+    display: grid;
+    grid-template-columns: 180px 1fr auto;
+    gap: 6px;
+    align-items: stretch;
+  }
+  .invite-recipient-row input {
+    padding: 8px 10px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    color: var(--text);
+    font-size: 0.84rem;
+  }
+  .invite-recipient-row input:focus { border-color: var(--blue); outline: none; }
+  .invite-r-remove {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--text-dim); border-radius: 7px;
+    cursor: pointer; font-size: 1rem; line-height: 1; width: 32px;
+    transition: all .12s;
+  }
+  .invite-r-remove:hover { color: var(--red); border-color: var(--red); background: rgba(248,113,113,.08); }
+  .invite-add-row {
+    align-self: flex-start; margin-top: 4px;
+    padding: 6px 12px; background: transparent;
+    border: 1px dashed var(--border); border-radius: 7px;
+    color: var(--text-dim); font-size: 0.78rem; font-weight: 600;
+    cursor: pointer;
+  }
+  .invite-add-row:hover { color: var(--accent); border-color: var(--accent); }
+  @media (max-width: 560px) {
+    .invite-recipient-row { grid-template-columns: 1fr; }
+    .invite-r-remove { width: 100%; height: 32px; }
+  }
+
   /* User editor — post pills */
   .user-post-pill {
     display: flex; align-items: center; gap: 8px;

@@ -471,6 +471,7 @@ function openUserEditor(uid) {
 
     <div class="ax-actions">
       <button class="btn-primary" id="u-save">Save roles &amp; admin</button>
+      <button class="btn-ghost"  id="u-view-as" title="See the app as this user (read-only impersonation)">👁 View as</button>
       <button class="btn-ghost"  id="u-reset-pw">📧 Send password reset</button>
       <button class="btn-ghost"  id="u-revoke">↻ Refresh access</button>
       <button class="btn-ghost"  style="color:var(--red);" id="u-delete">Delete user</button>
@@ -519,6 +520,18 @@ function openUserEditor(uid) {
   document.getElementById('u-save').addEventListener('click', () => saveUser(uid));
   document.getElementById('u-revoke').addEventListener('click', () => revokeUserSession(uid));
   document.getElementById('u-delete').addEventListener('click', () => deleteUser(uid));
+  document.getElementById('u-view-as').addEventListener('click', () => {
+    if (uid === session?.user?.id) { toast("That's already you.", 'info'); return; }
+    if (typeof window.uxImpersonate !== 'function') {
+      toast('Impersonation helper not loaded. Try reloading the page.', 'err'); return;
+    }
+    window.uxImpersonate({
+      id: uid,
+      email: u.email,
+      is_admin: !!u.is_admin,
+      permissions: u.permissions_legacy || [],
+    });
+  });
   document.getElementById('u-reset-pw').addEventListener('click', async () => {
     if (!confirm('Send a password-reset email to ' + (u.email || 'this user') + '?')) return;
     try {

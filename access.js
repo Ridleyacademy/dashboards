@@ -88,19 +88,28 @@ async function api(path, opts = {}) {
 }
 
 async function refreshAll() {
+  // Catalog is required (roles + permissions drive every tab). Org structure
+  // is nice-to-have so the Users tab can render Posts without flipping tabs;
+  // but if anything in the org-data fetch hangs/errors we don't want the
+  // whole page stuck. Fall back to empty arrays and let loadOrgTab fill them
+  // properly later.
   try {
-    // Load catalog + org structure in parallel so the Users tab's "Posts"
-    // section can render correctly even before the user visits Org Board.
-    const [catalog, divRes, depRes, postRes, holderRes] = await Promise.all([
-      api('?api=catalog'),
-      api('?api=divisions'),
-      api('?api=departments'),
-      api('?api=posts'),
-      api('?api=post-holders'),
-    ]);
+    const catalog = await api('?api=catalog');
     permissions = catalog.permissions || [];
     roles = catalog.roles || [];
     rolePerms = catalog.role_permissions || [];
+  } catch (e) {
+    document.getElementById('axList').innerHTML = `<div style="padding:14px;color:var(--red);font-size:0.84rem;">${escapeHtml(e.message)}</div>`;
+    return;
+  }
+  // Best-effort org preload — never throws.
+  try {
+    const [divRes, depRes, postRes, holderRes] = await Promise.all([
+      api('?api=divisions').catch(() => ({ rows: [] })),
+      api('?api=departments').catch(() => ({ rows: [] })),
+      api('?api=posts').catch(() => ({ rows: [] })),
+      api('?api=post-holders').catch(() => ({ rows: [] })),
+    ]);
     divisionsData = divRes.rows || [];
     departmentsData = depRes.rows || [];
     postsData = postRes.rows || [];
@@ -109,8 +118,9 @@ async function refreshAll() {
       if (row.ended_at) continue;
       (activeHoldersByPost[row.post_id] ||= []).push(row);
     }
-    await refreshTab();
-  } catch (e) {
+  } catch (_) { /* swallow — Users tab still works without org structure */ }
+  try { await refreshTab(); }
+  catch (e) {
     document.getElementById('axList').innerHTML = `<div style="padding:14px;color:var(--red);font-size:0.84rem;">${escapeHtml(e.message)}</div>`;
   }
 }
@@ -1409,8 +1419,10 @@ function openInviteModal(prefillFromUid) {
       </div>
 
       <div class="invite-section">
-        <label class="invite-label">Email <span class="invite-required">*</span></label>
-        <input id="i-email" type="email" placeholder="name@ridleyacademy.team" class="invite-input-lg" autocomplete="off">
+        <label class="invite-label">Email(s) <span class="invite-required">*</span> <span class="invite-hint">(one per line, or comma / space separated — all share the same roles)</span></label>
+        <textarea id="i-email" rows="3" placeholder="name@ridleyacademy.team
+another@ridleyacademy.team" class="invite-input-lg" autocomplete="off" spellcheck="false" style="font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;line-height:1.4;"></textarea>
+        <span class="invite-hint" id="i-email-count" style="color:var(--text-dim);">0 valid recipients</span>
       </div>
 
       <div class="invite-grid-2">
@@ -1543,33 +1555,68 @@ function openInviteModal(prefillFromUid) {
 
   document.getElementById('i-cancel').addEventListener('click', closeModal);
 
+  // Parse a textarea blob of emails (newline / comma / space / semicolon) into
+  // a deduplicated, lower-cased list of valid-looking addresses.
+  function parseEmails(blob) {
+    return [...new Set(
+      (blob || '').split(/[\s,;]+/g).map(s => s.trim().toLowerCase()).filter(s => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s))
+    )];
+  }
+  const emailEl = document.getElementById('i-email');
+  const countEl = document.getElementById('i-email-count');
+  function updateEmailCount() {
+    const list = parseEmails(emailEl.value);
+    countEl.textContent = list.length + ' valid recipient' + (list.length === 1 ? '' : 's');
+    countEl.style.color = list.length ? 'var(--accent)' : 'var(--text-dim)';
+  }
+  emailEl.addEventListener('input', updateEmailCount);
+
   document.getElementById('i-send').addEventListener('click', async () => {
     const msg = document.getElementById('i-msg');
-    msg.className = 'ax-msg'; msg.textContent = 'Sending…';
-    try {
-      const email = document.getElementById('i-email').value.trim().toLowerCase();
-      if (!email.includes('@')) throw new Error('Please enter a valid email.');
-      const first_name = document.getElementById('i-fname').value.trim();
-      const selectedRoles = selectedRoleIds();
-      const is_admin = adminEl.checked;
-      if (!is_admin && !selectedRoles.length && !confirm('No roles selected — this user will have no access at first. Send anyway?')) {
-        msg.className = 'ax-msg'; msg.textContent = '';
-        return;
-      }
-      // Derive legacy `permissions` array from selected roles' slugs so the
-      // existing invite flow / activation continues to work.
-      const legacyPerms = [...new Set(selectedRoles.map(rid => roles.find(r => r.id === rid)?.slug).filter(Boolean))];
-      const r = await fetch(INVITE_BASE, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
-        body: JSON.stringify({ email, first_name, permissions: legacyPerms, is_admin }),
-      });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error || 'invite failed');
-      msg.className = 'ax-msg ok'; msg.textContent = '✓ Invite sent';
-      setTimeout(() => { closeModal(); loadUsersTab(); }, 800);
-    } catch (e) { msg.className = 'ax-msg err'; msg.textContent = e.message; }
+    const sendBtn = document.getElementById('i-send');
+    const emails = parseEmails(emailEl.value);
+    if (!emails.length) {
+      msg.className = 'ax-msg err'; msg.textContent = 'Please enter at least one valid email.';
+      return;
+    }
+    const first_name = document.getElementById('i-fname').value.trim();
+    const selectedRoles = selectedRoleIds();
+    const is_admin = adminEl.checked;
+    if (!is_admin && !selectedRoles.length && !confirm('No roles selected — these invitees will have no access at first. Send anyway?')) {
+      msg.className = 'ax-msg'; msg.textContent = '';
+      return;
+    }
+    if (emails.length > 1 && first_name && !confirm(`You set First name = "${first_name}" but you're inviting ${emails.length} people — they'll all get that same first name. Continue?`)) {
+      return;
+    }
+    const legacyPerms = [...new Set(selectedRoles.map(rid => roles.find(r => r.id === rid)?.slug).filter(Boolean))];
+
+    sendBtn.disabled = true;
+    let ok = 0, failed = 0; const failures = [];
+    for (let i = 0; i < emails.length; i++) {
+      const email = emails[i];
+      msg.className = 'ax-msg'; msg.textContent = `Sending ${i + 1} / ${emails.length}: ${email}…`;
+      try {
+        const r = await fetch(INVITE_BASE, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+          body: JSON.stringify({ email, first_name, permissions: legacyPerms, is_admin }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) { failed++; failures.push({ email, error: j.error || ('HTTP ' + r.status) }); }
+        else { ok++; }
+      } catch (e) { failed++; failures.push({ email, error: e.message || String(e) }); }
+    }
+    sendBtn.disabled = false;
+    if (failed === 0) {
+      msg.className = 'ax-msg ok'; msg.textContent = `✓ Sent ${ok} invite${ok === 1 ? '' : 's'}`;
+      setTimeout(() => { closeModal(); loadUsersTab(); }, 900);
+    } else {
+      msg.className = 'ax-msg err';
+      msg.innerHTML = `Sent ${ok}, failed ${failed}.<br><small style="color:var(--text-dim);">${failures.map(f => `<strong>${escapeHtml(f.email)}</strong>: ${escapeHtml(f.error)}`).join('<br>')}</small>`;
+    }
   });
 
+  updateEmailCount();
   refreshPreview();
 }

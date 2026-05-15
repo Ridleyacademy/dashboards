@@ -2212,21 +2212,109 @@ async function deleteRepMappingById(id) {
 // ═══════════════════════════════════════════════════════════════════════
 // ACTIVITY TAB
 // ═══════════════════════════════════════════════════════════════════════
+// Action codes → friendly { icon, label }. Each label completes the sentence
+// "Carlos [label] [target]" so it should read naturally even when the
+// target is appended (e.g. "Carlos updated student #996").
+//
+// The `target` field of each entry is an optional formatter (id) → string
+// used to turn a bare ID into something readable.
 const ACT_LABELS = {
-  'declaration.create':      { icon: '📝', label: 'created declaration' },
-  'declaration.update':      { icon: '✏️', label: 'edited declaration' },
-  'declaration.delete':      { icon: '🗑️', label: 'deleted declaration' },
-  'declaration.auto_assign': { icon: '🤖', label: 'auto-assigned declarations' },
-  'declaration.auto_import': { icon: '🤖', label: 'auto-imported declarations' },
-  'user.invite':             { icon: '✉️', label: 'invited' },
-  'user.delete':             { icon: '🗑️', label: 'deleted user' },
-  'user.permissions_change': { icon: '🔐', label: 'changed permissions for' },
-  'user.force_logout':       { icon: '🚪', label: 'force-logged-out' },
-  'rep_mapping.set':         { icon: '🧩', label: 'updated rep mapping' },
-  'rep_mapping.delete':      { icon: '🧩', label: 'deleted rep mapping' },
-  'dashboard.archive':       { icon: '📦', label: 'archived dashboard' },
-  'dashboard.unarchive':     { icon: '📦', label: 'unarchived dashboard' },
+  // Declarations
+  'declaration.create':         { icon: '📝', label: 'created a declaration',          target: id => 'on row #' + id },
+  'declaration.update':         { icon: '✏️', label: 'edited a declaration',           target: id => 'on row #' + id },
+  'declaration.delete':         { icon: '🗑️', label: 'deleted a declaration',          target: id => 'row #' + id },
+  'declaration.auto_assign':    { icon: '🤖', label: 'auto-assigned declarations',     target: () => '(batch)' },
+  'declaration.auto_import':    { icon: '🤖', label: 'auto-imported declarations',     target: () => '(batch)' },
+
+  // Users / invites
+  'user.invite':                { icon: '✉️', label: 'invited',                        target: id => id },
+  'user.delete':                { icon: '🗑️', label: 'deleted user',                   target: id => id },
+  'user.permissions_change':    { icon: '🔐', label: 'changed permissions for',        target: id => id },
+  'user.force_logout':          { icon: '🚪', label: 'force-logged-out',                target: id => id },
+  'user.activate':              { icon: '🎉', label: 'activated their account' },
+  'user.signup':                { icon: '🆕', label: 'signed up' },
+  'user.signin':                { icon: '🔑', label: 'signed in' },
+
+  // Rep mappings
+  'rep_mapping.set':            { icon: '🧩', label: 'updated rep mapping',             target: id => 'for ' + id },
+  'rep_mapping.delete':         { icon: '🧩', label: 'deleted rep mapping',             target: id => '#' + id },
+
+  // Dashboards
+  'dashboard.archive':          { icon: '📦', label: 'archived dashboard',              target: id => id },
+  'dashboard.unarchive':        { icon: '📦', label: 'unarchived dashboard',            target: id => id },
+
+  // Mentorship CRM
+  'mentorship.create':          { icon: '➕', label: 'added a new student',             target: id => '#' + id },
+  'mentorship.update':          { icon: '✏️', label: 'updated student',                 target: id => '#' + id },
+  'mentorship.delete':          { icon: '🗑️', label: 'deleted student',                target: id => '#' + id },
+  'mentorship.bulk_update':     { icon: '✏️', label: 'bulk-updated students',           target: () => '(many)' },
+  'mentorship.refund':          { icon: '💸', label: 'marked refunded',                 target: id => 'student #' + id },
+  'mentorship.resign':          { icon: '🔁', label: 'logged a resign on',              target: id => 'student #' + id },
+  'mentorship.pause':           { icon: '⏸️', label: 'paused',                          target: id => 'student #' + id },
+  'mentorship.unpause':         { icon: '▶️', label: 'unpaused',                        target: id => 'student #' + id },
+  'mentorship.assign_coach':    { icon: '🧑‍🏫', label: 'reassigned coach for',          target: id => 'student #' + id },
+  'mentorship.add_win':         { icon: '🏆', label: 'logged a win for',                target: id => 'student #' + id },
+  'mentorship.delete_win':      { icon: '🗑️', label: 'removed a win from',              target: id => 'student #' + id },
+  'mentorship.add_activity':    { icon: '📜', label: 'logged activity on',              target: id => 'student #' + id },
+  'mentorship.delete_activity': { icon: '🗑️', label: 'removed an activity from',        target: id => 'student #' + id },
+  'mentorship.ic_note_add':     { icon: '📝', label: 'added a note on',                 target: id => 'student #' + id },
+  'mentorship.ic_note_delete':  { icon: '🗑️', label: 'deleted a note from',             target: id => 'student #' + id },
+  'mentorship.add_alert':       { icon: '⚠️', label: 'opened an alert on',              target: id => 'student #' + id },
+  'mentorship.resolve_alert':   { icon: '✅', label: 'resolved an alert on',            target: id => 'student #' + id },
+  'mentorship.add_turnover':    { icon: '↪️', label: 'opened a turnover for',           target: id => 'student #' + id },
+  'mentorship.close_turnover':  { icon: '☑️', label: 'closed a turnover for',           target: id => 'student #' + id },
+  'mentorship.bulk_date':       { icon: '📅', label: 'bulk-set dates on students',      target: () => '(many)' },
+  'mentorship.export':          { icon: '📤', label: 'exported students CSV' },
+
+  // Coach board
+  'coach.bulk_date':            { icon: '📅', label: 'bulk-set dates from coach board', target: () => '(many)' },
+  'coach.add_note':             { icon: '📝', label: 'added a coach-board note on',     target: id => 'student #' + id },
+  'coach.log_assignment':       { icon: '📚', label: 'logged an assignment for',        target: id => 'student #' + id },
+  'coach.log_zoom':             { icon: '📹', label: 'logged a Zoom session for',       target: id => 'student #' + id },
+
+  // Zoom
+  'zoom.create':                { icon: '📹', label: 'scheduled a Zoom call for',       target: id => 'student #' + id },
+  'zoom.reschedule':            { icon: '🔄', label: 'rescheduled a Zoom call for',     target: id => 'student #' + id },
+  'zoom.cancel':                { icon: '❌', label: 'cancelled a Zoom call for',       target: id => 'student #' + id },
+
+  // Email automations
+  'email_automation.create':    { icon: '✉️', label: 'created an automation',           target: id => '#' + id },
+  'email_automation.update':    { icon: '✉️', label: 'edited an automation',            target: id => '#' + id },
+  'email_automation.delete':    { icon: '🗑️', label: 'deleted an automation',           target: id => '#' + id },
+  'email_automation.broadcast': { icon: '📣', label: 'broadcast an automation',         target: id => '#' + id },
+  'email_automation.test_fire': { icon: '🧪', label: 'test-fired an automation',        target: id => '#' + id },
+
+  // Org
+  'org.division_create':        { icon: '🏛', label: 'created division',                target: id => id },
+  'org.division_update':        { icon: '✏️', label: 'updated division',                target: id => id },
+  'org.division_delete':        { icon: '🗑️', label: 'deleted division',                target: id => id },
+  'org.department_create':      { icon: '📂', label: 'created department',              target: id => id },
+  'org.department_update':      { icon: '✏️', label: 'updated department',              target: id => id },
+  'org.department_delete':      { icon: '🗑️', label: 'deleted department',              target: id => id },
+  'org.post_create':            { icon: '➕', label: 'created post',                    target: id => id },
+  'org.post_update':            { icon: '✏️', label: 'updated post',                    target: id => id },
+  'org.post_delete':            { icon: '🗑️', label: 'deleted post',                    target: id => id },
+  'org.post_assign':            { icon: '🪪', label: 'assigned a holder to post',       target: id => id },
 };
+
+// Format an activity-log row into a friendly text representation.
+// Returns { icon, verb, targetText, when, details }.
+function _formatActivity(r) {
+  const meta = ACT_LABELS[r.action] || { icon: '•', label: r.action };
+  let targetText = '';
+  if (r.target_id) {
+    targetText = meta.target ? meta.target(String(r.target_id)) : String(r.target_id);
+  }
+  // Some actions stash useful context in details (e.g. user.invite details.email).
+  let extra = '';
+  if (r.details && typeof r.details === 'object') {
+    if (r.details.email && r.action.startsWith('user.')) extra = r.details.email;
+    else if (r.details.name) extra = String(r.details.name);
+    else if (r.details.field) extra = String(r.details.field);
+  }
+  const when = r.ts || r.created_at;
+  return { icon: meta.icon, verb: meta.label, target: targetText || extra, when };
+}
 
 async function loadActivityTab() {
   const list = document.getElementById('activityList');
@@ -2241,20 +2329,24 @@ async function loadActivityTab() {
     const rows = j.rows || [];
     if (!rows.length) { list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-dim);font-size:0.84rem;">No activity found.</div>'; return; }
     list.innerHTML = rows.map(r => {
-      const meta = ACT_LABELS[r.action] || { icon: '•', label: r.action };
-      const when = new Date(r.created_at);
-      const whenStr = isNaN(when.getTime()) ? '' : when.toLocaleString();
-      const target = r.target_id ? `<span class="act-target">${escapeHtml(String(r.target_id))}</span>` : '';
-      const details = r.details ? `<div class="act-details">${escapeHtml(JSON.stringify(r.details).slice(0, 200))}</div>` : '';
-      return `<div class="act-row">
-        <span class="act-icon">${meta.icon}</span>
+      const f = _formatActivity(r);
+      const whenAbs = f.when ? new Date(f.when) : null;
+      const whenStr = whenAbs && !isNaN(whenAbs.getTime()) ? whenAbs.toLocaleString() : '';
+      const ago = _ago(f.when);
+      const target = f.target ? `<span class="act-target">${escapeHtml(f.target)}</span>` : '';
+      // Show a short JSON preview ONLY for unknown actions or when there are details beyond email/name.
+      const dRaw = r.details && typeof r.details === 'object' ? r.details : null;
+      const dKeys = dRaw ? Object.keys(dRaw).filter(k => !['email', 'name'].includes(k)) : [];
+      const details = dKeys.length ? `<div class="act-details">${escapeHtml(dKeys.map(k => `${k}: ${JSON.stringify(dRaw[k])}`).join(' · ').slice(0, 240))}</div>` : '';
+      return `<div class="act-row" title="${escapeHtml(whenStr)}">
+        <span class="act-icon">${f.icon}</span>
         <div class="act-body">
           <span class="act-actor">${escapeHtml(r.actor_email || r.actor_id || 'system')}</span>
-          <span class="act-verb">${escapeHtml(meta.label)}</span>
+          <span class="act-verb">${escapeHtml(f.verb)}</span>
           ${target}
           ${details}
         </div>
-        <span class="act-when">${escapeHtml(whenStr)}</span>
+        <span class="act-when">${escapeHtml(ago || whenStr)}</span>
       </div>`;
     }).join('');
   } catch (e) { list.innerHTML = `<div style="padding:14px;color:var(--red);font-size:0.84rem;">${escapeHtml(e.message)}</div>`; }
@@ -2462,7 +2554,10 @@ function renderSessions() {
         </div>
         ${recent.length ? `<div style="margin-top:8px;">
           <div style="font-size:0.7rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">Recent actions</div>
-          ${recent.map(r => `<div class="sess-act"><span class="sess-act-when">${escapeHtml(_ago(r.ts || r.created_at) || '—')}</span><span class="sess-act-what">${escapeHtml(r.action)}</span><span class="sess-act-target">${escapeHtml(r.target_id || '')}</span></div>`).join('')}
+          ${recent.map(r => {
+            const f = _formatActivity(r);
+            return `<div class="sess-act"><span class="sess-act-when">${escapeHtml(_ago(f.when) || '—')}</span><span class="sess-act-what">${escapeHtml(f.icon)} ${escapeHtml(f.verb)}</span><span class="sess-act-target">${escapeHtml(f.target || '')}</span></div>`;
+          }).join('')}
         </div>` : ''}
         <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;">
           <button class="small-btn sess-view-as"   data-uid="${s.id}" data-email="${escapeHtml(s.email || '')}" data-admin="${s.is_admin ? 1 : 0}" data-perms="${(s.permissions || []).join(',')}">👁 View as</button>

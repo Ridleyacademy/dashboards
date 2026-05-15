@@ -2746,18 +2746,8 @@ function renderSessions() {
           <div><span class="sess-k">Activity (7d)</span><span class="sess-v">${activityCount} action${activityCount === 1 ? '' : 's'}</span></div>
           <div><span class="sess-k">User ID</span><span class="sess-v" style="font-family:monospace;font-size:0.66rem;">${escapeHtml(s.id || '')}</span></div>
         </div>
-        ${recent.length ? `<div style="margin-top:8px;">
-          <div style="font-size:0.7rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">Recent actions</div>
-          ${recent.map(r => {
-            const f = _formatActivity(r);
-            return `<div class="sess-act-block">
-              <div class="sess-act"><span class="sess-act-when">${escapeHtml(_ago(f.when) || '—')}</span><span class="sess-act-what">${escapeHtml(f.icon)} ${escapeHtml(f.verb)}</span><span class="sess-act-target">${escapeHtml(f.target || '')}</span></div>
-              ${f.diff ? `<div class="sess-act-diff">${f.diff}</div>` : ''}
-              ${f.content || ''}
-            </div>`;
-          }).join('')}
-        </div>` : ''}
         <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;">
+          <button class="small-btn sess-activity" data-uid="${s.id}">📜 Activity history${activityCount ? ` (${activityCount} in 7d)` : ''}</button>
           <button class="small-btn sess-view-as"   data-uid="${s.id}" data-email="${escapeHtml(s.email || '')}" data-admin="${s.is_admin ? 1 : 0}" data-perms="${(s.permissions || []).join(',')}">👁 View as</button>
           <button class="small-btn sess-reset-pw"  data-email="${escapeHtml(s.email || '')}">📧 Send password reset</button>
           <button class="small-btn sess-open-user" data-uid="${s.id}">✏️ Open in Users</button>
@@ -2803,6 +2793,10 @@ function renderSessions() {
   }));
   // Action buttons inside the detail panel
   list.querySelectorAll('.sess-logout').forEach(btn => btn.addEventListener('click', e => { e.stopPropagation(); forceLogoutUser(btn); }));
+  list.querySelectorAll('.sess-activity').forEach(btn => btn.addEventListener('click', e => {
+    e.stopPropagation();
+    openUserActivityModal(btn.dataset.uid);
+  }));
   list.querySelectorAll('.sess-view-as').forEach(btn => btn.addEventListener('click', e => {
     e.stopPropagation();
     if (btn.dataset.uid === session?.user?.id) { toast("That's already you.", 'info'); return; }

@@ -773,9 +773,13 @@ function renderUserRepMap(uid) {
 // helper as the global Activity tab so the formatting (icon + verb + diff
 // + content block) is identical.
 async function openUserActivityModal(uid) {
-  const u = usersData.find(x => x.id === uid);
-  if (!u) { toast('User not found.', 'err'); return; }
-  const display = _displayOf(uid) || u.email;
+  // Fall back to sessionsRaw when the Users tab hasn't been visited yet
+  // (Sessions tab can call this without usersData being populated).
+  const u = usersData.find(x => x.id === uid)
+         || sessionsRaw.find(x => x.id === uid)
+         || null;
+  if (!u || !u.email) { toast('User not found.', 'err'); return; }
+  const display = (u.first_name && u.first_name.trim()) ? u.first_name.trim() : u.email;
   showModal(`
     <div class="invite-modal" style="max-height:80vh;">
       <div class="invite-header">

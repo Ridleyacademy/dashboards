@@ -2298,22 +2298,61 @@ const ACT_LABELS = {
 };
 
 // Format an activity-log row into a friendly text representation.
-// Returns { icon, verb, targetText, when, details }.
+// Returns { icon, verb, target, when, diff }.
+// `diff` is HTML for the field-level changes when available (or null).
 function _formatActivity(r) {
   const meta = ACT_LABELS[r.action] || { icon: '•', label: r.action };
-  let targetText = '';
+  const d = (r.details && typeof r.details === 'object') ? r.details : {};
+  // Build a friendly target. If the entry carries a `name`, prefer "name #id".
+  let target = '';
   if (r.target_id) {
-    targetText = meta.target ? meta.target(String(r.target_id)) : String(r.target_id);
+    const idPart = meta.target ? meta.target(String(r.target_id)) : String(r.target_id);
+    target = d.name ? `${d.name} (${idPart})` : idPart;
+  } else if (d.name) {
+    target = String(d.name);
+  } else if (d.email && r.action.startsWith('user.')) {
+    target = String(d.email);
+  } else if (d.field) {
+    target = String(d.field);
   }
-  // Some actions stash useful context in details (e.g. user.invite details.email).
-  let extra = '';
-  if (r.details && typeof r.details === 'object') {
-    if (r.details.email && r.action.startsWith('user.')) extra = r.details.email;
-    else if (r.details.name) extra = String(r.details.name);
-    else if (r.details.field) extra = String(r.details.field);
+  // Build the field-level diff when available. Two shapes supported:
+  //  (a) details.changes = [{field, before, after}, …]   ← richest (students v49+)
+  //  (b) details.fields  = [field, …]                    ← just names (v48)
+  let diff = null;
+  if (Array.isArray(d.changes) && d.changes.length) {
+    diff = d.changes.slice(0, 8).map(c => {
+      const before = _fmtVal(c.before);
+      const after  = _fmtVal(c.after);
+      return `<span class="act-diff-item"><span class="act-diff-field">${escapeHtml(_humanField(c.field))}</span>` +
+             `<span class="act-diff-before">${before}</span>` +
+             `<span class="act-diff-arrow">→</span>` +
+             `<span class="act-diff-after">${after}</span></span>`;
+    }).join('') + (d.changes.length > 8 ? `<span class="act-diff-more">+${d.changes.length - 8} more</span>` : '');
+  } else if (Array.isArray(d.fields) && d.fields.length) {
+    // Fallback while students v48 is still deployed.
+    diff = `<span class="act-diff-fallback">changed: ${d.fields.slice(0, 8).map(f => `<span class="act-diff-field">${escapeHtml(_humanField(f))}</span>`).join(', ')}${d.fields.length > 8 ? ` (+${d.fields.length - 8} more)` : ''}</span>`;
   }
   const when = r.ts || r.created_at;
-  return { icon: meta.icon, verb: meta.label, target: targetText || extra, when };
+  return { icon: meta.icon, verb: meta.label, target, when, diff };
+}
+
+// Format a single before/after value for inline display.
+function _fmtVal(v) {
+  if (v === null || v === undefined || v === '') return '<em class="act-diff-empty">empty</em>';
+  if (v === true) return 'Yes';
+  if (v === false) return 'No';
+  if (typeof v === 'number') return String(v);
+  if (typeof v === 'string') {
+    // Truncate long values
+    const s = v.length > 60 ? v.slice(0, 60) + '…' : v;
+    return escapeHtml(s);
+  }
+  try { return escapeHtml(JSON.stringify(v).slice(0, 60)); } catch { return '?'; }
+}
+
+// Make snake_case field names human-readable.
+function _humanField(f) {
+  return String(f || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
 async function loadActivityTab() {
@@ -2334,17 +2373,15 @@ async function loadActivityTab() {
       const whenStr = whenAbs && !isNaN(whenAbs.getTime()) ? whenAbs.toLocaleString() : '';
       const ago = _ago(f.when);
       const target = f.target ? `<span class="act-target">${escapeHtml(f.target)}</span>` : '';
-      // Show a short JSON preview ONLY for unknown actions or when there are details beyond email/name.
-      const dRaw = r.details && typeof r.details === 'object' ? r.details : null;
-      const dKeys = dRaw ? Object.keys(dRaw).filter(k => !['email', 'name'].includes(k)) : [];
-      const details = dKeys.length ? `<div class="act-details">${escapeHtml(dKeys.map(k => `${k}: ${JSON.stringify(dRaw[k])}`).join(' · ').slice(0, 240))}</div>` : '';
       return `<div class="act-row" title="${escapeHtml(whenStr)}">
         <span class="act-icon">${f.icon}</span>
         <div class="act-body">
-          <span class="act-actor">${escapeHtml(r.actor_email || r.actor_id || 'system')}</span>
-          <span class="act-verb">${escapeHtml(f.verb)}</span>
-          ${target}
-          ${details}
+          <div>
+            <span class="act-actor">${escapeHtml(r.actor_email || r.actor_id || 'system')}</span>
+            <span class="act-verb">${escapeHtml(f.verb)}</span>
+            ${target}
+          </div>
+          ${f.diff ? `<div class="act-diff">${f.diff}</div>` : ''}
         </div>
         <span class="act-when">${escapeHtml(ago || whenStr)}</span>
       </div>`;
@@ -2556,7 +2593,10 @@ function renderSessions() {
           <div style="font-size:0.7rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">Recent actions</div>
           ${recent.map(r => {
             const f = _formatActivity(r);
-            return `<div class="sess-act"><span class="sess-act-when">${escapeHtml(_ago(f.when) || '—')}</span><span class="sess-act-what">${escapeHtml(f.icon)} ${escapeHtml(f.verb)}</span><span class="sess-act-target">${escapeHtml(f.target || '')}</span></div>`;
+            return `<div class="sess-act-block">
+              <div class="sess-act"><span class="sess-act-when">${escapeHtml(_ago(f.when) || '—')}</span><span class="sess-act-what">${escapeHtml(f.icon)} ${escapeHtml(f.verb)}</span><span class="sess-act-target">${escapeHtml(f.target || '')}</span></div>
+              ${f.diff ? `<div class="sess-act-diff">${f.diff}</div>` : ''}
+            </div>`;
           }).join('')}
         </div>` : ''}
         <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;">

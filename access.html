@@ -396,6 +396,32 @@
   .act-when { font-size: 0.7rem; color: var(--text-dim); white-space: nowrap; }
   .act-details { font-size: 0.72rem; color: var(--text-muted); margin-top: 4px; }
 
+  /* Field-level diff in activity rows */
+  .act-diff, .sess-act-diff {
+    margin-top: 4px; padding-top: 4px;
+    display: flex; flex-wrap: wrap; gap: 4px 10px;
+    font-size: 0.72rem;
+  }
+  .act-diff-item {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: var(--surface2); border: 1px solid var(--border);
+    padding: 2px 8px; border-radius: 999px;
+  }
+  .act-diff-field {
+    font-weight: 700; color: var(--text-muted);
+    font-size: 0.66rem; text-transform: uppercase; letter-spacing: .04em;
+  }
+  .act-diff-before { color: var(--text-dim); }
+  .act-diff-arrow  { color: var(--blue); font-weight: 700; }
+  .act-diff-after  { color: var(--text); font-weight: 600; }
+  .act-diff-empty  { color: var(--text-dim); font-style: italic; opacity: 0.7; }
+  .act-diff-fallback { color: var(--text-muted); font-size: 0.72rem; }
+  .act-diff-fallback .act-diff-field { background: var(--surface3); padding: 1px 6px; border-radius: 4px; margin-right: 4px; }
+  .act-diff-more { color: var(--text-dim); font-style: italic; align-self: center; }
+  .sess-act-block { padding: 4px 0; border-bottom: 1px dashed var(--border); }
+  .sess-act-block:last-child { border-bottom: 0; }
+  .sess-act-block .sess-act { border-bottom: 0; padding: 2px 0; }
+
   /* Sessions stats bar */
   .sess-stats {
     display: flex; gap: 8px; flex-wrap: wrap;

@@ -420,7 +420,7 @@ function openRoleEditor(rid) {
   const gridHtml = Object.keys(byDashboard).sort().map(d => `
     <div class="perm-grid-dashboard">${escapeHtml(d)}</div>
     <div class="perm-grid-actions">
-      ${byDashboard[d].map(p => `<span class="perm-chip ${currentPermKeys.has(p.key) ? 'on' : ''}" data-perm-key="${p.key}" title="${escapeHtml(p.description || '')}">${escapeHtml(p.action)}</span>`).join('')}
+      ${byDashboard[d].map(p => `<span class="perm-chip ${currentPermKeys.has(p.key) ? 'on' : ''}" data-perm-key="${p.key}" title="${escapeHtml(p.description || p.key || '')}">${escapeHtml(p.label || p.action)}</span>`).join('')}
     </div>
   `).join('');
 

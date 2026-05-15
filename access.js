@@ -5,6 +5,19 @@
 const SUPABASE_URL = "https://pojqljrhhtnigyrtzdzz.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBvanFsanJoaHRuaWd5cnR6ZHp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTA3ODMsImV4cCI6MjA5MTM4Njc4M30.PcSBDqOzbiZxZ7IAs5efqx0gsAlAG0cj3GqUOkAmxos";
 const AC_BASE = SUPABASE_URL + '/functions/v1/access-control';
+const ADMIN_API_BASE = SUPABASE_URL + '/functions/v1/admin-api';
+// Thin wrapper to call the legacy admin-api function (used by the new
+// Activity / Sessions panes — these endpoints don't live in access-control).
+async function adminApi(path, opts = {}) {
+  const r = await fetch(ADMIN_API_BASE + path, {
+    method: opts.method || 'GET',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+  return j;
+}
 const INVITE_BASE = SUPABASE_URL + '/functions/v1/invite';
 const supa = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
 window.__ridleySession = null;
@@ -133,15 +146,21 @@ async function refreshAll() {
 // once before refreshTab — otherwise the "+ Invite user" button stays
 // hidden until the user clicks a tab.
 function applyTabChrome(tab) {
-  document.body.dataset.tab = tab; // toggles CSS for full-width org board
+  document.body.dataset.tab = tab; // toggles CSS for full-width panes
   document.querySelectorAll('.ax-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
   const titleEl = document.getElementById('axListTitle');
-  if (titleEl) titleEl.textContent = tab === 'users' ? 'Users' : tab === 'roles' ? 'Roles' : 'Org Board';
+  if (titleEl) titleEl.textContent =
+    tab === 'users' ? 'Users' :
+    tab === 'roles' ? 'Roles' :
+    tab === 'org'   ? 'Org Board' :
+    tab === 'reps'  ? 'Rep Mapping' :
+    tab === 'activity' ? 'Activity' :
+    tab === 'sessions' ? 'Sessions' : '';
   const addBtn = document.getElementById('axAddBtn');
   if (!addBtn) return;
-  // Org tab uses the full-width board (no list/detail split). Users tab uses
-  // the shared button as the + Invite user entry point. Roles keeps + Role.
-  if (tab === 'org') {
+  // Tabs with their own full-width view (no left list / right detail) hide
+  // the shared add-button. Users keeps it as + Invite user, Roles as + Role.
+  if (['org', 'reps', 'activity', 'sessions'].includes(tab)) {
     addBtn.style.display = 'none';
   } else if (tab === 'users') {
     addBtn.style.display = '';
@@ -167,6 +186,9 @@ async function refreshTab() {
   if (activeTab === 'users') return loadUsersTab();
   if (activeTab === 'roles') return loadRolesTab();
   if (activeTab === 'org')   return loadOrgTab();
+  if (activeTab === 'reps')      return loadRepMapTab();
+  if (activeTab === 'activity')  return loadActivityTab();
+  if (activeTab === 'sessions')  return loadSessionsTab();
 }
 
 function onAddInTab() {
@@ -1723,3 +1745,264 @@ function openInviteModal(prefillFromUid) {
 
   refreshPreview();
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// REP MAPPING TAB
+// ═══════════════════════════════════════════════════════════════════════
+let repMapAllUsers = [];
+
+async function loadRepMapTab() {
+  const list = document.getElementById('repMapList');
+  list.innerHTML = '<div style="padding:14px;color:var(--text-dim);font-size:0.84rem;">Loading…</div>';
+  try {
+    // Profiles + linkable users come from access-control. Unassigned names
+    // (callout) lives in admin-api still, so fetch in parallel best-effort.
+    const [rRes, uRes] = await Promise.all([
+      api('?api=rep-mappings'),
+      adminApi('?api=unassigned-names').catch(() => null),
+    ]);
+    const { profiles = [], users = [] } = rRes;
+    repMapAllUsers = users;
+
+    // Datalist for the create form
+    if (uRes?.allCallsReps) {
+      document.getElementById('repMapNameList').innerHTML =
+        uRes.allCallsReps.map(n => `<option value="${escapeHtml(n)}">`).join('');
+    }
+    // Unassigned callout
+    const callout = document.getElementById('repMapUnassigned');
+    if (uRes) {
+      const total = (uRes.unassignedCallsReps?.length || 0) + (uRes.unassignedAffiliates?.length || 0);
+      document.getElementById('repMapUnassignedCount').textContent = String(total);
+      if (total) {
+        callout.style.display = 'block';
+        document.getElementById('repMapUnassignedCalls').innerHTML =
+          (uRes.unassignedCallsReps || []).map(n => `<span class="unassigned-chip" data-type="calls">${escapeHtml(n)}</span>`).join('') ||
+          '<span style="color:var(--text-dim);font-size:0.72rem;">All mapped ✓</span>';
+        const affs = uRes.unassignedAffiliates || [];
+        document.getElementById('repMapUnassignedAff').innerHTML =
+          affs.slice(0, 40).map(a => `<span class="unassigned-chip" data-type="aff">${escapeHtml(a)}</span>`).join('') +
+          (affs.length > 40 ? `<span style="color:var(--text-dim);font-size:0.72rem;"> +${affs.length - 40} more</span>` : '');
+      } else { callout.style.display = 'none'; }
+    } else {
+      callout.style.display = 'none';
+    }
+
+    if (!profiles.length) {
+      list.innerHTML = '<div style="color:var(--text-dim);font-size:0.84rem;padding:20px;text-align:center;">No rep profiles yet. Click <strong>+ Add Rep</strong> above to create one.</div>';
+      return;
+    }
+    list.innerHTML = profiles.map(p => {
+      const initials = (p.calls_name || '?').slice(0, 2).toUpperCase();
+      const currentAff = (p.sales_affiliates || []).join(', ');
+      return `
+      <div class="rep-map-row" data-profile-id="${p.id}">
+        <div class="rep-map-top">
+          <div class="rep-map-avatar">${escapeHtml(initials)}</div>
+          <div style="flex:1;">
+            <div class="rep-map-name">${escapeHtml(p.calls_name)}</div>
+            <div class="rep-map-sub">${p.user_email ? '🔗 ' + escapeHtml(p.user_email) : 'No user linked'}</div>
+          </div>
+          <button class="small-btn rep-map-del" data-id="${p.id}" style="color:var(--red);border-color:rgba(248,113,113,.3);">✕ Delete</button>
+        </div>
+        <div class="rep-map-fields">
+          <div class="rep-map-field" style="flex:1;min-width:260px;">
+            <label>Sales Log Affiliates (comma-separated)</label>
+            <input class="rep-map-aff" type="text" value="${escapeHtml(currentAff)}" placeholder="e.g. Jordin Pedlar, jordin pedlar">
+          </div>
+          <div class="rep-map-field" style="min-width:200px;">
+            <label>Linked User Account</label>
+            <select class="rep-map-user">
+              <option value="">— No user linked —</option>
+              ${repMapAllUsers.map(u => `<option value="${u.id}"${p.user_id === u.id ? ' selected' : ''}>${escapeHtml(u.email)}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div class="rep-map-actions">
+          <button class="btn-primary rep-map-save" data-id="${p.id}" data-calls-name="${escapeHtml(p.calls_name)}">Save</button>
+          <span class="ax-msg" id="repmsg-${p.id}"></span>
+        </div>
+      </div>`;
+    }).join('');
+
+    // Wire row actions
+    list.querySelectorAll('.rep-map-save').forEach(btn => btn.addEventListener('click', () => saveRepMap(btn)));
+    list.querySelectorAll('.rep-map-del').forEach(btn => btn.addEventListener('click', () => deleteRepMap(btn)));
+    // Click unassigned chip → copy into the create form
+    document.querySelectorAll('.unassigned-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        const target = chip.dataset.type === 'calls' ? document.getElementById('repMapNewName') : document.getElementById('repMapNewAff');
+        if (!target) return;
+        const cur = target.value.trim();
+        target.value = cur && chip.dataset.type === 'aff' ? cur + ', ' + chip.textContent : chip.textContent;
+        document.getElementById('repMapAddForm').style.display = 'block';
+        target.focus();
+      });
+    });
+  } catch (e) { list.innerHTML = `<div style="padding:14px;color:var(--red);font-size:0.84rem;">${escapeHtml(e.message)}</div>`; }
+}
+
+async function saveRepMap(btn) {
+  const row = btn.closest('.rep-map-row');
+  const callsName = btn.dataset.callsName;
+  const affRaw = row.querySelector('.rep-map-aff').value;
+  const userId = row.querySelector('.rep-map-user').value || null;
+  const salesAffiliates = affRaw.split(',').map(s => s.trim()).filter(Boolean);
+  const msg = document.getElementById('repmsg-' + btn.dataset.id);
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    await api('?api=set-rep-mapping', { method: 'POST', body: { callsName, salesAffiliates, userId } });
+    msg.className = 'ax-msg ok'; msg.textContent = '✓ Saved';
+    const sub = row.querySelector('.rep-map-sub');
+    const u = repMapAllUsers.find(x => x.id === userId);
+    if (sub) sub.textContent = userId ? '🔗 ' + (u?.email || userId) : 'No user linked';
+    setTimeout(() => { msg.textContent = ''; msg.className = 'ax-msg'; }, 2200);
+  } catch (e) { msg.className = 'ax-msg err'; msg.textContent = e.message; }
+  finally { btn.disabled = false; btn.textContent = 'Save'; }
+}
+
+async function deleteRepMap(btn) {
+  if (!confirm('Delete this rep profile? This cannot be undone.')) return;
+  btn.disabled = true; btn.textContent = 'Deleting…';
+  try {
+    await api('?api=delete-rep-mapping', { method: 'POST', body: { id: Number(btn.dataset.id) } });
+    loadRepMapTab();
+  } catch (e) {
+    btn.disabled = false; btn.textContent = '✕ Delete';
+    alert('Delete failed: ' + e.message);
+  }
+}
+
+document.getElementById('repMapRefreshBtn')?.addEventListener('click', loadRepMapTab);
+document.getElementById('repMapAddBtn')?.addEventListener('click', () => {
+  const form = document.getElementById('repMapAddForm');
+  form.style.display = form.style.display === 'none' ? 'block' : 'none';
+  if (form.style.display === 'block') document.getElementById('repMapNewName').focus();
+});
+document.getElementById('repMapCancelBtn')?.addEventListener('click', () => {
+  document.getElementById('repMapAddForm').style.display = 'none';
+  document.getElementById('repMapNewName').value = '';
+  document.getElementById('repMapNewAff').value = '';
+  document.getElementById('repMapNewMsg').textContent = '';
+});
+document.getElementById('repMapCreateBtn')?.addEventListener('click', async () => {
+  const callsName = document.getElementById('repMapNewName').value.trim();
+  const affRaw = document.getElementById('repMapNewAff').value;
+  const msg = document.getElementById('repMapNewMsg');
+  const btn = document.getElementById('repMapCreateBtn');
+  if (!callsName) { msg.className = 'ax-msg err'; msg.textContent = 'Calls Log name is required.'; return; }
+  btn.disabled = true; btn.textContent = 'Creating…';
+  try {
+    await api('?api=set-rep-mapping', {
+      method: 'POST',
+      body: { callsName, salesAffiliates: affRaw.split(',').map(s => s.trim()).filter(Boolean), userId: null },
+    });
+    msg.className = 'ax-msg ok'; msg.textContent = '✓ Created';
+    document.getElementById('repMapNewName').value = '';
+    document.getElementById('repMapNewAff').value = '';
+    setTimeout(() => { msg.textContent = ''; document.getElementById('repMapAddForm').style.display = 'none'; loadRepMapTab(); }, 800);
+  } catch (e) { msg.className = 'ax-msg err'; msg.textContent = e.message; }
+  finally { btn.disabled = false; btn.textContent = 'Create'; }
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// ACTIVITY TAB
+// ═══════════════════════════════════════════════════════════════════════
+const ACT_LABELS = {
+  'declaration.create':      { icon: '📝', label: 'created declaration' },
+  'declaration.update':      { icon: '✏️', label: 'edited declaration' },
+  'declaration.delete':      { icon: '🗑️', label: 'deleted declaration' },
+  'declaration.auto_assign': { icon: '🤖', label: 'auto-assigned declarations' },
+  'declaration.auto_import': { icon: '🤖', label: 'auto-imported declarations' },
+  'user.invite':             { icon: '✉️', label: 'invited' },
+  'user.delete':             { icon: '🗑️', label: 'deleted user' },
+  'user.permissions_change': { icon: '🔐', label: 'changed permissions for' },
+  'user.force_logout':       { icon: '🚪', label: 'force-logged-out' },
+  'rep_mapping.set':         { icon: '🧩', label: 'updated rep mapping' },
+  'rep_mapping.delete':      { icon: '🧩', label: 'deleted rep mapping' },
+  'dashboard.archive':       { icon: '📦', label: 'archived dashboard' },
+  'dashboard.unarchive':     { icon: '📦', label: 'unarchived dashboard' },
+};
+
+async function loadActivityTab() {
+  const list = document.getElementById('activityList');
+  list.innerHTML = '<div style="padding:14px;color:var(--text-dim);font-size:0.84rem;">Loading…</div>';
+  const action = document.getElementById('actActionFilter').value;
+  const search = document.getElementById('actSearch').value.trim();
+  const params = new URLSearchParams({ api: 'activity', limit: '200' });
+  if (action) params.set('action', action);
+  if (search) params.set('q', search);
+  try {
+    const j = await adminApi('?' + params.toString());
+    const rows = j.rows || [];
+    if (!rows.length) { list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-dim);font-size:0.84rem;">No activity found.</div>'; return; }
+    list.innerHTML = rows.map(r => {
+      const meta = ACT_LABELS[r.action] || { icon: '•', label: r.action };
+      const when = new Date(r.created_at);
+      const whenStr = isNaN(when.getTime()) ? '' : when.toLocaleString();
+      const target = r.target_id ? `<span class="act-target">${escapeHtml(String(r.target_id))}</span>` : '';
+      const details = r.details ? `<div class="act-details">${escapeHtml(JSON.stringify(r.details).slice(0, 200))}</div>` : '';
+      return `<div class="act-row">
+        <span class="act-icon">${meta.icon}</span>
+        <div class="act-body">
+          <span class="act-actor">${escapeHtml(r.actor_email || r.actor_id || 'system')}</span>
+          <span class="act-verb">${escapeHtml(meta.label)}</span>
+          ${target}
+          ${details}
+        </div>
+        <span class="act-when">${escapeHtml(whenStr)}</span>
+      </div>`;
+    }).join('');
+  } catch (e) { list.innerHTML = `<div style="padding:14px;color:var(--red);font-size:0.84rem;">${escapeHtml(e.message)}</div>`; }
+}
+
+document.getElementById('activityRefreshBtn')?.addEventListener('click', loadActivityTab);
+document.getElementById('actActionFilter')?.addEventListener('change', loadActivityTab);
+let _actSearchTimer;
+document.getElementById('actSearch')?.addEventListener('input', () => {
+  clearTimeout(_actSearchTimer); _actSearchTimer = setTimeout(loadActivityTab, 350);
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// SESSIONS TAB
+// ═══════════════════════════════════════════════════════════════════════
+async function loadSessionsTab() {
+  const list = document.getElementById('sessionsList');
+  list.innerHTML = '<div style="padding:14px;color:var(--text-dim);font-size:0.84rem;">Loading…</div>';
+  try {
+    const j = await adminApi('?api=sessions');
+    const rows = j.rows || [];
+    if (!rows.length) { list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-dim);font-size:0.84rem;">No recent sessions.</div>'; return; }
+    list.innerHTML = rows.map(s => {
+      const initial = (s.first_name || s.email || '?').slice(0, 1).toUpperCase();
+      const display = (s.first_name && s.first_name.trim()) ? s.first_name.trim() : s.email;
+      const last = s.last_sign_in_at ? new Date(s.last_sign_in_at) : null;
+      const lastStr = last && !isNaN(last.getTime()) ? last.toLocaleString() : '—';
+      return `<div class="sess-row" data-uid="${s.id}">
+        <span class="sess-av">${escapeHtml(initial)}</span>
+        <div>
+          <div class="sess-name">${escapeHtml(display)}${s.is_admin ? ' <span class="pill pill-admin">Admin</span>' : ''}</div>
+          <div class="sess-email">${escapeHtml(s.email || '')}</div>
+        </div>
+        <span class="sess-when">Last sign-in: ${escapeHtml(lastStr)}</span>
+        <button class="small-btn sess-logout" data-uid="${s.id}" data-email="${escapeHtml(s.email || '')}" style="color:var(--red);border-color:rgba(248,113,113,.3);">Force logout</button>
+      </div>`;
+    }).join('');
+    list.querySelectorAll('.sess-logout').forEach(btn => btn.addEventListener('click', () => forceLogoutUser(btn)));
+  } catch (e) { list.innerHTML = `<div style="padding:14px;color:var(--red);font-size:0.84rem;">${escapeHtml(e.message)}</div>`; }
+}
+
+async function forceLogoutUser(btn) {
+  if (!confirm(`Force ${btn.dataset.email} to sign out? Their refresh tokens will be revoked.`)) return;
+  btn.disabled = true; btn.textContent = 'Revoking…';
+  try {
+    await adminApi('?api=force-logout', { method: 'POST', body: { userId: btn.dataset.uid } });
+    btn.textContent = '✓ Revoked';
+    setTimeout(loadSessionsTab, 700);
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Force logout';
+    alert(e.message);
+  }
+}
+
+document.getElementById('sessionsRefreshBtn')?.addEventListener('click', loadSessionsTab);

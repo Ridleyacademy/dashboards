@@ -115,13 +115,15 @@ async function refreshAll() {
     document.getElementById('axList').innerHTML = `<div style="padding:14px;color:var(--red);font-size:0.84rem;">${escapeHtml(e.message)}</div>`;
     return;
   }
-  // Best-effort org preload — never throws.
+  // Best-effort org + rep-map preload — never throws.
   try {
-    const [divRes, depRes, postRes, holderRes] = await Promise.all([
+    const [divRes, depRes, postRes, holderRes, repRes, unassignedRes] = await Promise.all([
       api('?api=divisions').catch(() => ({ rows: [] })),
       api('?api=departments').catch(() => ({ rows: [] })),
       api('?api=posts').catch(() => ({ rows: [] })),
       api('?api=post-holders').catch(() => ({ rows: [] })),
+      api('?api=rep-mappings').catch(() => ({ profiles: [], users: [] })),
+      adminApi('?api=unassigned-names').catch(() => null),
     ]);
     divisionsData = divRes.rows || [];
     departmentsData = depRes.rows || [];
@@ -131,7 +133,9 @@ async function refreshAll() {
       if (row.ended_at) continue;
       (activeHoldersByPost[row.post_id] ||= []).push(row);
     }
-  } catch (_) { /* swallow — Users tab still works without org structure */ }
+    repMapProfiles = repRes.profiles || [];
+    repMapUnassigned = unassignedRes || { allCallsReps: [], unassignedCallsReps: [], unassignedAffiliates: [] };
+  } catch (_) { /* swallow — Users tab still works without preload */ }
   // Ensure the per-tab chrome (especially the + Invite user button) is in
   // sync on the very first paint — not just after a tab click.
   applyTabChrome(activeTab);
@@ -153,14 +157,13 @@ function applyTabChrome(tab) {
     tab === 'users' ? 'Users' :
     tab === 'roles' ? 'Roles' :
     tab === 'org'   ? 'Org Board' :
-    tab === 'reps'  ? 'Rep Mapping' :
     tab === 'activity' ? 'Activity' :
     tab === 'sessions' ? 'Sessions' : '';
   const addBtn = document.getElementById('axAddBtn');
   if (!addBtn) return;
   // Tabs with their own full-width view (no left list / right detail) hide
   // the shared add-button. Users keeps it as + Invite user, Roles as + Role.
-  if (['org', 'reps', 'activity', 'sessions'].includes(tab)) {
+  if (['org', 'activity', 'sessions'].includes(tab)) {
     addBtn.style.display = 'none';
   } else if (tab === 'users') {
     addBtn.style.display = '';
@@ -186,7 +189,6 @@ async function refreshTab() {
   if (activeTab === 'users') return loadUsersTab();
   if (activeTab === 'roles') return loadRolesTab();
   if (activeTab === 'org')   return loadOrgTab();
-  if (activeTab === 'reps')      return loadRepMapTab();
   if (activeTab === 'activity')  return loadActivityTab();
   if (activeTab === 'sessions')  return loadSessionsTab();
 }
@@ -306,6 +308,9 @@ function openUserEditor(uid) {
       <button class="small-btn" id="u-post-assign">Assign</button>
     </div>
 
+    <h3>🧩 Rep Mapping <span style="font-weight:400;color:var(--text-dim);font-size:0.74rem;">(Calls Log names + Sales Affiliate spellings linked to this user)</span></h3>
+    <div id="u-repmap"></div>
+
     <h3>Effective permissions <span style="font-weight:400;color:var(--text-dim);font-size:0.74rem;">(role + post + grant)</span></h3>
     <div class="effective-perms" id="u-effective">${effHtml}</div>
 
@@ -352,9 +357,157 @@ function openUserEditor(uid) {
   // Copy roles from another user
   document.getElementById('u-copy-from').addEventListener('click', () => openCopyRolesPicker(uid));
 
+  // Rep mapping section (linked profiles + add-new form + unassigned chips)
+  renderUserRepMap(uid);
+
   document.getElementById('u-save').addEventListener('click', () => saveUser(uid));
   document.getElementById('u-revoke').addEventListener('click', () => revokeUserSession(uid));
   document.getElementById('u-delete').addEventListener('click', () => deleteUser(uid));
+}
+
+// ── Rep Mapping subsection inside the user editor ──────────────────────
+function renderUserRepMap(uid) {
+  const wrap = document.getElementById('u-repmap');
+  if (!wrap) return;
+  const mine = repMapProfiles.filter(p => p.user_id === uid);
+  const unlinked = repMapProfiles.filter(p => !p.user_id);
+  const unassignedNames = repMapUnassigned?.unassignedCallsReps || [];
+  const datalistOptions = (repMapUnassigned?.allCallsReps || []).map(n => `<option value="${escapeHtml(n)}">`).join('');
+
+  const minePillsHtml = mine.length ? mine.map(p => {
+    const aff = (p.sales_affiliates || []).join(', ');
+    return `<div class="rep-map-row" data-profile-id="${p.id}">
+      <div class="rep-map-top">
+        <div class="rep-map-avatar">${escapeHtml((p.calls_name || '?').slice(0,2).toUpperCase())}</div>
+        <div style="flex:1;">
+          <div class="rep-map-name">${escapeHtml(p.calls_name)}</div>
+          <div class="rep-map-sub">🔗 linked to this user</div>
+        </div>
+        <button class="small-btn u-rm-unlink" data-id="${p.id}" data-name="${escapeHtml(p.calls_name)}" title="Unlink from this user (keep the profile)">Unlink</button>
+        <button class="small-btn u-rm-delete" data-id="${p.id}" style="color:var(--red);border-color:rgba(248,113,113,.3);">✕ Delete</button>
+      </div>
+      <div class="rep-map-fields">
+        <div class="rep-map-field" style="flex:1;min-width:240px;">
+          <label>Sales Log Affiliates (comma-separated)</label>
+          <input class="u-rm-aff" type="text" value="${escapeHtml(aff)}" placeholder="e.g. Jordin Pedlar, jordin pedlar">
+        </div>
+      </div>
+      <div class="rep-map-actions">
+        <button class="btn-primary u-rm-save" data-id="${p.id}" data-name="${escapeHtml(p.calls_name)}">Save</button>
+        <span class="ax-msg" id="u-rm-msg-${p.id}"></span>
+      </div>
+    </div>`;
+  }).join('') : '<div style="color:var(--text-dim);font-size:0.78rem;font-style:italic;padding:6px;">No rep profiles linked to this user yet.</div>';
+
+  const unlinkedOpts = unlinked.length
+    ? '<option value="">— Pick an unlinked profile —</option>' + unlinked
+        .sort((a, b) => (a.calls_name || '').localeCompare(b.calls_name || ''))
+        .map(p => `<option value="${p.id}" data-name="${escapeHtml(p.calls_name)}">${escapeHtml(p.calls_name)} ${(p.sales_affiliates || []).length ? '(' + p.sales_affiliates.length + ' aff)' : ''}</option>`)
+        .join('')
+    : '';
+
+  wrap.innerHTML = `
+    ${minePillsHtml}
+    ${unlinked.length ? `
+      <div style="margin-top:10px;display:flex;gap:6px;align-items:center;">
+        <select id="u-rm-attach-pick" style="flex:1;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);">${unlinkedOpts}</select>
+        <button class="small-btn" id="u-rm-attach">Attach to this user</button>
+      </div>
+    ` : ''}
+    <details style="margin-top:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;overflow:hidden;">
+      <summary style="cursor:pointer;padding:8px 10px;font-size:0.78rem;font-weight:600;color:var(--text-muted);list-style:none;">+ Create new rep profile for this user</summary>
+      <div style="padding:10px;display:flex;flex-direction:column;gap:8px;">
+        <div class="rep-map-fields">
+          <div class="rep-map-field" style="flex:1;min-width:160px;">
+            <label>Calls Log Name (exact match)</label>
+            <input id="u-rm-new-name" list="u-rm-name-list" placeholder="e.g. Jordin" autocomplete="off">
+            <datalist id="u-rm-name-list">${datalistOptions}</datalist>
+          </div>
+          <div class="rep-map-field" style="flex:2;min-width:240px;">
+            <label>Sales Affiliates (comma-separated)</label>
+            <input id="u-rm-new-aff" placeholder="e.g. Jordin Pedlar, jordin pedlar">
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button class="btn-primary" id="u-rm-create">Create &amp; link</button>
+          <span class="ax-msg" id="u-rm-new-msg"></span>
+        </div>
+      </div>
+    </details>
+    ${unassignedNames.length ? `
+      <div style="margin-top:10px;padding:8px 10px;background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.2);border-radius:8px;">
+        <div style="font-size:0.7rem;color:#fbbf24;font-weight:700;margin-bottom:6px;">Calls Log reps without a profile — click to claim for this user</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px;">
+          ${unassignedNames.map(n => `<span class="unassigned-chip u-rm-claim" data-name="${escapeHtml(n)}">${escapeHtml(n)}</span>`).join('')}
+        </div>
+      </div>
+    ` : ''}
+  `;
+
+  // Wire row save / unlink / delete
+  wrap.querySelectorAll('.u-rm-save').forEach(btn => btn.addEventListener('click', async () => {
+    const row = btn.closest('.rep-map-row');
+    const id = btn.dataset.id;
+    const name = btn.dataset.name;
+    const aff = row.querySelector('.u-rm-aff').value.split(',').map(s => s.trim()).filter(Boolean);
+    const msg = document.getElementById('u-rm-msg-' + id);
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      await setRepMapping(name, aff, uid);
+      msg.className = 'ax-msg ok'; msg.textContent = '✓ Saved';
+      setTimeout(() => renderUserRepMap(uid), 700);
+    } catch (e) { msg.className = 'ax-msg err'; msg.textContent = e.message; btn.disabled = false; btn.textContent = 'Save'; }
+  }));
+  wrap.querySelectorAll('.u-rm-unlink').forEach(btn => btn.addEventListener('click', async () => {
+    if (!confirm(`Unlink "${btn.dataset.name}" from this user? (The rep profile stays — only the user link is cleared.)`)) return;
+    btn.disabled = true; btn.textContent = 'Unlinking…';
+    try {
+      const profile = repMapProfiles.find(p => p.id === Number(btn.dataset.id));
+      await setRepMapping(btn.dataset.name, profile?.sales_affiliates || [], null);
+      renderUserRepMap(uid);
+    } catch (e) { btn.disabled = false; btn.textContent = 'Unlink'; alert(e.message); }
+  }));
+  wrap.querySelectorAll('.u-rm-delete').forEach(btn => btn.addEventListener('click', async () => {
+    if (!confirm('Delete this rep profile entirely? This cannot be undone.')) return;
+    btn.disabled = true; btn.textContent = 'Deleting…';
+    try { await deleteRepMappingById(btn.dataset.id); renderUserRepMap(uid); }
+    catch (e) { btn.disabled = false; btn.textContent = '✕ Delete'; alert(e.message); }
+  }));
+
+  // Attach an existing unlinked profile to this user
+  document.getElementById('u-rm-attach')?.addEventListener('click', async () => {
+    const sel = document.getElementById('u-rm-attach-pick');
+    const opt = sel.selectedOptions[0];
+    if (!opt || !opt.value) return;
+    const profile = repMapProfiles.find(p => p.id === Number(opt.value));
+    if (!profile) return;
+    try {
+      await setRepMapping(profile.calls_name, profile.sales_affiliates || [], uid);
+      renderUserRepMap(uid);
+    } catch (e) { alert(e.message); }
+  });
+
+  // Create new + link
+  document.getElementById('u-rm-create')?.addEventListener('click', async () => {
+    const name = document.getElementById('u-rm-new-name').value.trim();
+    const aff = document.getElementById('u-rm-new-aff').value.split(',').map(s => s.trim()).filter(Boolean);
+    const msg = document.getElementById('u-rm-new-msg');
+    if (!name) { msg.className = 'ax-msg err'; msg.textContent = 'Calls Log name is required.'; return; }
+    msg.className = 'ax-msg'; msg.textContent = 'Saving…';
+    try {
+      await setRepMapping(name, aff, uid);
+      msg.className = 'ax-msg ok'; msg.textContent = '✓ Linked';
+      setTimeout(() => renderUserRepMap(uid), 600);
+    } catch (e) { msg.className = 'ax-msg err'; msg.textContent = e.message; }
+  });
+
+  // One-click claim: take an unassigned Calls Log name and link it to this user
+  wrap.querySelectorAll('.u-rm-claim').forEach(chip => chip.addEventListener('click', async () => {
+    const name = chip.dataset.name;
+    if (!confirm(`Create a rep profile for "${name}" and link it to this user?`)) return;
+    try { await setRepMapping(name, [], uid); renderUserRepMap(uid); }
+    catch (e) { alert(e.message); }
+  }));
 }
 
 function openCopyRolesPicker(targetUid) {
@@ -506,6 +659,8 @@ async function deleteRole(rid) {
 // We fetch every active holder once per org-tab load so we can render the
 // avatar stack on each post card without an extra request per card.
 let activeHoldersByPost = {}; // { [postId]: [{user_id, started_at}, …] }
+let repMapProfiles = [];       // [{ id, calls_name, sales_affiliates[], user_id, user_email }]
+let repMapUnassigned = { allCallsReps: [], unassignedCallsReps: [], unassignedAffiliates: [] };
 
 async function loadOrgTab() {
   const board = document.getElementById('orgBoard');
@@ -1747,163 +1902,29 @@ function openInviteModal(prefillFromUid) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// REP MAPPING TAB
+// REP MAPPING — merged into the User editor (v246)
+// repMapProfiles and repMapUnassigned are loaded by refreshAll.
 // ═══════════════════════════════════════════════════════════════════════
-let repMapAllUsers = [];
 
-async function loadRepMapTab() {
-  const list = document.getElementById('repMapList');
-  list.innerHTML = '<div style="padding:14px;color:var(--text-dim);font-size:0.84rem;">Loading…</div>';
-  try {
-    // Profiles + linkable users come from access-control. Unassigned names
-    // (callout) lives in admin-api still, so fetch in parallel best-effort.
-    const [rRes, uRes] = await Promise.all([
-      api('?api=rep-mappings'),
-      adminApi('?api=unassigned-names').catch(() => null),
-    ]);
-    const { profiles = [], users = [] } = rRes;
-    repMapAllUsers = users;
-
-    // Datalist for the create form
-    if (uRes?.allCallsReps) {
-      document.getElementById('repMapNameList').innerHTML =
-        uRes.allCallsReps.map(n => `<option value="${escapeHtml(n)}">`).join('');
-    }
-    // Unassigned callout
-    const callout = document.getElementById('repMapUnassigned');
-    if (uRes) {
-      const total = (uRes.unassignedCallsReps?.length || 0) + (uRes.unassignedAffiliates?.length || 0);
-      document.getElementById('repMapUnassignedCount').textContent = String(total);
-      if (total) {
-        callout.style.display = 'block';
-        document.getElementById('repMapUnassignedCalls').innerHTML =
-          (uRes.unassignedCallsReps || []).map(n => `<span class="unassigned-chip" data-type="calls">${escapeHtml(n)}</span>`).join('') ||
-          '<span style="color:var(--text-dim);font-size:0.72rem;">All mapped ✓</span>';
-        const affs = uRes.unassignedAffiliates || [];
-        document.getElementById('repMapUnassignedAff').innerHTML =
-          affs.slice(0, 40).map(a => `<span class="unassigned-chip" data-type="aff">${escapeHtml(a)}</span>`).join('') +
-          (affs.length > 40 ? `<span style="color:var(--text-dim);font-size:0.72rem;"> +${affs.length - 40} more</span>` : '');
-      } else { callout.style.display = 'none'; }
-    } else {
-      callout.style.display = 'none';
-    }
-
-    if (!profiles.length) {
-      list.innerHTML = '<div style="color:var(--text-dim);font-size:0.84rem;padding:20px;text-align:center;">No rep profiles yet. Click <strong>+ Add Rep</strong> above to create one.</div>';
-      return;
-    }
-    list.innerHTML = profiles.map(p => {
-      const initials = (p.calls_name || '?').slice(0, 2).toUpperCase();
-      const currentAff = (p.sales_affiliates || []).join(', ');
-      return `
-      <div class="rep-map-row" data-profile-id="${p.id}">
-        <div class="rep-map-top">
-          <div class="rep-map-avatar">${escapeHtml(initials)}</div>
-          <div style="flex:1;">
-            <div class="rep-map-name">${escapeHtml(p.calls_name)}</div>
-            <div class="rep-map-sub">${p.user_email ? '🔗 ' + escapeHtml(p.user_email) : 'No user linked'}</div>
-          </div>
-          <button class="small-btn rep-map-del" data-id="${p.id}" style="color:var(--red);border-color:rgba(248,113,113,.3);">✕ Delete</button>
-        </div>
-        <div class="rep-map-fields">
-          <div class="rep-map-field" style="flex:1;min-width:260px;">
-            <label>Sales Log Affiliates (comma-separated)</label>
-            <input class="rep-map-aff" type="text" value="${escapeHtml(currentAff)}" placeholder="e.g. Jordin Pedlar, jordin pedlar">
-          </div>
-          <div class="rep-map-field" style="min-width:200px;">
-            <label>Linked User Account</label>
-            <select class="rep-map-user">
-              <option value="">— No user linked —</option>
-              ${repMapAllUsers.map(u => `<option value="${u.id}"${p.user_id === u.id ? ' selected' : ''}>${escapeHtml(u.email)}</option>`).join('')}
-            </select>
-          </div>
-        </div>
-        <div class="rep-map-actions">
-          <button class="btn-primary rep-map-save" data-id="${p.id}" data-calls-name="${escapeHtml(p.calls_name)}">Save</button>
-          <span class="ax-msg" id="repmsg-${p.id}"></span>
-        </div>
-      </div>`;
-    }).join('');
-
-    // Wire row actions
-    list.querySelectorAll('.rep-map-save').forEach(btn => btn.addEventListener('click', () => saveRepMap(btn)));
-    list.querySelectorAll('.rep-map-del').forEach(btn => btn.addEventListener('click', () => deleteRepMap(btn)));
-    // Click unassigned chip → copy into the create form
-    document.querySelectorAll('.unassigned-chip').forEach(chip => {
-      chip.addEventListener('click', () => {
-        const target = chip.dataset.type === 'calls' ? document.getElementById('repMapNewName') : document.getElementById('repMapNewAff');
-        if (!target) return;
-        const cur = target.value.trim();
-        target.value = cur && chip.dataset.type === 'aff' ? cur + ', ' + chip.textContent : chip.textContent;
-        document.getElementById('repMapAddForm').style.display = 'block';
-        target.focus();
-      });
-    });
-  } catch (e) { list.innerHTML = `<div style="padding:14px;color:var(--red);font-size:0.84rem;">${escapeHtml(e.message)}</div>`; }
+async function refreshRepMapData() {
+  const [repRes, unassignedRes] = await Promise.all([
+    api('?api=rep-mappings').catch(() => ({ profiles: [], users: [] })),
+    adminApi('?api=unassigned-names').catch(() => null),
+  ]);
+  repMapProfiles = repRes.profiles || [];
+  repMapUnassigned = unassignedRes || { allCallsReps: [], unassignedCallsReps: [], unassignedAffiliates: [] };
 }
 
-async function saveRepMap(btn) {
-  const row = btn.closest('.rep-map-row');
-  const callsName = btn.dataset.callsName;
-  const affRaw = row.querySelector('.rep-map-aff').value;
-  const userId = row.querySelector('.rep-map-user').value || null;
-  const salesAffiliates = affRaw.split(',').map(s => s.trim()).filter(Boolean);
-  const msg = document.getElementById('repmsg-' + btn.dataset.id);
-  btn.disabled = true; btn.textContent = 'Saving…';
-  try {
-    await api('?api=set-rep-mapping', { method: 'POST', body: { callsName, salesAffiliates, userId } });
-    msg.className = 'ax-msg ok'; msg.textContent = '✓ Saved';
-    const sub = row.querySelector('.rep-map-sub');
-    const u = repMapAllUsers.find(x => x.id === userId);
-    if (sub) sub.textContent = userId ? '🔗 ' + (u?.email || userId) : 'No user linked';
-    setTimeout(() => { msg.textContent = ''; msg.className = 'ax-msg'; }, 2200);
-  } catch (e) { msg.className = 'ax-msg err'; msg.textContent = e.message; }
-  finally { btn.disabled = false; btn.textContent = 'Save'; }
+// Set / upsert a rep-mapping row. Called from the inline user-editor form.
+async function setRepMapping(callsName, salesAffiliates, userId) {
+  await api('?api=set-rep-mapping', { method: 'POST', body: { callsName, salesAffiliates, userId: userId || null } });
+  await refreshRepMapData();
 }
 
-async function deleteRepMap(btn) {
-  if (!confirm('Delete this rep profile? This cannot be undone.')) return;
-  btn.disabled = true; btn.textContent = 'Deleting…';
-  try {
-    await api('?api=delete-rep-mapping', { method: 'POST', body: { id: Number(btn.dataset.id) } });
-    loadRepMapTab();
-  } catch (e) {
-    btn.disabled = false; btn.textContent = '✕ Delete';
-    alert('Delete failed: ' + e.message);
-  }
+async function deleteRepMappingById(id) {
+  await api('?api=delete-rep-mapping', { method: 'POST', body: { id: Number(id) } });
+  await refreshRepMapData();
 }
-
-document.getElementById('repMapRefreshBtn')?.addEventListener('click', loadRepMapTab);
-document.getElementById('repMapAddBtn')?.addEventListener('click', () => {
-  const form = document.getElementById('repMapAddForm');
-  form.style.display = form.style.display === 'none' ? 'block' : 'none';
-  if (form.style.display === 'block') document.getElementById('repMapNewName').focus();
-});
-document.getElementById('repMapCancelBtn')?.addEventListener('click', () => {
-  document.getElementById('repMapAddForm').style.display = 'none';
-  document.getElementById('repMapNewName').value = '';
-  document.getElementById('repMapNewAff').value = '';
-  document.getElementById('repMapNewMsg').textContent = '';
-});
-document.getElementById('repMapCreateBtn')?.addEventListener('click', async () => {
-  const callsName = document.getElementById('repMapNewName').value.trim();
-  const affRaw = document.getElementById('repMapNewAff').value;
-  const msg = document.getElementById('repMapNewMsg');
-  const btn = document.getElementById('repMapCreateBtn');
-  if (!callsName) { msg.className = 'ax-msg err'; msg.textContent = 'Calls Log name is required.'; return; }
-  btn.disabled = true; btn.textContent = 'Creating…';
-  try {
-    await api('?api=set-rep-mapping', {
-      method: 'POST',
-      body: { callsName, salesAffiliates: affRaw.split(',').map(s => s.trim()).filter(Boolean), userId: null },
-    });
-    msg.className = 'ax-msg ok'; msg.textContent = '✓ Created';
-    document.getElementById('repMapNewName').value = '';
-    document.getElementById('repMapNewAff').value = '';
-    setTimeout(() => { msg.textContent = ''; document.getElementById('repMapAddForm').style.display = 'none'; loadRepMapTab(); }, 800);
-  } catch (e) { msg.className = 'ax-msg err'; msg.textContent = e.message; }
-  finally { btn.disabled = false; btn.textContent = 'Create'; }
-});
 
 // ═══════════════════════════════════════════════════════════════════════
 // ACTIVITY TAB

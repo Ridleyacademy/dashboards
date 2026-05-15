@@ -277,10 +277,6 @@
   #orgBoardView { display: none; }
 
   /* New full-width admin panes — Rep Mapping / Activity / Sessions */
-  body[data-tab="reps"]     .ax-layout { display: none; }
-  body[data-tab="reps"]     #repMapView { display: block; }
-  #repMapView { display: none; }
-
   body[data-tab="activity"] .ax-layout { display: none; }
   body[data-tab="activity"] #activityView { display: block; }
   #activityView { display: none; }
@@ -658,7 +654,6 @@
       <button class="ax-tab active" data-tab="users">👥 Users</button>
       <button class="ax-tab" data-tab="roles">🎭 Roles</button>
       <button class="ax-tab" data-tab="org">🏛 Org Board</button>
-      <button class="ax-tab" data-tab="reps">🧩 Rep Mapping</button>
       <button class="ax-tab" data-tab="activity">📜 Activity</button>
       <button class="ax-tab" data-tab="sessions">🔐 Sessions</button>
     </div>
@@ -690,57 +685,8 @@
       <div class="org-board" id="orgBoard"></div>
     </div>
 
-    <!-- Rep Mapping pane (full width when tab=reps) -->
-    <div id="repMapView">
-      <div class="admin-pane-head">
-        <div>
-          <h3>🧩 Rep Mapping</h3>
-          <span class="hint">Link Calls Log names ↔ Sales Log affiliate spellings ↔ a user account so dashboards can attribute activity to the right person.</span>
-        </div>
-        <div style="display:flex;gap:8px;">
-          <button class="small-btn" id="repMapAddBtn" style="background:rgba(34,211,238,0.10);border-color:rgba(34,211,238,.3);color:#22d3ee;">+ Add Rep</button>
-          <button class="small-btn" id="repMapRefreshBtn">↻ Refresh</button>
-        </div>
-      </div>
-      <!-- Add new rep form -->
-      <div id="repMapAddForm" style="display:none;margin-bottom:14px;padding:14px;background:rgba(34,211,238,0.05);border:1px solid rgba(34,211,238,0.2);border-radius:12px;">
-        <div style="font-size:0.68rem;font-weight:800;text-transform:uppercase;letter-spacing:0.1em;color:#22d3ee;margin-bottom:10px;">New Rep Profile</div>
-        <div class="rep-map-fields">
-          <div class="rep-map-field" style="flex:1;min-width:160px;">
-            <label>Calls Log Name (exact match)</label>
-            <input id="repMapNewName" list="repMapNameList" placeholder="e.g. Jordin" autocomplete="off">
-            <datalist id="repMapNameList"></datalist>
-          </div>
-          <div class="rep-map-field" style="flex:2;min-width:240px;">
-            <label>Sales Affiliates (comma-separated)</label>
-            <input id="repMapNewAff" placeholder="e.g. Jordin Pedlar, jordin pedlar">
-          </div>
-        </div>
-        <div style="display:flex;gap:8px;align-items:center;margin-top:8px;">
-          <button class="btn-primary" id="repMapCreateBtn">Create</button>
-          <button class="btn-ghost" id="repMapCancelBtn">Cancel</button>
-          <span class="ax-msg" id="repMapNewMsg"></span>
-        </div>
-      </div>
-      <!-- Unassigned callout -->
-      <details id="repMapUnassigned" style="display:none;margin-bottom:14px;background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.2);border-radius:12px;overflow:hidden;">
-        <summary style="cursor:pointer;padding:10px 14px;display:flex;align-items:center;gap:10px;user-select:none;list-style:none;">
-          <span style="font-size:0.7rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:#fbbf24;flex:1;">Unassigned names <span id="repMapUnassignedCount" style="background:rgba(251,191,36,0.18);color:#fbbf24;padding:2px 8px;border-radius:999px;font-size:0.66rem;margin-left:4px;">0</span></span>
-          <span style="color:#fbbf24;font-size:0.7rem;">▾</span>
-        </summary>
-        <div style="padding:0 14px 12px;display:flex;gap:14px;flex-wrap:wrap;">
-          <div>
-            <div style="font-size:0.66rem;color:var(--text-dim);margin-bottom:6px;font-weight:700;">Calls Log Reps not yet mapped</div>
-            <div id="repMapUnassignedCalls" style="display:flex;gap:4px;flex-wrap:wrap;"></div>
-          </div>
-          <div>
-            <div style="font-size:0.66rem;color:var(--text-dim);margin-bottom:6px;font-weight:700;">Sales Log Affiliates not yet mapped</div>
-            <div id="repMapUnassignedAff" style="display:flex;gap:4px;flex-wrap:wrap;"></div>
-          </div>
-        </div>
-      </details>
-      <div id="repMapList"></div>
-    </div>
+    <!-- Rep Mapping merged into the User editor (v246) — the standalone view
+         is removed. Each user's profile now includes a Rep Mapping section. -->
 
     <!-- Activity pane (full width when tab=activity) -->
     <div id="activityView">

@@ -119,24 +119,28 @@ async function refreshAll() {
       (activeHoldersByPost[row.post_id] ||= []).push(row);
     }
   } catch (_) { /* swallow — Users tab still works without org structure */ }
+  // Ensure the per-tab chrome (especially the + Invite user button) is in
+  // sync on the very first paint — not just after a tab click.
+  applyTabChrome(activeTab);
   try { await refreshTab(); }
   catch (e) {
     document.getElementById('axList').innerHTML = `<div style="padding:14px;color:var(--red);font-size:0.84rem;">${escapeHtml(e.message)}</div>`;
   }
 }
 
-function switchTab(tab) {
-  activeTab = tab;
-  selectedId = null;
+// Sync the per-tab visual chrome (tab pills, list title, add-button label
+// + visibility). Pulled out of switchTab so the initial boot can call it
+// once before refreshTab — otherwise the "+ Invite user" button stays
+// hidden until the user clicks a tab.
+function applyTabChrome(tab) {
   document.body.dataset.tab = tab; // toggles CSS for full-width org board
   document.querySelectorAll('.ax-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
-  document.getElementById('axEditor').innerHTML = '<div class="ax-editor-empty">Select an item on the left.</div>';
-  document.getElementById('axListTitle').textContent = tab === 'users' ? 'Users' : tab === 'roles' ? 'Roles' : 'Org Board';
+  const titleEl = document.getElementById('axListTitle');
+  if (titleEl) titleEl.textContent = tab === 'users' ? 'Users' : tab === 'roles' ? 'Roles' : 'Org Board';
   const addBtn = document.getElementById('axAddBtn');
-  // Org tab uses the full-width board (no list/detail split), so the add
-  // button in the left-list header isn't needed. Users tab repurposes it as
-  // the "+ Invite user" entry point (lives inside the section, not the
-  // global topbar). Roles tab keeps it as "+ Role".
+  if (!addBtn) return;
+  // Org tab uses the full-width board (no list/detail split). Users tab uses
+  // the shared button as the + Invite user entry point. Roles keeps + Role.
   if (tab === 'org') {
     addBtn.style.display = 'none';
   } else if (tab === 'users') {
@@ -148,6 +152,13 @@ function switchTab(tab) {
     addBtn.textContent = '+ Role';
     addBtn.title = 'New role';
   }
+}
+
+function switchTab(tab) {
+  activeTab = tab;
+  selectedId = null;
+  document.getElementById('axEditor').innerHTML = '<div class="ax-editor-empty">Select an item on the left.</div>';
+  applyTabChrome(tab);
   closeDrawer();
   refreshTab();
 }

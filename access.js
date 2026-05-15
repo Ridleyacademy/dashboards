@@ -2268,32 +2268,271 @@ document.getElementById('actSearch')?.addEventListener('input', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════
-// SESSIONS TAB
+// SESSIONS TAB — rich view: live presence, status, devices, activity counts
 // ═══════════════════════════════════════════════════════════════════════
+let sessionsRaw = [];           // server rows (from admin-api ?api=sessions)
+let sessionsActivityByUser = {}; // email → count of recent actions (last 7d)
+let sessionsActivityRecentByUser = {}; // email → [last 5 rows]
+let sessionsFilter = 'all';     // all | live | today | week | stale | never | admin
+let sessionsSearchQuery = '';
+let sessionsSortKey = 'activity'; // activity | name | joined
+let sessionsExpanded = new Set(); // user ids currently expanded
+
+// Friendly time-ago formatter for the session rows
+function _ago(iso) {
+  if (!iso) return null;
+  const t = Date.parse(iso); if (isNaN(t)) return null;
+  const s = Math.max(0, Math.round((Date.now() - t) / 1000));
+  if (s < 60)        return s + 's ago';
+  if (s < 3600)      return Math.round(s / 60) + ' min ago';
+  if (s < 86400)     return Math.round(s / 3600) + 'h ago';
+  if (s < 604800)    return Math.round(s / 86400) + 'd ago';
+  if (s < 2592000)   return Math.round(s / 604800) + 'w ago';
+  if (s < 31536000)  return Math.round(s / 2592000) + 'mo ago';
+  return Math.round(s / 31536000) + 'y ago';
+}
+// Parse a User-Agent string into something humans can read.
+function _device(ua) {
+  if (!ua) return null;
+  const s = String(ua);
+  let browser = 'Browser';
+  if (/Edg\//.test(s))                browser = 'Edge';
+  else if (/Chrome\//.test(s))        browser = 'Chrome';
+  else if (/Firefox\//.test(s))       browser = 'Firefox';
+  else if (/Safari\//.test(s) && !/Chrome\//.test(s)) browser = 'Safari';
+  let os = '';
+  if (/iPhone|iPad|iPod/.test(s))     os = /iPad/.test(s) ? 'iPad' : 'iPhone';
+  else if (/Android/.test(s))         os = 'Android';
+  else if (/Mac OS X|Macintosh/.test(s)) os = 'macOS';
+  else if (/Windows/.test(s))         os = 'Windows';
+  else if (/Linux/.test(s))           os = 'Linux';
+  return os ? `${browser} on ${os}` : browser;
+}
+// Derive a status label for one user row. Live = green, today = blue,
+// week = yellow, stale = grey, never = purple.
+function _sessStatus(s) {
+  if (s.is_live)               return { key: 'live',  label: 'Online now',     dot: '#34d399', color: '#34d399' };
+  const last = s.last_seen || s.last_sign_in_at;
+  if (!last) {
+    const joined = s.created_at ? Math.round((Date.now() - Date.parse(s.created_at)) / 86400000) : null;
+    return { key: 'never', label: joined != null ? `Never signed in · joined ${joined}d ago` : 'Never signed in', dot: '#a78bfa', color: '#a78bfa' };
+  }
+  const minutes = Math.round((Date.now() - Date.parse(last)) / 60000);
+  if (minutes < 60)            return { key: 'today', label: 'Active recently',   dot: '#6b9eff', color: '#6b9eff' };
+  if (minutes < 1440)          return { key: 'today', label: 'Active today',      dot: '#6b9eff', color: '#6b9eff' };
+  if (minutes < 1440 * 7)      return { key: 'week',  label: 'Active this week',  dot: '#fbbf24', color: '#fbbf24' };
+  return { key: 'stale', label: `Idle ${Math.round(minutes / 1440)}d`, dot: 'var(--text-dim)', color: 'var(--text-dim)' };
+}
+
 async function loadSessionsTab() {
   const list = document.getElementById('sessionsList');
-  list.innerHTML = '<div style="padding:14px;color:var(--text-dim);font-size:0.84rem;">Loading…</div>';
+  if (!list) return;
+  if (!sessionsRaw.length) list.innerHTML = '<div style="padding:14px;color:var(--text-dim);font-size:0.84rem;">Loading…</div>';
   try {
-    const j = await adminApi('?api=sessions');
-    const rows = j.rows || [];
-    if (!rows.length) { list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-dim);font-size:0.84rem;">No recent sessions.</div>'; return; }
-    list.innerHTML = rows.map(s => {
-      const initial = (s.first_name || s.email || '?').slice(0, 1).toUpperCase();
-      const display = (s.first_name && s.first_name.trim()) ? s.first_name.trim() : s.email;
-      const last = s.last_sign_in_at ? new Date(s.last_sign_in_at) : null;
-      const lastStr = last && !isNaN(last.getTime()) ? last.toLocaleString() : '—';
-      return `<div class="sess-row" data-uid="${s.id}">
-        <span class="sess-av">${escapeHtml(initial)}</span>
-        <div>
-          <div class="sess-name">${escapeHtml(display)}${s.is_admin ? ' <span class="pill pill-admin">Admin</span>' : ''}</div>
-          <div class="sess-email">${escapeHtml(s.email || '')}</div>
+    const [sj, aj] = await Promise.all([
+      adminApi('?api=sessions'),
+      adminApi('?api=activity&limit=500').catch(() => ({ rows: [] })),
+    ]);
+    sessionsRaw = sj.rows || [];
+    // Build per-user activity index (last 7d count + last 5 rows).
+    sessionsActivityByUser = {};
+    sessionsActivityRecentByUser = {};
+    const weekAgo = Date.now() - 7 * 86400000;
+    for (const r of (aj.rows || [])) {
+      const key = (r.actor_email || r.actor_id || '').toLowerCase();
+      if (!key) continue;
+      const ts = r.ts ? Date.parse(r.ts) : (r.created_at ? Date.parse(r.created_at) : 0);
+      if (ts > weekAgo) sessionsActivityByUser[key] = (sessionsActivityByUser[key] || 0) + 1;
+      const arr = (sessionsActivityRecentByUser[key] ||= []);
+      if (arr.length < 5) arr.push(r);
+    }
+    renderSessions();
+    _maybeStartSessionsPoll();
+  } catch (e) {
+    list.innerHTML = `<div style="padding:14px;color:var(--red);font-size:0.84rem;">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function renderSessions() {
+  const list = document.getElementById('sessionsList');
+  if (!list) return;
+  const rows = sessionsRaw.slice();
+
+  // Filter
+  const q = sessionsSearchQuery.toLowerCase();
+  const filtered = rows.filter(s => {
+    const status = _sessStatus(s);
+    if (sessionsFilter === 'live'   && !s.is_live) return false;
+    if (sessionsFilter === 'today'  && !(status.key === 'today' || status.key === 'live')) return false;
+    if (sessionsFilter === 'week'   && !(status.key === 'week' || status.key === 'today' || status.key === 'live')) return false;
+    if (sessionsFilter === 'stale'  && status.key !== 'stale') return false;
+    if (sessionsFilter === 'never'  && status.key !== 'never') return false;
+    if (sessionsFilter === 'admin'  && !s.is_admin) return false;
+    if (q) {
+      const hay = [s.email, s.first_name].filter(Boolean).join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  // Sort
+  filtered.sort((a, b) => {
+    if (sessionsSortKey === 'name') {
+      return (_displayOf(a.id) || a.email || '').localeCompare(_displayOf(b.id) || b.email || '');
+    }
+    if (sessionsSortKey === 'joined') {
+      return (Date.parse(b.created_at || 0) - Date.parse(a.created_at || 0));
+    }
+    // default: activity (live first, then by most-recent)
+    if (a.is_live !== b.is_live) return a.is_live ? -1 : 1;
+    const ta = Date.parse(a.last_seen || a.last_sign_in_at || 0);
+    const tb = Date.parse(b.last_seen || b.last_sign_in_at || 0);
+    return tb - ta;
+  });
+
+  // Top stats (computed over the WHOLE set, ignoring current filter)
+  const stats = { total: rows.length, live: 0, today: 0, week: 0, stale: 0, never: 0, admin: 0 };
+  for (const s of rows) {
+    const st = _sessStatus(s);
+    if (s.is_live) stats.live++;
+    else if (st.key === 'today') stats.today++;
+    else if (st.key === 'week')  stats.week++;
+    else if (st.key === 'stale') stats.stale++;
+    else if (st.key === 'never') stats.never++;
+    if (s.is_admin) stats.admin++;
+  }
+
+  // Render stats bar
+  document.getElementById('sessStats').innerHTML = `
+    <button class="sess-stat ${sessionsFilter === 'all' ? 'on' : ''}" data-f="all">
+      <span class="sess-stat-n">${stats.total}</span><span class="sess-stat-l">Total</span>
+    </button>
+    <button class="sess-stat ${sessionsFilter === 'live' ? 'on' : ''}" data-f="live">
+      <span class="sess-stat-n" style="color:#34d399;">🟢 ${stats.live}</span><span class="sess-stat-l">Online now</span>
+    </button>
+    <button class="sess-stat ${sessionsFilter === 'today' ? 'on' : ''}" data-f="today">
+      <span class="sess-stat-n" style="color:#6b9eff;">${stats.today}</span><span class="sess-stat-l">Active today</span>
+    </button>
+    <button class="sess-stat ${sessionsFilter === 'week' ? 'on' : ''}" data-f="week">
+      <span class="sess-stat-n" style="color:#fbbf24;">${stats.week}</span><span class="sess-stat-l">This week</span>
+    </button>
+    <button class="sess-stat ${sessionsFilter === 'stale' ? 'on' : ''}" data-f="stale">
+      <span class="sess-stat-n">${stats.stale}</span><span class="sess-stat-l">Idle 7d+</span>
+    </button>
+    <button class="sess-stat ${sessionsFilter === 'never' ? 'on' : ''}" data-f="never">
+      <span class="sess-stat-n" style="color:#a78bfa;">${stats.never}</span><span class="sess-stat-l">Never signed in</span>
+    </button>
+    <button class="sess-stat ${sessionsFilter === 'admin' ? 'on' : ''}" data-f="admin">
+      <span class="sess-stat-n" style="color:#fbbf24;">${stats.admin}</span><span class="sess-stat-l">Admins</span>
+    </button>`;
+  document.querySelectorAll('.sess-stat').forEach(b => b.addEventListener('click', () => {
+    sessionsFilter = b.dataset.f;
+    renderSessions();
+  }));
+
+  if (!filtered.length) {
+    list.innerHTML = `<div style="padding:30px;text-align:center;color:var(--text-dim);font-size:0.84rem;">No users match this filter.</div>`;
+    return;
+  }
+
+  list.innerHTML = filtered.map(s => {
+    const display = (s.first_name && s.first_name.trim()) ? s.first_name.trim() : (s.email || '?');
+    const initial = display.slice(0, 1).toUpperCase();
+    const status = _sessStatus(s);
+    const lastActive = _ago(s.last_seen || s.last_sign_in_at);
+    const lastSignIn = _ago(s.last_sign_in_at);
+    const joined = _ago(s.created_at);
+    const device = _device(s.user_agent);
+    const activityCount = sessionsActivityByUser[(s.email || '').toLowerCase()] || 0;
+    const isExpanded = sessionsExpanded.has(s.id);
+
+    // Build a richer detail panel when the row is expanded.
+    const recent = sessionsActivityRecentByUser[(s.email || '').toLowerCase()] || [];
+    const detailsHtml = !isExpanded ? '' : `
+      <div class="sess-details">
+        <div class="sess-detail-grid">
+          <div><span class="sess-k">Email</span><span class="sess-v">${escapeHtml(s.email || '')}</span></div>
+          ${s.zoom_host_email ? `<div><span class="sess-k">Zoom host email</span><span class="sess-v">${escapeHtml(s.zoom_host_email)}</span></div>` : ''}
+          <div><span class="sess-k">Joined</span><span class="sess-v">${escapeHtml(joined || '—')}</span></div>
+          <div><span class="sess-k">Last sign-in</span><span class="sess-v">${escapeHtml(lastSignIn || 'never')}</span></div>
+          <div><span class="sess-k">Last presence</span><span class="sess-v">${escapeHtml(s.last_seen ? _ago(s.last_seen) : 'never')}</span></div>
+          <div><span class="sess-k">Device</span><span class="sess-v">${escapeHtml(device || '—')}</span></div>
+          <div><span class="sess-k">Activity (7d)</span><span class="sess-v">${activityCount} action${activityCount === 1 ? '' : 's'}</span></div>
+          <div><span class="sess-k">User ID</span><span class="sess-v" style="font-family:monospace;font-size:0.66rem;">${escapeHtml(s.id || '')}</span></div>
         </div>
-        <span class="sess-when">Last sign-in: ${escapeHtml(lastStr)}</span>
-        <button class="small-btn sess-logout" data-uid="${s.id}" data-email="${escapeHtml(s.email || '')}" style="color:var(--red);border-color:rgba(248,113,113,.3);">Force logout</button>
+        ${recent.length ? `<div style="margin-top:8px;">
+          <div style="font-size:0.7rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">Recent actions</div>
+          ${recent.map(r => `<div class="sess-act"><span class="sess-act-when">${escapeHtml(_ago(r.ts || r.created_at) || '—')}</span><span class="sess-act-what">${escapeHtml(r.action)}</span><span class="sess-act-target">${escapeHtml(r.target_id || '')}</span></div>`).join('')}
+        </div>` : ''}
+        <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;">
+          <button class="small-btn sess-view-as"   data-uid="${s.id}" data-email="${escapeHtml(s.email || '')}" data-admin="${s.is_admin ? 1 : 0}" data-perms="${(s.permissions || []).join(',')}">👁 View as</button>
+          <button class="small-btn sess-reset-pw"  data-email="${escapeHtml(s.email || '')}">📧 Send password reset</button>
+          <button class="small-btn sess-open-user" data-uid="${s.id}">✏️ Open in Users</button>
+          ${s.is_live ? `<button class="small-btn sess-logout" data-uid="${s.id}" data-email="${escapeHtml(s.email || '')}" style="color:var(--red);border-color:rgba(248,113,113,.3);margin-left:auto;">🚪 Force logout</button>` : ''}
+        </div>
       </div>`;
-    }).join('');
-    list.querySelectorAll('.sess-logout').forEach(btn => btn.addEventListener('click', () => forceLogoutUser(btn)));
-  } catch (e) { list.innerHTML = `<div style="padding:14px;color:var(--red);font-size:0.84rem;">${escapeHtml(e.message)}</div>`; }
+
+    return `<div class="sess-row ${isExpanded ? 'expanded' : ''}" data-uid="${s.id}">
+      <span class="sess-av" style="position:relative;">
+        ${escapeHtml(initial)}
+        <span class="sess-dot" style="background:${status.dot};" title="${escapeHtml(status.label)}"></span>
+      </span>
+      <div class="sess-info">
+        <div class="sess-name">${escapeHtml(display)}${s.is_admin ? ' <span class="pill pill-admin">Admin</span>' : ''}</div>
+        <div class="sess-meta">
+          <span style="color:${status.color};font-weight:600;">${escapeHtml(status.label)}</span>
+          ${device ? `<span class="sess-sep">·</span><span title="${escapeHtml(s.user_agent || '')}">💻 ${escapeHtml(device)}</span>` : ''}
+          ${activityCount ? `<span class="sess-sep">·</span><span title="Audit log actions in the last 7 days">📜 ${activityCount} action${activityCount === 1 ? '' : 's'} (7d)</span>` : ''}
+        </div>
+      </div>
+      <div class="sess-times">
+        ${lastActive ? `<div class="sess-when-line"><span class="sess-when-k">Last seen</span><span class="sess-when-v">${escapeHtml(lastActive)}</span></div>` : ''}
+        ${joined ? `<div class="sess-when-line"><span class="sess-when-k">Joined</span><span class="sess-when-v">${escapeHtml(joined)}</span></div>` : ''}
+      </div>
+      <button class="sess-expand" data-uid="${s.id}" title="${isExpanded ? 'Collapse' : 'Expand'}">${isExpanded ? '▴' : '▾'}</button>
+      ${detailsHtml}
+    </div>`;
+  }).join('');
+
+  // Wire expand toggles
+  list.querySelectorAll('.sess-expand').forEach(btn => btn.addEventListener('click', e => {
+    e.stopPropagation();
+    const uid = btn.dataset.uid;
+    if (sessionsExpanded.has(uid)) sessionsExpanded.delete(uid); else sessionsExpanded.add(uid);
+    renderSessions();
+  }));
+  // Click row header (avatar / info area) also toggles expand
+  list.querySelectorAll('.sess-row').forEach(row => row.addEventListener('click', e => {
+    if (e.target.closest('button')) return;
+    const uid = row.dataset.uid;
+    if (sessionsExpanded.has(uid)) sessionsExpanded.delete(uid); else sessionsExpanded.add(uid);
+    renderSessions();
+  }));
+  // Action buttons inside the detail panel
+  list.querySelectorAll('.sess-logout').forEach(btn => btn.addEventListener('click', e => { e.stopPropagation(); forceLogoutUser(btn); }));
+  list.querySelectorAll('.sess-view-as').forEach(btn => btn.addEventListener('click', e => {
+    e.stopPropagation();
+    if (btn.dataset.uid === session?.user?.id) { toast("That's already you.", 'info'); return; }
+    if (typeof window.uxImpersonate !== 'function') { toast('Impersonation helper not loaded.', 'err'); return; }
+    const perms = btn.dataset.perms ? btn.dataset.perms.split(',').filter(Boolean) : [];
+    window.uxImpersonate({ id: btn.dataset.uid, email: btn.dataset.email, is_admin: btn.dataset.admin === '1', permissions: perms });
+  }));
+  list.querySelectorAll('.sess-reset-pw').forEach(btn => btn.addEventListener('click', async e => {
+    e.stopPropagation();
+    const email = btn.dataset.email;
+    if (!confirm('Send a password-reset email to ' + email + '?')) return;
+    try {
+      const { error } = await supa.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + '/forgot-password' });
+      if (error) throw error;
+      toast('Password reset sent to ' + email, 'ok');
+    } catch (e2) { toast(e2.message, 'err'); }
+  }));
+  list.querySelectorAll('.sess-open-user').forEach(btn => btn.addEventListener('click', e => {
+    e.stopPropagation();
+    activeTab = 'users';
+    applyTabChrome('users');
+    loadUsersTab().then(() => openUserEditor(btn.dataset.uid));
+  }));
 }
 
 async function forceLogoutUser(btn) {
@@ -2301,12 +2540,20 @@ async function forceLogoutUser(btn) {
   btn.disabled = true; btn.textContent = 'Revoking…';
   try {
     await adminApi('?api=force-logout', { method: 'POST', body: { userId: btn.dataset.uid } });
-    btn.textContent = '✓ Revoked';
-    setTimeout(loadSessionsTab, 700);
-  } catch (e) {
-    btn.disabled = false; btn.textContent = 'Force logout';
-    alert(e.message);
-  }
+    toast('Signed out ' + btn.dataset.email, 'ok');
+    loadSessionsTab();
+  } catch (e) { toast(e.message, 'err'); btn.disabled = false; btn.textContent = '🚪 Force logout'; }
 }
 
-document.getElementById('sessionsRefreshBtn')?.addEventListener('click', loadSessionsTab);
+document.getElementById('sessionsRefreshBtn')?.addEventListener('click', () => { sessionsRaw = []; loadSessionsTab(); });
+document.getElementById('sessSearch')?.addEventListener('input', e => { sessionsSearchQuery = e.target.value.trim(); renderSessions(); });
+document.getElementById('sessSort')?.addEventListener('change', e => { sessionsSortKey = e.target.value; renderSessions(); });
+
+// Auto-refresh while the Sessions tab is open so "Online now" stays
+// accurate. Polls every 20 s; stops when the tab changes away.
+let _sessPoll;
+function _maybeStartSessionsPoll() {
+  clearInterval(_sessPoll);
+  if (activeTab !== 'sessions') return;
+  _sessPoll = setInterval(() => { if (activeTab === 'sessions') loadSessionsTab(); else clearInterval(_sessPoll); }, 20000);
+}

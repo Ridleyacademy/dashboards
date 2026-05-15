@@ -471,6 +471,7 @@ function openUserEditor(uid) {
 
     <div class="ax-actions">
       <button class="btn-primary" id="u-save">Save roles &amp; admin</button>
+      <button class="btn-ghost"  id="u-activity" title="See everything this user has done">📜 Activity history</button>
       <button class="btn-ghost"  id="u-view-as" title="See the app as this user (read-only impersonation)">👁 View as</button>
       <button class="btn-ghost"  id="u-reset-pw">📧 Send password reset</button>
       <button class="btn-ghost"  id="u-revoke">↻ Refresh access</button>
@@ -520,6 +521,7 @@ function openUserEditor(uid) {
   document.getElementById('u-save').addEventListener('click', () => saveUser(uid));
   document.getElementById('u-revoke').addEventListener('click', () => revokeUserSession(uid));
   document.getElementById('u-delete').addEventListener('click', () => deleteUser(uid));
+  document.getElementById('u-activity').addEventListener('click', () => openUserActivityModal(uid));
   document.getElementById('u-view-as').addEventListener('click', () => {
     if (uid === session?.user?.id) { toast("That's already you.", 'info'); return; }
     if (typeof window.uxImpersonate !== 'function') {
@@ -764,6 +766,105 @@ function renderUserRepMap(uid) {
     try { await setRepMapping(btn.dataset.name, [], uid); renderUserRepMap(uid); }
     catch (err) { btn.disabled = false; btn.textContent = 'Create & link'; alert(err.message); }
   });
+}
+
+// Per-user activity history modal — fetches every activity_log entry where
+// actor_email matches this user, renders with the same _formatActivity
+// helper as the global Activity tab so the formatting (icon + verb + diff
+// + content block) is identical.
+async function openUserActivityModal(uid) {
+  const u = usersData.find(x => x.id === uid);
+  if (!u) { toast('User not found.', 'err'); return; }
+  const display = _displayOf(uid) || u.email;
+  showModal(`
+    <div class="invite-modal" style="max-height:80vh;">
+      <div class="invite-header">
+        <h3>📜 ${escapeHtml(display)}'s activity</h3>
+        <span class="invite-subtitle">Everything ${escapeHtml(display)} has done in the system. Most recent first.</span>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <input id="ua-search" type="search" placeholder="Filter…" style="flex:1;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);font-size:0.82rem;">
+        <select id="ua-limit" style="padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);font-size:0.82rem;">
+          <option value="100">Last 100</option>
+          <option value="200" selected>Last 200</option>
+          <option value="500">Last 500</option>
+        </select>
+        <button class="small-btn" id="ua-refresh">↻ Refresh</button>
+      </div>
+      <div id="ua-list" style="overflow-y:auto;max-height:55vh;border:1px solid var(--border);border-radius:10px;padding:8px;background:var(--surface2);">
+        <div style="padding:14px;color:var(--text-dim);font-size:0.84rem;">Loading…</div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+        <span id="ua-count" style="font-size:0.72rem;color:var(--text-dim);">—</span>
+        <button class="btn-ghost" onclick="document.getElementById('modalRoot').innerHTML=''">Close</button>
+      </div>
+    </div>
+  `, { wide: true });
+
+  let cachedRows = [];
+
+  async function refresh() {
+    const listEl = document.getElementById('ua-list');
+    const countEl = document.getElementById('ua-count');
+    const limit = Number(document.getElementById('ua-limit').value) || 200;
+    listEl.innerHTML = '<div style="padding:14px;color:var(--text-dim);font-size:0.84rem;">Loading…</div>';
+    try {
+      const params = new URLSearchParams({ api: 'activity', limit: String(limit), actor: u.email || '' });
+      const j = await adminApi('?' + params.toString());
+      cachedRows = j.rows || [];
+      // The actor filter is ilike — narrow to exact email match client-side.
+      const myEmail = (u.email || '').toLowerCase();
+      cachedRows = cachedRows.filter(r => (r.actor_email || '').toLowerCase() === myEmail);
+      render();
+    } catch (e) {
+      listEl.innerHTML = `<div style="padding:14px;color:var(--red);font-size:0.84rem;">${escapeHtml(e.message)}</div>`;
+    }
+  }
+
+  function render() {
+    const listEl = document.getElementById('ua-list');
+    const countEl = document.getElementById('ua-count');
+    if (!listEl) return;
+    const q = (document.getElementById('ua-search')?.value || '').trim().toLowerCase();
+    const filtered = !q ? cachedRows : cachedRows.filter(r => {
+      const f = _formatActivity(r);
+      const hay = `${f.verb} ${f.target || ''} ${JSON.stringify(r.details || {})}`.toLowerCase();
+      return hay.includes(q);
+    });
+    countEl.textContent = q ? `${filtered.length} of ${cachedRows.length} entries match` : `${cachedRows.length} entr${cachedRows.length === 1 ? 'y' : 'ies'}`;
+    if (!filtered.length) {
+      listEl.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-dim);font-size:0.84rem;">${q ? 'No match.' : 'No activity yet.'}</div>`;
+      return;
+    }
+    listEl.innerHTML = filtered.map(r => {
+      const f = _formatActivity(r);
+      const whenAbs = f.when ? new Date(f.when) : null;
+      const whenStr = whenAbs && !isNaN(whenAbs.getTime()) ? whenAbs.toLocaleString() : '';
+      const ago = _ago(f.when);
+      const target = f.target ? `<span class="act-target">${escapeHtml(f.target)}</span>` : '';
+      return `<div class="act-row" title="${escapeHtml(whenStr)}">
+        <span class="act-icon">${f.icon}</span>
+        <div class="act-body">
+          <div>
+            <span class="act-verb">${escapeHtml(f.verb)}</span>
+            ${target}
+          </div>
+          ${f.diff ? `<div class="act-diff">${f.diff}</div>` : ''}
+          ${f.content || ''}
+        </div>
+        <span class="act-when">${escapeHtml(ago || whenStr)}</span>
+      </div>`;
+    }).join('');
+  }
+
+  document.getElementById('ua-refresh').addEventListener('click', refresh);
+  document.getElementById('ua-limit').addEventListener('change', refresh);
+  let _uaSearchTimer;
+  document.getElementById('ua-search').addEventListener('input', () => {
+    clearTimeout(_uaSearchTimer);
+    _uaSearchTimer = setTimeout(render, 250);
+  });
+  refresh();
 }
 
 function openCopyRolesPicker(targetUid) {

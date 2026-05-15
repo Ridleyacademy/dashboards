@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v127-activity-diffs';
+const CACHE_NAME = 'ridley-v128-full-audit';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [

@@ -418,6 +418,25 @@
   .act-diff-fallback { color: var(--text-muted); font-size: 0.72rem; }
   .act-diff-fallback .act-diff-field { background: var(--surface3); padding: 1px 6px; border-radius: 4px; margin-right: 4px; }
   .act-diff-more { color: var(--text-dim); font-style: italic; align-self: center; }
+
+  /* Activity / Session content block — note text, deleted snapshot, etc. */
+  .act-content {
+    margin-top: 6px; padding: 8px 10px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px;
+    display: grid; gap: 4px 12px;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    font-size: 0.78rem;
+  }
+  .act-content-kv { display: flex; gap: 6px; align-items: flex-start; }
+  .act-content-k {
+    font-size: 0.62rem; font-weight: 700;
+    color: var(--text-muted); text-transform: uppercase;
+    letter-spacing: .04em; flex-shrink: 0;
+    padding-top: 2px;
+  }
+  .act-content-v { color: var(--text); word-break: break-word; }
+  .sess-act-block .act-content { margin-left: 0; }
   .sess-act-block { padding: 4px 0; border-bottom: 1px dashed var(--border); }
   .sess-act-block:last-child { border-bottom: 0; }
   .sess-act-block .sess-act { border-bottom: 0; padding: 2px 0; }

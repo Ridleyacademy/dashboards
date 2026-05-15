@@ -2298,12 +2298,15 @@ const ACT_LABELS = {
 };
 
 // Format an activity-log row into a friendly text representation.
-// Returns { icon, verb, target, when, diff }.
-// `diff` is HTML for the field-level changes when available (or null).
+// Returns { icon, verb, target, when, diff, content }.
+// `diff`    = HTML for field-level changes when an update has changes[]
+// `content` = HTML block describing the action's content (note text, deleted
+//             row, alert title/desc, turnover result, etc.) so every kind of
+//             activity has a real record, not just an action code + id.
 function _formatActivity(r) {
   const meta = ACT_LABELS[r.action] || { icon: '•', label: r.action };
   const d = (r.details && typeof r.details === 'object') ? r.details : {};
-  // Build a friendly target. If the entry carries a `name`, prefer "name #id".
+  // Build a friendly target. If the entry carries a `name`, prefer "Name (#id)".
   let target = '';
   if (r.target_id) {
     const idPart = meta.target ? meta.target(String(r.target_id)) : String(r.target_id);
@@ -2315,25 +2318,77 @@ function _formatActivity(r) {
   } else if (d.field) {
     target = String(d.field);
   }
-  // Build the field-level diff when available. Two shapes supported:
-  //  (a) details.changes = [{field, before, after}, …]   ← richest (students v49+)
-  //  (b) details.fields  = [field, …]                    ← just names (v48)
+
+  // Field-level diff (mentorship.update / pause_update / resign_update / win_update)
   let diff = null;
   if (Array.isArray(d.changes) && d.changes.length) {
     diff = d.changes.slice(0, 8).map(c => {
-      const before = _fmtVal(c.before);
-      const after  = _fmtVal(c.after);
       return `<span class="act-diff-item"><span class="act-diff-field">${escapeHtml(_humanField(c.field))}</span>` +
-             `<span class="act-diff-before">${before}</span>` +
+             `<span class="act-diff-before">${_fmtVal(c.before)}</span>` +
              `<span class="act-diff-arrow">→</span>` +
-             `<span class="act-diff-after">${after}</span></span>`;
+             `<span class="act-diff-after">${_fmtVal(c.after)}</span></span>`;
     }).join('') + (d.changes.length > 8 ? `<span class="act-diff-more">+${d.changes.length - 8} more</span>` : '');
   } else if (Array.isArray(d.fields) && d.fields.length) {
-    // Fallback while students v48 is still deployed.
     diff = `<span class="act-diff-fallback">changed: ${d.fields.slice(0, 8).map(f => `<span class="act-diff-field">${escapeHtml(_humanField(f))}</span>`).join(', ')}${d.fields.length > 8 ? ` (+${d.fields.length - 8} more)` : ''}</span>`;
   }
+
+  // Content block — the actual stuff that happened. Pick the most useful
+  // shape from the details object based on the action.
+  let content = null;
+  const parts = [];
+  const pushKV = (k, v) => { if (v !== null && v !== undefined && v !== '') parts.push(`<span class="act-content-kv"><span class="act-content-k">${escapeHtml(k)}</span><span class="act-content-v">${_fmtVal(v)}</span></span>`); };
+  // ─ Notes (coach / rep / IC) — show the actual text
+  if ((/_note_add$/.test(r.action) || /_note_delete$/.test(r.action))) {
+    const txt = d.text || d.deleted?.text;
+    const date = d.note_date || d.deleted?.note_date;
+    if (txt) pushKV('Note', txt);
+    if (date) pushKV('Date', date);
+  }
+  // ─ Alert add / resolve — title + description + resolution note
+  if (r.action === 'mentorship.alert_add')      { pushKV('Title', d.title); pushKV('Details', d.description); if (d.recipients_count) pushKV('Notified', d.recipients_count + ' user' + (d.recipients_count === 1 ? '' : 's')); }
+  if (r.action === 'mentorship.alert_resolve')  { pushKV('Title', d.alert_title); pushKV('Resolution', d.resolution_note); if (d.recipients_count) pushKV('Notified', d.recipients_count + ' user' + (d.recipients_count === 1 ? '' : 's')); }
+  // ─ Alert delete / win delete / pause delete / resign delete / turnover delete — show snapshot
+  if (/_delete$/.test(r.action) && d.deleted && typeof d.deleted === 'object') {
+    for (const [k, v] of Object.entries(d.deleted)) {
+      if (k === 'student_id') continue;
+      pushKV(_humanField(k), v);
+    }
+  }
+  // ─ Win add — text + date
+  if (r.action === 'mentorship.win_add') { pushKV('Win', d.text); if (d.win_date) pushKV('Date', d.win_date); }
+  // ─ Pause / resign add — start, end, months, amount, notes
+  if (r.action === 'mentorship.pause_add')  { pushKV('From', d.start_date); pushKV('To', d.end_date); pushKV('Notes', d.notes); }
+  if (r.action === 'mentorship.resign_add') { pushKV('Date', d.resign_date); pushKV('Months added', d.months_added); pushKV('Amount', d.amount); pushKV('Notes', d.notes); }
+  // ─ Turnover add / result — rep, note, result
+  if (r.action === 'mentorship.turnover_add')    { pushKV('Rep', d.rep_name); pushKV('Note', d.note); pushKV('Date', d.turnover_date); }
+  if (r.action === 'mentorship.turnover_result') { pushKV('Rep', d.rep_name); pushKV('Result', d.result || '(cleared)'); if (d.previous_result) pushKV('Previous', d.previous_result); }
+  // ─ Activity log add — kind, date, notes
+  if (r.action === 'mentorship.activity_add') { pushKV('Kind', d.kind); pushKV('Date', d.activity_date); pushKV('Notes', d.notes); }
+  // ─ Survey link add — url + title
+  if (r.action === 'mentorship.survey_link_add') { pushKV('URL', d.url); pushKV('Title', d.title); }
+  // ─ User permissions change — new perm set
+  if (r.action === 'user.permissions_change') {
+    if (Array.isArray(d.permissions)) pushKV('Permissions', d.permissions.join(', '));
+    if (d.is_admin !== undefined) pushKV('Admin', d.is_admin);
+    if (d.first_name) pushKV('First name', d.first_name);
+  }
+  // ─ User invite — email + admin flag
+  if (r.action === 'user.invite') {
+    pushKV('Email', d.email);
+    if (d.is_admin) pushKV('Admin', true);
+    if (Array.isArray(d.permissions) && d.permissions.length) pushKV('Permissions', d.permissions.join(', '));
+  }
+  // ─ Rep mapping set
+  if (r.action === 'rep_mapping.set') {
+    pushKV('Calls name', d.callsName);
+    if (Array.isArray(d.salesAffiliates)) pushKV('Affiliates', d.salesAffiliates.join(', ') || '(none)');
+    if (d.userId) pushKV('Linked user', d.userId);
+  }
+
+  if (parts.length) content = `<div class="act-content">${parts.join('')}</div>`;
+
   const when = r.ts || r.created_at;
-  return { icon: meta.icon, verb: meta.label, target, when, diff };
+  return { icon: meta.icon, verb: meta.label, target, when, diff, content };
 }
 
 // Format a single before/after value for inline display.
@@ -2382,6 +2437,7 @@ async function loadActivityTab() {
             ${target}
           </div>
           ${f.diff ? `<div class="act-diff">${f.diff}</div>` : ''}
+          ${f.content || ''}
         </div>
         <span class="act-when">${escapeHtml(ago || whenStr)}</span>
       </div>`;
@@ -2596,6 +2652,7 @@ function renderSessions() {
             return `<div class="sess-act-block">
               <div class="sess-act"><span class="sess-act-when">${escapeHtml(_ago(f.when) || '—')}</span><span class="sess-act-what">${escapeHtml(f.icon)} ${escapeHtml(f.verb)}</span><span class="sess-act-target">${escapeHtml(f.target || '')}</span></div>
               ${f.diff ? `<div class="sess-act-diff">${f.diff}</div>` : ''}
+              ${f.content || ''}
             </div>`;
           }).join('')}
         </div>` : ''}

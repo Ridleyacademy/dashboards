@@ -64,6 +64,32 @@ document.getElementById('loginForm')?.addEventListener('submit', async e => {
   else boot();
 });
 document.getElementById('refreshBtn')?.addEventListener('click', refreshAll);
+// ── Toast helper (one-line action feedback, top-right) ───────────────
+function toast(message, kind = 'info', timeout = 2800) {
+  const root = document.getElementById('toastRoot');
+  if (!root) { console.log('[toast]', message); return; }
+  const el = document.createElement('div');
+  el.className = `toast ${kind}`;
+  el.textContent = (kind === 'ok' ? '✓ ' : kind === 'err' ? '⚠ ' : '') + message;
+  root.appendChild(el);
+  setTimeout(() => { el.style.transition = 'opacity .25s'; el.style.opacity = '0'; setTimeout(() => el.remove(), 250); }, timeout);
+}
+
+// ── Live search/filter on the left list ─────────────────────────────
+let axSearchQuery = '';
+document.getElementById('axSearch')?.addEventListener('input', e => {
+  axSearchQuery = e.target.value.trim().toLowerCase();
+  document.getElementById('axSearchClear').style.display = axSearchQuery ? '' : 'none';
+  refreshTab();
+});
+document.getElementById('axSearchClear')?.addEventListener('click', () => {
+  const inp = document.getElementById('axSearch');
+  inp.value = ''; axSearchQuery = '';
+  document.getElementById('axSearchClear').style.display = 'none';
+  refreshTab();
+  inp.focus();
+});
+
 // inviteBtn removed from the topbar in v239 — the action now lives inside
 // the Users tab via the shared axAddBtn (which becomes "+ Invite user" when
 // the Users tab is active). See switchTab().
@@ -202,29 +228,152 @@ function onAddInTab() {
 // ═══════════════════════════════════════════════════════════════════════
 // USERS TAB
 // ═══════════════════════════════════════════════════════════════════════
+let pendingInvitesData = [];
+
+function _userStatus(u) {
+  if (u.is_pending) return { label: 'Pending', cls: 'pending' };
+  if (u.is_admin && !u.last_sign_in_at) return { label: 'Never signed in', cls: 'never' };
+  if (!u.last_sign_in_at) return { label: 'Never signed in', cls: 'never' };
+  const days = Math.round((Date.now() - new Date(u.last_sign_in_at).getTime()) / 86400000);
+  if (days > 30) return { label: `Inactive ${days}d`, cls: 'stale' };
+  return { label: 'Active', cls: 'active' };
+}
+
 async function loadUsersTab() {
   const list = document.getElementById('axList');
   list.innerHTML = '<div style="padding:14px;color:var(--text-dim);font-size:0.84rem;">Loading users…</div>';
   try {
-    const j = await api('?api=users');
-    usersData = (j.rows || []).sort((a, b) => (a.email || '').localeCompare(b.email || ''));
-    document.getElementById('axCount').textContent = `${usersData.length} total`;
-    list.innerHTML = usersData.map(u => {
-      const roleNames = u.role_ids.map(id => roles.find(r => r.id === id)?.name).filter(Boolean);
+    // Fetch users + pending invites in parallel. Pending invites are merged
+    // into the list with a "Pending" badge and inline Resend/Cancel actions.
+    const [j, pj] = await Promise.all([
+      api('?api=users'),
+      fetch(SUPABASE_URL + '/functions/v1/invite?api=list', {
+        headers: { Authorization: 'Bearer ' + session.access_token },
+      }).then(r => r.json()).catch(() => ({ invites: [] })),
+    ]);
+    usersData = (j.rows || []).sort((a, b) => (_displayOf(a.id) || '').localeCompare(_displayOf(b.id) || ''));
+    pendingInvitesData = pj.invites || [];
+
+    // Build a unified list: real users + pending-invite stubs that look the
+    // same to the renderer. Stubs use id="invite:<email>" so we can detect.
+    const inviteStubs = pendingInvitesData.map(inv => ({
+      id: 'invite:' + inv.email,
+      email: inv.email,
+      first_name: inv.first_name || null,
+      is_admin: !!inv.is_admin,
+      is_pending: true,
+      role_ids: [],
+      permissions_v2: [],
+      last_sign_in_at: null,
+      created_at: inv.invited_at,
+    }));
+    const combined = [...inviteStubs, ...usersData];
+
+    // Apply live search filter
+    const q = axSearchQuery;
+    const matches = combined.filter(u => {
+      if (!q) return true;
+      const hay = [u.email, u.first_name].filter(Boolean).join(' ').toLowerCase();
+      if (hay.includes(q)) return true;
+      // Match by role name too
+      const roleNames = (u.role_ids || []).map(id => roles.find(r => r.id === id)?.name).filter(Boolean).join(' ').toLowerCase();
+      return roleNames.includes(q);
+    });
+
+    const realCount = usersData.length;
+    const pendingCount = inviteStubs.length;
+    document.getElementById('axCount').textContent = q
+      ? `${matches.length} of ${realCount + pendingCount}`
+      : `${realCount} user${realCount === 1 ? '' : 's'}${pendingCount ? ` · ${pendingCount} pending` : ''}`;
+
+    if (!matches.length) {
+      list.innerHTML = q
+        ? `<div style="padding:24px 14px;text-align:center;color:var(--text-dim);font-size:0.84rem;">No match for <strong>${escapeHtml(q)}</strong>.</div>`
+        : '<div style="padding:24px 14px;text-align:center;color:var(--text-dim);font-size:0.84rem;">No users yet. Click <strong>+ Invite user</strong> at the top to add the first one.</div>';
+      return;
+    }
+    list.innerHTML = matches.map(u => {
+      const roleNames = (u.role_ids || []).map(id => roles.find(r => r.id === id)?.name).filter(Boolean);
       const sel = u.id === selectedId ? 'selected' : '';
       const display = (u.first_name && u.first_name.trim()) ? u.first_name.trim() : u.email;
       const secondary = (u.first_name && u.first_name.trim()) ? u.email : '';
+      const status = _userStatus(u);
       return `<div class="ax-row ${sel}" data-uid="${u.id}">
         <div class="ax-row-name">${escapeHtml(display)}${secondary ? `<span style="font-weight:400;color:var(--text-dim);font-size:0.74rem;margin-left:6px;">${escapeHtml(secondary)}</span>` : ''}</div>
         <div class="ax-row-meta">
+          <span class="ax-status ${status.cls}">${status.label}</span>
           ${u.is_admin ? '<span class="pill pill-admin">Admin</span>' : ''}
           ${roleNames.slice(0,3).map(n => `<span class="pill pill-blue">${escapeHtml(n)}</span>`).join('')}
           ${roleNames.length > 3 ? `<span class="pill">+${roleNames.length - 3}</span>` : ''}
         </div>
       </div>`;
     }).join('');
-    list.querySelectorAll('.ax-row').forEach(r => r.addEventListener('click', () => openUserEditor(r.dataset.uid)));
+    list.querySelectorAll('.ax-row').forEach(r => r.addEventListener('click', () => {
+      const id = r.dataset.uid;
+      if (id.startsWith('invite:')) openPendingInviteEditor(id.slice('invite:'.length));
+      else openUserEditor(id);
+    }));
   } catch (e) { list.innerHTML = `<div style="padding:14px;color:var(--red);">${escapeHtml(e.message)}</div>`; }
+}
+
+// Editor pane shown when a Pending Invite row is clicked. Lets admins
+// resend or cancel without leaving the Users tab.
+function openPendingInviteEditor(email) {
+  selectedId = 'invite:' + email; selectedKind = 'invite';
+  document.querySelectorAll('.ax-row').forEach(r => r.classList.toggle('selected', r.dataset.uid === selectedId));
+  const inv = pendingInvitesData.find(x => x.email === email);
+  const ed = document.getElementById('axEditor');
+  if (!inv) { ed.innerHTML = '<div class="ax-editor-empty">Invite not found.</div>'; return; }
+  const invitedAt = inv.invited_at ? new Date(inv.invited_at).toLocaleString() : '—';
+  const lastSent = inv.last_email_sent_at ? new Date(inv.last_email_sent_at).toLocaleString() : '—';
+  const roleNames = (inv.permissions || []).map(s => roles.find(r => r.slug === s)?.name || s).join(', ') || '(none yet)';
+  ed.innerHTML = `<div class="ax-editor">
+    <h2>${escapeHtml(inv.first_name || inv.email)} <span class="ax-status pending" style="font-size:.7rem;margin-left:8px;">Pending invite</span></h2>
+    <div style="color:var(--text-dim);font-size:0.82rem;">${escapeHtml(inv.email)}</div>
+    <div style="color:var(--text-dim);font-size:0.74rem;margin-top:4px;">Invited ${escapeHtml(invitedAt)} · Last email sent ${escapeHtml(lastSent)}</div>
+
+    <h3>What they'll get on activation</h3>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+      ${inv.is_admin ? '<span class="pill pill-admin">Admin</span>' : ''}
+      <span class="pill pill-blue">Roles: ${escapeHtml(roleNames)}</span>
+    </div>
+
+    <div class="ax-actions">
+      <button class="btn-primary" id="inv-resend">↻ Resend invitation</button>
+      <button class="btn-ghost" style="color:var(--red);" id="inv-revoke">✕ Cancel invite</button>
+      <span class="ax-msg" id="inv-msg"></span>
+    </div>
+  </div>`;
+  document.getElementById('inv-resend').addEventListener('click', async () => {
+    const btn = document.getElementById('inv-resend');
+    btn.disabled = true; btn.textContent = 'Sending…';
+    try {
+      const r = await fetch(SUPABASE_URL + '/functions/v1/invite?api=resend', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+        body: JSON.stringify({ email }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'Send failed');
+      toast('Invitation resent to ' + email, 'ok');
+      btn.disabled = false; btn.textContent = '↻ Resend invitation';
+      loadUsersTab();
+    } catch (e) { toast(e.message, 'err'); btn.disabled = false; btn.textContent = '↻ Resend invitation'; }
+  });
+  document.getElementById('inv-revoke').addEventListener('click', async () => {
+    if (!confirm('Cancel the pending invite for ' + email + '? They won\'t be able to activate via that link.')) return;
+    try {
+      const r = await fetch(SUPABASE_URL + '/functions/v1/invite?api=revoke', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+        body: JSON.stringify({ email }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'Revoke failed');
+      toast('Invite cancelled for ' + email, 'ok');
+      selectedId = null;
+      loadUsersTab();
+      document.getElementById('axEditor').innerHTML = '<div class="ax-editor-empty">Select a user on the left.</div>';
+    } catch (e) { toast(e.message, 'err'); }
+  });
 }
 
 function openUserEditor(uid) {
@@ -311,7 +460,7 @@ function openUserEditor(uid) {
     <h3>🧩 Rep Mapping <span style="font-weight:400;color:var(--text-dim);font-size:0.74rem;">(Calls Log names + Sales Affiliate spellings linked to this user)</span></h3>
     <div id="u-repmap"></div>
 
-    <h3>Effective permissions <span style="font-weight:400;color:var(--text-dim);font-size:0.74rem;">(role + post + grant)</span></h3>
+    <h3>✅ What they can do <span style="font-weight:400;color:var(--text-dim);font-size:0.74rem;">(everything granted by their roles + posts)</span></h3>
     <div class="effective-perms" id="u-effective">${effHtml}</div>
 
     <div class="ax-actions">
@@ -607,10 +756,11 @@ async function saveUser(uid) {
     const roleIds = [...document.querySelectorAll('#u-roles .role-chip.on')].map(c => Number(c.dataset.roleId));
     await api('?api=user-set-admin', { method: 'POST', body: { user_id: uid, is_admin: isAdmin } });
     await api('?api=user-set-roles', { method: 'POST', body: { user_id: uid, role_ids: roleIds } });
-    msg.textContent = '✓ Saved'; msg.className = 'ax-msg ok';
+    msg.textContent = ''; msg.className = 'ax-msg';
+    toast('Saved roles & access for ' + (_displayOf(uid) || 'user'), 'ok');
     await loadUsersTab();
     openUserEditor(uid);
-  } catch (e) { msg.textContent = e.message; msg.className = 'ax-msg err'; }
+  } catch (e) { msg.textContent = e.message; msg.className = 'ax-msg err'; toast(e.message, 'err'); }
 }
 
 async function revokeUserSession(uid) {
@@ -1016,13 +1166,13 @@ function openExecPostEditor(epId) {
     <div class="ax-editor-row"><label>Name</label><input id="ep-name" value="${escapeHtml(ep.name)}" placeholder="e.g. COO"></div>
     <div class="ax-editor-row"><label>Slug</label><input id="ep-slug" value="${escapeHtml(ep.slug)}" placeholder="coo"></div>
     <div class="ax-editor-row"><label title="One sentence: why does this executive post exist?">Purpose</label><input id="ep-purpose" value="${escapeHtml(ep.purpose || '')}" placeholder="One sentence: why does this exec post exist?"></div>
-    <div class="ax-editor-row"><label title="The single tangible thing this exec post is accountable for delivering.">Valuable Final Product</label><input id="ep-vfp" value="${escapeHtml(ep.valuable_final_product || '')}" placeholder="The tangible thing this exec post is accountable for"></div>
+    <div class="ax-editor-row"><label title="The single tangible thing this exec post is accountable for delivering.">What this produces</label><input id="ep-vfp" value="${escapeHtml(ep.valuable_final_product || '')}" placeholder="The tangible thing this exec post is accountable for"></div>
     <div class="ax-editor-row"><label>Description</label><textarea id="ep-desc">${escapeHtml(ep.description || '')}</textarea></div>
     <div class="ax-editor-row"><label>Color</label><input id="ep-color" type="color" value="${escapeHtml(ep.color || '#fbbf24')}" style="max-width:80px;"></div>
 
     <h3>Assigned to</h3>
     <div class="ax-editor-row"><label>Holder</label><select id="ep-head"></select></div>
-    <div class="ax-editor-row"><label>Default role</label><select id="ep-role"></select></div>
+    <div class="ax-editor-row"><label>Auto-assigned role</label><select id="ep-role"></select></div>
 
     <h3>Divisions overseen</h3>
     <div style="font-size:0.74rem;color:var(--text-dim);margin-bottom:6px;">Pick every division this person is in charge of. Hover the card on the board to see them highlighted.</div>
@@ -1100,7 +1250,7 @@ function renderDivisionEditor(d) {
     <div class="ax-editor-row"><label>Name</label><input id="d-name" value="${escapeHtml(d.name)}"></div>
     <div class="ax-editor-row"><label>Slug</label><input id="d-slug" value="${escapeHtml(d.slug)}"></div>
     <div class="ax-editor-row"><label title="One sentence: why does this division exist?">Purpose</label><input id="d-purpose" value="${escapeHtml(d.purpose || '')}" placeholder="One sentence: why does this division exist?"></div>
-    <div class="ax-editor-row"><label title="The single tangible thing this division produces and ships out.">Valuable Final Product</label><input id="d-vfp" value="${escapeHtml(d.valuable_final_product || '')}" placeholder="The tangible thing this division produces and ships"></div>
+    <div class="ax-editor-row"><label title="The single tangible thing this division produces and ships out.">What this produces</label><input id="d-vfp" value="${escapeHtml(d.valuable_final_product || '')}" placeholder="The tangible thing this division produces and ships"></div>
     <div class="ax-editor-row"><label>Description</label><textarea id="d-desc">${escapeHtml(d.description || '')}</textarea></div>
     <div class="ax-editor-row"><label>Color</label><input id="d-color" type="color" value="${escapeHtml(d.color || '#6b9eff')}" style="max-width:80px;"></div>
     <div class="ax-editor-row"><label>Sort order</label><input id="d-sort" type="number" value="${d.sort_order || 0}" style="max-width:120px;"></div>
@@ -1108,7 +1258,7 @@ function renderDivisionEditor(d) {
     <h3>👑 Division Head</h3>
     <div style="font-size:0.74rem;color:var(--text-dim);margin-bottom:6px;">The single person in charge of this whole division. The default role here is auto-conferred to them.</div>
     <div class="ax-editor-row"><label>Head user</label><select id="d-head-user"></select></div>
-    <div class="ax-editor-row"><label>Default role</label><select id="d-head-role"></select></div>
+    <div class="ax-editor-row"><label>Auto-assigned role</label><select id="d-head-role"></select></div>
 
     <h3>Departments</h3>
     <div id="d-depts-list" style="display:flex;flex-direction:column;gap:4px;"></div>
@@ -1191,14 +1341,14 @@ function renderDepartmentEditor(dep) {
     <div class="ax-editor-row"><label>Name</label><input id="dep-name" value="${escapeHtml(dep.name)}"></div>
     <div class="ax-editor-row"><label>Slug</label><input id="dep-slug" value="${escapeHtml(dep.slug)}"></div>
     <div class="ax-editor-row"><label title="One sentence: why does this department exist?">Purpose</label><input id="dep-purpose" value="${escapeHtml(dep.purpose || '')}" placeholder="One sentence: why does this department exist?"></div>
-    <div class="ax-editor-row"><label title="The single tangible thing this department produces and ships out.">Valuable Final Product</label><input id="dep-vfp" value="${escapeHtml(dep.valuable_final_product || '')}" placeholder="The tangible thing this department produces and ships"></div>
+    <div class="ax-editor-row"><label title="The single tangible thing this department produces and ships out.">What this produces</label><input id="dep-vfp" value="${escapeHtml(dep.valuable_final_product || '')}" placeholder="The tangible thing this department produces and ships"></div>
     <div class="ax-editor-row"><label>Description</label><textarea id="dep-desc">${escapeHtml(dep.description || '')}</textarea></div>
     <div class="ax-editor-row"><label>Sort order</label><input id="dep-sort" type="number" value="${dep.sort_order || 0}" style="max-width:120px;"></div>
 
     <h3>🎩 Department Head</h3>
     <div style="font-size:0.74rem;color:var(--text-dim);margin-bottom:6px;">The single person in charge of this department. The default role here is auto-conferred to them.</div>
     <div class="ax-editor-row"><label>Head user</label><select id="dep-head-user"></select></div>
-    <div class="ax-editor-row"><label>Default role</label><select id="dep-head-role"></select></div>
+    <div class="ax-editor-row"><label>Auto-assigned role</label><select id="dep-head-role"></select></div>
 
     <h3>Posts</h3>
     <div id="dep-posts-list" style="display:flex;flex-direction:column;gap:4px;"></div>
@@ -1270,9 +1420,9 @@ function renderPostEditor(po) {
     <div class="ax-editor-row"><label>Name</label><input id="po-name" value="${escapeHtml(po.name)}"></div>
     <div class="ax-editor-row"><label>Slug</label><input id="po-slug" value="${escapeHtml(po.slug)}"></div>
     <div class="ax-editor-row"><label title="One sentence: why does this post exist?">Purpose</label><input id="po-purpose" value="${escapeHtml(po.purpose || '')}" placeholder="One sentence: why does this post exist?"></div>
-    <div class="ax-editor-row"><label title="The single tangible thing this post produces and ships out.">Valuable Final Product</label><input id="po-vfp" value="${escapeHtml(po.valuable_final_product || '')}" placeholder="The tangible thing this post produces and ships"></div>
+    <div class="ax-editor-row"><label title="The single tangible thing this post produces and ships out.">What this produces</label><input id="po-vfp" value="${escapeHtml(po.valuable_final_product || '')}" placeholder="The tangible thing this post produces and ships"></div>
     <div class="ax-editor-row"><label>Description</label><textarea id="po-desc">${escapeHtml(po.description || '')}</textarea></div>
-    <div class="ax-editor-row"><label title="Whoever holds this post automatically receives this role's permissions.">Default role</label><select id="po-role">${roleOpts}</select></div>
+    <div class="ax-editor-row"><label title="Whoever holds this post automatically receives this role's permissions.">Auto-assigned role</label><select id="po-role">${roleOpts}</select></div>
     <div class="ax-editor-row"><label title="Which post does this one report up to? Leave blank to default to the Department Head.">Reports to (senior post)</label><select id="po-senior"></select></div>
     <div class="ax-editor-row"><label>Sort order</label><input id="po-sort" type="number" value="${po.sort_order || 0}" style="max-width:120px;"></div>
 
@@ -1542,7 +1692,7 @@ function openCreatePostModal(departmentId) {
   showModal(`<h3>New post</h3>
     <div class="ax-editor-row"><label>Name</label><input id="m-name" placeholder="e.g. Coach"></div>
     <div class="ax-editor-row"><label>Slug</label><input id="m-slug" placeholder="coach"></div>
-    <div class="ax-editor-row"><label>Default role</label><select id="m-role">${roleOpts}</select></div>
+    <div class="ax-editor-row"><label>Auto-assigned role</label><select id="m-role">${roleOpts}</select></div>
     <div class="ax-actions"><button class="btn-primary" id="m-create">Create</button><button class="btn-ghost" onclick="document.getElementById('modalRoot').innerHTML=''">Cancel</button></div>`);
   document.getElementById('m-create').addEventListener('click', async () => {
     try {
@@ -1955,8 +2105,8 @@ function openInviteModal(prefillFromUid) {
     }
     sendBtn.disabled = false;
     if (failed === 0) {
-      msg.className = 'ax-msg ok'; msg.textContent = `✓ Sent ${ok} invite${ok === 1 ? '' : 's'}`;
-      setTimeout(() => { closeModal(); loadUsersTab(); }, 900);
+      toast(`Sent ${ok} invite${ok === 1 ? '' : 's'}`, 'ok');
+      closeModal(); loadUsersTab();
     } else {
       msg.className = 'ax-msg err';
       msg.innerHTML = `Sent ${ok}, failed ${failed}.<br><small style="color:var(--text-dim);">${failures.map(f => `<strong>${escapeHtml(f.email)}</strong>: ${escapeHtml(f.error)}`).join('<br>')}</small>`;

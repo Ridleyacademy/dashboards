@@ -243,16 +243,22 @@ async function loadUsersTab() {
   const list = document.getElementById('axList');
   list.innerHTML = '<div style="padding:14px;color:var(--text-dim);font-size:0.84rem;">Loading users…</div>';
   try {
-    // Fetch users + pending invites in parallel. Pending invites are merged
-    // into the list with a "Pending" badge and inline Resend/Cancel actions.
-    const [j, pj] = await Promise.all([
-      api('?api=users'),
+    // Fetch users first — that's the blocking call. Pending invites are
+    // a nice-to-have we race with a short timeout so a slow / failing
+    // invite endpoint never blocks the Users tab from rendering.
+    const j = await api('?api=users');
+    usersData = (j.rows || []).sort((a, b) => {
+      const an = ((a.first_name && a.first_name.trim()) || a.email || '').toLowerCase();
+      const bn = ((b.first_name && b.first_name.trim()) || b.email || '').toLowerCase();
+      return an.localeCompare(bn);
+    });
+    // Background invite fetch with 4 s ceiling.
+    pendingInvitesData = await Promise.race([
       fetch(SUPABASE_URL + '/functions/v1/invite?api=list', {
         headers: { Authorization: 'Bearer ' + session.access_token },
-      }).then(r => r.json()).catch(() => ({ invites: [] })),
+      }).then(r => r.ok ? r.json() : { invites: [] }).then(p => p.invites || []).catch(() => []),
+      new Promise(resolve => setTimeout(() => resolve([]), 4000)),
     ]);
-    usersData = (j.rows || []).sort((a, b) => (_displayOf(a.id) || '').localeCompare(_displayOf(b.id) || ''));
-    pendingInvitesData = pj.invites || [];
 
     // Build a unified list: real users + pending-invite stubs that look the
     // same to the renderer. Stubs use id="invite:<email>" so we can detect.
@@ -1896,6 +1902,7 @@ function openInviteModal(prefillFromUid) {
       <div class="invite-actions">
         <button class="btn-primary invite-send-btn" id="i-send">Send invitation</button>
         <button class="btn-ghost" id="i-cancel">Cancel</button>
+        <span class="ax-msg" id="i-msg" style="margin-left:auto;"></span>
       </div>
     </div>
   `, { wide: true });

@@ -1419,16 +1419,20 @@ function openInviteModal(prefillFromUid) {
       </div>
 
       <div class="invite-section">
-        <label class="invite-label">Email(s) <span class="invite-required">*</span> <span class="invite-hint">(one per line, or comma / space separated — all share the same roles)</span></label>
-        <textarea id="i-email" rows="3" placeholder="name@ridleyacademy.team
-another@ridleyacademy.team" class="invite-input-lg" autocomplete="off" spellcheck="false" style="font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;line-height:1.4;"></textarea>
+        <label class="invite-label">Recipients <span class="invite-required">*</span> <span class="invite-hint">(one per line · each can have their own name)</span></label>
+        <textarea id="i-email" rows="5" placeholder="Examples — mix any of these formats, one per line:
+Carlos &lt;carlos@ridleyacademy.team&gt;
+Stephen, sr@ridleyacademy.com
+Jordin   jordin@ridleyacademy.team
+plain@ridleyacademy.team" class="invite-input-lg" autocomplete="off" spellcheck="false" style="font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;line-height:1.4;"></textarea>
         <span class="invite-hint" id="i-email-count" style="color:var(--text-dim);">0 valid recipients</span>
+        <div id="i-email-preview" style="display:none;"></div>
       </div>
 
       <div class="invite-grid-2">
         <div class="invite-section">
-          <label class="invite-label">First name</label>
-          <input id="i-fname" placeholder="Carlos" autocomplete="off">
+          <label class="invite-label">First name <span class="invite-hint">(fallback for any recipient without one)</span></label>
+          <input id="i-fname" placeholder="Used only if a row above has no name" autocomplete="off">
         </div>
         <div class="invite-section">
           <label class="invite-label">Copy roles from existing user <span class="invite-hint">(optional)</span></label>
@@ -1555,47 +1559,95 @@ another@ridleyacademy.team" class="invite-input-lg" autocomplete="off" spellchec
 
   document.getElementById('i-cancel').addEventListener('click', closeModal);
 
-  // Parse a textarea blob of emails (newline / comma / space / semicolon) into
-  // a deduplicated, lower-cased list of valid-looking addresses.
-  function parseEmails(blob) {
-    return [...new Set(
-      (blob || '').split(/[\s,;]+/g).map(s => s.trim().toLowerCase()).filter(s => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s))
-    )];
+  // Parse a textarea blob into [{ name, email }] recipients.
+  // Each LINE is one recipient. Supported per-line formats:
+  //   Carlos <carlos@example.com>
+  //   "Carlos Day" <carlos@example.com>
+  //   Carlos, carlos@example.com
+  //   Carlos   carlos@example.com    (whitespace separated)
+  //   carlos@example.com             (no name — falls back to global First name)
+  // Returns a deduplicated list (by email).
+  function parseRecipients(blob) {
+    const lines = (blob || '').split(/[\n\r]+/g).map(s => s.trim()).filter(Boolean);
+    const out = []; const seen = new Set();
+    const isEmail = s => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+    for (const line of lines) {
+      // Some pasted lines have multiple emails — split on common separators
+      // but ONLY if the line has no name-style syntax (no "<>", no leading text).
+      const hasAngle = /<[^>]+>/.test(line);
+      const tokens = hasAngle ? [line] : line.split(/[,;]/g).map(t => t.trim()).filter(Boolean);
+      for (const tok of tokens) {
+        let name = '', email = '';
+        const angle = tok.match(/^(.*?)<\s*([^>\s]+)\s*>\s*$/);
+        if (angle) {
+          name = angle[1].trim().replace(/^["']|["']$/g, '');
+          email = angle[2].trim().toLowerCase();
+        } else {
+          // No <>. Split on the LAST whitespace/comma so name can include spaces.
+          const m = tok.match(/^(.*?)[\s,]+([^\s,]+)$/);
+          if (m && isEmail(m[2])) { name = m[1].trim().replace(/^["']|["']$/g, ''); email = m[2].toLowerCase(); }
+          else if (isEmail(tok)) { email = tok.toLowerCase(); }
+        }
+        if (!isEmail(email)) continue;
+        if (seen.has(email)) continue;
+        seen.add(email);
+        out.push({ name, email });
+      }
+    }
+    return out;
   }
   const emailEl = document.getElementById('i-email');
   const countEl = document.getElementById('i-email-count');
+  const previewEmailEl = document.getElementById('i-email-preview');
   function updateEmailCount() {
-    const list = parseEmails(emailEl.value);
+    const list = parseRecipients(emailEl.value);
     countEl.textContent = list.length + ' valid recipient' + (list.length === 1 ? '' : 's');
     countEl.style.color = list.length ? 'var(--accent)' : 'var(--text-dim)';
+    if (!list.length) { previewEmailEl.style.display = 'none'; return; }
+    previewEmailEl.style.display = 'block';
+    const globalName = (document.getElementById('i-fname')?.value || '').trim();
+    previewEmailEl.innerHTML = `
+      <div style="margin-top:8px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;max-height:140px;overflow-y:auto;">
+        <div style="font-size:0.72rem;color:var(--text-muted);font-weight:600;margin-bottom:6px;">Parsed recipients (${list.length})</div>
+        ${list.map(r => {
+          const effectiveName = r.name || globalName;
+          return `<div style="display:flex;align-items:center;gap:8px;padding:3px 0;font-size:0.78rem;border-bottom:1px solid var(--border);">
+            <span style="font-weight:600;color:${effectiveName ? 'var(--text)' : 'var(--text-dim)'};min-width:140px;">${escapeHtml(effectiveName || '(no name — global First name applies)')}</span>
+            <span style="color:var(--text-muted);">${escapeHtml(r.email)}</span>
+          </div>`;
+        }).join('')}
+      </div>`;
   }
   emailEl.addEventListener('input', updateEmailCount);
+  // Also re-render when global First name changes (it's the fallback).
+  document.getElementById('i-fname').addEventListener('input', updateEmailCount);
 
   document.getElementById('i-send').addEventListener('click', async () => {
     const msg = document.getElementById('i-msg');
     const sendBtn = document.getElementById('i-send');
-    const emails = parseEmails(emailEl.value);
-    if (!emails.length) {
+    const recipients = parseRecipients(emailEl.value);
+    if (!recipients.length) {
       msg.className = 'ax-msg err'; msg.textContent = 'Please enter at least one valid email.';
       return;
     }
-    const first_name = document.getElementById('i-fname').value.trim();
+    const globalFirstName = document.getElementById('i-fname').value.trim();
     const selectedRoles = selectedRoleIds();
     const is_admin = adminEl.checked;
     if (!is_admin && !selectedRoles.length && !confirm('No roles selected — these invitees will have no access at first. Send anyway?')) {
       msg.className = 'ax-msg'; msg.textContent = '';
       return;
     }
-    if (emails.length > 1 && first_name && !confirm(`You set First name = "${first_name}" but you're inviting ${emails.length} people — they'll all get that same first name. Continue?`)) {
-      return;
-    }
     const legacyPerms = [...new Set(selectedRoles.map(rid => roles.find(r => r.id === rid)?.slug).filter(Boolean))];
 
     sendBtn.disabled = true;
     let ok = 0, failed = 0; const failures = [];
-    for (let i = 0; i < emails.length; i++) {
-      const email = emails[i];
-      msg.className = 'ax-msg'; msg.textContent = `Sending ${i + 1} / ${emails.length}: ${email}…`;
+    for (let i = 0; i < recipients.length; i++) {
+      const { name, email } = recipients[i];
+      // Per-recipient first name beats the global fallback. The "first name"
+      // we send is the first token of whatever the user typed.
+      const effectiveName = (name || globalFirstName || '').trim();
+      const first_name = effectiveName.split(/\s+/)[0] || '';
+      msg.className = 'ax-msg'; msg.textContent = `Sending ${i + 1} / ${recipients.length}: ${effectiveName ? effectiveName + ' · ' : ''}${email}…`;
       try {
         const r = await fetch(INVITE_BASE, {
           method: 'POST',

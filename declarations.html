@@ -661,6 +661,13 @@ let sortDir        = 'desc';
 
 function setState(s) { document.body.dataset.state = s; }
 
+// Display helper — show "Experience" for Nashville product in the UI
+// while keeping the underlying value untouched for data matching.
+function displayProduct(p) {
+  if (!p) return '';
+  return /nashville/i.test(p) ? 'Experience' : p;
+}
+
 // ── Auth ──────────────────────────────────────────────────────────
 // Detect invite/recovery from BOTH the hash (legacy implicit flow) and
 // the query string (newer PKCE flow).
@@ -1010,7 +1017,7 @@ function renderTable() {
     <td data-label="Date" style="white-space:nowrap;color:var(--text-muted);">${fmtDate(r.date_closed)}</td>
     <td class="td-main" data-label="Name" style="${wrap}">${r.name||'—'}</td>
     <td class="muted" data-label="Email" style="${wrap}">${r.email||'—'}</td>
-    <td class="muted" data-label="Product" style="${wrap}">${r.product||'—'}</td>
+    <td class="muted" data-label="Product" style="${wrap}" title="${r.product||''}">${displayProduct(r.product)||'—'}</td>
     <td data-label="Type">${typeBadge(r.type)}</td>
     <td class="td-money" data-label="Amount" style="white-space:nowrap;">${r.sale_amount ? fmtMoney(r.sale_amount) : '—'}</td>
     <td class="muted" data-label="Type of sale" style="${wrap}">${r.type_of_sale||'—'}</td>
@@ -1235,7 +1242,7 @@ function showAutoAssignModal(preview, scope) {
                       <td style="padding:8px 10px;font-weight:600;color:#34d399;">${s.suggestedRep}${s.salesLogDuplicate ? ' <span style="color:#fbbf24;font-weight:700;font-size:0.7rem;" title="Another Sales Log row in the scan range has the same email + price — possible double-charge">⚠ dup</span>' : ''}</td>
                       <td style="padding:8px 10px;color:#7880a8;">${s.date}</td>
                       <td style="padding:8px 10px;color:#7880a8;overflow:hidden;text-overflow:ellipsis;max-width:220px;white-space:nowrap;" title="${s.email}">${s.email}</td>
-                      <td style="padding:8px 10px;color:#7880a8;overflow:hidden;text-overflow:ellipsis;max-width:200px;white-space:nowrap;" title="${s.product||''}">${s.product || '—'}</td>
+                      <td style="padding:8px 10px;color:#7880a8;overflow:hidden;text-overflow:ellipsis;max-width:200px;white-space:nowrap;" title="${s.product||''}">${displayProduct(s.product) || '—'}</td>
                       <td style="padding:8px 10px;text-align:right;">${fmtMoney(s.price)}</td>
                       <td style="padding:8px 10px;color:#7880a8;">${s.type}</td>
                     </tr>`).join('')}
@@ -1319,7 +1326,7 @@ function showAutoAssignModal(preview, scope) {
                       </td>
                       <td style="padding:8px 10px;color:#7880a8;">${s.date}</td>
                       <td style="padding:8px 10px;color:#7880a8;overflow:hidden;text-overflow:ellipsis;max-width:220px;white-space:nowrap;" title="${s.email}">${s.email}</td>
-                      <td style="padding:8px 10px;color:#7880a8;overflow:hidden;text-overflow:ellipsis;max-width:180px;white-space:nowrap;" title="${s.product||''}">${s.product || '—'}</td>
+                      <td style="padding:8px 10px;color:#7880a8;overflow:hidden;text-overflow:ellipsis;max-width:180px;white-space:nowrap;" title="${s.product||''}">${displayProduct(s.product) || '—'}</td>
                       <td style="padding:8px 10px;text-align:right;">${fmtMoney(s.price)}</td>
                       <td style="padding:8px 10px;color:#7880a8;font-style:${s.affiliate ? 'normal' : 'italic'};">${s.affiliate || '(none)'}</td>
                     </tr>`).join('')}

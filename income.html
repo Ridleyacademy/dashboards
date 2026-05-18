@@ -873,6 +873,13 @@ const PRODUCT_GROUPS = [
   { id: 'nashville',   label: 'Experience', color: '#f472b6', glow: 'rgba(244,114,182,0.2)',  matches: null, ilike: 'Nashville' },
 ];
 
+// Display helper — rename "Nashville" product to "Experience" in the UI
+// while keeping the underlying value untouched in the database.
+function displayProduct(p) {
+  if (!p) return '';
+  return /nashville/i.test(p) ? 'Experience' : p;
+}
+
 // ── State ───────────────────────────────────────────────────────
 let activeProduct   = 'all';
 let activeView      = 'stats';
@@ -1348,7 +1355,7 @@ function renderBreakdownBarChart(byProduct) {
   if (breakdownChartInst) { breakdownChartInst.destroy(); breakdownChartInst = null; }
 
   const products = Object.keys(byProduct);
-  const labels   = products.map(p => p.length > 28 ? p.slice(0, 26) + '…' : p);
+  const labels   = products.map(p => { const d = displayProduct(p); return d.length > 28 ? d.slice(0, 26) + '…' : d; });
   const revenues = products.map(p => {
     const d = byProduct[p];
     return Number(d?.sale?.revenue||0) + Number(d?.rebill?.revenue||0) + Number(d?.pp?.revenue||0);
@@ -1448,7 +1455,7 @@ function renderSummaryTable(byProduct) {
     const grp = PRODUCT_GROUPS.find(g => g.matches && g.matches.some(m => p.includes(m)));
     const color = grp ? grp.color : '#6b9eff';
     return `<tr>
-      <td class="td-main" data-label="Product" style="color:${color};">${p}</td>
+      <td class="td-main" data-label="Product" style="color:${color};">${displayProduct(p)}</td>
       <td class="td-num" data-label="Cash sales #">${Number(d?.sale?.count||0).toLocaleString()}</td>
       <td class="td-money" data-label="Cash sales $">${fmtMoney(d?.sale?.revenue||0)}</td>
       <td class="td-num" data-label="Rebills #">${Number(d?.rebill?.count||0).toLocaleString()}</td>
@@ -1619,7 +1626,7 @@ function renderLog(filter) {
     <td data-label="Date" style="white-space:nowrap;color:var(--text-muted);">${r._dupe ? '<span title="Possible duplicate: same email + price within 5 min" style="color:var(--gold);margin-right:4px;">⚠</span>' : ''}${fmtDate(r.Date)}</td>
     <td class="td-main" data-label="Name" style="${clip}" title="${r.Name||''}">${r.Name || '—'}</td>
     <td data-label="Email" style="${clip}color:var(--text-muted);" title="${r.Email||''}">${r.Email || '—'}</td>
-    <td data-label="Product" style="${clip}color:var(--text-muted);" title="${r.Product||''}">${r.Product || '—'}</td>
+    <td data-label="Product" style="${clip}color:var(--text-muted);" title="${r.Product||''}">${displayProduct(r.Product) || '—'}</td>
     <td class="td-money" data-label="Price">${r.Price ? fmtMoney(r.Price) : '—'}</td>
     <td data-label="Status">${getStatusBadge(r.Status)}</td>
     <td data-label="Platform" style="${clip}color:var(--text-muted);" title="${r.Platform||''}">${r.Platform || '—'}</td>

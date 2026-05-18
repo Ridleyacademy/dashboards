@@ -1186,14 +1186,22 @@ async function openCoachLogsModal(studentId, studentName, anchorEl) {
     const act = btn.dataset.act;
     m.remove();
     if (act === 'notes') {
-      // Coach notes: open the existing inline popover, anchored to the
-      // 'Logs' header button on the underlying profile modal.
+      // Coach notes — keep the lightweight inline add-popover behaviour
+      // (faster for the most common flow), anchored to the Logs button.
       const anchor = document.querySelector('.pf-jump-logs') || anchorEl || document.body;
       openQuickNotePopover(anchor, studentId, studentName);
+    } else if (act === 'icnotes' || act === 'repnotes' || act === 'wins') {
+      // IC notes / rep notes / wins — show inline history modal with
+      // add + delete (same pattern as openCoachAlertsModal). No more
+      // jumping to a new tab.
+      const kind =
+        act === 'icnotes'  ? 'ic'   :
+        act === 'repnotes' ? 'rep'  :
+        /* wins */           'win';
+      openCoachNoteListModal(studentId, studentName, kind);
     } else {
-      // Other log types live in the CRM (their forms are heavier). Open
-      // the full profile in a new tab so the coach lands on the right
-      // student with the logs picker available.
+      // Turnovers: still open the CRM in a new tab — the create form needs
+      // rep autocomplete + result tracking that are heavier to inline.
       window.open(`students.html?student=${studentId}`, '_blank');
     }
   });
@@ -1240,6 +1248,128 @@ async function openCoachLogsModal(studentId, studentName, anchorEl) {
       });
     } catch (_) { /* abort or network noise — leave the cached counts in place */ }
   })();
+}
+
+// ── Coach-board inline Notes / Wins modal ──────────────────────────────
+// Generic over the three "list-of-text-entries" log types so the coach can
+// view + add + delete without leaving the dashboard (same as Alerts).
+//   kind = 'coach' | 'rep' | 'ic'   → mentorship_*_notes  (text + note_date)
+//   kind = 'win'                    → mentorship_wins     (text + win_date)
+let _noteListLatestId = null;
+let _noteListAbort = null;
+
+async function openCoachNoteListModal(studentId, studentName, kind) {
+  const META = {
+    coach: { label: 'Coach notes',  emoji: '📝', addApi: 'add-coach-note',   delApi: 'delete-coach-note',   listKey: 'coach_notes', dateField: 'note_date' },
+    rep:   { label: 'Rep notes',    emoji: '💼', addApi: 'add-rep-note',     delApi: 'delete-rep-note',     listKey: 'rep_notes',   dateField: 'note_date' },
+    ic:    { label: 'I/C notes',    emoji: '🎯', addApi: 'add-ic-note',      delApi: 'delete-ic-note',      listKey: 'ic_notes',    dateField: 'note_date' },
+    win:   { label: 'Wins',         emoji: '🏆', addApi: 'add-win',          delApi: 'delete-win',          listKey: 'wins',        dateField: 'win_date'  },
+  };
+  const meta = META[kind]; if (!meta) return;
+
+  _noteListLatestId = studentId;
+  if (_noteListAbort) { try { _noteListAbort.abort(); } catch (_) {} }
+  const ac = new AbortController();
+  _noteListAbort = ac;
+  document.getElementById('coachNoteListModal')?.remove();
+  const m = document.createElement('div');
+  m.id = 'coachNoteListModal';
+  m.className = 'modal-bg';
+  m.style.zIndex = '10100';
+  m.innerHTML = `
+    <div class="modal-card" style="max-width:680px;">
+      <div class="modal-head">
+        <h2>${meta.emoji} ${meta.label} · ${escapeHtml(studentName || '(unnamed)')}</h2>
+        <button class="close" data-x>×</button>
+      </div>
+      <div class="modal-body" id="cnlBody" style="grid-template-columns:1fr;">
+        <div style="color:var(--text-dim);">Loading…</div>
+      </div>
+      <div class="modal-foot">
+        <span class="msg" id="cnlMsg"></span>
+        <button class="btn-ghost" data-x>Close</button>
+        <button class="btn-primary" id="cnlAddBtn">+ New ${kind === 'win' ? 'win' : 'note'}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  m.addEventListener('click', e => { if (e.target === m || e.target.matches('[data-x]')) m.remove(); });
+
+  async function load() {
+    const body = document.getElementById('cnlBody');
+    if (body) body.innerHTML = '<div style="color:var(--text-dim);">Loading…</div>';
+    let rows = [];
+    try {
+      const r = await fetch(STUDENTS_BASE + '?api=get&id=' + encodeURIComponent(studentId), {
+        headers: { Authorization: 'Bearer ' + currentSession.access_token },
+        signal: ac.signal,
+      });
+      if (_noteListLatestId !== studentId) return;
+      const j = await r.json();
+      if (_noteListLatestId !== studentId) return;
+      if (r.ok) rows = j[meta.listKey] || [];
+    } catch (e) { if (e?.name === 'AbortError') return; }
+    if (!body) return;
+    // Sort by date desc (date field varies)
+    rows.sort((a, b) => String(b[meta.dateField] || b.created_at || '').localeCompare(String(a[meta.dateField] || a.created_at || '')));
+    if (!rows.length) {
+      body.innerHTML = `<div style="color:var(--text-dim);font-size:0.86rem;padding:18px 0;">No ${kind === 'win' ? 'wins' : 'notes'} yet. Click "+ New ${kind === 'win' ? 'win' : 'note'}" to add one.</div>`;
+      return;
+    }
+    body.innerHTML = rows.map(n => {
+      const dateStr = (n[meta.dateField] || '').slice(0, 10);
+      const created = n.created_at ? new Date(n.created_at).toLocaleString() : '';
+      return `
+        <div style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px;position:relative;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap;">
+            ${dateStr ? `<span class="pill" style="font-size:0.7rem;">${escapeHtml(dateStr)}</span>` : ''}
+            <span style="color:var(--text-dim);font-size:0.72rem;">by ${escapeHtml(n.created_by_email || 'unknown')}</span>
+            <span style="margin-left:auto;color:var(--text-dim);font-size:0.7rem;">${escapeHtml(created)}</span>
+          </div>
+          <div style="white-space:pre-wrap;font-size:0.88rem;line-height:1.4;">${escapeHtml(n.text || '')}</div>
+          <button class="btn-ghost cnl-del" data-nid="${n.id}" title="Delete" style="position:absolute;top:8px;right:8px;padding:2px 8px;font-size:0.72rem;color:var(--red);">×</button>
+        </div>`;
+    }).join('');
+    body.querySelectorAll('.cnl-del').forEach(b => b.addEventListener('click', async () => {
+      if (!confirm(`Delete this ${kind === 'win' ? 'win' : 'note'}? This cannot be undone.`)) return;
+      const nid = Number(b.getAttribute('data-nid'));
+      const msg = document.getElementById('cnlMsg'); if (msg) { msg.className = 'msg'; msg.textContent = 'Deleting…'; }
+      try {
+        const r = await fetch(STUDENTS_BASE + '?api=' + meta.delApi, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
+          body: JSON.stringify({ id: nid }),
+        });
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error || 'Failed');
+        await load();
+        if (msg) { msg.className = 'msg ok'; msg.textContent = 'Deleted'; setTimeout(() => msg.textContent = '', 1500); }
+      } catch (e) { if (msg) { msg.className = 'msg err'; msg.textContent = e.message || e; } }
+    }));
+  }
+
+  document.getElementById('cnlAddBtn').addEventListener('click', async () => {
+    const text = prompt(`${meta.label.slice(0, -1)} text (required):`);
+    if (!text || !text.trim()) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const dateInput = prompt(`Date (YYYY-MM-DD, default ${today}):`, today);
+    const date = (dateInput && dateInput.trim()) ? dateInput.trim() : today;
+    const msg = document.getElementById('cnlMsg'); if (msg) { msg.className = 'msg'; msg.textContent = 'Saving…'; }
+    try {
+      const body = { studentId, text: text.trim() };
+      body[meta.dateField] = date;
+      const r = await fetch(STUDENTS_BASE + '?api=' + meta.addApi, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
+        body: JSON.stringify(body),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'Failed');
+      await load();
+      if (msg) { msg.className = 'msg ok'; msg.textContent = 'Saved'; setTimeout(() => msg.textContent = '', 1500); }
+    } catch (e) { if (msg) { msg.className = 'msg err'; msg.textContent = e.message || e; } }
+  });
+
+  load();
 }
 
 // ── Coach-board inline Alerts modal ─────────────────────────────────────

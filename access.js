@@ -141,15 +141,18 @@ async function refreshAll() {
     document.getElementById('axList').innerHTML = `<div style="padding:14px;color:var(--red);font-size:0.84rem;">${escapeHtml(e.message)}</div>`;
     return;
   }
-  // Best-effort org + rep-map preload — never throws.
+  // Best-effort org + rep-map + users preload — never throws.
+  // (Users go in here too so the Org Board can resolve UUIDs → names
+  // without first visiting the Users tab.)
   try {
-    const [divRes, depRes, postRes, holderRes, repRes, unassignedRes] = await Promise.all([
+    const [divRes, depRes, postRes, holderRes, repRes, unassignedRes, usersRes] = await Promise.all([
       api('?api=divisions').catch(() => ({ rows: [] })),
       api('?api=departments').catch(() => ({ rows: [] })),
       api('?api=posts').catch(() => ({ rows: [] })),
       api('?api=post-holders').catch(() => ({ rows: [] })),
       api('?api=rep-mappings').catch(() => ({ profiles: [], users: [] })),
       adminApi('?api=unassigned-names').catch(() => null),
+      api('?api=users').catch(() => ({ rows: [] })),
     ]);
     divisionsData = divRes.rows || [];
     departmentsData = depRes.rows || [];
@@ -161,6 +164,13 @@ async function refreshAll() {
     }
     repMapProfiles = repRes.profiles || [];
     repMapUnassigned = unassignedRes || { allCallsReps: [], unassignedCallsReps: [], unassignedAffiliates: [] };
+    if ((usersRes.rows || []).length) {
+      usersData = (usersRes.rows || []).sort((a, b) => {
+        const an = ((a.first_name && a.first_name.trim()) || a.email || '').toLowerCase();
+        const bn = ((b.first_name && b.first_name.trim()) || b.email || '').toLowerCase();
+        return an.localeCompare(bn);
+      });
+    }
   } catch (_) { /* swallow — Users tab still works without preload */ }
   // Ensure the per-tab chrome (especially the + Invite user button) is in
   // sync on the very first paint — not just after a tab click.
@@ -1045,14 +1055,30 @@ async function loadOrgTab() {
   } catch (e) { board.innerHTML = `<div style="padding:24px;color:var(--red);font-size:0.84rem;">${escapeHtml(e.message)}</div>`; }
 }
 
-function _emailOf(uid) { return uid ? (usersData.find(u => u.id === uid)?.email || uid) : null; }
-// Display name — first_name if set, else email, else id. Use this for
-// anything user-facing on the board / pickers / chips.
+// Find a user record across every cache we have. The Users tab populates
+// usersData; the Sessions tab populates sessionsRaw; rep-mapping prefetch
+// gives us a thin list too. The Org Board may need to resolve a UUID
+// before any of those tabs have been visited — fall through them all so
+// the board never falls back to raw UUIDs.
+function _findUserRecord(uid) {
+  if (!uid) return null;
+  return usersData.find(x => x.id === uid)
+      || (typeof sessionsRaw !== 'undefined' ? sessionsRaw.find(x => x.id === uid) : null)
+      || null;
+}
+function _emailOf(uid) {
+  if (!uid) return null;
+  const u = _findUserRecord(uid);
+  return (u && u.email) || uid;
+}
+// Display name — first_name if set, else email. As a last-resort fallback
+// for unknown UUIDs we show "(unknown user)" instead of the raw UUID so
+// admins know to refresh.
 function _displayOf(uid) {
   if (!uid) return null;
-  const u = usersData.find(x => x.id === uid);
-  if (!u) return uid;
-  return (u.first_name && u.first_name.trim()) ? u.first_name.trim() : (u.email || uid);
+  const u = _findUserRecord(uid);
+  if (!u) return '(unknown user)';
+  return (u.first_name && u.first_name.trim()) ? u.first_name.trim() : (u.email || '(unknown user)');
 }
 // Picker label: "Carlos (carlos@…)" if there's a name; plain email otherwise.
 function _pickerLabelFor(u) {

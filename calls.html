@@ -582,7 +582,7 @@
         <button class="prod-chip" data-prod="all" style="padding:6px 14px;border-radius:8px;border:1px solid #1f2438;background:rgba(56,189,248,0.18);color:#38bdf8;font-size:0.75rem;font-weight:700;cursor:pointer;">All</button>
         <button class="prod-chip" data-prod="masterclass" style="padding:6px 14px;border-radius:8px;border:1px solid #1f2438;background:transparent;color:var(--text-dim);font-size:0.75rem;font-weight:600;cursor:pointer;">Masterclass</button>
         <button class="prod-chip" data-prod="mentorship" style="padding:6px 14px;border-radius:8px;border:1px solid #1f2438;background:transparent;color:var(--text-dim);font-size:0.75rem;font-weight:600;cursor:pointer;">Mentorship</button>
-        <button class="prod-chip" data-prod="nashville" style="padding:6px 14px;border-radius:8px;border:1px solid #1f2438;background:transparent;color:var(--text-dim);font-size:0.75rem;font-weight:600;cursor:pointer;">Nashville</button>
+        <button class="prod-chip" data-prod="nashville" style="padding:6px 14px;border-radius:8px;border:1px solid #1f2438;background:transparent;color:var(--text-dim);font-size:0.75rem;font-weight:600;cursor:pointer;">Experience</button>
       </div>
 
       <!-- Charts -->
@@ -1007,7 +1007,7 @@ function renderStats() {
     } else if (activeProduct === 'nashville') {
       salesCount = overall?.totalSalesNV ?? 0;
       giAmount   = overall?.totalGiNV ?? 0;
-      salesLabel = 'Nashville Sales';
+      salesLabel = 'Experience Sales';
     } else {
       salesCount = overall?.totalSales ?? 0;
       giAmount   = overall?.totalGrossIncome ?? 0;
@@ -1034,7 +1034,7 @@ function renderLeaderboards(byRep) {
     all:         { key: null,          color: '#fbbf24', title: 'Overall Revenue' },
     masterclass: { key: 'masterclass', color: '#34d399', title: 'Masterclass' },
     mentorship:  { key: 'mentorship',  color: '#a78bfa', title: 'Mentorship' },
-    nashville:   { key: 'nashville',   color: '#f97316', title: 'Nashville' },
+    nashville:   { key: 'nashville',   color: '#f97316', title: 'Experience' },
   };
   const m = META[activeProduct] || META.all;
 

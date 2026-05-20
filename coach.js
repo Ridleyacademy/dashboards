@@ -135,7 +135,7 @@ async function quickAddCoachNote(studentId, text) {
 // Stale-while-revalidate cache for the student list — boots the page instantly
 // from cached data, then re-fetches in the background and re-renders if anything
 // changed.
-const STUDENTS_CACHE_KEY = 'coachDash_students_v3';  // v3: bust on activity-log + refund-import + module merge
+const STUDENTS_CACHE_KEY = 'coachDash_students_v4';  // v4: turnover_dates[] added for "has a turnover in range" filter
 // Legacy keys we still READ from (for instant first-paint after a key bump).
 // The cached row shape hasn't changed — only the rendering logic that reads it
 // — so falling back to v1 is safe. The next _writeStudentsCache() will save
@@ -143,7 +143,7 @@ const STUDENTS_CACHE_KEY = 'coachDash_students_v3';  // v3: bust on activity-log
 // Always read whatever older cache exists for instant paint. The background
 // fetch overwrites with fresh data 1-2s later; better to show *something*
 // than block on the network.
-const STUDENTS_CACHE_LEGACY_KEYS = ['coachDash_students_v2', 'coachDash_students_v1'];
+const STUDENTS_CACHE_LEGACY_KEYS = ['coachDash_students_v3', 'coachDash_students_v2', 'coachDash_students_v1'];
 function _readStudentsCache() {
   try {
     let raw = localStorage.getItem(STUDENTS_CACHE_KEY);
@@ -333,6 +333,9 @@ const filters = {
   asg_sent_bucket: '',     // '' | 'never' | '7' | '30'
   asg_recv_bucket: '',     // '' | 'never' | '7' | '30'
   has_email: '',           // '' | 'yes' | 'no'
+  turnover_mode: '',       // '' | 'ever' | 'range'  — has a turnover (in range)
+  turnover_from: '',       // ISO yyyy-mm-dd, used only when turnover_mode='range'
+  turnover_to:   '',       // ISO yyyy-mm-dd, used only when turnover_mode='range'
 };
 let showExpired = false;
 let showRefunded = false;
@@ -340,7 +343,7 @@ let showRefunded = false;
 function _filtersActiveCount() {
   let n = 0;
   for (const k of ['level','coach_status','masterclass_level','status']) n += filters[k].size > 0 ? 1 : 0;
-  for (const k of ['zoom_bucket','asg_sent_bucket','asg_recv_bucket','has_email']) n += filters[k] ? 1 : 0;
+  for (const k of ['zoom_bucket','asg_sent_bucket','asg_recv_bucket','has_email','turnover_mode']) n += filters[k] ? 1 : 0;
   return n;
 }
 function _bucketDays(dateStr) {
@@ -380,6 +383,17 @@ function _applyAdvancedFilters(rows) {
   });
   if (filters.has_email === 'yes') rows = rows.filter(s => !!s.email);
   if (filters.has_email === 'no') rows = rows.filter(s => !s.email);
+  // "Has a turnover" filter.
+  //   'ever'  — student has at least one turnover on record
+  //   'range' — student has at least one turnover with date in [from, to]
+  // turnover_dates is an array of ISO yyyy-mm-dd strings from /api=list.
+  if (filters.turnover_mode === 'ever') {
+    rows = rows.filter(s => Array.isArray(s.turnover_dates) && s.turnover_dates.length > 0);
+  } else if (filters.turnover_mode === 'range') {
+    const tf = filters.turnover_from || '0001-01-01';
+    const tt = filters.turnover_to   || '9999-12-31';
+    rows = rows.filter(s => Array.isArray(s.turnover_dates) && s.turnover_dates.some(d => d >= tf && d <= tt));
+  }
   return rows;
 }
 
@@ -3048,6 +3062,21 @@ function openFiltersModal(onApply) {
         <div><label>Has email</label>
           <select id="filt-email"><option value="">Any</option><option value="yes" ${filters.has_email==='yes'?'selected':''}>Has email</option><option value="no" ${filters.has_email==='no'?'selected':''}>No email</option></select>
         </div>
+        <div><label>Has a turnover</label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <select id="filt-turnover" style="min-width:160px;">
+              <option value="">Any</option>
+              <option value="ever"  ${filters.turnover_mode==='ever' ?'selected':''}>Ever (any turnover)</option>
+              <option value="range" ${filters.turnover_mode==='range'?'selected':''}>In date range…</option>
+            </select>
+            <span id="filt-turnover-range" style="display:${filters.turnover_mode==='range'?'inline-flex':'none'};gap:6px;align-items:center;">
+              <input type="date" id="filt-turnover-from" value="${escapeHtml(filters.turnover_from || '')}" style="padding:6px 8px;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.82rem;">
+              <span style="color:var(--text-dim);font-size:0.78rem;">to</span>
+              <input type="date" id="filt-turnover-to"   value="${escapeHtml(filters.turnover_to   || '')}" style="padding:6px 8px;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.82rem;">
+            </span>
+          </div>
+          <div style="font-size:0.72rem;color:var(--text-dim);margin-top:4px;">Shows only students with at least one turnover (optionally within the date range).</div>
+        </div>
       </div>
       <div class="modal-foot">
         <button class="btn-ghost" data-x>Close</button>
@@ -3070,14 +3099,23 @@ function openFiltersModal(onApply) {
     filters.level.clear(); filters.coach_status.clear();
     filters.masterclass_level.clear(); filters.status.clear();
     filters.zoom_bucket = ''; filters.asg_sent_bucket = ''; filters.asg_recv_bucket = ''; filters.has_email = '';
+    filters.turnover_mode = ''; filters.turnover_from = ''; filters.turnover_to = '';
     close(); renderAll();
     if (typeof onApply === 'function') onApply();
+  });
+  // Show/hide the turnover date-range inputs based on the mode dropdown.
+  m.querySelector('#filt-turnover')?.addEventListener('change', (e) => {
+    const span = document.getElementById('filt-turnover-range');
+    if (span) span.style.display = (e.target.value === 'range') ? 'inline-flex' : 'none';
   });
   document.getElementById('filterApply').addEventListener('click', () => {
     filters.zoom_bucket = document.getElementById('filt-zoom').value;
     filters.asg_sent_bucket = document.getElementById('filt-asgsent').value;
     filters.asg_recv_bucket = document.getElementById('filt-asgrecv').value;
     filters.has_email = document.getElementById('filt-email').value;
+    filters.turnover_mode = document.getElementById('filt-turnover').value;
+    filters.turnover_from = (document.getElementById('filt-turnover-from')?.value || '').trim();
+    filters.turnover_to   = (document.getElementById('filt-turnover-to')?.value   || '').trim();
     close(); renderAll();
     if (typeof onApply === 'function') onApply();
   });

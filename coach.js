@@ -12,7 +12,11 @@ let listFilter = 'all';
 let isAdmin = false;
 let isCoach = false;
 let isPrivilegedViewer = false;  // admin / ms_ic / mentorship can pick any coach
-let coachPick = '__mine__';      // value of the coach picker
+// Coach-picker default: pure coaches start on "My students"; admins and
+// other privileged viewers (ms_ic / mentorship) start on "All coaches".
+// Resolved properly in populateCoachPicker() once perms are known.
+let coachPick = '__mine__';
+let _coachPickInitialized = false;
 // Date range — filters students by first_purchase_date (joined date).
 // Wide-open sentinels mean "no filter".
 let drFrom = '0001-01-01', drTo = '9999-12-31';
@@ -246,8 +250,15 @@ function populateCoachPicker() {
   for (const c of coaches) opts.push(`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`);
   sel.innerHTML = opts.join('');
   sel.disabled = false;
+  // First time we know perms: privileged viewers (admin / ms_ic / mentorship)
+  // default to "All coaches" even if they also have the coach permission —
+  // they're here to oversee, not to drill into their own roster.
+  if (!_coachPickInitialized) {
+    coachPick = isPrivilegedViewer ? '__all__' : '__mine__';
+    _coachPickInitialized = true;
+  }
   if (!coachPick || !sel.querySelector(`[value="${CSS.escape(coachPick)}"]`)) {
-    coachPick = isCoach ? '__mine__' : '__all__';
+    coachPick = isPrivilegedViewer ? '__all__' : '__mine__';
   }
   sel.value = coachPick;
 }

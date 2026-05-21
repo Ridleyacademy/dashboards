@@ -2774,7 +2774,13 @@ function _hostLabel(u) {
 }
 
 function _canEditGroup(g) {
-  return isPrivilegedViewer || (currentSession?.user?.id && g.owner_id === currentSession.user.id);
+  // Privileged viewers (admin / ms_ic / delivery_ic / mentorship) can edit any
+  // group. Regular coaches can edit groups they own OR groups they originally
+  // created on behalf of someone else (created_by).
+  const uid = currentSession?.user?.id;
+  if (isPrivilegedViewer) return true;
+  if (!uid) return false;
+  return g.owner_id === uid || g.created_by === uid;
 }
 
 // Click-lock so rapid clicks on the Groups button don't stack multiple modals.
@@ -2826,8 +2832,10 @@ async function openGroupsModal() {
   function renderGroupsList() {
     const myId = currentSession?.user?.id;
     const mineFirst = [...sessionGroups].sort((a,b) => {
-      const am = a.owner_id === myId ? 0 : 1;
-      const bm = b.owner_id === myId ? 0 : 1;
+      // "Mine" = I own it OR I created it (so groups I built for another coach
+      // also surface at the top of my list).
+      const am = (a.owner_id === myId || a.created_by === myId) ? 0 : 1;
+      const bm = (b.owner_id === myId || b.created_by === myId) ? 0 : 1;
       if (am !== bm) return am - bm;
       return (a.name||'').localeCompare(b.name||'');
     });
@@ -2840,12 +2848,17 @@ async function openGroupsModal() {
       const ids = g.student_ids || [];
       const names = ids.map(id => allStudents.find(s => s.id === id)?.name).filter(Boolean);
       const ownerLabel = g.owner_id === myId ? 'You' : (g.owner_email || 'Unknown');
+      // Surface the creator when it isn't the owner so it's clear this group
+      // was made on someone else's behalf (e.g. an MS-IC building a group for a coach).
+      const creatorLabel = (g.created_by && g.created_by !== g.owner_id)
+        ? ' · Made by: ' + escapeHtml(g.created_by === myId ? 'You' : (g.created_by_email || 'Unknown'))
+        : '';
       const canEdit = _canEditGroup(g);
       return `<div style="border:1px solid var(--border);border-radius:10px;padding:12px 14px;background:var(--surface);">
         <div style="display:flex;align-items:center;gap:10px;">
           <div style="flex:1;">
             <div style="font-weight:700;font-size:0.95rem;">${escapeHtml(g.name)}</div>
-            <div style="font-size:0.74rem;color:var(--text-dim);">${ids.length} student${ids.length===1?'':'s'} · Owner: ${escapeHtml(ownerLabel)}${g.description ? ' · ' + escapeHtml(g.description) : ''}</div>
+            <div style="font-size:0.74rem;color:var(--text-dim);">${ids.length} student${ids.length===1?'':'s'} · Owner: ${escapeHtml(ownerLabel)}${creatorLabel}${g.description ? ' · ' + escapeHtml(g.description) : ''}</div>
             ${names.length ? `<div style="font-size:0.74rem;color:var(--text-dim);margin-top:4px;">${escapeHtml(names.slice(0,5).join(', '))}${names.length>5 ? ' +' + (names.length-5) + ' more' : ''}</div>` : ''}
           </div>
           ${canEdit ? `<button data-edit-group="${g.id}" class="btn-ghost" style="padding:6px 12px;font-size:0.75rem;">Edit</button>` : ''}
@@ -2981,7 +2994,10 @@ async function openGroupEditor(group) {
     try {
       const payload = { name, description, student_ids: ids };
       if (isNew) {
-        payload.owner_id = pickedOwnerId;
+        payload.owner_id   = pickedOwnerId;
+        // Always stamp the actual creator so they keep access even when they
+        // assign ownership to a different coach.
+        payload.created_by = myId;
         const { error } = await supa.from('mentorship_session_groups').insert(payload);
         if (error) throw error;
       } else {

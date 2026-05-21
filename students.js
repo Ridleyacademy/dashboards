@@ -101,13 +101,14 @@ async function onAuthed(session) {
   isMsRepOnly = !isAdmin && ps.includes('ms_rep')
     && !ps.includes('mentorship') && !ps.includes('sales_manager')
     && !ps.includes('coach') && !ps.includes('ms_ic') && !ps.includes('delivery_ic');
-  // Only admins / coaches / MS-IC / Delivery-IC can edit the base profile.
-  // Everyone else with board access (mentorship, sales_manager, ms_rep, …)
-  // sees the profile read-only, but Resigns + Alerts stay editable.
-  const canEditProfile = isAdmin
-    || ps.includes('coach')
-    || ps.includes('ms_ic')
-    || ps.includes('delivery_ic');
+  // Only true editors can write the base profile. We gate on the GRANULAR
+  // permission `students.edit` (admin always wins). The legacy `permissions`
+  // array auto-derives `coach` from `coach.view`, so a read-only MS-Rep
+  // who has coach.view would falsely pass a legacy `ps.includes('coach')`
+  // check. The granular key is the ground truth — real coaches have
+  // students.edit, read-only viewers (ms_rep bundle) don't.
+  const v2 = Array.isArray(eff.permissions_v2) ? eff.permissions_v2 : [];
+  const canEditProfile = isAdmin || v2.includes('students.edit');
   isProfileReadOnly = !canEditProfile;
   // Default-to-mine for both Coach and MS-Rep roles. Mentorship I/C and
   // Delivery I/C don't trigger the auto-filter — they see everyone by default.

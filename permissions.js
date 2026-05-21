@@ -17,10 +17,10 @@
     { href: 'calls.html',        id: 'calls',        roles: ['calls', 'sales_manager', 'rep'] },
     { href: 'declarations.html', id: 'declarations', roles: ['rep', 'sales_manager'] },
     { href: 'students.html',     id: 'students',     roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'] },
-    // Coach Dashboard: only profile-editors (coach / ms_ic / delivery_ic).
-    // Admins always have access. mentorship / sales_manager / ms_rep don't
-    // need this board — they work from the MS CRM (students.html).
-    { href: 'coach.html',        id: 'coach',        roles: ['coach', 'ms_ic', 'delivery_ic'] },
+    // Coach Dashboard: only true editors. Gated on the GRANULAR
+    // `coach.edit` permission (admins always pass). Read-only viewers
+    // (ms_rep bundle has `coach.view` but no `coach.edit`) are blocked.
+    { href: 'coach.html',        id: 'coach',        roles: [], granular: 'coach.edit' },
     { href: 'email-automations.html', id: 'email_automations', roles: [], adminOnly: true },
     { href: 'access.html',       id: 'access',       roles: [], adminOnly: true, granular: 'users.manage' },
   ];
@@ -70,13 +70,32 @@
     return PAGES.find(p => p.href === file) || null;
   }
 
+  // `excludesRoles` veto: any role listed there denies access even if the
+  // user matches one of `roles`. Used so a coach who is ALSO a rep is
+  // treated as a rep on rep-restricted boards.
+  function _passesExclude(def, eff) {
+    if (!def.excludesRoles || !def.excludesRoles.length) return true;
+    return !def.excludesRoles.some(r => eff.permissions.includes(r));
+  }
+
+  // Shared logic: granular gate (when set) is the source of truth; otherwise
+  // fall back to the legacy `roles` array. `excludesRoles` is a veto.
+  function _passesAccess(def, eff) {
+    if (def.adminOnly) return false; // admin short-circuit handled by callers
+    if (!_passesExclude(def, eff)) return false;
+    if (def.granular) {
+      return Array.isArray(eff.permissions_v2) && eff.permissions_v2.includes(def.granular);
+    }
+    if (def.roles === '*') return true;
+    return Array.isArray(def.roles) && def.roles.some(r => eff.permissions.includes(r));
+  }
+
   function canOpen(href, user) {
     const eff = effective(user);
     if (eff.is_admin) return true;
     const def = pageDef(href);
     if (!def) return false;
-    if (def.roles === '*') return true;
-    return def.roles.some(r => eff.permissions.includes(r));
+    return _passesAccess(def, eff);
   }
 
   // Convenience for code that already has an effective() object
@@ -84,8 +103,7 @@
     if (eff.is_admin) return true;
     const def = pageDef(href);
     if (!def) return false;
-    if (def.roles === '*') return true;
-    return def.roles.some(r => eff.permissions.includes(r));
+    return _passesAccess(def, eff);
   }
 
   window.RidleyPerms = {

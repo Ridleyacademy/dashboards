@@ -42,6 +42,13 @@ let mentors = [];
 let coaches = [];
 // MS rep only: read-only on the CRM except for resigns + alerts.
 let isMsRepOnly = false;
+// True when the signed-in user can VIEW the MS dashboard but should NOT be
+// allowed to edit the profile sections (IDENTITY, ONBOARDING, PAUSES, COACH,
+// ACTIVITY HISTORY, RESOURCES, ADMIN). Resigns + Alerts stay editable
+// because they're the rep's primary workflow. Editors are: admin, coach,
+// ms_ic, delivery_ic. Everyone else with board access (mentorship,
+// sales_manager, ms_rep, etc.) is locked.
+let isProfileReadOnly = false;
 const STATUSES = ['Active', 'Paused', 'Graduated', 'Cancelled', 'Lead'];
 
 // ── Theme (handled by theme.js but we keep the button working) ──
@@ -91,6 +98,14 @@ async function onAuthed(session) {
   isMsRepOnly = !isAdmin && ps.includes('ms_rep')
     && !ps.includes('mentorship') && !ps.includes('sales_manager')
     && !ps.includes('coach') && !ps.includes('ms_ic') && !ps.includes('delivery_ic');
+  // Only admins / coaches / MS-IC / Delivery-IC can edit the base profile.
+  // Everyone else with board access (mentorship, sales_manager, ms_rep, …)
+  // sees the profile read-only, but Resigns + Alerts stay editable.
+  const canEditProfile = isAdmin
+    || ps.includes('coach')
+    || ps.includes('ms_ic')
+    || ps.includes('delivery_ic');
+  isProfileReadOnly = !canEditProfile;
   // Default-to-mine for both Coach and MS-Rep roles. Mentorship I/C and
   // Delivery I/C don't trigger the auto-filter — they see everyone by default.
   // _isMine matches the user against either coach OR rep on the student row.
@@ -100,8 +115,9 @@ async function onAuthed(session) {
     listFilter = 'mine';
     document.querySelectorAll('#listFilterBar [data-filter]').forEach(b => b.classList.toggle('active', b.dataset.filter === 'mine'));
   }
-  // Hide the New Student button for ms_rep (they cannot create or edit base data)
-  if (isMsRepOnly) {
+  // Hide the New Student button for anyone who can't edit the profile —
+  // there's no point letting them open an empty form they can't save.
+  if (isProfileReadOnly) {
     const addBtn = document.getElementById('addStudentBtn'); if (addBtn) addBtn.style.display = 'none';
   }
 
@@ -1860,13 +1876,17 @@ function renderProfile() {
   card.addEventListener('change', dirtyHandler);
   if (!isNew) document.getElementById('prof-delete')?.addEventListener('click', deleteStudent);
 
-  // ms_rep lockdown: disable every base-field input + hide save/delete.
-  // Keep Resigns + Alerts buttons fully functional (they call their own endpoints).
-  if (isMsRepOnly) {
+  // Profile lockdown: disable every base-field input + hide save/delete for
+  // anyone who can VIEW the board but isn't a profile editor (admin / coach /
+  // ms_ic / delivery_ic). Resigns + Alerts stay editable — they're the rep's
+  // primary workflow.
+  if (isProfileReadOnly) {
     card.querySelectorAll('input, select, textarea').forEach(el => {
       // Spare resign rows (.resign-* classes) — they need to be editable.
       if (el.closest('table') && (el.classList.contains('resign-date') || el.classList.contains('resign-months') || el.classList.contains('resign-amount') || el.classList.contains('resign-notes'))) return;
-      // Spare the dirty-tracker listener has already attached; just make field-level inputs read-only.
+      // Field-level inputs are tagged with id="f-*" — that's the entire
+      // IDENTITY / ONBOARDING / PAUSES / COACH / ACTIVITY HISTORY /
+      // RESOURCES / ADMIN surface.
       if (el.id && el.id.startsWith('f-')) {
         el.disabled = true;
         if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') el.readOnly = true;
@@ -1877,7 +1897,8 @@ function renderProfile() {
     const delBtn  = document.getElementById('prof-delete'); if (delBtn)  delBtn.style.display  = 'none';
     const msg = document.getElementById('prof-msg');
     if (msg && !msg.textContent) {
-      msg.textContent = 'Read-only (MS rep)'; msg.style.color = 'var(--text-dim)';
+      msg.textContent = isMsRepOnly ? 'Read-only (MS rep)' : 'Read-only';
+      msg.style.color = 'var(--text-dim)';
     }
   }
   if (!isNew) {

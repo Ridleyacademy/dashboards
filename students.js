@@ -90,10 +90,13 @@ async function onAuthed(session) {
     setState('denied'); return;
   }
   setState('dashboard');
-  // Compute capability flags from session perms.
-  const am = session.user.app_metadata || {};
-  const isAdmin = am.is_admin === true;
-  const ps = Array.isArray(am.permissions) ? am.permissions : [];
+  // Compute capability flags from EFFECTIVE perms — this honors "View as"
+  // impersonation so an admin viewing as a non-editor gets the same lockdown
+  // that user would see. Server-side enforcement (students fn v54+) still
+  // blocks writes regardless, so this is purely a UI-mirror concern.
+  const eff = window.RidleyPerms.effective(session.user);
+  const isAdmin = eff.is_admin === true;
+  const ps = Array.isArray(eff.permissions) ? eff.permissions : [];
   const isCoachOnly = !isAdmin && ps.includes('coach') && !ps.includes('mentorship') && !ps.includes('sales_manager');
   isMsRepOnly = !isAdmin && ps.includes('ms_rep')
     && !ps.includes('mentorship') && !ps.includes('sales_manager')

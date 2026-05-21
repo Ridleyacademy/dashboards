@@ -17,7 +17,10 @@
     { href: 'calls.html',        id: 'calls',        roles: ['calls', 'sales_manager', 'rep'] },
     { href: 'declarations.html', id: 'declarations', roles: ['rep', 'sales_manager'] },
     { href: 'students.html',     id: 'students',     roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'] },
-    { href: 'coach.html',        id: 'coach',        roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic'] },
+    // Coach Dashboard: only profile-editors (coach / ms_ic / delivery_ic).
+    // Admins always have access. mentorship / sales_manager / ms_rep don't
+    // need this board — they work from the MS CRM (students.html).
+    { href: 'coach.html',        id: 'coach',        roles: ['coach', 'ms_ic', 'delivery_ic'] },
     { href: 'email-automations.html', id: 'email_automations', roles: [], adminOnly: true },
     { href: 'access.html',       id: 'access',       roles: [], adminOnly: true, granular: 'users.manage' },
   ];

@@ -18,12 +18,13 @@
     { href: 'declarations.html', id: 'declarations', roles: ['rep', 'sales_manager'] },
     { href: 'students.html',     id: 'students',     roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'] },
     // Coach Dashboard: only true editors. Primary gate is the GRANULAR
-    // `coach.edit` permission. Legacy fallback for `ms_ic` / `delivery_ic`
-    // — those role keys are only present in legacy `permissions` when the
-    // user is actually assigned that role in the Access dashboard, so
-    // they're safe to trust (unlike the legacy `coach` key which is
-    // auto-derived from `coach.view`). Admins always pass.
-    { href: 'coach.html',        id: 'coach',        roles: ['ms_ic', 'delivery_ic'], granular: 'coach.edit' },
+    // `coach.edit` permission. Legacy fallback includes `coach` /
+    // `ms_ic` / `delivery_ic` for users whose JWT predates the
+    // permissions_v2 backfill. The `coach` legacy key IS auto-derived
+    // from the read-only `coach.view`, so the `excludesRoles` veto
+    // blocks anyone who ALSO has `rep` or `ms_rep` (chicca-style users
+    // who only got `coach.view` via the ms_rep bundle). Admins pass.
+    { href: 'coach.html',        id: 'coach',        roles: ['coach', 'ms_ic', 'delivery_ic'], excludesRoles: ['rep', 'ms_rep'], granular: 'coach.edit' },
     { href: 'email-automations.html', id: 'email_automations', roles: [], adminOnly: true },
     { href: 'access.html',       id: 'access',       roles: [], adminOnly: true, granular: 'users.manage' },
   ];

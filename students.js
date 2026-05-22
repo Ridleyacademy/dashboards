@@ -101,22 +101,21 @@ async function onAuthed(session) {
   isMsRepOnly = !isAdmin && ps.includes('ms_rep')
     && !ps.includes('mentorship') && !ps.includes('sales_manager')
     && !ps.includes('coach') && !ps.includes('ms_ic') && !ps.includes('delivery_ic');
-  // Only true editors can write the base profile. We primarily gate on the
-  // GRANULAR permission `students.edit` (admin always wins).
+  // Only true editors can write the base profile. Primary gate is the
+  // GRANULAR `students.edit` (admin always wins).
   //
-  // Legacy fallback: `ms_ic` / `delivery_ic` are role keys that only land in
-  // legacy `permissions` when the user is genuinely assigned that role in
-  // the Access dashboard — they are NOT auto-derived from any granular
-  // permission (unlike the legacy `coach` key, which IS auto-derived from
-  // `coach.view` and therefore unsafe to trust). Including them here means
-  // an existing MS-IC / Delivery-IC user who hasn't signed back in yet
-  // (so their JWT predates the permissions_v2 backfill) still gets edit
-  // access, without re-introducing the chicca-style false positive.
+  // Legacy fallback covers users whose JWT predates the permissions_v2
+  // backfill: any of `coach` / `ms_ic` / `delivery_ic` in legacy
+  // `permissions` gets edit rights — UNLESS the user also carries `rep`
+  // or `ms_rep`, which vetoes the fallback. That veto is what keeps
+  // chicca-style users (legacy `coach` derived from `coach.view` via
+  // the ms_rep bundle) out of edit mode while still letting real
+  // coaches edit immediately without having to re-sign-in.
   const v2 = Array.isArray(eff.permissions_v2) ? eff.permissions_v2 : [];
+  const isRep = ps.includes('rep') || ps.includes('ms_rep');
   const canEditProfile = isAdmin
     || v2.includes('students.edit')
-    || ps.includes('ms_ic')
-    || ps.includes('delivery_ic');
+    || (!isRep && (ps.includes('coach') || ps.includes('ms_ic') || ps.includes('delivery_ic')));
   isProfileReadOnly = !canEditProfile;
   // Default-to-mine for both Coach and MS-Rep roles. Mentorship I/C and
   // Delivery I/C don't trigger the auto-filter — they see everyone by default.

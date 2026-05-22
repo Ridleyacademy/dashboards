@@ -203,11 +203,15 @@
     background: rgba(52,211,153,0.08); border-bottom: 1px solid rgba(52,211,153,0.2); }
   .bulkbar.visible { display: flex; }
   .bulkbar .count { font-weight: 800; font-size: 0.9rem; color: var(--accent2); }
-  .bulkbar button { background: var(--accent); color: #06231a; border: none;
+  /* Bulk-bar buttons — switched to white text on the accent background for
+     stronger contrast (the old `#06231a` dark-green on green tile read as
+     barely visible on darker themes). Ghost button uses full --text instead
+     of --text-dim so "Clear selection" is properly readable. */
+  .bulkbar button { background: var(--accent); color: #ffffff; border: none;
     border-radius: 9px; padding: 8px 16px; font-weight: 700; font-size: 0.82rem; cursor: pointer; }
-  .bulkbar button:hover { background: var(--accent2); }
-  .bulkbar .ghost { background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
-  .bulkbar .ghost:hover { color: var(--text); }
+  .bulkbar button:hover { background: var(--accent2); color: #ffffff; }
+  .bulkbar .ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
+  .bulkbar .ghost:hover { background: var(--surface2); color: var(--text); }
 
   /* Upcoming Zoom meetings */
   .upcoming-zoom { padding: 10px 22px 0; }

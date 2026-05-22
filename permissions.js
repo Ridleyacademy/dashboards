@@ -17,10 +17,13 @@
     { href: 'calls.html',        id: 'calls',        roles: ['calls', 'sales_manager', 'rep'] },
     { href: 'declarations.html', id: 'declarations', roles: ['rep', 'sales_manager'] },
     { href: 'students.html',     id: 'students',     roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'] },
-    // Coach Dashboard: only true editors. Gated on the GRANULAR
-    // `coach.edit` permission (admins always pass). Read-only viewers
-    // (ms_rep bundle has `coach.view` but no `coach.edit`) are blocked.
-    { href: 'coach.html',        id: 'coach',        roles: [], granular: 'coach.edit' },
+    // Coach Dashboard: only true editors. Primary gate is the GRANULAR
+    // `coach.edit` permission. Legacy fallback for `ms_ic` / `delivery_ic`
+    // — those role keys are only present in legacy `permissions` when the
+    // user is actually assigned that role in the Access dashboard, so
+    // they're safe to trust (unlike the legacy `coach` key which is
+    // auto-derived from `coach.view`). Admins always pass.
+    { href: 'coach.html',        id: 'coach',        roles: ['ms_ic', 'delivery_ic'], granular: 'coach.edit' },
     { href: 'email-automations.html', id: 'email_automations', roles: [], adminOnly: true },
     { href: 'access.html',       id: 'access',       roles: [], adminOnly: true, granular: 'users.manage' },
   ];
@@ -78,16 +81,23 @@
     return !def.excludesRoles.some(r => eff.permissions.includes(r));
   }
 
-  // Shared logic: granular gate (when set) is the source of truth; otherwise
-  // fall back to the legacy `roles` array. `excludesRoles` is a veto.
+  // Shared logic: a page def can specify `granular` (the GRANULAR key from
+  // permissions_v2) and/or `roles` (legacy bucket names). When BOTH are
+  // set, the user passes if EITHER matches — that lets us treat the
+  // granular key as the primary gate while still accepting trusted legacy
+  // roles as a fallback for users whose JWT predates the permissions_v2
+  // backfill. `excludesRoles` is always a veto.
   function _passesAccess(def, eff) {
     if (def.adminOnly) return false; // admin short-circuit handled by callers
     if (!_passesExclude(def, eff)) return false;
-    if (def.granular) {
-      return Array.isArray(eff.permissions_v2) && eff.permissions_v2.includes(def.granular);
-    }
     if (def.roles === '*') return true;
-    return Array.isArray(def.roles) && def.roles.some(r => eff.permissions.includes(r));
+    const granularHit = def.granular
+      && Array.isArray(eff.permissions_v2)
+      && eff.permissions_v2.includes(def.granular);
+    const roleHit = Array.isArray(def.roles)
+      && def.roles.length > 0
+      && def.roles.some(r => eff.permissions.includes(r));
+    return granularHit || roleHit;
   }
 
   function canOpen(href, user) {

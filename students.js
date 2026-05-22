@@ -623,11 +623,24 @@ function _onAdvFiltersChanged() {
 }
 
 function _myCoachIdentities() {
-  const fn = (currentSession?.user?.user_metadata?.first_name || '').toLowerCase().trim();
-  const em = (currentSession?.user?.email || '').toLowerCase().trim();
+  // Honor impersonation: when an admin "Views as" madison, we want to filter
+  // by HER identity, not the real admin's. RidleyPerms.effective() returns the
+  // impersonated email when active, otherwise falls through to the real user.
+  const eff = window.RidleyPerms?.effective(currentSession?.user);
+  const em = (eff?.email || currentSession?.user?.email || '').toLowerCase().trim();
+  // first_name is only on the real user_metadata, not in the impersonate
+  // payload. Skip it when impersonating — the email local part covers it.
+  const fn = (eff?.impersonated ? '' : (currentSession?.user?.user_metadata?.first_name || '')).toLowerCase().trim();
   const out = new Set();
   if (fn) out.add(fn);
   if (em) out.add(em);
+  // Also try the email's local part (e.g. "madison@ridleyacademy.team" →
+  // "madison"). Student rows usually store the coach as a first-name string
+  // like "Madison", so this is what actually drives the match.
+  if (em.includes('@')) {
+    const local = em.split('@')[0].split(/[+._]/)[0];
+    if (local) out.add(local);
+  }
   return out;
 }
 function _isMine(s, mineSet) {

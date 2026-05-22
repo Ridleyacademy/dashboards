@@ -440,10 +440,16 @@
       try {
         const u = new URL(n.link_url, window.location.origin);
         if (u.pathname.endsWith('/students.html') || u.pathname.endsWith('students.html')) {
-          if (window.location.pathname.endsWith('students.html') && typeof window.openAlertById === 'function') {
-            const aid = parseInt(u.searchParams.get('openAlert') || '0', 10);
+          if (window.location.pathname.endsWith('students.html')) {
             const sid = parseInt(u.searchParams.get('student') || '0', 10);
-            if (sid && aid) { closeDropdown(); window.openAlertById(sid, aid); return; }
+            const aid = parseInt(u.searchParams.get('openAlert') || '0', 10);
+            const tid = parseInt(u.searchParams.get('openTurnover') || '0', 10);
+            if (sid && tid && typeof window.openTurnoverById === 'function') {
+              closeDropdown(); window.openTurnoverById(sid, tid); return;
+            }
+            if (sid && aid && typeof window.openAlertById === 'function') {
+              closeDropdown(); window.openAlertById(sid, aid); return;
+            }
           }
         }
       } catch (_) {}
@@ -648,10 +654,12 @@
       if (e.data?.type === 'open-link' && e.data.link) {
         try {
           const u = new URL(e.data.link, window.location.origin);
-          if (u.pathname.endsWith('students.html') && typeof window.openAlertById === 'function') {
-            const aid = parseInt(u.searchParams.get('openAlert') || '0', 10);
+          if (u.pathname.endsWith('students.html')) {
             const sid = parseInt(u.searchParams.get('student') || '0', 10);
-            if (sid && aid) { window.openAlertById(sid, aid); return; }
+            const aid = parseInt(u.searchParams.get('openAlert') || '0', 10);
+            const tid = parseInt(u.searchParams.get('openTurnover') || '0', 10);
+            if (sid && tid && typeof window.openTurnoverById === 'function') { window.openTurnoverById(sid, tid); return; }
+            if (sid && aid && typeof window.openAlertById === 'function')    { window.openAlertById(sid, aid);    return; }
           }
           window.location.href = e.data.link;
         } catch (_) {}

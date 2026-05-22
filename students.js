@@ -145,27 +145,36 @@ async function onAuthed(session) {
   loadCoaches();
   await loadStudents();
   // URL params honored on first load:
-  //   ?student=N&openAlert=K   open student then jump to a specific alert
-  //   ?student=N&openAlerts=1  open student then open the alerts history modal
-  //                            (used by the coach board's Alerts quick-jump button)
+  //   ?student=N&openAlert=K     open student then jump to a specific alert
+  //   ?student=N&openAlerts=1    open student then open the alerts history modal
+  //                              (used by the coach board's Alerts quick-jump button)
+  //   ?student=N&openTurnover=K  open student then open the turnover history modal
+  //                              (used by turnover notification bell deep-link)
   try {
     const u = new URL(window.location.href);
     const sid = parseInt(u.searchParams.get('student') || '0', 10);
     const aid = parseInt(u.searchParams.get('openAlert') || '0', 10);
+    const tid = parseInt(u.searchParams.get('openTurnover') || '0', 10);
     const openAllAlerts = u.searchParams.get('openAlerts') === '1';
     if (sid) {
       await openStudent(sid);
       if (aid || openAllAlerts) setTimeout(() => { try { openAlertsHistoryModal(); } catch (_) {} }, 80);
+      if (tid) setTimeout(() => { try { openTurnoversHistoryModal(); } catch (_) {} }, 80);
       history.replaceState({}, '', window.location.pathname);
     }
   } catch (_) {}
 }
 
-// Public hook so notifications.js can jump in without a full reload.
+// Public hooks so notifications.js can jump in without a full reload.
 window.openAlertById = async function(studentId, alertId) {
   if (!studentId) return;
   await openStudent(studentId);
   setTimeout(() => { try { openAlertsHistoryModal(); } catch (_) {} }, 80);
+};
+window.openTurnoverById = async function(studentId, turnoverId) {
+  if (!studentId) return;
+  await openStudent(studentId);
+  setTimeout(() => { try { openTurnoversHistoryModal(); } catch (_) {} }, 80);
 };
 
 document.getElementById('loginForm').addEventListener('submit', async e => {

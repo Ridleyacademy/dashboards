@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v146-ic-legacy-fallback';
+const CACHE_NAME = 'ridley-v147-turnover-deep-link';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [

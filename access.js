@@ -1065,6 +1065,95 @@ async function loadOrgTab() {
     document.getElementById('axCount').textContent = `${divisionsData.length} div · ${departmentsData.length} dept · ${postsData.length} posts · ${execPostsData.length} exec`;
     renderOrgBoard();
   } catch (e) { board.innerHTML = `<div style="padding:24px;color:var(--red);font-size:0.84rem;">${escapeHtml(e.message)}</div>`; }
+  // Hook up zoom controls AFTER the board is rendered so the natural-size
+  // measurement in applyOrgZoom sees the real content. Idempotent — the
+  // helper re-binds each load.
+  initOrgZoom();
+}
+
+// ── Org-board zoom controls ────────────────────────────────────────────
+// Apply a CSS transform: scale() on #orgBoardZoom so the whole board can
+// shrink down to fit a small viewport, or zoom in for detail. The scaled
+// element's layout box doesn't change with transform, so we also set
+// --org-zoom-w on the inner element to (naturalWidth × zoom) so the
+// wrapper's horizontal scrollbar reflects the visible size.
+//
+// Zoom level is persisted in localStorage so it survives a reload. The
+// "Fit" button auto-computes the scale needed to show the whole board
+// without horizontal scrolling.
+const ORG_ZOOM_KEY = 'orgBoard:zoom:v1';
+let _orgZoomNaturalWidth = 0;
+let _orgZoomNaturalHeight = 0;
+function _measureOrgZoomNatural() {
+  const inner = document.getElementById('orgBoardZoom');
+  if (!inner) return { w: 0, h: 0 };
+  // Temporarily disable the scale so getBoundingClientRect reports
+  // the natural (un-scaled) size, then restore.
+  const prev = inner.style.transform;
+  inner.style.transform = 'none';
+  inner.style.setProperty('--org-zoom-w', 'auto');
+  const w = inner.scrollWidth;
+  const h = inner.scrollHeight;
+  inner.style.transform = prev;
+  return { w, h };
+}
+function applyOrgZoom(zoom) {
+  const inner = document.getElementById('orgBoardZoom');
+  const wrap  = document.getElementById('orgBoardZoomWrap');
+  if (!inner || !wrap) return;
+  const z = Math.max(0.2, Math.min(2, Number(zoom) || 1));
+  if (!_orgZoomNaturalWidth || !_orgZoomNaturalHeight) {
+    const m = _measureOrgZoomNatural();
+    _orgZoomNaturalWidth = m.w;
+    _orgZoomNaturalHeight = m.h;
+  }
+  inner.style.setProperty('--org-zoom', String(z));
+  // Pin the inner element's width to its natural width — then the scale
+  // shrinks/grows it visually but the wrapper's scrollbar sees the
+  // pre-scaled width. We also pad the wrapper's height to the scaled
+  // height so it doesn't collapse when zoomed down.
+  inner.style.width = _orgZoomNaturalWidth ? (_orgZoomNaturalWidth + 'px') : '';
+  wrap.style.minHeight = _orgZoomNaturalHeight ? (Math.ceil(_orgZoomNaturalHeight * z) + 'px') : '';
+  // Set the wrapper's content size to scaled size for proper scroll math.
+  inner.style.setProperty('--org-zoom-w', _orgZoomNaturalWidth ? (Math.ceil(_orgZoomNaturalWidth * z) + 'px') : 'auto');
+  // Display the percent label.
+  const pct = document.getElementById('orgZoomPct');
+  if (pct) pct.textContent = Math.round(z * 100) + '%';
+  try { localStorage.setItem(ORG_ZOOM_KEY, String(z)); } catch (_) {}
+}
+function initOrgZoom() {
+  const inBtn  = document.getElementById('orgZoomIn');
+  const outBtn = document.getElementById('orgZoomOut');
+  const rstBtn = document.getElementById('orgZoomReset');
+  const fitBtn = document.getElementById('orgZoomFit');
+  const wrap   = document.getElementById('orgBoardZoomWrap');
+  if (!inBtn || !outBtn || !rstBtn || !fitBtn || !wrap) return;
+  // Re-measure natural size — content may have changed since last render.
+  _orgZoomNaturalWidth = 0; _orgZoomNaturalHeight = 0;
+  let z = 1;
+  try { z = parseFloat(localStorage.getItem(ORG_ZOOM_KEY) || '1') || 1; } catch (_) {}
+  applyOrgZoom(z);
+  // Idempotent re-binding: clone-and-replace strips any old listeners.
+  const fresh = (el) => { const c = el.cloneNode(true); el.parentNode.replaceChild(c, el); return c; };
+  const inN  = fresh(inBtn), outN = fresh(outBtn), rstN = fresh(rstBtn), fitN = fresh(fitBtn);
+  const cur = () => parseFloat(getComputedStyle(document.getElementById('orgBoardZoom')).getPropertyValue('--org-zoom')) || 1;
+  inN .addEventListener('click', () => applyOrgZoom(cur() + 0.1));
+  outN.addEventListener('click', () => applyOrgZoom(cur() - 0.1));
+  rstN.addEventListener('click', () => applyOrgZoom(1));
+  fitN.addEventListener('click', () => {
+    // Fit-to-width: scale so naturalWidth × z = wrapper visible width.
+    const m = _measureOrgZoomNatural();
+    _orgZoomNaturalWidth = m.w; _orgZoomNaturalHeight = m.h;
+    const visible = wrap.clientWidth - 8; // small margin so it doesn't kiss the edge
+    if (!m.w || !visible) return applyOrgZoom(1);
+    applyOrgZoom(Math.min(1, visible / m.w));
+  });
+  // Cmd/Ctrl + scroll wheel zoom inside the wrapper.
+  wrap.addEventListener('wheel', (e) => {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    e.preventDefault();
+    applyOrgZoom(cur() + (e.deltaY < 0 ? 0.05 : -0.05));
+  }, { passive: false });
 }
 
 // Find a user record across every cache we have. The Users tab populates

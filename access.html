@@ -579,6 +579,23 @@
     box-shadow: 0 0 0 2px rgba(251,191,36,.45);
   }
 
+  /* Zoom wrapper for the whole org board (top tier + division row).
+     We scale the INNER element via CSS transform and keep the wrapper
+     scrollable so the user can still pan around a zoomed-in board.
+     `transform-origin: top left` keeps the upper-left anchored so the
+     left-most division (Executive) stays visible while shrinking. */
+  .org-board-zoom-wrap { overflow: auto; max-width: 100%; }
+  .org-board-zoom-inner {
+    transform-origin: top left;
+    transform: scale(var(--org-zoom, 1));
+    /* The scaled element's natural box doesn't change, so when zoomed out
+       you'd see empty space on the right. Cap the inner width so the
+       scrollbar reflects the *visible* (scaled) size. JS sets
+       --org-zoom-w to inner natural width × zoom, in px. */
+    width: var(--org-zoom-w, auto);
+    transition: transform .12s ease;
+  }
+
   /* Executive layer: a horizontal strip of cards above the division row.
      Each card represents a post that supervises one or more divisions and
      can be held by one or more users. */
@@ -884,13 +901,26 @@
       <div class="org-board-header">
         <h3>🏛 Org Board</h3>
         <span class="hint">Divisions = columns · Departments = sub-columns · Posts = cards. The Executive Division sits on the left. Click anything to edit.</span>
-        <button class="small-btn" id="orgSeedBtn" style="margin-left:auto;background:var(--surface3);" title="Create the canonical 6 divisions + 18 departments + 3 executive posts. Idempotent — won't duplicate existing items.">🏛 Seed standard org board</button>
+        <!-- Zoom controls — apply CSS scale to #orgBoardZoom so the whole
+             board fits in a small viewport. "Fit" auto-shrinks to width,
+             "1:1" resets, ± step by 10%. Persisted in localStorage. -->
+        <div class="org-zoom" style="margin-left:auto;display:inline-flex;align-items:center;gap:4px;">
+          <button class="small-btn" id="orgZoomOut" title="Zoom out (10%)" style="background:var(--surface3);">−</button>
+          <button class="small-btn" id="orgZoomReset" title="Reset to 100%" style="background:var(--surface3);min-width:46px;"><span id="orgZoomPct">100%</span></button>
+          <button class="small-btn" id="orgZoomIn"  title="Zoom in (10%)"  style="background:var(--surface3);">+</button>
+          <button class="small-btn" id="orgZoomFit" title="Shrink to fit the full board on screen" style="background:var(--surface3);">⤢ Fit</button>
+        </div>
+        <button class="small-btn" id="orgSeedBtn" style="background:var(--surface3);" title="Create the canonical 6 divisions + 18 departments + 3 executive posts. Idempotent — won't duplicate existing items.">🏛 Seed standard org board</button>
       </div>
       <!-- Executive layer: posts that sit ABOVE the divisions. Each can
            cover >=1 divisions (chosen in the editor) and be held by >=1
            users. Renderered by renderTopTier() in access.js. -->
-      <div class="org-top-tier" id="orgTopTier"></div>
-      <div class="org-board" id="orgBoard"></div>
+      <div class="org-board-zoom-wrap" id="orgBoardZoomWrap">
+        <div class="org-board-zoom-inner" id="orgBoardZoom">
+          <div class="org-top-tier" id="orgTopTier"></div>
+          <div class="org-board" id="orgBoard"></div>
+        </div>
+      </div>
     </div>
 
     <!-- Rep Mapping merged into the User editor (v246) — the standalone view

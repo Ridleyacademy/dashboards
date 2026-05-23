@@ -579,6 +579,53 @@
     box-shadow: 0 0 0 2px rgba(251,191,36,.45);
   }
 
+  /* Executive layer: a horizontal strip of cards above the division row.
+     Each card represents a post that supervises one or more divisions and
+     can be held by one or more users. */
+  .org-top-tier { padding: 6px 4px 4px; }
+  .org-top-tier:empty { display: none; }
+  .org-top-tier-label {
+    font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase;
+    letter-spacing: 0.08em; font-weight: 700; margin-bottom: 6px;
+  }
+  .org-top-tier-cards {
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: stretch;
+  }
+  .org-exec-card {
+    display: flex; min-width: 220px; max-width: 320px; flex: 0 0 auto;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; overflow: hidden; cursor: pointer;
+    transition: transform .12s ease, box-shadow .12s ease;
+  }
+  .org-exec-card:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(0,0,0,0.18); }
+  .org-exec-card.dragging { opacity: 0.4; }
+  .org-exec-card.drag-over { outline: 2px dashed var(--accent); outline-offset: -3px; }
+  .org-exec-card-stripe { width: 6px; flex: 0 0 6px; }
+  .org-exec-card-body { padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 0; }
+  .org-exec-card-title { font-weight: 700; font-size: 0.84rem; color: var(--text); }
+  .org-exec-card-holders { display: flex; flex-wrap: wrap; gap: 4px; font-size: 0.74rem; }
+  .org-exec-holder { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; background: var(--surface2); color: var(--text); }
+  .org-exec-holder.vacant { font-style: italic; color: var(--text-dim); background: transparent; border: 1px dashed var(--border); }
+  .org-exec-card-divs { display: flex; flex-wrap: wrap; gap: 4px; }
+  .div-chip { font-size: 0.66rem; padding: 1px 7px; border: 1px solid; border-radius: 999px; font-weight: 600; }
+  .org-exec-card-role { font-size: 0.7rem; font-weight: 600; }
+  .org-add-exec {
+    align-self: stretch; min-width: 140px;
+    background: transparent; color: var(--text-dim);
+    border: 1px dashed var(--border); border-radius: 12px;
+    padding: 10px 14px; font-size: 0.78rem; cursor: pointer;
+  }
+  .org-add-exec:hover { color: var(--text); border-color: var(--accent); }
+
+  /* Drag handle on division headers, plus drag visual states. */
+  .org-div-drag-handle {
+    color: var(--text-dim); cursor: grab; padding: 0 4px 0 0;
+    font-weight: 700; user-select: none; letter-spacing: -1px;
+  }
+  .org-div-drag-handle:active { cursor: grabbing; }
+  .org-col-division.dragging { opacity: 0.4; }
+  .org-col-division.drag-over { outline: 2px dashed var(--accent); outline-offset: -3px; border-radius: 12px; }
+
   .org-board {
     display: flex; gap: 14px;
     overflow-x: auto; overflow-y: visible;
@@ -839,7 +886,10 @@
         <span class="hint">Divisions = columns · Departments = sub-columns · Posts = cards. The Executive Division sits on the left. Click anything to edit.</span>
         <button class="small-btn" id="orgSeedBtn" style="margin-left:auto;background:var(--surface3);" title="Create the canonical 6 divisions + 18 departments + 3 executive posts. Idempotent — won't duplicate existing items.">🏛 Seed standard org board</button>
       </div>
-      <!-- Top-tier strip removed in v235 — Executive is now Division 0. -->
+      <!-- Executive layer: posts that sit ABOVE the divisions. Each can
+           cover >=1 divisions (chosen in the editor) and be held by >=1
+           users. Renderered by renderTopTier() in access.js. -->
+      <div class="org-top-tier" id="orgTopTier"></div>
       <div class="org-board" id="orgBoard"></div>
     </div>
 

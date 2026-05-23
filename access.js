@@ -32,6 +32,10 @@ let rolePerms = [];   // [{role_id, permission_key}]
 // Data per tab
 let usersData = [];
 let divisionsData = [], departmentsData = [], postsData = [];
+// Top-tier executive posts. Each can be linked to >=1 divisions and held by
+// >=1 users. Loaded by loadOrgTab().
+let execPostsData = [];
+let execHoldersByExecPost = {}; // { [execPostId]: [{user_id, started_at}, …] } — active only
 let selectedId = null;          // current selected row id (users tab uses user uuid string)
 let selectedKind = 'user';      // 'user' | 'role' | 'division' | 'department' | 'post'
 
@@ -1036,21 +1040,29 @@ async function loadOrgTab() {
   const board = document.getElementById('orgBoard');
   board.innerHTML = '<div style="padding:24px;color:var(--text-dim);font-size:0.84rem;">Loading…</div>';
   try {
-    const [d, dep, p, h] = await Promise.all([
+    const [d, dep, p, h, ep, eph] = await Promise.all([
       api('?api=divisions'),
       api('?api=departments'),
       api('?api=posts'),
       api('?api=post-holders'),
+      api('?api=exec-posts').catch(() => ({ rows: [] })),
+      api('?api=exec-post-holders').catch(() => ({ rows: [] })),
     ]);
     divisionsData = d.rows || [];
     departmentsData = dep.rows || [];
     postsData = p.rows || [];
+    execPostsData = ep.rows || [];
     activeHoldersByPost = {};
     for (const row of (h.rows || [])) {
       if (row.ended_at) continue;
       (activeHoldersByPost[row.post_id] ||= []).push(row);
     }
-    document.getElementById('axCount').textContent = `${divisionsData.length} div · ${departmentsData.length} dept · ${postsData.length} posts`;
+    execHoldersByExecPost = {};
+    for (const row of (eph.rows || [])) {
+      if (row.ended_at) continue;
+      (execHoldersByExecPost[row.exec_post_id] ||= []).push(row);
+    }
+    document.getElementById('axCount').textContent = `${divisionsData.length} div · ${departmentsData.length} dept · ${postsData.length} posts · ${execPostsData.length} exec`;
     renderOrgBoard();
   } catch (e) { board.innerHTML = `<div style="padding:24px;color:var(--red);font-size:0.84rem;">${escapeHtml(e.message)}</div>`; }
 }
@@ -1093,13 +1105,64 @@ function _userOptions(selectedId, includeVacant = true) {
     sorted.map(u => `<option value="${u.id}" ${selectedId === u.id ? 'selected' : ''}>${escapeHtml(_pickerLabelFor(u))}</option>`).join('');
 }
 
-// DEPRECATED — Executive is now a regular Division (Div 0). This is a no-op
-// kept only so older render paths don't error.
+// Top tier: executive posts that sit ABOVE the divisions. Each can cover
+// one or more divisions (many-to-many via org_executive_post_divisions) and
+// be held by one or more users. The host page must contain
+// <div id="orgTopTier"></div> right above #orgBoard.
 function renderTopTier() {
   const tier = document.getElementById('orgTopTier');
-  if (tier) tier.innerHTML = '';
+  if (!tier) return;
+  const cards = execPostsData.map(ep => {
+    const holders = execHoldersByExecPost[ep.id] || [];
+    const role = ep.default_role_id ? roles.find(r => r.id === ep.default_role_id) : null;
+    const divChips = (ep.division_ids || []).map(did => {
+      const d = divisionsData.find(x => x.id === did);
+      return d ? `<span class="div-chip" style="border-color:${d.color}66;color:${d.color};">${escapeHtml(d.name)}</span>` : '';
+    }).join('') || '<span style="color:var(--text-dim);font-style:italic;font-size:0.72rem;">(no divisions linked)</span>';
+    const holderHtml = holders.length
+      ? holders.map(h => `<span class="org-exec-holder" title="${escapeHtml(_emailOf(h.user_id) || '')}"><span class="havatar small">${escapeHtml(_initialOf(h.user_id))}</span>${escapeHtml(_displayOf(h.user_id))}</span>`).join('')
+      : '<span class="org-exec-holder vacant">Vacant — click to assign</span>';
+    return `<div class="org-exec-card" data-kind="exec-post" data-id="${ep.id}" draggable="true" style="border-color:${ep.color || '#fbbf24'}66;">
+      <div class="org-exec-card-stripe" style="background:${ep.color || '#fbbf24'};"></div>
+      <div class="org-exec-card-body">
+        <div class="org-exec-card-title">⭐ ${escapeHtml(ep.name)}</div>
+        <div class="org-exec-card-holders">${holderHtml}</div>
+        <div class="org-exec-card-divs">${divChips}</div>
+        ${role ? `<div class="org-exec-card-role" style="color:${role.color || '#a78bfa'};">Auto-role: ${escapeHtml(role.name)}</div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+  tier.innerHTML = `<div class="org-top-tier-label">Executive layer</div>
+    <div class="org-top-tier-cards">${cards}<button class="org-add-exec" id="org-add-exec">+ Add exec post</button></div>`;
+
+  tier.querySelectorAll('.org-exec-card').forEach(el => {
+    el.addEventListener('click', e => { e.stopPropagation(); openExecPostEditor(Number(el.dataset.id)); });
+    // Drag to reorder within the strip.
+    el.addEventListener('dragstart', e => {
+      el.classList.add('dragging');
+      e.dataTransfer.setData('text/plain', 'exec:' + el.dataset.id);
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    el.addEventListener('dragend', () => el.classList.remove('dragging'));
+    el.addEventListener('dragover', e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; el.classList.add('drag-over'); });
+    el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
+    el.addEventListener('drop', async e => {
+      e.preventDefault(); el.classList.remove('drag-over');
+      const payload = e.dataTransfer.getData('text/plain') || '';
+      if (!payload.startsWith('exec:')) return;
+      const draggedId = Number(payload.slice(5));
+      const targetId = Number(el.dataset.id);
+      if (!draggedId || draggedId === targetId) return;
+      const order = execPostsData.map(x => x.id).filter(id => id !== draggedId);
+      const idx = order.indexOf(targetId);
+      order.splice(idx, 0, draggedId);
+      try { await api('?api=reorder', { method: 'POST', body: { kind: 'exec_posts', order } }); await loadOrgTab(); }
+      catch (err) { alert(err.message); }
+    });
+  });
+  document.getElementById('org-add-exec')?.addEventListener('click', () => openExecPostEditor(null));
   return;
-  // legacy body retained as dead code below for context:
+  // Legacy body kept below as dead code for context.
   // eslint-disable-next-line no-unreachable
   if (false) {
   const cardsHtml = execPostsData.map(ep => {
@@ -1188,8 +1251,9 @@ function renderOrgBoard() {
       ? `<span class="org-head-pill" title="Division Head: ${escapeHtml(_emailOf(d.head_user_id) || '')} — click to change"><span class="havatar" style="background:${d.color || '#6b9eff'};">${escapeHtml(_initialOf(d.head_user_id))}</span><span>👑 ${escapeHtml(headDisplay)}</span></span>`
       : `<span class="org-head-pill vacant" title="No Division Head — click to assign">👑 No Division Head</span>`;
     return `
-      <div class="org-col-division">
+      <div class="org-col-division" data-div-id="${d.id}" draggable="true">
         <div class="org-col-division-head" data-kind="division" data-id="${d.id}">
+          <span class="org-div-drag-handle" title="Drag to reorder">⋮⋮</span>
           <div class="org-col-division-stripe" style="background:${d.color || '#6b9eff'};"></div>
           <div style="flex:1;display:flex;flex-direction:column;gap:4px;min-width:0;">
             <div class="org-col-division-title">${escapeHtml(d.name)}</div>
@@ -1227,6 +1291,39 @@ function renderOrgBoard() {
     openCreatePostModal(Number(el.dataset.addPost));
   }));
   document.getElementById('org-add-div')?.addEventListener('click', openCreateDivisionModal);
+
+  // Division drag-to-reorder. Drag the column header / handle to drop it
+  // before another division; the new order is persisted via ?api=reorder.
+  board.querySelectorAll('.org-col-division').forEach(el => {
+    el.addEventListener('dragstart', e => {
+      el.classList.add('dragging');
+      e.dataTransfer.setData('text/plain', 'div:' + el.dataset.divId);
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    el.addEventListener('dragend', () => el.classList.remove('dragging'));
+    el.addEventListener('dragover', e => {
+      const payload = e.dataTransfer.types.includes('text/plain') ? '' : null;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      el.classList.add('drag-over');
+    });
+    el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
+    el.addEventListener('drop', async e => {
+      e.preventDefault();
+      el.classList.remove('drag-over');
+      const payload = e.dataTransfer.getData('text/plain') || '';
+      if (!payload.startsWith('div:')) return;
+      const draggedId = Number(payload.slice(4));
+      const targetId = Number(el.dataset.divId);
+      if (!draggedId || draggedId === targetId) return;
+      // Drop semantics: dropped column lands BEFORE the target column.
+      const order = divisionsData.map(d => d.id).filter(id => id !== draggedId);
+      const idx = order.indexOf(targetId);
+      order.splice(idx, 0, draggedId);
+      try { await api('?api=reorder', { method: 'POST', body: { kind: 'divisions', order } }); await loadOrgTab(); }
+      catch (err) { alert(err.message); }
+    });
+  });
 }
 
 function renderDepartmentSubColumn(dep) {
@@ -1342,8 +1439,20 @@ function openExecPostEditor(epId) {
     <div class="ax-editor-row"><label>Color</label><input id="ep-color" type="color" value="${escapeHtml(ep.color || '#fbbf24')}" style="max-width:80px;"></div>
 
     <h3>Assigned to</h3>
-    <div class="ax-editor-row"><label>Holder</label><select id="ep-head"></select></div>
     <div class="ax-editor-row"><label>Auto-assigned role</label><select id="ep-role"></select></div>
+    ${ep.id ? `
+    <div class="ax-editor-row" style="flex-direction:column;align-items:stretch;">
+      <label style="margin-bottom:4px;">Holders</label>
+      <div id="ep-holders" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;"></div>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <select id="ep-holder-pick" style="flex:1;"></select>
+        <button class="small-btn" id="ep-add-holder">+ Assign</button>
+      </div>
+      <div style="font-size:0.72rem;color:var(--text-dim);margin-top:4px;">One or more users can hold this exec post. Assigning gives them the auto-role above (on next sign-in).</div>
+    </div>
+    ` : `
+    <div class="ax-editor-row"><label>Holders</label><span style="color:var(--text-dim);font-size:0.78rem;">Save this exec post first, then assign holders.</span></div>
+    `}
 
     <h3>Divisions overseen</h3>
     <div style="font-size:0.74rem;color:var(--text-dim);margin-bottom:6px;">Pick every division this person is in charge of. Hover the card on the board to see them highlighted.</div>
@@ -1357,8 +1466,17 @@ function openExecPostEditor(epId) {
     </div>
   </div>`;
 
-  document.getElementById('ep-head').innerHTML = _userOptions(ep.head_user_id);
   document.getElementById('ep-role').innerHTML = '<option value="">— No default role —</option>' + roles.map(r => `<option value="${r.id}" ${ep.default_role_id === r.id ? 'selected' : ''}>${escapeHtml(r.name)}</option>`).join('');
+  if (ep.id) {
+    document.getElementById('ep-holder-pick').innerHTML = _userOptions(null, false);
+    refreshExecPostHolders(ep.id);
+    document.getElementById('ep-add-holder')?.addEventListener('click', async () => {
+      const uid = document.getElementById('ep-holder-pick').value;
+      if (!uid) return;
+      try { await api('?api=exec-post-add-holder', { method: 'POST', body: { exec_post_id: ep.id, user_id: uid } }); await refreshExecPostHolders(ep.id); }
+      catch (e) { alert(e.message); }
+    });
+  }
 
   // Toggle chip-style highlight on check
   ed.querySelectorAll('#ep-divs input[type="checkbox"]').forEach(cb => {
@@ -1378,7 +1496,6 @@ function openExecPostEditor(epId) {
         slug: document.getElementById('ep-slug').value.trim() || document.getElementById('ep-name').value.trim().toLowerCase().replace(/\s+/g, '_'),
         description: document.getElementById('ep-desc').value.trim(),
         color: document.getElementById('ep-color').value,
-        head_user_id: document.getElementById('ep-head').value || null,
         default_role_id: document.getElementById('ep-role').value ? Number(document.getElementById('ep-role').value) : null,
         division_ids: [...document.querySelectorAll('#ep-divs input:checked')].map(cb => Number(cb.dataset.divId)),
         sort_order: ep.sort_order || 0,
@@ -1693,6 +1810,25 @@ function renderPostEditor(po) {
     catch (e) { alert(e.message); }
   });
   loadPoliciesInto('po-policies', 'post', po.id);
+}
+
+async function refreshExecPostHolders(execPostId) {
+  try {
+    const j = await api('?api=exec-post-holders&exec_post_id=' + execPostId);
+    const rows = (j.rows || []).filter(r => !r.ended_at);
+    const wrap = document.getElementById('ep-holders');
+    if (!wrap) return;
+    if (!rows.length) { wrap.innerHTML = '<span style="color:var(--text-dim);font-size:0.82rem;">No holders yet — pick someone below and click Assign.</span>'; return; }
+    wrap.innerHTML = rows.map(r => `<span class="holder-pill" title="${escapeHtml(_emailOf(r.user_id) || '')}">
+        <span class="holder-pill-av">${escapeHtml(_initialOf(r.user_id))}</span>
+        ${escapeHtml(_displayOf(r.user_id))}
+        <button title="Remove from post" data-uid="${r.user_id}">×</button>
+      </span>`).join('');
+    wrap.querySelectorAll('button[data-uid]').forEach(b => b.addEventListener('click', async () => {
+      try { await api('?api=exec-post-remove-holder', { method: 'POST', body: { exec_post_id: execPostId, user_id: b.dataset.uid } }); await refreshExecPostHolders(execPostId); await loadOrgTab(); }
+      catch (e) { alert(e.message); }
+    }));
+  } catch (_) {}
 }
 
 async function refreshPostHolders(postId) {

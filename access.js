@@ -1087,11 +1087,12 @@ let _orgZoomNaturalHeight = 0;
 function _measureOrgZoomNatural() {
   const inner = document.getElementById('orgBoardZoom');
   if (!inner) return { w: 0, h: 0 };
-  // Temporarily disable the scale so getBoundingClientRect reports
-  // the natural (un-scaled) size, then restore.
+  // Temporarily clear transform so we measure the natural (un-scaled)
+  // size of the inner element, then restore.
   const prev = inner.style.transform;
   inner.style.transform = 'none';
-  inner.style.setProperty('--org-zoom-w', 'auto');
+  // scrollWidth/Height includes overflowing children (all divisions even
+  // if they'd normally be hidden behind the inner board's scrollbar).
   const w = inner.scrollWidth;
   const h = inner.scrollHeight;
   inner.style.transform = prev;
@@ -1099,24 +1100,21 @@ function _measureOrgZoomNatural() {
 }
 function applyOrgZoom(zoom) {
   const inner = document.getElementById('orgBoardZoom');
+  const sizer = document.getElementById('orgBoardZoomSizer');
   const wrap  = document.getElementById('orgBoardZoomWrap');
-  if (!inner || !wrap) return;
+  if (!inner || !sizer || !wrap) return;
   const z = Math.max(0.2, Math.min(2, Number(zoom) || 1));
-  if (!_orgZoomNaturalWidth || !_orgZoomNaturalHeight) {
-    const m = _measureOrgZoomNatural();
-    _orgZoomNaturalWidth = m.w;
-    _orgZoomNaturalHeight = m.h;
-  }
+  // Always re-measure on every apply — the org board content can change
+  // (add/remove division) between renders, and the natural size affects
+  // both fit math and the sizer dimensions.
+  const m = _measureOrgZoomNatural();
+  _orgZoomNaturalWidth = m.w;
+  _orgZoomNaturalHeight = m.h;
   inner.style.setProperty('--org-zoom', String(z));
-  // Pin the inner element's width to its natural width — then the scale
-  // shrinks/grows it visually but the wrapper's scrollbar sees the
-  // pre-scaled width. We also pad the wrapper's height to the scaled
-  // height so it doesn't collapse when zoomed down.
-  inner.style.width = _orgZoomNaturalWidth ? (_orgZoomNaturalWidth + 'px') : '';
-  wrap.style.minHeight = _orgZoomNaturalHeight ? (Math.ceil(_orgZoomNaturalHeight * z) + 'px') : '';
-  // Set the wrapper's content size to scaled size for proper scroll math.
-  inner.style.setProperty('--org-zoom-w', _orgZoomNaturalWidth ? (Math.ceil(_orgZoomNaturalWidth * z) + 'px') : 'auto');
-  // Display the percent label.
+  // The sizer's explicit width/height = scaled size. That's what the
+  // wrapper sees for layout, so its scrollbars / page flow are correct.
+  if (_orgZoomNaturalWidth)  sizer.style.width  = Math.ceil(_orgZoomNaturalWidth  * z) + 'px';
+  if (_orgZoomNaturalHeight) sizer.style.height = Math.ceil(_orgZoomNaturalHeight * z) + 'px';
   const pct = document.getElementById('orgZoomPct');
   if (pct) pct.textContent = Math.round(z * 100) + '%';
   try { localStorage.setItem(ORG_ZOOM_KEY, String(z)); } catch (_) {}

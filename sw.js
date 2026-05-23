@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v152-org-board-zoom';
+const CACHE_NAME = 'ridley-v153-org-zoom-shows-all';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [

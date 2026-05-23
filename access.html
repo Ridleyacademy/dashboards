@@ -579,21 +579,34 @@
     box-shadow: 0 0 0 2px rgba(251,191,36,.45);
   }
 
-  /* Zoom wrapper for the whole org board (top tier + division row).
-     We scale the INNER element via CSS transform and keep the wrapper
-     scrollable so the user can still pan around a zoomed-in board.
-     `transform-origin: top left` keeps the upper-left anchored so the
-     left-most division (Executive) stays visible while shrinking. */
+  /* Zoom rig for the whole org board (top tier + division row).
+     - .org-board-zoom-wrap is the scrollable viewport (overflow: auto)
+     - .org-board-zoom-sizer is given an explicit width/height in JS that
+       equals (natural × zoom) so the wrapper's scrollbars reflect the
+       *visible* size and the wrapper height never collapses to zero.
+     - .org-board-zoom-inner is absolutely positioned inside the sizer
+       and visually transformed via CSS `scale()`. Its natural layout
+       size is unaffected so children render at full size. */
   .org-board-zoom-wrap { overflow: auto; max-width: 100%; }
+  .org-board-zoom-sizer { position: relative; }
   .org-board-zoom-inner {
+    position: absolute; top: 0; left: 0;
     transform-origin: top left;
     transform: scale(var(--org-zoom, 1));
-    /* The scaled element's natural box doesn't change, so when zoomed out
-       you'd see empty space on the right. Cap the inner width so the
-       scrollbar reflects the *visible* (scaled) size. JS sets
-       --org-zoom-w to inner natural width × zoom, in px. */
-    width: var(--org-zoom-w, auto);
     transition: transform .12s ease;
+    /* Take the natural full width of the content (all divisions side by
+       side) — the inner .org-board's overflow-x: auto is overridden
+       below so it expands rather than scrolling internally. */
+    width: max-content;
+  }
+  /* Inside the zoom rig the board must NOT scroll horizontally on its
+     own — that would hide divisions when the zoomed-down sizer is
+     narrower than the natural board. The outer wrapper handles all
+     panning. */
+  .org-board-zoom-inner .org-board {
+    overflow: visible !important;
+    width: max-content;
+    min-width: 0;
   }
 
   /* Executive layer: a horizontal strip of cards above the division row.
@@ -915,10 +928,19 @@
       <!-- Executive layer: posts that sit ABOVE the divisions. Each can
            cover >=1 divisions (chosen in the editor) and be held by >=1
            users. Renderered by renderTopTier() in access.js. -->
+      <!-- Three-layer zoom rig:
+           1) wrap = scrollable viewport (overflow: auto)
+           2) sizer = explicit width/height = naturalWidth × zoom, so the
+              wrapper's scrollbars reflect the *scaled* size correctly
+           3) inner = the actual content at natural size; CSS transform
+              scales it visually. transform-origin: top-left keeps the
+              upper-left anchored. -->
       <div class="org-board-zoom-wrap" id="orgBoardZoomWrap">
-        <div class="org-board-zoom-inner" id="orgBoardZoom">
-          <div class="org-top-tier" id="orgTopTier"></div>
-          <div class="org-board" id="orgBoard"></div>
+        <div class="org-board-zoom-sizer" id="orgBoardZoomSizer">
+          <div class="org-board-zoom-inner" id="orgBoardZoom">
+            <div class="org-top-tier" id="orgTopTier"></div>
+            <div class="org-board" id="orgBoard"></div>
+          </div>
         </div>
       </div>
     </div>

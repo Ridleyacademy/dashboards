@@ -1098,25 +1098,35 @@ function _measureOrgZoomNatural() {
   inner.style.transform = prev;
   return { w, h };
 }
-function applyOrgZoom(zoom) {
+// Zoom range — wider than v279 so users can really shrink the board down
+// or zoom in for detail work.
+const ORG_ZOOM_MIN = 0.1;   // 10%
+const ORG_ZOOM_MAX = 3.0;   // 300%
+const ORG_ZOOM_STEP = 0.05; // 5% per button click
+
+// applyOrgZoom — sets the visual scale. `continuous` skips the CSS
+// transition so a drag of the range slider or wheel scroll feels
+// instantaneous (no .08s lag per micro-step).
+function applyOrgZoom(zoom, continuous = false) {
   const inner = document.getElementById('orgBoardZoom');
   const sizer = document.getElementById('orgBoardZoomSizer');
   const wrap  = document.getElementById('orgBoardZoomWrap');
   if (!inner || !sizer || !wrap) return;
-  const z = Math.max(0.2, Math.min(2, Number(zoom) || 1));
+  const z = Math.max(ORG_ZOOM_MIN, Math.min(ORG_ZOOM_MAX, Number(zoom) || 1));
   // Always re-measure on every apply — the org board content can change
-  // (add/remove division) between renders, and the natural size affects
-  // both fit math and the sizer dimensions.
+  // (add/remove division) between renders.
   const m = _measureOrgZoomNatural();
   _orgZoomNaturalWidth = m.w;
   _orgZoomNaturalHeight = m.h;
+  if (continuous) inner.style.transition = 'none';
+  else            inner.style.transition = '';
   inner.style.setProperty('--org-zoom', String(z));
-  // The sizer's explicit width/height = scaled size. That's what the
-  // wrapper sees for layout, so its scrollbars / page flow are correct.
   if (_orgZoomNaturalWidth)  sizer.style.width  = Math.ceil(_orgZoomNaturalWidth  * z) + 'px';
   if (_orgZoomNaturalHeight) sizer.style.height = Math.ceil(_orgZoomNaturalHeight * z) + 'px';
   const pct = document.getElementById('orgZoomPct');
   if (pct) pct.textContent = Math.round(z * 100) + '%';
+  const slider = document.getElementById('orgZoomRange');
+  if (slider && Math.abs(parseFloat(slider.value) - z * 100) > 0.5) slider.value = String(Math.round(z * 100));
   try { localStorage.setItem(ORG_ZOOM_KEY, String(z)); } catch (_) {}
 }
 function initOrgZoom() {
@@ -1124,8 +1134,9 @@ function initOrgZoom() {
   const outBtn = document.getElementById('orgZoomOut');
   const rstBtn = document.getElementById('orgZoomReset');
   const fitBtn = document.getElementById('orgZoomFit');
+  const range  = document.getElementById('orgZoomRange');
   const wrap   = document.getElementById('orgBoardZoomWrap');
-  if (!inBtn || !outBtn || !rstBtn || !fitBtn || !wrap) return;
+  if (!inBtn || !outBtn || !rstBtn || !fitBtn || !range || !wrap) return;
   // Re-measure natural size — content may have changed since last render.
   _orgZoomNaturalWidth = 0; _orgZoomNaturalHeight = 0;
   let z = 1;
@@ -1133,10 +1144,10 @@ function initOrgZoom() {
   applyOrgZoom(z);
   // Idempotent re-binding: clone-and-replace strips any old listeners.
   const fresh = (el) => { const c = el.cloneNode(true); el.parentNode.replaceChild(c, el); return c; };
-  const inN  = fresh(inBtn), outN = fresh(outBtn), rstN = fresh(rstBtn), fitN = fresh(fitBtn);
+  const inN  = fresh(inBtn), outN = fresh(outBtn), rstN = fresh(rstBtn), fitN = fresh(fitBtn), rangeN = fresh(range);
   const cur = () => parseFloat(getComputedStyle(document.getElementById('orgBoardZoom')).getPropertyValue('--org-zoom')) || 1;
-  inN .addEventListener('click', () => applyOrgZoom(cur() + 0.1));
-  outN.addEventListener('click', () => applyOrgZoom(cur() - 0.1));
+  inN .addEventListener('click', () => applyOrgZoom(cur() + ORG_ZOOM_STEP));
+  outN.addEventListener('click', () => applyOrgZoom(cur() - ORG_ZOOM_STEP));
   rstN.addEventListener('click', () => applyOrgZoom(1));
   fitN.addEventListener('click', () => {
     // Fit-to-width: scale so naturalWidth × z = wrapper visible width.
@@ -1146,11 +1157,20 @@ function initOrgZoom() {
     if (!m.w || !visible) return applyOrgZoom(1);
     applyOrgZoom(Math.min(1, visible / m.w));
   });
-  // Cmd/Ctrl + scroll wheel zoom inside the wrapper.
+  // Range slider — fully continuous; transition is suppressed during drag.
+  rangeN.addEventListener('input', (e) => {
+    applyOrgZoom(parseFloat(e.target.value) / 100, /*continuous*/ true);
+  });
+  // Cmd/Ctrl + scroll wheel — proportional to deltaY for a smooth, fine
+  // zoom that matches native trackpad pinch feel. (Pinch on trackpads
+  // fires wheel events with ctrlKey set, so this hooks both.)
   wrap.addEventListener('wheel', (e) => {
     if (!(e.ctrlKey || e.metaKey)) return;
     e.preventDefault();
-    applyOrgZoom(cur() + (e.deltaY < 0 ? 0.05 : -0.05));
+    // 0.0015 → ~15% zoom per typical 100-px wheel notch; fine enough to
+    // be smooth, coarse enough that one notch still moves the needle.
+    const delta = e.deltaY * -0.0015;
+    applyOrgZoom(cur() + delta, /*continuous*/ true);
   }, { passive: false });
 }
 

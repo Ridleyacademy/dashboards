@@ -593,7 +593,9 @@
     position: absolute; top: 0; left: 0;
     transform-origin: top left;
     transform: scale(var(--org-zoom, 1));
-    transition: transform .12s ease;
+    /* Snappy transition for button clicks; JS strips it during slider /
+       wheel zoom so continuous drags don't lag. */
+    transition: transform .08s ease;
     /* Take the natural full width of the content (all divisions side by
        side) — the inner .org-board's overflow-x: auto is overridden
        below so it expands rather than scrolling internally. */
@@ -917,10 +919,13 @@
         <!-- Zoom controls — apply CSS scale to #orgBoardZoom so the whole
              board fits in a small viewport. "Fit" auto-shrinks to width,
              "1:1" resets, ± step by 10%. Persisted in localStorage. -->
-        <div class="org-zoom" style="margin-left:auto;display:inline-flex;align-items:center;gap:4px;">
-          <button class="small-btn" id="orgZoomOut" title="Zoom out (10%)" style="background:var(--surface3);">−</button>
-          <button class="small-btn" id="orgZoomReset" title="Reset to 100%" style="background:var(--surface3);min-width:46px;"><span id="orgZoomPct">100%</span></button>
-          <button class="small-btn" id="orgZoomIn"  title="Zoom in (10%)"  style="background:var(--surface3);">+</button>
+        <div class="org-zoom" style="margin-left:auto;display:inline-flex;align-items:center;gap:6px;">
+          <button class="small-btn" id="orgZoomOut" title="Zoom out (5%)" style="background:var(--surface3);">−</button>
+          <input type="range" id="orgZoomRange" min="10" max="300" step="1" value="100"
+            title="Drag for continuous zoom (10% – 300%)"
+            style="width:160px;accent-color:var(--accent);">
+          <button class="small-btn" id="orgZoomIn"  title="Zoom in (5%)"  style="background:var(--surface3);">+</button>
+          <button class="small-btn" id="orgZoomReset" title="Reset to 100%" style="background:var(--surface3);min-width:50px;"><span id="orgZoomPct">100%</span></button>
           <button class="small-btn" id="orgZoomFit" title="Shrink to fit the full board on screen" style="background:var(--surface3);">⤢ Fit</button>
         </div>
         <button class="small-btn" id="orgSeedBtn" style="background:var(--surface3);" title="Create the canonical 6 divisions + 18 departments + 3 executive posts. Idempotent — won't duplicate existing items.">🏛 Seed standard org board</button>

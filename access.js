@@ -2658,6 +2658,15 @@ const ACT_LABELS = {
   'page.view':                   { icon: '📄', label: 'opened page',                    target: id => id },
   'action.failed':               { icon: '⚠️', label: 'action failed:',                target: id => id },
 
+  // Notification delivery (per channel, per device — DB trigger on
+  // notification_dispatch_log fires these so we can see "did the push
+  // actually land on Vale's phone" without a separate query).
+  'notification.push_sent':      { icon: '📲', label: 'push delivered to',              target: id => '#' + id },
+  'notification.push_failed':    { icon: '⚠️', label: 'push FAILED to',                 target: id => '#' + id },
+  'notification.email_sent':     { icon: '📧', label: 'email sent to',                  target: id => '#' + id },
+  'notification.email_failed':   { icon: '⚠️', label: 'email FAILED to',                target: id => '#' + id },
+  'notification.inapp_failed':   { icon: '⚠️', label: 'in-app dispatch failed for',     target: id => '#' + id },
+
   // Coach groups (mentorship_session_groups CRUD)
   'coach_group.create':         { icon: '👥', label: 'created coach group',            target: id => '#' + id },
   'coach_group.update':         { icon: '✏️', label: 'updated coach group',            target: id => '#' + id },
@@ -3116,6 +3125,16 @@ function _formatActivity(r) {
     if (d.status) pushKV('HTTP status', d.status);
     if (d.method) pushKV('Method', d.method);
   }
+  // ─ Notification delivery results (per-device, per-channel)
+  if (/^notification\.(push|email|inapp)_(sent|failed)$/.test(r.action)) {
+    if (d.recipient_user_email || d.recipient_email) pushKV('To', d.recipient_user_email || d.recipient_email);
+    if (d.notif_kind)  pushKV('Kind', d.notif_kind);
+    if (d.notif_title) pushKV('Notification', d.notif_title);
+    if (d.channel)     pushKV('Channel', d.channel);
+    if (r.action.endsWith('_failed') && d.error) pushKV('Error', d.error);
+    if (d.notif_alert_id)   pushKV('Alert', '#' + d.notif_alert_id);
+    if (d.notif_student_id) pushKV('Student', '#' + d.notif_student_id);
+  }
   // ─ Zoom session create/reschedule/cancel (DB trigger output)
   if (r.action === 'zoom.create' || r.action === 'zoom.cancel') {
     const row = (r.action === 'zoom.create' ? d : d.deleted) || {};
@@ -3174,8 +3193,9 @@ function _actAvatarColor(email) {
 // Map an action to a category class (drives the left-border accent).
 function _actCategory(action) {
   if (!action) return 'act-cat-routine';
-  if (action.startsWith('action.failed') || action.endsWith('signin_failed') || /invalid_signature/.test(action)) return 'act-cat-warning';
+  if (action.startsWith('action.failed') || action.endsWith('signin_failed') || /invalid_signature/.test(action) || /notification\.(push|email|inapp)_failed/.test(action)) return 'act-cat-warning';
   if (/(alert_add|alert_opened|_delete|status_change.*Cancel|cancel|denied|forbidden|bounced|complained|refund_reversed)/.test(action)) return 'act-cat-alert';
+  if (/^notification\.(push|email|inapp)_/.test(action)) return 'act-cat-email';
   if (/(refund_processed|sales_log|auto_resign|auto_import|resign|declaration\.create|webhook\.sales)/.test(action)) return 'act-cat-money';
   if (/(win_add|alert_resolve|graduated|intake|onboarded|signin\b|signup|activate|pause_ended)/.test(action)) return 'act-cat-positive';
   if (action.startsWith('user.') || action.startsWith('role.') || action.startsWith('permission.') || action.startsWith('org.') || action.startsWith('rep_mapping')) return 'act-cat-access';
@@ -3249,6 +3269,11 @@ function _actSummary(r) {
     case 'user.impersonate_stop':      return 'Stopped <b>viewing as</b> ' + A(d.target_email || r.target_id);
     case 'email.bounced':              return 'Bounced to ' + A(d.recipient) + (d.reason ? ' — ' + escapeHtml(d.reason) : '');
     case 'email.complained':           return A(d.recipient) + ' marked email as spam';
+    case 'notification.push_sent':     return 'Push <b>delivered</b> to ' + A(d.recipient_first_name || d.recipient_user_email || d.recipient_email) + (d.notif_title ? ' · ' + escapeHtml(d.notif_title) : '');
+    case 'notification.push_failed':   return 'Push <b>FAILED</b> to ' + A(d.recipient_first_name || d.recipient_user_email || d.recipient_email) + (d.error ? ' — ' + escapeHtml(d.error.slice(0, 80)) : '');
+    case 'notification.email_sent':    return 'Email sent to ' + A(d.recipient_email || d.recipient_user_email) + (d.notif_title ? ' · ' + escapeHtml(d.notif_title) : '');
+    case 'notification.email_failed':  return 'Email <b>FAILED</b> to ' + A(d.recipient_email || d.recipient_user_email) + (d.error ? ' — ' + escapeHtml(d.error.slice(0, 80)) : '');
+    case 'notification.inapp_failed':  return 'In-app dispatch failed for ' + A(d.recipient_first_name || d.recipient_user_email);
   }
   return null;
 }
@@ -3257,11 +3282,15 @@ function _actSummary(r) {
 const ACT_NOISE_KEYS = new Set([
   'page.view', 'notification.read', 'email.delivered', 'email.opened',
   'mentorship.zoom_attendance', 'webhook.fanbasis',
+  // Successful delivery rows fan out per-recipient/per-device — collapse by
+  // default so an alert with 4 recipients doesn't add 12 rows to the feed.
+  // Failures (notification.push_failed / email_failed) stay visible.
+  'notification.push_sent', 'notification.email_sent',
 ]);
 const ACT_IMPORTANT_PREFIXES = ['mentorship.alert_', 'mentorship.turnover_', 'mentorship.refund_', 'mentorship.graduated', 'mentorship.status_change', 'mentorship.delete', 'user.signin_failed', 'action.failed', 'role.', 'permission.', 'org.policy_', 'org.exec_post_', 'email_automation.delete', 'webhook.fanbasis_invalid_signature'];
 const ACT_MONEY_PREFIXES   = ['declaration.', 'webhook.sales_log', 'mentorship.refund_', 'mentorship.auto_resign', 'mentorship.resign_'];
 const ACT_ALERT_PREFIXES   = ['mentorship.alert_', 'mentorship.turnover_'];
-const ACT_FAILURE_KEYS     = new Set(['action.failed', 'user.signin_failed', 'email.bounced', 'email.complained', 'webhook.fanbasis_invalid_signature']);
+const ACT_FAILURE_KEYS     = new Set(['action.failed', 'user.signin_failed', 'email.bounced', 'email.complained', 'webhook.fanbasis_invalid_signature', 'notification.push_failed', 'notification.email_failed', 'notification.inapp_failed']);
 
 let _actChipState = 'all';
 let _actHideNoise = true;

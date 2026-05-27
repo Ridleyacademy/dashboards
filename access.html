@@ -381,20 +381,185 @@
   }
   .rep-suggest-emoji { font-size: 1.05rem; }
 
-  /* Activity feed */
-  .act-row {
-    display: flex; gap: 12px; padding: 12px 14px;
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: 10px; margin-bottom: 6px;
-    align-items: center;
+  /* ── Activity feed (v285 visual refresh) ─────────────────────────────
+     A real feed should read like Slack/Notion: per-actor avatars, action
+     icons, day-grouped sections, category accents. Each row has a 3px
+     left-border accent driven by .act-cat-* (set in JS from the action's
+     category) so users can scan red=alert, green=positive, amber=money,
+     blue=routine at a glance.                                              */
+  .act-day-header {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 0.7rem; text-transform: uppercase; letter-spacing: .08em;
+    font-weight: 800; color: var(--text-muted);
+    margin: 14px 4px 6px; padding-bottom: 4px;
   }
-  .act-icon { font-size: 1.05rem; }
+  .act-day-header::after {
+    content: ''; flex: 1; height: 1px; background: var(--border);
+    margin-left: 4px;
+  }
+  .act-day-header:first-child { margin-top: 0; }
+  .act-day-header .act-day-count {
+    background: var(--surface2); padding: 1px 8px; border-radius: 999px;
+    font-weight: 700; color: var(--text-dim); letter-spacing: 0;
+  }
+
+  .act-row {
+    display: flex; gap: 12px; padding: 11px 14px 11px 12px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-left-width: 3px; border-left-color: var(--text-dim);
+    border-radius: 10px; margin-bottom: 6px;
+    align-items: flex-start;
+    transition: background .12s, border-color .12s, transform .08s;
+  }
+  .act-row:hover {
+    background: var(--surface2);
+    border-color: var(--border-strong, var(--border));
+    transform: translateX(1px);
+  }
+  /* Category accents — colored 3px left border + matching icon-bg ring. */
+  .act-cat-alert    { border-left-color: #f87171; }        /* red — alerts/errors */
+  .act-cat-money    { border-left-color: #fbbf24; }        /* amber — refunds/sales */
+  .act-cat-positive { border-left-color: #34d399; }        /* green — wins/resolved/positive */
+  .act-cat-routine  { border-left-color: #6b9eff; }        /* blue — edits/normal */
+  .act-cat-system   { border-left-color: var(--text-dim); }/* grey — system/auto */
+  .act-cat-warning  { border-left-color: #f59e0b; }        /* orange — failed/denied */
+  .act-cat-access   { border-left-color: #a78bfa; }        /* purple — auth/perm */
+  .act-cat-email    { border-left-color: #22d3ee; }        /* cyan — email delivery */
+
+  /* Avatar circle — initial of first-name; deterministic hue per email. */
+  .act-avatar {
+    flex: 0 0 30px; width: 30px; height: 30px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.78rem; font-weight: 800; color: #fff;
+    text-transform: uppercase;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+    user-select: none;
+  }
+  .act-avatar.act-avatar-system {
+    background: var(--surface3) !important; color: var(--text-dim);
+    border: 1px dashed var(--border);
+  }
+
+  /* Action icon sits to the right of the avatar, small and dim. */
+  .act-icon {
+    font-size: 0.95rem; line-height: 1.3;
+    flex: 0 0 22px; text-align: center;
+    opacity: 0.85;
+  }
   .act-body { flex: 1; min-width: 0; }
-  .act-actor { font-weight: 700; color: var(--text); font-size: 0.84rem; }
-  .act-verb { color: var(--text-dim); font-size: 0.82rem; }
+  .act-actor { font-weight: 700; color: var(--text); font-size: 0.86rem; }
+  .act-verb { color: var(--text-dim); font-size: 0.82rem; margin: 0 4px; }
   .act-target { color: var(--blue); font-size: 0.82rem; font-weight: 600; }
-  .act-when { font-size: 0.7rem; color: var(--text-dim); white-space: nowrap; }
+  .act-target.act-target-link {
+    cursor: pointer; text-decoration: none; border-bottom: 1px dashed transparent;
+    transition: border-color .12s;
+  }
+  .act-target.act-target-link:hover { border-bottom-color: var(--blue); }
+  .act-when { font-size: 0.7rem; color: var(--text-dim); white-space: nowrap; padding-top: 6px; }
   .act-details { font-size: 0.72rem; color: var(--text-muted); margin-top: 4px; }
+  /* Compact summary line for natural-language diffs. */
+  .act-summary {
+    margin-top: 3px; font-size: 0.78rem; color: var(--text);
+    line-height: 1.45;
+  }
+  .act-summary b { color: var(--text); font-weight: 700; }
+  .act-summary .act-from { color: var(--text-dim); }
+  .act-summary .act-arrow { color: var(--text-dim); margin: 0 4px; }
+  .act-summary .act-to { color: var(--text); font-weight: 600; }
+
+  /* v286: quick-filter chips above the feed. */
+  .act-chips {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    margin: 10px 0 12px;
+  }
+  .act-chip {
+    background: var(--surface); border: 1px solid var(--border);
+    color: var(--text-dim); font-size: 0.74rem; font-weight: 600;
+    padding: 5px 11px; border-radius: 999px; cursor: pointer;
+    transition: all .12s;
+  }
+  .act-chip:hover { background: var(--surface2); color: var(--text); }
+  .act-chip.active {
+    background: var(--blue); color: #fff; border-color: var(--blue);
+  }
+  .act-chip-toggle {
+    display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+    background: var(--surface); user-select: none;
+  }
+  .act-chip-toggle input { margin: 0; cursor: pointer; }
+  .act-toggle {
+    display: inline-flex; align-items: center; gap: 6px;
+    color: var(--text-dim); font-size: 0.76rem;
+    padding: 4px 8px; cursor: pointer; user-select: none;
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 7px;
+  }
+  .act-toggle input { margin: 0; cursor: pointer; }
+
+  /* Summary banner (today's activity at a glance). */
+  .act-summary-banner {
+    display: flex; flex-wrap: wrap; gap: 12px;
+    margin: 8px 0 4px;
+    background: linear-gradient(135deg, rgba(107,158,255,0.08), rgba(167,139,250,0.06));
+    border: 1px solid rgba(107,158,255,0.18);
+    border-radius: 10px; padding: 10px 14px;
+    font-size: 0.78rem;
+  }
+  .act-summary-stat {
+    display: flex; flex-direction: column; gap: 1px;
+    min-width: 80px;
+  }
+  .act-summary-stat .v { font-weight: 800; font-size: 1.05rem; color: var(--text); line-height: 1.1; }
+  .act-summary-stat .l { color: var(--text-dim); font-size: 0.66rem; text-transform: uppercase; letter-spacing: .05em; }
+  .act-summary-stat.alert .v { color: #f87171; }
+  .act-summary-stat.money .v { color: #fbbf24; }
+  .act-summary-stat.good  .v { color: #34d399; }
+  .act-summary-stat.warn  .v { color: #f59e0b; }
+
+  /* Anomaly callout rows — sit at the very top of the feed when conditions trip. */
+  .act-anomaly {
+    display: flex; gap: 10px; align-items: flex-start;
+    margin: 6px 0; padding: 10px 14px;
+    background: rgba(248,113,113,0.06);
+    border: 1px solid rgba(248,113,113,0.28);
+    border-left: 3px solid #f87171;
+    border-radius: 10px; font-size: 0.82rem;
+  }
+  .act-anomaly.warn { background: rgba(245,158,11,0.06); border-color: rgba(245,158,11,0.28); border-left-color: #f59e0b; }
+  .act-anomaly.info { background: rgba(107,158,255,0.06); border-color: rgba(107,158,255,0.22); border-left-color: #6b9eff; }
+  .act-anomaly-icon { font-size: 1.1rem; }
+  .act-anomaly-body { flex: 1; line-height: 1.4; }
+  .act-anomaly-body b { color: var(--text); }
+  .act-anomaly-action {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--text); padding: 4px 10px; border-radius: 7px;
+    font-size: 0.72rem; font-weight: 600; cursor: pointer;
+  }
+  .act-anomaly-action:hover { background: var(--surface2); }
+
+  /* Smart aggregation: collapsed run-of-same-action row. */
+  .act-cluster {
+    display: flex; gap: 10px; align-items: center;
+    padding: 8px 14px; margin: 4px 0;
+    background: var(--surface); border: 1px dashed var(--border);
+    border-radius: 10px;
+    font-size: 0.78rem; color: var(--text-dim);
+    cursor: pointer;
+  }
+  .act-cluster:hover { background: var(--surface2); color: var(--text); }
+  .act-cluster .act-cluster-count {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: var(--surface2); border: 1px solid var(--border);
+    padding: 1px 8px; border-radius: 999px;
+    font-weight: 700; color: var(--text);
+  }
+  .act-cluster.expanded { background: transparent; border-style: solid; }
+  .act-noise-summary {
+    margin: 4px 0; padding: 6px 14px;
+    background: transparent; border: 1px dashed var(--border);
+    border-radius: 8px;
+    font-size: 0.72rem; color: var(--text-dim); font-style: italic;
+    text-align: center;
+  }
 
   /* Field-level diff in activity rows */
   .act-diff, .sess-act-diff {
@@ -963,20 +1128,188 @@
         <div style="display:flex;gap:8px;">
           <select id="actActionFilter" style="padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);font-size:0.78rem;">
             <option value="">All actions</option>
-            <option value="declaration.create">Declarations · created</option>
-            <option value="declaration.update">Declarations · edited</option>
-            <option value="declaration.delete">Declarations · deleted</option>
-            <option value="user.invite">Users · invited</option>
-            <option value="user.delete">Users · deleted</option>
-            <option value="user.permissions_change">Users · permissions changed</option>
-            <option value="user.force_logout">Users · force-logged-out</option>
-            <option value="rep_mapping.set">Rep mapping changed</option>
-            <option value="rep_mapping.delete">Rep mapping deleted</option>
-            <option value="dashboard.archive">Dashboard archived</option>
+            <optgroup label="Students">
+              <option value="mentorship.create">Student · created</option>
+              <option value="mentorship.update">Student · profile edited</option>
+              <option value="mentorship.delete">Student · deleted</option>
+              <option value="mentorship.bulk_update">Student · bulk updated</option>
+              <option value="mentorship.merge_duplicates">Student · merged duplicates</option>
+              <option value="mentorship.auto_create">Student · auto-created</option>
+              <option value="mentorship.intake.inserted">Student · auto-onboarded</option>
+              <option value="mentorship.intake.updated">Student · auto-updated</option>
+            </optgroup>
+            <optgroup label="Alerts &amp; turnovers">
+              <option value="mentorship.alert_add">Alert · opened</option>
+              <option value="mentorship.alert_resolve">Alert · resolved</option>
+              <option value="mentorship.alert_delete">Alert · deleted</option>
+              <option value="mentorship.turnover_add">Turnover · opened</option>
+              <option value="mentorship.turnover_result">Turnover · result logged</option>
+              <option value="mentorship.turnover_delete">Turnover · deleted</option>
+            </optgroup>
+            <optgroup label="Notes">
+              <option value="mentorship.coach_note_add">Note · coach added</option>
+              <option value="mentorship.coach_note_delete">Note · coach deleted</option>
+              <option value="mentorship.rep_note_add">Note · rep added</option>
+              <option value="mentorship.rep_note_delete">Note · rep deleted</option>
+              <option value="mentorship.ic_note_add">Note · I/C added</option>
+              <option value="mentorship.ic_note_delete">Note · I/C deleted</option>
+            </optgroup>
+            <optgroup label="Pauses / resigns / wins">
+              <option value="mentorship.pause_add">Pause · added</option>
+              <option value="mentorship.pause_update">Pause · updated</option>
+              <option value="mentorship.pause_delete">Pause · removed</option>
+              <option value="mentorship.resign_add">Resign · logged</option>
+              <option value="mentorship.resign_update">Resign · updated</option>
+              <option value="mentorship.resign_delete">Resign · removed</option>
+              <option value="mentorship.auto_resign">Resign · auto-logged</option>
+              <option value="mentorship.win_add">Win · logged</option>
+              <option value="mentorship.win_update">Win · updated</option>
+              <option value="mentorship.win_delete">Win · removed</option>
+            </optgroup>
+            <optgroup label="Activity / surveys / videos / Zoom">
+              <option value="mentorship.activity_add">Activity · logged</option>
+              <option value="mentorship.activity_delete">Activity · removed</option>
+              <option value="mentorship.survey.received">Survey · received (Typeform)</option>
+              <option value="mentorship.survey_link_add">Survey · link added</option>
+              <option value="mentorship.survey_delete">Survey · removed</option>
+              <option value="mentorship.video.received">Video · received (Dropbox)</option>
+              <option value="mentorship.zoom_attendance">Zoom · attendance logged</option>
+              <option value="mentorship.pause_ended_notify">Pause · ended notification</option>
+            </optgroup>
+            <optgroup label="Declarations">
+              <option value="declaration.create">Declaration · created</option>
+              <option value="declaration.update">Declaration · edited</option>
+              <option value="declaration.delete">Declaration · deleted</option>
+              <option value="declaration.auto_import">Declaration · auto-imported</option>
+              <option value="declaration.auto_assign">Declaration · auto-assigned</option>
+            </optgroup>
+            <optgroup label="Users &amp; access">
+              <option value="user.invite">User · invited</option>
+              <option value="user.delete">User · deleted</option>
+              <option value="user.permissions_change">User · permissions changed (legacy)</option>
+              <option value="user.force_logout">User · force-logged-out</option>
+              <option value="user.activate">User · activated account</option>
+              <option value="user.signin">User · signed in</option>
+              <option value="user.signin_failed">User · failed sign-in</option>
+              <option value="user.signout">User · signed out</option>
+              <option value="user.impersonate_start">User · started "View as"</option>
+              <option value="user.impersonate_stop">User · stopped "View as"</option>
+              <option value="user.admin_change">User · admin flag changed</option>
+              <option value="rep_mapping.set">Rep mapping · set</option>
+              <option value="rep_mapping.delete">Rep mapping · deleted</option>
+            </optgroup>
+            <optgroup label="RBAC roles &amp; permissions">
+              <option value="role.create">Role · created</option>
+              <option value="role.update">Role · updated</option>
+              <option value="role.delete">Role · deleted</option>
+              <option value="role.user_set_roles">Role · assigned/removed for user</option>
+              <option value="permission.user_set_grants">Permission · direct grant/revoke set</option>
+              <option value="org.policy_create">Org policy · created</option>
+              <option value="org.policy_update">Org policy · updated</option>
+              <option value="org.policy_delete">Org policy · deleted</option>
+              <option value="org.exec_post_create">Exec post · created</option>
+              <option value="org.exec_post_update">Exec post · updated</option>
+              <option value="org.exec_post_delete">Exec post · deleted</option>
+              <option value="org.exec_post_assign">Exec post · holder changed</option>
+              <option value="org.division_editor_add">Policy editor · granted</option>
+              <option value="org.division_editor_remove">Policy editor · revoked</option>
+              <option value="org.reorder">Org · items reordered</option>
+            </optgroup>
+            <optgroup label="Email delivery (Resend)">
+              <option value="email.delivered">Email · delivered</option>
+              <option value="email.opened">Email · opened (first time)</option>
+              <option value="email.clicked">Email · link clicked (first time)</option>
+              <option value="email.bounced">Email · bounced</option>
+              <option value="email.complained">Email · marked spam</option>
+            </optgroup>
+            <optgroup label="Email automations">
+              <option value="email_automation.create">Automation · created</option>
+              <option value="email_automation.update">Automation · edited</option>
+              <option value="email_automation.delete">Automation · deleted</option>
+              <option value="email_automation.broadcast">Automation · broadcast</option>
+              <option value="email_automation.test_fire">Automation · test-fired</option>
+              <option value="email_snippet.create">Snippet · created</option>
+              <option value="email_snippet.update">Snippet · updated</option>
+              <option value="email_snippet.delete">Snippet · deleted</option>
+              <option value="email_suppression.add">Suppression · added</option>
+              <option value="email_suppression.remove">Suppression · removed</option>
+            </optgroup>
+            <optgroup label="Coach groups">
+              <option value="coach_group.create">Group · created</option>
+              <option value="coach_group.update">Group · updated</option>
+              <option value="coach_group.delete">Group · deleted</option>
+            </optgroup>
+            <optgroup label="Notification engagement">
+              <option value="notification.read">Notification · read</option>
+            </optgroup>
+            <optgroup label="Zoom sessions">
+              <option value="zoom.create">Zoom · scheduled</option>
+              <option value="zoom.reschedule">Zoom · rescheduled</option>
+              <option value="zoom.cancel">Zoom · cancelled</option>
+            </optgroup>
+            <optgroup label="Student lifecycle">
+              <option value="mentorship.coach_assigned">Coach · assigned</option>
+              <option value="mentorship.coach_changed">Coach · changed</option>
+              <option value="mentorship.refund_processed">Refund · processed</option>
+              <option value="mentorship.refund_reversed">Refund · reversed</option>
+              <option value="mentorship.graduated">Student · graduated</option>
+              <option value="mentorship.status_change">Status · changed</option>
+              <option value="coach_board.pin">Coach board · pinned</option>
+              <option value="coach_board.unpin">Coach board · unpinned</option>
+            </optgroup>
+            <optgroup label="External webhooks">
+              <option value="webhook.calendly_booking">Calendly · booking</option>
+              <option value="webhook.sales_log">Sales log · new entry</option>
+              <option value="webhook.fanbasis">Fanbasis · webhook</option>
+              <option value="webhook.fanbasis_invalid_signature">Fanbasis · BAD signature</option>
+            </optgroup>
+            <optgroup label="Telemetry">
+              <option value="page.view">Page · view</option>
+              <option value="action.failed">Action · failed (4xx/5xx)</option>
+            </optgroup>
+            <optgroup label="Org board">
+              <option value="org.division_create">Division · created</option>
+              <option value="org.division_update">Division · updated</option>
+              <option value="org.division_delete">Division · deleted</option>
+              <option value="org.department_create">Department · created</option>
+              <option value="org.department_update">Department · updated</option>
+              <option value="org.department_delete">Department · deleted</option>
+              <option value="org.post_create">Post · created</option>
+              <option value="org.post_update">Post · updated</option>
+              <option value="org.post_delete">Post · deleted</option>
+              <option value="org.post_assign">Post · holder assigned</option>
+            </optgroup>
+            <optgroup label="Other">
+              <option value="dashboard.archive">Dashboard · archived</option>
+              <option value="dashboard.unarchive">Dashboard · unarchived</option>
+            </optgroup>
           </select>
           <input id="actSearch" type="search" placeholder="Search target / details…" style="padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);font-size:0.78rem;">
+          <label class="act-toggle" title="Auto-refresh the feed every 30 seconds. New rows fade in at the top.">
+            <input id="actLiveTail" type="checkbox"> Live
+          </label>
           <button class="small-btn" id="activityRefreshBtn">↻ Refresh</button>
         </div>
+      </div>
+      <!-- v286: quick-filter chips, summary banner, anomaly callouts.
+           The chips below filter the rows already loaded (client-side); the
+           main filter dropdown above still drives the server query. "Hide
+           noise" collapses page.view + email.delivered + notification.read
+           + similar into one summary line per hour so the feed stays
+           scannable without losing the audit trail. -->
+      <div id="actAnomalies"></div>
+      <div id="actSummary"></div>
+      <div id="actChips" class="act-chips">
+        <button class="act-chip active" data-chip="all">All</button>
+        <button class="act-chip" data-chip="today">Today</button>
+        <button class="act-chip" data-chip="mine">Mine</button>
+        <button class="act-chip" data-chip="important">Important only</button>
+        <button class="act-chip" data-chip="failures">Failures &amp; warnings</button>
+        <button class="act-chip" data-chip="money">Money &amp; sales</button>
+        <button class="act-chip" data-chip="alerts">Alerts &amp; turnovers</button>
+        <label class="act-chip act-chip-toggle" title="Collapse page views / email delivered / notification reads / Zoom attendance into hourly summary lines.">
+          <input id="actHideNoise" type="checkbox" checked> Hide noise
+        </label>
       </div>
       <div id="activityList"></div>
     </div>

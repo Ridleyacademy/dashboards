@@ -1129,6 +1129,17 @@ async function loadAdminUsers() {
     list.querySelectorAll('.impersonate-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const perms = btn.dataset.perms ? btn.dataset.perms.split(',').filter(Boolean) : [];
+        // v282: audit the impersonation start so admins can be held
+        // accountable for "view as" sessions. Fire-and-forget — UI shouldn't
+        // wait for the log row.
+        try {
+          supa.rpc('log_activity_event', {
+            p_action: 'user.impersonate_start',
+            p_target_type: 'auth.user',
+            p_target_id: btn.dataset.id,
+            p_details: { target_email: btn.dataset.email || null, target_is_admin: btn.dataset.admin === '1', target_permissions: perms },
+          });
+        } catch (_) {}
         window.uxImpersonate({
           id: btn.dataset.id,
           email: btn.dataset.email,
@@ -1940,7 +1951,31 @@ document.getElementById('loginForm').addEventListener('submit', async e => {
   errEl.textContent = ''; btn.disabled = true; btn.textContent = 'Signing in…';
   try {
     const { data, error } = await supa.auth.signInWithPassword({ email, password });
-    if (error) throw error;
+    if (error) {
+      // v282: log failed signin attempts (no auth.uid() yet, so we use the
+      // anon-allowed RPC path with details only). Don't await — the user
+      // shouldn't wait for the audit row.
+      try {
+        supa.rpc('log_activity_event', {
+          p_action: 'user.signin_failed',
+          p_target_type: 'auth.user',
+          p_target_id: null,
+          p_details: { email, reason: (error.message || 'unknown').slice(0, 200), user_agent: (navigator.userAgent || '').slice(0, 200) },
+        });
+      } catch (_) {}
+      throw error;
+    }
+    // v282: log successful signin once per session. supa-rpc is awaited so
+    // the row lands before the user navigates away, but failures don't
+    // block the actual login.
+    try {
+      await supa.rpc('log_activity_event', {
+        p_action: 'user.signin',
+        p_target_type: 'auth.user',
+        p_target_id: data.session?.user?.id || null,
+        p_details: { user_agent: (navigator.userAgent || '').slice(0, 200), email },
+      });
+    } catch (_) {}
     onAuthed(data.session);
   } catch(err) {
     errEl.textContent = err.message || 'Invalid credentials';
@@ -1948,6 +1983,8 @@ document.getElementById('loginForm').addEventListener('submit', async e => {
 });
 
 document.getElementById('signOutBtn').addEventListener('click', async () => {
+  // v282: log signout BEFORE clearing the session so auth.uid() resolves.
+  try { await supa.rpc('log_activity_event', { p_action: 'user.signout', p_target_type: 'auth.user' }); } catch (_) {}
   await supa.auth.signOut(); setState('login');
 });
 

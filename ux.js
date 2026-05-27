@@ -137,6 +137,19 @@
     } catch (_) { return null; }
   }
   function clearImpersonation() {
+    // v282: audit the impersonation end so the audit trail has a paired
+    // start/stop. Fire-and-forget — reload should not be blocked.
+    try {
+      const imp = getImpersonation();
+      if (window.supa && imp) {
+        window.supa.rpc('log_activity_event', {
+          p_action: 'user.impersonate_stop',
+          p_target_type: 'auth.user',
+          p_target_id: imp.id || null,
+          p_details: { target_email: imp.email || null },
+        });
+      }
+    } catch (_) {}
     localStorage.removeItem('impersonate-user');
     window.location.reload();
   }

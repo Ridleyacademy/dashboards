@@ -8,6 +8,62 @@
   const RP = window.RidleyPerms;
   const PAGES = RP.PAGES;
 
+  // v284: page-view tracking. Fire once per page load (deduped via
+  // sessionStorage per page so SPA-style re-renders don't flood). Throttled
+  // server-side too: the page_view action filter in the activity feed makes
+  // it easy to hide if it gets noisy.
+  function currentPageFile() {
+    const p = window.location.pathname.split('/').pop();
+    return p || 'home.html';
+  }
+  async function logPageView() {
+    try {
+      const page = currentPageFile();
+      const key = 'pv:' + page + ':' + new Date().toISOString().slice(0, 13); // dedupe per hour
+      if (sessionStorage.getItem(key)) return;
+      sessionStorage.setItem(key, '1');
+      const { data: { session } } = await supa.auth.getSession();
+      if (!session?.user?.id) return; // only logged-in users
+      await supa.rpc('log_activity_event', {
+        p_action: 'page.view', p_target_type: 'dashboard_page', p_target_id: page,
+        p_details: { page, path: window.location.pathname, referrer: (document.referrer || '').slice(0, 200) || null },
+      });
+    } catch (_) { /* never block on audit log */ }
+  }
+  // Fire after a tiny delay so the page's auth flow has a chance to hydrate.
+  setTimeout(logPageView, 2000);
+
+  // v284: global failed-action hook. Wraps window.fetch so 4xx/5xx responses
+  // to our edge functions get logged once per minute per (endpoint, status).
+  // Catches "save failed" toasts that users currently report via Slack.
+  const recentFailures = new Map(); // dedupe within 60s
+  const origFetch = window.fetch.bind(window);
+  window.fetch = async function patchedFetch(input, init) {
+    const url = typeof input === 'string' ? input : input?.url || '';
+    const res = await origFetch(input, init);
+    // Only audit calls to our own Supabase functions/REST, on real failures.
+    if (res && !res.ok && /pojqljrhhtnigyrtzdzz\.supabase\.co\/functions\//.test(url)) {
+      try {
+        const slug = url.match(/\/functions\/v1\/([^?\/]+)/)?.[1] || 'unknown';
+        const api = new URL(url).searchParams.get('api') || '';
+        const key = slug + ':' + api + ':' + res.status;
+        const now = Date.now();
+        const last = recentFailures.get(key) || 0;
+        if (now - last < 60000) return res; // dedupe within 60s
+        recentFailures.set(key, now);
+        const { data: { session } } = await supa.auth.getSession();
+        if (!session?.user?.id) return res;
+        supa.rpc('log_activity_event', {
+          p_action: 'action.failed',
+          p_target_type: 'edge_function',
+          p_target_id: slug,
+          p_details: { slug, api, status: res.status, method: (init?.method || 'GET'), url: url.slice(0, 200) },
+        });
+      } catch (_) {}
+    }
+    return res;
+  };
+
   // Cached archive list (Set of dashboard ids). Loaded lazily.
   const ADMIN_API = 'https://pojqljrhhtnigyrtzdzz.supabase.co/functions/v1/admin-api';
   let archivedIds = null;

@@ -2592,15 +2592,20 @@ async function deleteRepMappingById(id) {
 //
 // The `target` field of each entry is an optional formatter (id) → string
 // used to turn a bare ID into something readable.
+// v2: action codes here match what the backend actually writes (e.g.
+// `mentorship.alert_add` — past versions had `mentorship.add_alert`, which is
+// what made the activity feed render raw action codes for half the entries).
+// Whenever you add a new logActivity() call server-side, ALSO add the action
+// here so it gets a friendly verb + icon in the feed.
 const ACT_LABELS = {
   // Declarations
   'declaration.create':         { icon: '📝', label: 'created a declaration',          target: id => 'on row #' + id },
   'declaration.update':         { icon: '✏️', label: 'edited a declaration',           target: id => 'on row #' + id },
   'declaration.delete':         { icon: '🗑️', label: 'deleted a declaration',          target: id => 'row #' + id },
   'declaration.auto_assign':    { icon: '🤖', label: 'auto-assigned declarations',     target: () => '(batch)' },
-  'declaration.auto_import':    { icon: '🤖', label: 'auto-imported declarations',     target: () => '(batch)' },
+  'declaration.auto_import':    { icon: '🤖', label: 'auto-imported a declaration',    target: id => '#' + id },
 
-  // Users / invites
+  // Users / invites / auth events
   'user.invite':                { icon: '✉️', label: 'invited',                        target: id => id },
   'user.delete':                { icon: '🗑️', label: 'deleted user',                   target: id => id },
   'user.permissions_change':    { icon: '🔐', label: 'changed permissions for',        target: id => id },
@@ -2608,6 +2613,75 @@ const ACT_LABELS = {
   'user.activate':              { icon: '🎉', label: 'activated their account' },
   'user.signup':                { icon: '🆕', label: 'signed up' },
   'user.signin':                { icon: '🔑', label: 'signed in' },
+  'user.signin_failed':         { icon: '⛔', label: 'failed sign-in attempt' },
+  'user.signout':               { icon: '🚪', label: 'signed out' },
+  'user.impersonate_start':     { icon: '👁',  label: 'started viewing as',             target: id => id },
+  'user.impersonate_stop':      { icon: '🛑', label: 'stopped viewing as',             target: id => id },
+  'user.admin_change':          { icon: '🛡️', label: 'changed admin flag for',         target: id => id },
+
+  // RBAC roles / permissions / policies
+  'role.create':                { icon: '🎭', label: 'created role',                   target: id => '#' + id },
+  'role.update':                { icon: '✏️', label: 'updated role',                   target: id => '#' + id },
+  'role.delete':                { icon: '🗑️', label: 'deleted role',                  target: id => '#' + id },
+  'role.user_set_roles':        { icon: '🎭', label: 'set roles for',                  target: id => id },
+  'permission.user_set_grants': { icon: '🔓', label: 'set direct grants for',          target: id => id },
+  'org.policy_create':          { icon: '📜', label: 'created policy',                 target: id => '#' + id },
+  'org.policy_update':          { icon: '✏️', label: 'updated policy',                 target: id => '#' + id },
+  'org.policy_delete':          { icon: '🗑️', label: 'deleted policy',                target: id => '#' + id },
+  'org.exec_post_create':       { icon: '⭐', label: 'created exec post',              target: id => id },
+  'org.exec_post_update':       { icon: '✏️', label: 'updated exec post',              target: id => id },
+  'org.exec_post_delete':       { icon: '🗑️', label: 'deleted exec post',             target: id => id },
+  'org.exec_post_assign':       { icon: '🪪', label: 'changed exec post holder',       target: id => id },
+  'org.division_editor_add':    { icon: '✏️', label: 'granted policy-editor on',      target: id => id },
+  'org.division_editor_remove': { icon: '🚫', label: 'revoked policy-editor on',      target: id => id },
+  'org.reorder':                { icon: '🔢', label: 'reordered org items',            target: () => '(batch)' },
+
+  // Student lifecycle transitions (DB trigger)
+  'mentorship.coach_assigned':  { icon: '🧑‍🏫', label: 'assigned coach to',            target: id => 'student #' + id },
+  'mentorship.coach_changed':   { icon: '🔄', label: 'reassigned coach for',           target: id => 'student #' + id },
+  'mentorship.refund_processed':{ icon: '💸', label: 'marked refunded',                target: id => 'student #' + id },
+  'mentorship.refund_reversed': { icon: '↩️', label: 'reversed refund on',             target: id => 'student #' + id },
+  'mentorship.graduated':       { icon: '🎓', label: 'marked graduated',               target: id => 'student #' + id },
+  'mentorship.status_change':   { icon: '🔁', label: 'changed status for',             target: id => 'student #' + id },
+
+  // Coach board pins
+  'coach_board.pin':             { icon: '📌', label: 'pinned',                         target: id => 'student #' + id },
+  'coach_board.unpin':           { icon: '📍', label: 'unpinned',                       target: id => 'student #' + id },
+
+  // External webhooks
+  'webhook.calendly_booking':    { icon: '📅', label: 'Calendly booking received',      target: () => '' },
+  'webhook.sales_log':           { icon: '💳', label: 'new sale logged',                target: id => '#' + id },
+  'webhook.fanbasis':            { icon: '🪝', label: 'Fanbasis webhook',               target: id => '#' + id },
+  'webhook.fanbasis_invalid_signature': { icon: '⚠️', label: 'Fanbasis BAD SIGNATURE',  target: id => '#' + id },
+
+  // Frontend telemetry
+  'page.view':                   { icon: '📄', label: 'opened page',                    target: id => id },
+  'action.failed':               { icon: '⚠️', label: 'action failed:',                target: id => id },
+
+  // Coach groups (mentorship_session_groups CRUD)
+  'coach_group.create':         { icon: '👥', label: 'created coach group',            target: id => '#' + id },
+  'coach_group.update':         { icon: '✏️', label: 'updated coach group',            target: id => '#' + id },
+  'coach_group.delete':         { icon: '🗑️', label: 'deleted coach group',           target: id => '#' + id },
+
+  // Notification engagement
+  'notification.read':          { icon: '✔️', label: 'read notification',              target: id => '#' + id },
+
+  // Email automations (template CRUD with diff)
+  'email_automation.create':    { icon: '✉️', label: 'created an automation',          target: id => '#' + id },
+  'email_automation.update':    { icon: '✉️', label: 'edited an automation',           target: id => '#' + id },
+  'email_automation.delete':    { icon: '🗑️', label: 'deleted an automation',         target: id => '#' + id },
+  'email_snippet.create':       { icon: '🧩', label: 'created an email snippet',       target: id => '#' + id },
+  'email_snippet.update':       { icon: '✏️', label: 'updated an email snippet',       target: id => '#' + id },
+  'email_snippet.delete':       { icon: '🗑️', label: 'deleted an email snippet',      target: id => '#' + id },
+  'email_suppression.add':      { icon: '🚫', label: 'added email suppression',        target: id => id },
+  'email_suppression.remove':   { icon: '🔓', label: 'removed email suppression',      target: id => id },
+
+  // Email delivery (Resend webhook)
+  'email.delivered':            { icon: '📨', label: 'email delivered',                target: id => '#' + id },
+  'email.opened':               { icon: '👁',  label: 'email opened',                   target: id => '#' + id },
+  'email.clicked':              { icon: '🖱️', label: 'email link clicked',             target: id => '#' + id },
+  'email.bounced':              { icon: '⚠️', label: 'email bounced',                  target: id => '#' + id },
+  'email.complained':           { icon: '🚫', label: 'email marked spam',              target: id => '#' + id },
 
   // Rep mappings
   'rep_mapping.set':            { icon: '🧩', label: 'updated rep mapping',             target: id => 'for ' + id },
@@ -2617,28 +2691,62 @@ const ACT_LABELS = {
   'dashboard.archive':          { icon: '📦', label: 'archived dashboard',              target: id => id },
   'dashboard.unarchive':        { icon: '📦', label: 'unarchived dashboard',            target: id => id },
 
-  // Mentorship CRM
+  // Mentorship — student lifecycle
   'mentorship.create':          { icon: '➕', label: 'added a new student',             target: id => '#' + id },
   'mentorship.update':          { icon: '✏️', label: 'updated student',                 target: id => '#' + id },
   'mentorship.delete':          { icon: '🗑️', label: 'deleted student',                target: id => '#' + id },
   'mentorship.bulk_update':     { icon: '✏️', label: 'bulk-updated students',           target: () => '(many)' },
-  'mentorship.refund':          { icon: '💸', label: 'marked refunded',                 target: id => 'student #' + id },
-  'mentorship.resign':          { icon: '🔁', label: 'logged a resign on',              target: id => 'student #' + id },
-  'mentorship.pause':           { icon: '⏸️', label: 'paused',                          target: id => 'student #' + id },
-  'mentorship.unpause':         { icon: '▶️', label: 'unpaused',                        target: id => 'student #' + id },
-  'mentorship.assign_coach':    { icon: '🧑‍🏫', label: 'reassigned coach for',          target: id => 'student #' + id },
-  'mentorship.add_win':         { icon: '🏆', label: 'logged a win for',                target: id => 'student #' + id },
-  'mentorship.delete_win':      { icon: '🗑️', label: 'removed a win from',              target: id => 'student #' + id },
-  'mentorship.add_activity':    { icon: '📜', label: 'logged activity on',              target: id => 'student #' + id },
-  'mentorship.delete_activity': { icon: '🗑️', label: 'removed an activity from',        target: id => 'student #' + id },
-  'mentorship.ic_note_add':     { icon: '📝', label: 'added a note on',                 target: id => 'student #' + id },
-  'mentorship.ic_note_delete':  { icon: '🗑️', label: 'deleted a note from',             target: id => 'student #' + id },
-  'mentorship.add_alert':       { icon: '⚠️', label: 'opened an alert on',              target: id => 'student #' + id },
-  'mentorship.resolve_alert':   { icon: '✅', label: 'resolved an alert on',            target: id => 'student #' + id },
-  'mentorship.add_turnover':    { icon: '↪️', label: 'opened a turnover for',           target: id => 'student #' + id },
-  'mentorship.close_turnover':  { icon: '☑️', label: 'closed a turnover for',           target: id => 'student #' + id },
-  'mentorship.bulk_date':       { icon: '📅', label: 'bulk-set dates on students',      target: () => '(many)' },
+  'mentorship.merge_duplicates':{ icon: '🔀', label: 'merged duplicate students',       target: id => '→ #' + id },
+  'mentorship.auto_create':     { icon: '🤖', label: 'auto-created student',            target: id => '#' + id },
   'mentorship.export':          { icon: '📤', label: 'exported students CSV' },
+
+  // Mentorship — pauses
+  'mentorship.pause_add':       { icon: '⏸️', label: 'added a pause on',                target: id => 'student #' + id },
+  'mentorship.pause_update':    { icon: '✏️', label: 'updated a pause on',              target: id => 'student #' + id },
+  'mentorship.pause_delete':    { icon: '🗑️', label: 'removed a pause from',            target: id => 'student #' + id },
+  'mentorship.pause_ended_notify': { icon: '🔔', label: 'notified pause ended',         target: id => 'student #' + id },
+
+  // Mentorship — resigns
+  'mentorship.resign_add':      { icon: '🔁', label: 'logged a resign for',             target: id => 'student #' + id },
+  'mentorship.resign_update':   { icon: '✏️', label: 'updated a resign on',             target: id => '#' + id },
+  'mentorship.resign_delete':   { icon: '🗑️', label: 'removed a resign from',           target: id => '#' + id },
+  'mentorship.auto_resign':     { icon: '🤖', label: 'auto-logged a resign on',         target: id => 'student #' + id },
+
+  // Mentorship — alerts
+  'mentorship.alert_add':       { icon: '⚠️', label: 'opened an alert on',              target: id => 'student #' + id },
+  'mentorship.alert_resolve':   { icon: '✅', label: 'resolved an alert',               target: id => '#' + id },
+  'mentorship.alert_delete':    { icon: '🗑️', label: 'deleted an alert',                target: id => '#' + id },
+
+  // Mentorship — turnovers
+  'mentorship.turnover_add':    { icon: '↪️', label: 'opened a turnover for',           target: id => 'student #' + id },
+  'mentorship.turnover_result': { icon: '☑️', label: 'logged turnover result',          target: id => '#' + id },
+  'mentorship.turnover_delete': { icon: '🗑️', label: 'deleted a turnover',              target: id => '#' + id },
+
+  // Mentorship — wins
+  'mentorship.win_add':         { icon: '🏆', label: 'logged a win for',                target: id => 'student #' + id },
+  'mentorship.win_update':      { icon: '✏️', label: 'updated a win',                   target: id => '#' + id },
+  'mentorship.win_delete':      { icon: '🗑️', label: 'removed a win',                   target: id => '#' + id },
+
+  // Mentorship — notes (coach / rep / I/C)
+  'mentorship.coach_note_add':    { icon: '📝', label: 'added a coach note on',         target: id => 'student #' + id },
+  'mentorship.coach_note_delete': { icon: '🗑️', label: 'deleted a coach note',           target: id => '#' + id },
+  'mentorship.rep_note_add':      { icon: '💼', label: 'added a rep note on',           target: id => 'student #' + id },
+  'mentorship.rep_note_delete':   { icon: '🗑️', label: 'deleted a rep note',             target: id => '#' + id },
+  'mentorship.ic_note_add':       { icon: '🎯', label: 'added an I/C note on',          target: id => 'student #' + id },
+  'mentorship.ic_note_delete':    { icon: '🗑️', label: 'deleted an I/C note',           target: id => '#' + id },
+
+  // Mentorship — activity / surveys / videos / zoom
+  'mentorship.activity_add':    { icon: '📜', label: 'logged activity on',              target: id => 'student #' + id },
+  'mentorship.activity_delete': { icon: '🗑️', label: 'removed an activity',             target: id => '#' + id },
+  'mentorship.survey.received': { icon: '📋', label: 'received a Typeform survey for',  target: id => 'student #' + id },
+  'mentorship.survey_link_add': { icon: '🔗', label: 'added a survey link for',         target: id => 'student #' + id },
+  'mentorship.survey_delete':   { icon: '🗑️', label: 'removed a survey from',           target: id => '#' + id },
+  'mentorship.video.received':  { icon: '🎬', label: 'received a video upload for',     target: id => 'student #' + id },
+  'mentorship.zoom_attendance': { icon: '📹', label: 'logged Zoom attendance',          target: id => '(session)' },
+
+  // Mentorship — intake (Zapier / system)
+  'mentorship.intake.inserted': { icon: '🆕', label: 'auto-onboarded student',          target: id => '#' + id },
+  'mentorship.intake.updated':  { icon: '🔄', label: 'auto-updated student',            target: id => '#' + id },
 
   // Coach board
   'coach.bulk_date':            { icon: '📅', label: 'bulk-set dates from coach board', target: () => '(many)' },
@@ -2711,7 +2819,7 @@ function _formatActivity(r) {
   let content = null;
   const parts = [];
   const pushKV = (k, v) => { if (v !== null && v !== undefined && v !== '') parts.push(`<span class="act-content-kv"><span class="act-content-k">${escapeHtml(k)}</span><span class="act-content-v">${_fmtVal(v)}</span></span>`); };
-  // ─ Notes (coach / rep / IC) — show the actual text
+  // ─ Notes (coach / rep / IC) — show the actual text + date
   if ((/_note_add$/.test(r.action) || /_note_delete$/.test(r.action))) {
     const txt = d.text || d.deleted?.text;
     const date = d.note_date || d.deleted?.note_date;
@@ -2721,7 +2829,7 @@ function _formatActivity(r) {
   // ─ Alert add / resolve — title + description + resolution note
   if (r.action === 'mentorship.alert_add')      { pushKV('Title', d.title); pushKV('Details', d.description); if (d.recipients_count) pushKV('Notified', d.recipients_count + ' user' + (d.recipients_count === 1 ? '' : 's')); }
   if (r.action === 'mentorship.alert_resolve')  { pushKV('Title', d.alert_title); pushKV('Resolution', d.resolution_note); if (d.recipients_count) pushKV('Notified', d.recipients_count + ' user' + (d.recipients_count === 1 ? '' : 's')); }
-  // ─ Alert delete / win delete / pause delete / resign delete / turnover delete — show snapshot
+  // ─ Generic *_delete — show snapshot of the deleted row (already captured server-side)
   if (/_delete$/.test(r.action) && d.deleted && typeof d.deleted === 'object') {
     for (const [k, v] of Object.entries(d.deleted)) {
       if (k === 'student_id') continue;
@@ -2733,13 +2841,74 @@ function _formatActivity(r) {
   // ─ Pause / resign add — start, end, months, amount, notes
   if (r.action === 'mentorship.pause_add')  { pushKV('From', d.start_date); pushKV('To', d.end_date); pushKV('Notes', d.notes); }
   if (r.action === 'mentorship.resign_add') { pushKV('Date', d.resign_date); pushKV('Months added', d.months_added); pushKV('Amount', d.amount); pushKV('Notes', d.notes); }
+  if (r.action === 'mentorship.auto_resign') { pushKV('Months added', d.months_added); pushKV('Amount', d.amount); if (d.effective_status) pushKV('Effective status', d.effective_status); if (d.sales_log_id) pushKV('Sales log row', '#' + d.sales_log_id); }
   // ─ Turnover add / result — rep, note, result
-  if (r.action === 'mentorship.turnover_add')    { pushKV('Rep', d.rep_name); pushKV('Note', d.note); pushKV('Date', d.turnover_date); }
-  if (r.action === 'mentorship.turnover_result') { pushKV('Rep', d.rep_name); pushKV('Result', d.result || '(cleared)'); if (d.previous_result) pushKV('Previous', d.previous_result); }
+  if (r.action === 'mentorship.turnover_add')    { pushKV('Handed to', d.rep_name); pushKV('Note', d.note); pushKV('Date', d.turnover_date); if (d.recipients_count) pushKV('Notified', d.recipients_count + ' user' + (d.recipients_count === 1 ? '' : 's')); }
+  if (r.action === 'mentorship.turnover_result') { pushKV('Rep', d.rep_name); pushKV('Result', d.result || '(cleared)'); if (d.previous_result) pushKV('Previous result', d.previous_result); }
   // ─ Activity log add — kind, date, notes
   if (r.action === 'mentorship.activity_add') { pushKV('Kind', d.kind); pushKV('Date', d.activity_date); pushKV('Notes', d.notes); }
   // ─ Survey link add — url + title
   if (r.action === 'mentorship.survey_link_add') { pushKV('URL', d.url); pushKV('Title', d.title); }
+  // ─ Bulk-update — show which field + value applied + how many rows
+  if (r.action === 'mentorship.bulk_update') {
+    if (d.field)   pushKV('Field',         _humanField(d.field));
+    if (d.value !== undefined) pushKV('New value', d.value);
+    if (Array.isArray(d.ids)) pushKV('Students', d.ids.length + ' student' + (d.ids.length === 1 ? '' : 's'));
+    if (d.updated !== undefined) pushKV('Rows updated', d.updated);
+    if (Array.isArray(d.before_values) && d.before_values.length) {
+      const sample = d.before_values.slice(0, 5).map(b => (b.name || '#' + b.id) + ': ' + (b.before == null || b.before === '' ? '(empty)' : b.before)).join('; ');
+      pushKV('Before (per student)', sample + (d.before_values.length > 5 ? ` · +${d.before_values.length - 5} more` : ''));
+    }
+  }
+  // ─ Merge duplicates — source/target + per-field merges
+  if (r.action === 'mentorship.merge_duplicates') {
+    if (Array.isArray(d.source_ids)) pushKV('Merged from', d.source_ids.join(', '));
+    if (d.target_id) pushKV('Into', '#' + d.target_id);
+    if (d.fields_merged) pushKV('Fields merged', Array.isArray(d.fields_merged) ? d.fields_merged.join(', ') : d.fields_merged);
+  }
+  // ─ Typeform survey received — form + question count + extracted fields
+  if (r.action === 'mentorship.survey.received') {
+    if (d.form_id) pushKV('Form', d.form_id);
+    if (d.qa_count != null) pushKV('Questions answered', d.qa_count);
+    if (Array.isArray(d.fields_extracted) && d.fields_extracted.length) pushKV('Fields auto-filled', d.fields_extracted.join(', '));
+    if (d.action) pushKV('Outcome', d.action);
+  }
+  // ─ Video received from Dropbox — file + date
+  if (r.action === 'mentorship.video.received') {
+    if (d.file) pushKV('File', d.file);
+    if (d.earliest_date) pushKV('Submission date', d.earliest_date);
+    if (d.path) pushKV('Path', d.path);
+  }
+  // ─ Intake — show which fields were populated + outcome
+  if (r.action === 'mentorship.intake.inserted' || r.action === 'mentorship.intake.updated') {
+    if (d.event)  pushKV('Event', d.event);
+    if (d.source) pushKV('Source', d.source);
+    if (Array.isArray(d.fields)) pushKV('Fields set', d.fields.join(', '));
+  }
+  // ─ Zoom attendance — meeting metadata + match outcome
+  if (r.action === 'mentorship.zoom_attendance') {
+    if (d.topic)        pushKV('Topic', d.topic);
+    if (d.meeting_id)   pushKV('Meeting id', d.meeting_id);
+    if (d.host_email)   pushKV('Host', d.host_email);
+    if (d.participants_count != null) pushKV('Participants', d.participants_count);
+    if (d.matched != null)   pushKV('Matched students', d.matched);
+    if (d.unmatched != null) pushKV('Unmatched', d.unmatched);
+    if (d.newly_logged != null) pushKV('Activities logged', d.newly_logged);
+    if (d.duration_minutes != null) pushKV('Duration', d.duration_minutes + ' min');
+  }
+  // ─ Pause-ended notification — student + recipients
+  if (r.action === 'mentorship.pause_ended_notify') {
+    if (d.pause_end) pushKV('Pause ended on', d.pause_end);
+    if (d.recipients_count) pushKV('Notified', d.recipients_count + ' user' + (d.recipients_count === 1 ? '' : 's'));
+  }
+  // ─ Declaration auto-import / create — money trail
+  if (r.action === 'declaration.auto_import' || r.action === 'declaration.create') {
+    if (d.type)     pushKV('Type', d.type);
+    if (d.amount != null) pushKV('Amount', '$' + d.amount);
+    if (d.rep_name) pushKV('Rep', d.rep_name);
+    if (d.email)    pushKV('Email', d.email);
+    if (d.source)   pushKV('Source', d.source);
+  }
   // ─ User permissions change — new perm set
   if (r.action === 'user.permissions_change') {
     if (Array.isArray(d.permissions)) pushKV('Permissions', d.permissions.join(', '));
@@ -2757,6 +2926,207 @@ function _formatActivity(r) {
     pushKV('Calls name', d.callsName);
     if (Array.isArray(d.salesAffiliates)) pushKV('Affiliates', d.salesAffiliates.join(', ') || '(none)');
     if (d.userId) pushKV('Linked user', d.userId);
+  }
+  // ─ Email automation edit — show before/after of subject + body
+  if (r.action === 'email_automation.update') {
+    if (d.name)   pushKV('Automation', d.name);
+    if (d.key)    pushKV('Event key', d.key);
+    // changes[] handled by diff block above; if not present, show fields list
+    if (d.changes_count != null && (!Array.isArray(d.changes) || !d.changes.length)) pushKV('Fields changed', d.changes_count);
+  }
+  if (r.action === 'email_automation.broadcast') {
+    if (d.name)         pushKV('Automation', d.name);
+    if (d.recipients_count != null) pushKV('Recipients', d.recipients_count);
+    if (d.sent != null) pushKV('Sent', d.sent);
+    if (d.failed)       pushKV('Failed', d.failed);
+  }
+  if (r.action === 'email_automation.test_fire') {
+    if (d.name)            pushKV('Automation', d.name);
+    if (d.recipient_email) pushKV('Test recipient', d.recipient_email);
+  }
+  // ─ Org division / department / post — name + parent + sort changes
+  if (/^org\.(division|department|post)_(create|update|delete)$/.test(r.action)) {
+    if (d.name)        pushKV('Name', d.name);
+    if (d.slug)        pushKV('Slug', d.slug);
+    if (d.division_id) pushKV('Division', '#' + d.division_id);
+    if (d.department_id) pushKV('Department', '#' + d.department_id);
+    if (d.sort_order != null) pushKV('Sort order', d.sort_order);
+    if (d.default_role_id) pushKV('Default role', '#' + d.default_role_id);
+  }
+  if (r.action === 'org.post_assign' || r.action === 'org.exec_post_assign') {
+    if (d.post_name) pushKV('Post', d.post_name);
+    if (d.user_email) pushKV('Holder', d.user_email);
+    if (d.removed) pushKV('Action', 'removed');
+  }
+  // ─ Auth events: signin / signout / failed signin / impersonation
+  if (r.action === 'user.signin' || r.action === 'user.signin_failed') {
+    if (d.email) pushKV('Email', d.email);
+    if (d.user_agent) pushKV('Device', d.user_agent);
+    if (d.reason) pushKV('Reason', d.reason);
+  }
+  if (r.action === 'user.impersonate_start' || r.action === 'user.impersonate_stop') {
+    if (d.target_email) pushKV('Target', d.target_email);
+    if (d.target_is_admin) pushKV('Target is admin', true);
+    if (Array.isArray(d.target_permissions) && d.target_permissions.length) pushKV('Target permissions', d.target_permissions.join(', '));
+  }
+  if (r.action === 'user.admin_change') {
+    if (d.target_email) pushKV('Target', d.target_email);
+    if (d.before !== undefined && d.after !== undefined) pushKV('Admin', (d.before ? 'Yes' : 'No') + ' → ' + (d.after ? 'Yes' : 'No'));
+  }
+  // ─ RBAC: roles + grants + policies
+  if (r.action === 'role.user_set_roles') {
+    if (d.target_email) pushKV('User', d.target_email);
+    if (Array.isArray(d.added) && d.added.length)   pushKV('Roles added',   d.added.map(x => x.name || x.slug || ('#'+x.id)).join(', '));
+    if (Array.isArray(d.removed) && d.removed.length) pushKV('Roles removed', d.removed.map(x => x.name || x.slug || ('#'+x.id)).join(', '));
+  }
+  if (r.action === 'permission.user_set_grants') {
+    if (d.target_email) pushKV('User', d.target_email);
+    if (Array.isArray(d.grants_added) && d.grants_added.length)     pushKV('Direct grants added',   d.grants_added.join(', '));
+    if (Array.isArray(d.grants_removed) && d.grants_removed.length) pushKV('Direct grants removed', d.grants_removed.join(', '));
+    if (Array.isArray(d.revokes_added) && d.revokes_added.length)   pushKV('Revokes added',         d.revokes_added.join(', '));
+    if (Array.isArray(d.revokes_removed) && d.revokes_removed.length) pushKV('Revokes removed',     d.revokes_removed.join(', '));
+  }
+  if (r.action === 'role.create') {
+    if (d.name) pushKV('Name', d.name);
+    if (d.slug) pushKV('Slug', d.slug);
+    if (Array.isArray(d.permission_keys) && d.permission_keys.length) pushKV('Permissions', d.permission_keys.join(', '));
+  }
+  if (r.action === 'role.update') {
+    if (d.name) pushKV('Role', d.name);
+    if (Array.isArray(d.permissions_added) && d.permissions_added.length)     pushKV('Permissions added',   d.permissions_added.join(', '));
+    if (Array.isArray(d.permissions_removed) && d.permissions_removed.length) pushKV('Permissions removed', d.permissions_removed.join(', '));
+  }
+  if (r.action === 'org.policy_create') {
+    if (d.title) pushKV('Title', d.title);
+    if (d.kind)  pushKV('Kind', d.kind);
+    if (d.scope_type) pushKV('Scope', d.scope_type + (d.scope_id ? ' #' + d.scope_id : ''));
+  }
+  if (r.action === 'org.division_editor_add' || r.action === 'org.division_editor_remove') {
+    if (d.division_name) pushKV('Division', d.division_name);
+    if (d.user_email)    pushKV('Editor',  d.user_email);
+  }
+  if (r.action === 'org.reorder') {
+    if (d.kind)  pushKV('Kind', d.kind);
+    if (d.count != null) pushKV('Items reordered', d.count);
+  }
+  // ─ Email delivery events
+  if (/^email\.(delivered|opened|clicked|bounced|complained)$/.test(r.action)) {
+    if (d.recipient) pushKV('Recipient', d.recipient);
+    if (d.subject)   pushKV('Subject', d.subject);
+    if (d.link)      pushKV('Link', d.link);
+    if (d.reason)    pushKV('Reason', d.reason);
+    if (d.automation_id) pushKV('Automation', '#' + d.automation_id);
+  }
+  // ─ Coach groups (DB trigger writes name/description/student_count + diff)
+  if (r.action === 'coach_group.create' || r.action === 'coach_group.update' || r.action === 'coach_group.delete') {
+    if (d.name) pushKV('Name', d.name);
+    if (d.description) pushKV('Description', d.description);
+    if (d.student_count != null) pushKV('Students', d.student_count);
+    if (d.previous_student_count != null && d.previous_student_count !== d.student_count) pushKV('Was', d.previous_student_count + ' students');
+  }
+  // ─ Notification reads — capture the original notification context
+  if (r.action === 'notification.read') {
+    if (d.title) pushKV('Notification', d.title);
+    if (d.kind)  pushKV('Kind', d.kind);
+    if (d.student_id) pushKV('Student', '#' + d.student_id);
+  }
+  // ─ Email automation create / update (with subject/body length diffs)
+  if (r.action === 'email_automation.create') {
+    if (d.name) pushKV('Name', d.name);
+    if (d.trigger_event) pushKV('Trigger', d.trigger_event);
+    if (d.is_template) pushKV('Template', 'yes');
+    if (d.enabled !== undefined) pushKV('Enabled', d.enabled);
+  }
+  if (r.action === 'email_automation.update' && Array.isArray(d.changes)) {
+    // The changes[] block already renders via the auto-diff path above. Here
+    // we surface the name + count so the row is scannable.
+    if (d.name) pushKV('Automation', d.name);
+    if (d.changes_count != null) pushKV('Fields changed', d.changes_count);
+  }
+  // ─ Email snippet / suppression
+  if (r.action === 'email_snippet.create' || r.action === 'email_snippet.update' || r.action === 'email_snippet.delete') {
+    if (d.name) pushKV('Name', d.name);
+    if (d.kind) pushKV('Kind', d.kind);
+    if (d.description) pushKV('Description', d.description);
+  }
+  if (r.action === 'email_suppression.add' || r.action === 'email_suppression.remove') {
+    if (d.email)  pushKV('Email', d.email);
+    if (d.reason) pushKV('Reason', d.reason);
+    if (d.source) pushKV('Source', d.source);
+    if (d.previous_reason) pushKV('Previously', d.previous_reason);
+  }
+  // ─ Student lifecycle transitions
+  if (r.action === 'mentorship.coach_assigned') {
+    if (d.coach) pushKV('Coach', d.coach);
+  }
+  if (r.action === 'mentorship.coach_changed') {
+    if (d.before && d.after) pushKV('Reassigned', d.before + ' → ' + d.after);
+  }
+  if (r.action === 'mentorship.refund_processed') {
+    if (d.refunded_date)  pushKV('Refund date', d.refunded_date);
+    if (d.refunded_amount != null) pushKV('Amount', '$' + d.refunded_amount);
+  }
+  if (r.action === 'mentorship.refund_reversed') {
+    if (d.previous_refunded_date) pushKV('Previous refund date', d.previous_refunded_date);
+  }
+  if (r.action === 'mentorship.graduated') {
+    if (d.graduated_at) pushKV('Graduated on', d.graduated_at);
+  }
+  if (r.action === 'mentorship.status_change') {
+    if (d.before && d.after) pushKV('Status', d.before + ' → ' + d.after);
+  }
+  // ─ Coach board pins
+  if (r.action === 'coach_board.pin' || r.action === 'coach_board.unpin') {
+    if (d.name) pushKV('Student', d.name);
+    if (d.pinned_at) pushKV('Pinned at', d.pinned_at);
+  }
+  // ─ External webhooks
+  if (r.action === 'webhook.calendly_booking') {
+    if (d.first_name) pushKV('Name', d.first_name);
+    if (d.email)      pushKV('Email', d.email);
+    if (d.date_time)  pushKV('When', d.date_time);
+    if (d.appointment) pushKV('Appointment', d.appointment);
+    if (d.rep)         pushKV('Rep', d.rep);
+  }
+  if (r.action === 'webhook.sales_log') {
+    if (d.name)    pushKV('Name', d.name);
+    if (d.email)   pushKV('Email', d.email);
+    if (d.product) pushKV('Product', d.product);
+    if (d.price != null) pushKV('Price', '$' + d.price);
+    if (d.status)  pushKV('Status', d.status);
+    if (d.effective_status && d.effective_status !== d.status) pushKV('Effective status', d.effective_status);
+    if (d.affiliate) pushKV('Affiliate', d.affiliate);
+    if (d.platform)  pushKV('Platform', d.platform);
+    if (d.fanbasis_transaction_id) pushKV('Fanbasis tx', d.fanbasis_transaction_id);
+  }
+  if (r.action === 'webhook.fanbasis' || r.action === 'webhook.fanbasis_invalid_signature') {
+    if (d.event_type)   pushKV('Event', d.event_type);
+    if (d.event_id)     pushKV('Event id', d.event_id);
+    if (d.signature_ok === false) pushKV('Signature', 'INVALID');
+    if (d.sales_log_id) pushKV('Sales log', '#' + d.sales_log_id);
+    if (d.notes)        pushKV('Notes', d.notes);
+  }
+  // ─ Page views + failed actions (frontend telemetry)
+  if (r.action === 'page.view') {
+    if (d.page)     pushKV('Page', d.page);
+    if (d.referrer) pushKV('Came from', d.referrer);
+  }
+  if (r.action === 'action.failed') {
+    if (d.slug)   pushKV('Endpoint', d.slug + (d.api ? '?api=' + d.api : ''));
+    if (d.status) pushKV('HTTP status', d.status);
+    if (d.method) pushKV('Method', d.method);
+  }
+  // ─ Zoom session create/reschedule/cancel (DB trigger output)
+  if (r.action === 'zoom.create' || r.action === 'zoom.cancel') {
+    const row = (r.action === 'zoom.create' ? d : d.deleted) || {};
+    if (row.topic) pushKV('Topic', row.topic);
+    if (row.start_time) pushKV('Start', row.start_time);
+    if (row.join_url) pushKV('Join URL', row.join_url);
+  }
+  if (r.action === 'zoom.reschedule') {
+    if (d.topic) pushKV('Topic', d.topic);
+    if (d.old_start_time && d.new_start_time) pushKV('Reschedule', d.old_start_time + ' → ' + d.new_start_time);
+    if (d.join_url) pushKV('Join URL', d.join_url);
   }
 
   if (parts.length) content = `<div class="act-content">${parts.join('')}</div>`;
@@ -2784,6 +3154,274 @@ function _humanField(f) {
   return String(f || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
+// v285 visual refresh helpers ─────────────────────────────────────────
+// Email → "First" (everything before @ → before . or _ → capitalize).
+function _actFirstName(email) {
+  if (!email) return '';
+  const local = String(email).split('@')[0] || '';
+  const part = local.split(/[._-]/)[0] || local;
+  if (!part) return '';
+  return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+}
+// Deterministic hue per email (so each user keeps the same avatar colour).
+function _actAvatarColor(email) {
+  if (!email) return 'linear-gradient(135deg, #4b5570, #2a3041)';
+  let h = 0;
+  for (const c of String(email)) h = ((h << 5) - h + c.charCodeAt(0)) >>> 0;
+  const hue = h % 360;
+  return `linear-gradient(135deg, hsl(${hue},65%,55%), hsl(${(hue+30)%360},65%,42%))`;
+}
+// Map an action to a category class (drives the left-border accent).
+function _actCategory(action) {
+  if (!action) return 'act-cat-routine';
+  if (action.startsWith('action.failed') || action.endsWith('signin_failed') || /invalid_signature/.test(action)) return 'act-cat-warning';
+  if (/(alert_add|alert_opened|_delete|status_change.*Cancel|cancel|denied|forbidden|bounced|complained|refund_reversed)/.test(action)) return 'act-cat-alert';
+  if (/(refund_processed|sales_log|auto_resign|auto_import|resign|declaration\.create|webhook\.sales)/.test(action)) return 'act-cat-money';
+  if (/(win_add|alert_resolve|graduated|intake|onboarded|signin\b|signup|activate|pause_ended)/.test(action)) return 'act-cat-positive';
+  if (action.startsWith('user.') || action.startsWith('role.') || action.startsWith('permission.') || action.startsWith('org.') || action.startsWith('rep_mapping')) return 'act-cat-access';
+  if (action.startsWith('email.')) return 'act-cat-email';
+  if (/system|@system|^webhook|^calendly|cron|sync|reorder/.test(action)) return 'act-cat-system';
+  return 'act-cat-routine';
+}
+// Friendly day bucket label for grouping ("Today" / "Yesterday" / weekday / date).
+function _actDayBucket(iso) {
+  if (!iso) return 'Unknown';
+  const d = new Date(iso); if (isNaN(d.getTime())) return 'Unknown';
+  const now = new Date();
+  const dayStart = (x) => { const c = new Date(x); c.setHours(0,0,0,0); return c.getTime(); };
+  const todayMs = dayStart(now);
+  const rowMs = dayStart(d);
+  const diffDays = Math.round((todayMs - rowMs) / 86400000);
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7)   return d.toLocaleDateString('en-US', { weekday: 'long' });
+  if (now.getFullYear() === d.getFullYear()) return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+// Build a click-through href for the activity target so users can jump
+// straight to the affected student / alert / etc.
+function _actTargetHref(r) {
+  const d = r.details || {};
+  const tt = r.target_type || '';
+  const tid = r.target_id || '';
+  if (tt === 'mentorship_student' && tid) return '/students.html?student=' + encodeURIComponent(tid);
+  if (tt === 'mentorship_alert' && tid)   return '/students.html?openAlert=' + encodeURIComponent(tid);
+  if (tt === 'mentorship_turnover' && tid && d.student_id) return '/students.html?student=' + encodeURIComponent(d.student_id) + '&openTurnover=' + encodeURIComponent(tid);
+  // Notes/wins/pauses live under a student — use details.student_id when present
+  if ((tt === 'mentorship_win' || tt === 'mentorship_pause' || tt === 'mentorship_resign') && d.deleted?.student_id) return '/students.html?student=' + encodeURIComponent(d.deleted.student_id);
+  if (tt === 'email_automation' && tid) return '/email-automations.html?id=' + encodeURIComponent(tid);
+  return null;
+}
+// Plain-English one-line summary for the most common actions. Returns HTML
+// or null (in which case the existing diff/content blocks render as before).
+function _actSummary(r) {
+  const d = r.details || {};
+  const A = (s) => '<b>' + escapeHtml(String(s)) + '</b>';
+  const before = (s) => '<span class="act-from">' + escapeHtml(String(s == null || s === '' ? '(empty)' : s)) + '</span>';
+  const after  = (s) => '<span class="act-to">'   + escapeHtml(String(s == null || s === '' ? '(empty)' : s)) + '</span>';
+  const arrow = ' <span class="act-arrow">→</span> ';
+  switch (r.action) {
+    case 'mentorship.coach_changed':   return 'Reassigned coach from ' + before(d.before) + arrow + after(d.after);
+    case 'mentorship.coach_assigned':  return 'Assigned coach ' + after(d.coach);
+    case 'mentorship.refund_processed': return 'Refund of ' + A('$' + (d.refunded_amount ?? '?')) + ' processed on ' + A(d.refunded_date || '?');
+    case 'mentorship.refund_reversed':  return 'Refund <b>reversed</b> (was ' + escapeHtml(d.previous_refunded_date || '?') + ')';
+    case 'mentorship.graduated':       return 'Marked graduated on ' + A(d.graduated_at);
+    case 'mentorship.status_change':   return 'Status ' + before(d.before) + arrow + after(d.after);
+    case 'user.admin_change':          return (d.target_email ? A(d.target_email) + ' ' : '') + 'admin ' + before(d.before ? 'Yes' : 'No') + arrow + after(d.after ? 'Yes' : 'No');
+    case 'coach_board.pin':            return 'Pinned ' + A(d.name || 'student');
+    case 'coach_board.unpin':          return 'Unpinned ' + A(d.name || 'student');
+    case 'webhook.sales_log':          return 'New sale: ' + A(d.name || d.email) + ' · ' + A(d.product || '?') + ' · ' + A('$' + (d.price ?? '?'));
+    case 'webhook.calendly_booking':   return A(d.first_name || d.email || 'Lead') + ' booked ' + A(d.appointment || 'an appointment') + (d.rep ? ' with ' + A(d.rep) : '');
+    case 'action.failed':              return 'Endpoint ' + A((d.slug || '?') + (d.api ? '?api=' + d.api : '')) + ' returned ' + A('HTTP ' + d.status);
+    case 'page.view':                  return 'Opened ' + A(d.page || '?');
+    case 'role.user_set_roles': {
+      const added = (d.added || []).map(x => x.name || x.slug).filter(Boolean);
+      const removed = (d.removed || []).map(x => x.name || x.slug).filter(Boolean);
+      if (!added.length && !removed.length) return null;
+      const bits = [];
+      if (added.length)   bits.push('added ' + added.map(A).join(', '));
+      if (removed.length) bits.push('removed ' + removed.map(A).join(', '));
+      return (d.target_email ? 'For ' + A(d.target_email) + ': ' : '') + bits.join('; ');
+    }
+    case 'user.signin':                return 'Signed in' + (d.user_agent ? ' from ' + escapeHtml((d.user_agent.match(/iPhone|iPad|Mac|Android|Windows|Linux/)?.[0]) || 'desktop') : '');
+    case 'user.signin_failed':         return 'Failed sign-in for ' + A(d.email || '?') + (d.reason ? ' — ' + escapeHtml(d.reason) : '');
+    case 'user.impersonate_start':     return 'Started <b>viewing as</b> ' + A(d.target_email || r.target_id);
+    case 'user.impersonate_stop':      return 'Stopped <b>viewing as</b> ' + A(d.target_email || r.target_id);
+    case 'email.bounced':              return 'Bounced to ' + A(d.recipient) + (d.reason ? ' — ' + escapeHtml(d.reason) : '');
+    case 'email.complained':           return A(d.recipient) + ' marked email as spam';
+  }
+  return null;
+}
+
+// v286: quick-filter chip state + noise filter + smart aggregation.
+const ACT_NOISE_KEYS = new Set([
+  'page.view', 'notification.read', 'email.delivered', 'email.opened',
+  'mentorship.zoom_attendance', 'webhook.fanbasis',
+]);
+const ACT_IMPORTANT_PREFIXES = ['mentorship.alert_', 'mentorship.turnover_', 'mentorship.refund_', 'mentorship.graduated', 'mentorship.status_change', 'mentorship.delete', 'user.signin_failed', 'action.failed', 'role.', 'permission.', 'org.policy_', 'org.exec_post_', 'email_automation.delete', 'webhook.fanbasis_invalid_signature'];
+const ACT_MONEY_PREFIXES   = ['declaration.', 'webhook.sales_log', 'mentorship.refund_', 'mentorship.auto_resign', 'mentorship.resign_'];
+const ACT_ALERT_PREFIXES   = ['mentorship.alert_', 'mentorship.turnover_'];
+const ACT_FAILURE_KEYS     = new Set(['action.failed', 'user.signin_failed', 'email.bounced', 'email.complained', 'webhook.fanbasis_invalid_signature']);
+
+let _actChipState = 'all';
+let _actHideNoise = true;
+let _actLiveTail = false;
+let _actLiveTailTimer = null;
+let _actCurrentRows = [];
+let _actCurrentUserEmail = null;
+const _actExpandedClusters = new Set();
+const _actExpandedNoise = new Set();
+
+function _actRowImportant(action) {
+  if (!action) return false;
+  return ACT_IMPORTANT_PREFIXES.some(p => action.startsWith(p));
+}
+function _actRowMatchesChip(r, chip, myEmail) {
+  if (chip === 'all') return true;
+  if (chip === 'today') {
+    const ts = r.ts || r.created_at; if (!ts) return false;
+    return new Date(ts).toDateString() === new Date().toDateString();
+  }
+  if (chip === 'mine') return !!myEmail && r.actor_email === myEmail;
+  if (chip === 'important') return _actRowImportant(r.action);
+  if (chip === 'failures')  return ACT_FAILURE_KEYS.has(r.action);
+  if (chip === 'money')     return ACT_MONEY_PREFIXES.some(p => (r.action || '').startsWith(p));
+  if (chip === 'alerts')    return ACT_ALERT_PREFIXES.some(p => (r.action || '').startsWith(p));
+  return true;
+}
+
+// Build the daily-summary banner content from today's rows.
+function _actBuildSummary(rows) {
+  const today = new Date().toDateString();
+  const t = rows.filter(r => new Date(r.ts || r.created_at).toDateString() === today);
+  if (!t.length) return null;
+  const distinctStudents = new Set();
+  const distinctActors   = new Set();
+  let alerts = 0, refunds = 0, sales = 0, salesTotal = 0, failures = 0, wins = 0;
+  for (const r of t) {
+    if (r.actor_email) distinctActors.add(r.actor_email);
+    const d = r.details || {};
+    const sid = (r.target_type === 'mentorship_student' ? r.target_id : null) || d.student_id || d.deleted?.student_id;
+    if (sid) distinctStudents.add(String(sid));
+    if (r.action === 'mentorship.alert_add')         alerts++;
+    if (r.action === 'mentorship.refund_processed')  refunds++;
+    if (r.action === 'webhook.sales_log')           { sales++; salesTotal += Number(d.price) || 0; }
+    if (r.action === 'mentorship.win_add')           wins++;
+    if (ACT_FAILURE_KEYS.has(r.action))              failures++;
+  }
+  return { total: t.length, students: distinctStudents.size, actors: distinctActors.size, alerts, refunds, sales, salesTotal, failures, wins };
+}
+
+// Build anomaly callouts that should appear at the top of the feed.
+function _actBuildAnomalies(rows) {
+  const out = [];
+  const oneHourAgo = Date.now() - 3600 * 1000;
+  const failures1h = rows.filter(r => ACT_FAILURE_KEYS.has(r.action) && new Date(r.ts || r.created_at).getTime() >= oneHourAgo);
+  if (failures1h.length >= 5) {
+    const byActor = {};
+    for (const r of failures1h) { const k = (r.actor_email || 'system'); byActor[k] = (byActor[k] || 0) + 1; }
+    const top = Object.entries(byActor).sort((a,b)=>b[1]-a[1]).slice(0, 3).map(([e,n]) => `${_actFirstName(e) || e} × ${n}`).join(', ');
+    out.push({ severity: 'alert', icon: '⚠️', body: `<b>${failures1h.length} failed actions</b> in the last hour — ${top}`, action: { label: 'Show', chip: 'failures' } });
+  }
+  const todayStr = new Date().toDateString();
+  const badSigToday = rows.filter(r => r.action === 'webhook.fanbasis_invalid_signature' && new Date(r.ts || r.created_at).toDateString() === todayStr);
+  if (badSigToday.length) {
+    out.push({ severity: 'alert', icon: '🛑', body: `<b>${badSigToday.length} Fanbasis webhooks with bad signatures</b> today — possible secret rotation or tampering`, action: null });
+  }
+  // Spike detection: 3× yesterday for refunds or sales.
+  const oneDay = 86400 * 1000;
+  const startToday = new Date(); startToday.setHours(0,0,0,0); const startTodayMs = startToday.getTime();
+  const startYesterdayMs = startTodayMs - oneDay;
+  const countOn = (action, sinceMs, untilMs) => rows.filter(r => r.action === action && new Date(r.ts || r.created_at).getTime() >= sinceMs && new Date(r.ts || r.created_at).getTime() < untilMs).length;
+  const refundsToday = countOn('mentorship.refund_processed', startTodayMs, Date.now());
+  const refundsYday  = countOn('mentorship.refund_processed', startYesterdayMs, startTodayMs);
+  if (refundsToday >= 3 && refundsToday >= refundsYday * 3 && refundsYday > 0) {
+    out.push({ severity: 'warn', icon: '📈', body: `<b>Refund volume ${refundsToday} today</b> vs ${refundsYday} yesterday — ${Math.round(refundsToday/refundsYday)}× spike`, action: { label: 'Show', chip: 'money' } });
+  }
+  return out;
+}
+
+// Apply smart aggregation: when 3+ consecutive rows have the same actor +
+// action prefix, collapse into a single cluster row that can be expanded.
+function _actAggregate(rows) {
+  const out = []; let i = 0;
+  while (i < rows.length) {
+    const r = rows[i];
+    let j = i + 1;
+    while (j < rows.length && rows[j].actor_email === r.actor_email && rows[j].action === r.action) j++;
+    const run = j - i;
+    if (run >= 3) {
+      out.push({ kind: 'cluster', actor_email: r.actor_email, action: r.action, count: run, rows: rows.slice(i, j) });
+    } else {
+      for (let k = i; k < j; k++) out.push({ kind: 'row', row: rows[k] });
+    }
+    i = j;
+  }
+  return out;
+}
+
+// Apply hide-noise collapsing: replace runs of "noisy" actions (page views,
+// notification reads, etc.) with a hourly summary line.
+function _actCollapseNoise(items) {
+  if (!_actHideNoise) return items;
+  const out = []; let bucket = null;
+  for (const it of items) {
+    const r = it.kind === 'row' ? it.row : null;
+    const action = r?.action || (it.kind === 'cluster' ? it.action : '');
+    const isNoise = ACT_NOISE_KEYS.has(action);
+    if (isNoise && r) {
+      const hourKey = new Date(r.ts || r.created_at).toISOString().slice(0, 13);
+      if (!bucket || bucket.hourKey !== hourKey) {
+        if (bucket) out.push({ kind: 'noise', count: bucket.count, hourKey: bucket.hourKey, ts: bucket.firstTs });
+        bucket = { hourKey, count: 0, firstTs: r.ts || r.created_at };
+      }
+      bucket.count++;
+      continue;
+    }
+    if (bucket) { out.push({ kind: 'noise', count: bucket.count, hourKey: bucket.hourKey, ts: bucket.firstTs }); bucket = null; }
+    out.push(it);
+  }
+  if (bucket) out.push({ kind: 'noise', count: bucket.count, hourKey: bucket.hourKey, ts: bucket.firstTs });
+  return out;
+}
+
+function _actRenderRowHtml(r) {
+  const f = _formatActivity(r);
+  const whenAbs = f.when ? new Date(f.when) : null;
+  const whenStr = whenAbs && !isNaN(whenAbs.getTime()) ? whenAbs.toLocaleString() : '';
+  const ago = _ago(f.when);
+  const actorEmail = r.actor_email || '';
+  const isSystem = !actorEmail || /@system$/.test(actorEmail) || /^(system|cron|sales-log|zoom-system|calendly|fanbasis|resend-webhook|dropbox-webhook|typeform-survey|zapier-intake)/.test(actorEmail);
+  const firstName = isSystem ? '' : _actFirstName(actorEmail);
+  const initial   = firstName ? firstName[0] : '·';
+  const avatarStyle = isSystem ? '' : ('background:' + _actAvatarColor(actorEmail) + ';');
+  const avatarClass = isSystem ? 'act-avatar act-avatar-system' : 'act-avatar';
+  const actorDisplay = isSystem ? (actorEmail.replace(/@system$/, '') || 'system') : (firstName || actorEmail);
+  const cat = _actCategory(r.action);
+  const href = _actTargetHref(r);
+  const target = f.target
+    ? (href
+        ? `<a class="act-target act-target-link" href="${href}">${escapeHtml(f.target)}</a>`
+        : `<span class="act-target">${escapeHtml(f.target)}</span>`)
+    : '';
+  const summary = _actSummary(r);
+  return `<div class="act-row ${cat}" title="${escapeHtml(whenStr + ' · ' + (actorEmail || 'system'))}">
+    <div class="${avatarClass}" style="${avatarStyle}">${escapeHtml(initial)}</div>
+    <span class="act-icon">${f.icon}</span>
+    <div class="act-body">
+      <div>
+        <span class="act-actor">${escapeHtml(actorDisplay)}</span>
+        <span class="act-verb">${escapeHtml(f.verb)}</span>
+        ${target}
+      </div>
+      ${summary ? `<div class="act-summary">${summary}</div>` : ''}
+      ${(!summary && f.diff) ? `<div class="act-diff">${f.diff}</div>` : ''}
+      ${f.content || ''}
+    </div>
+    <span class="act-when">${escapeHtml(ago || whenStr)}</span>
+  </div>`;
+}
+
 async function loadActivityTab() {
   const list = document.getElementById('activityList');
   list.innerHTML = '<div style="padding:14px;color:var(--text-dim);font-size:0.84rem;">Loading…</div>';
@@ -2793,30 +3431,135 @@ async function loadActivityTab() {
   if (action) params.set('action', action);
   if (search) params.set('q', search);
   try {
+    if (!_actCurrentUserEmail) {
+      const { data: { session } } = await supa.auth.getSession();
+      _actCurrentUserEmail = session?.user?.email || null;
+    }
     const j = await adminApi('?' + params.toString());
     const rows = j.rows || [];
-    if (!rows.length) { list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-dim);font-size:0.84rem;">No activity found.</div>'; return; }
-    list.innerHTML = rows.map(r => {
-      const f = _formatActivity(r);
-      const whenAbs = f.when ? new Date(f.when) : null;
-      const whenStr = whenAbs && !isNaN(whenAbs.getTime()) ? whenAbs.toLocaleString() : '';
-      const ago = _ago(f.when);
-      const target = f.target ? `<span class="act-target">${escapeHtml(f.target)}</span>` : '';
-      return `<div class="act-row" title="${escapeHtml(whenStr)}">
-        <span class="act-icon">${f.icon}</span>
-        <div class="act-body">
-          <div>
-            <span class="act-actor">${escapeHtml(r.actor_email || r.actor_id || 'system')}</span>
-            <span class="act-verb">${escapeHtml(f.verb)}</span>
-            ${target}
-          </div>
-          ${f.diff ? `<div class="act-diff">${f.diff}</div>` : ''}
-          ${f.content || ''}
-        </div>
-        <span class="act-when">${escapeHtml(ago || whenStr)}</span>
-      </div>`;
-    }).join('');
+    _actCurrentRows = rows;
+    _actRenderActivityFeed();
   } catch (e) { list.innerHTML = `<div style="padding:14px;color:var(--red);font-size:0.84rem;">${escapeHtml(e.message)}</div>`; }
+}
+
+// v286: render the activity feed from _actCurrentRows applying the chip
+// filter, hide-noise toggle, and smart aggregation. Pulled into its own
+// function so chip clicks / toggle changes can re-render without re-fetching.
+function _actRenderActivityFeed() {
+  const list = document.getElementById('activityList');
+  const summaryEl   = document.getElementById('actSummary');
+  const anomaliesEl = document.getElementById('actAnomalies');
+  const rows = _actCurrentRows;
+
+  // 1) Summary banner (always built from the full row set, not the chip-filtered set).
+  if (summaryEl) {
+    const s = _actBuildSummary(rows);
+    summaryEl.innerHTML = s ? `<div class="act-summary-banner">
+      <div class="act-summary-stat"><span class="v">${s.total}</span><span class="l">events today</span></div>
+      <div class="act-summary-stat"><span class="v">${s.actors}</span><span class="l">people</span></div>
+      <div class="act-summary-stat"><span class="v">${s.students}</span><span class="l">students touched</span></div>
+      ${s.alerts ? `<div class="act-summary-stat alert"><span class="v">${s.alerts}</span><span class="l">alerts opened</span></div>` : ''}
+      ${s.refunds ? `<div class="act-summary-stat alert"><span class="v">${s.refunds}</span><span class="l">refunds</span></div>` : ''}
+      ${s.sales ? `<div class="act-summary-stat money"><span class="v">${s.sales}</span><span class="l">sales · $${s.salesTotal.toLocaleString()}</span></div>` : ''}
+      ${s.wins ? `<div class="act-summary-stat good"><span class="v">${s.wins}</span><span class="l">wins</span></div>` : ''}
+      ${s.failures ? `<div class="act-summary-stat warn"><span class="v">${s.failures}</span><span class="l">failures</span></div>` : ''}
+    </div>` : '';
+  }
+
+  // 2) Anomaly callouts.
+  if (anomaliesEl) {
+    const anoms = _actBuildAnomalies(rows);
+    anomaliesEl.innerHTML = anoms.map((a, i) => `<div class="act-anomaly ${a.severity}">
+      <span class="act-anomaly-icon">${a.icon}</span>
+      <div class="act-anomaly-body">${a.body}</div>
+      ${a.action ? `<button class="act-anomaly-action" data-anom-chip="${escapeHtml(a.action.chip)}">${escapeHtml(a.action.label)}</button>` : ''}
+    </div>`).join('');
+    anomaliesEl.querySelectorAll('[data-anom-chip]').forEach(b => b.addEventListener('click', () => {
+      _actChipState = b.dataset.anomChip; _actSyncChips(); _actRenderActivityFeed();
+    }));
+  }
+
+  // 3) Filter rows by active chip.
+  const filtered = rows.filter(r => _actRowMatchesChip(r, _actChipState, _actCurrentUserEmail));
+  if (!filtered.length) {
+    list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-dim);font-size:0.84rem;">No activity matches this filter.</div>';
+    return;
+  }
+
+  // 4) Aggregate consecutive identical actions, then collapse noise.
+  const aggregated = _actAggregate(filtered);
+  const collapsed  = _actCollapseNoise(aggregated);
+
+  // 5) Group by friendly day bucket and render.
+  const buckets = []; const byLabel = new Map();
+  for (const it of collapsed) {
+    const ts = it.kind === 'row' ? (it.row.ts || it.row.created_at) :
+               it.kind === 'cluster' ? (it.rows[0].ts || it.rows[0].created_at) :
+               it.ts;
+    const lbl = _actDayBucket(ts);
+    if (!byLabel.has(lbl)) { byLabel.set(lbl, []); buckets.push(lbl); }
+    byLabel.get(lbl).push(it);
+  }
+
+  const parts = [];
+  for (const lbl of buckets) {
+    const group = byLabel.get(lbl);
+    // Count visible items in this group, weighted: clusters count their rows,
+    // noise lines count their underlying events.
+    const groupCount = group.reduce((n, it) => n + (it.kind === 'cluster' ? it.count : it.kind === 'noise' ? it.count : 1), 0);
+    parts.push(`<div class="act-day-header"><span>${escapeHtml(lbl)}</span><span class="act-day-count">${groupCount}</span></div>`);
+    for (const it of group) {
+      if (it.kind === 'row') {
+        parts.push(_actRenderRowHtml(it.row));
+      } else if (it.kind === 'cluster') {
+        const clusterId = (it.rows[0].id || 'c') + ':' + it.count;
+        const expanded = _actExpandedClusters.has(clusterId);
+        if (expanded) {
+          for (const r of it.rows) parts.push(_actRenderRowHtml(r));
+          parts.push(`<div class="act-cluster expanded" data-cluster-id="${escapeHtml(clusterId)}"><span class="act-cluster-count">${it.count}</span> · click to collapse</div>`);
+        } else {
+          const meta = ACT_LABELS[it.action] || { icon: '•', label: it.action };
+          const firstName = _actFirstName(it.actor_email) || (it.actor_email || 'system');
+          // Count distinct targets when possible.
+          const distinctTargets = new Set(it.rows.map(r => r.target_id || (r.details && r.details.name))).size;
+          parts.push(`<div class="act-cluster" data-cluster-id="${escapeHtml(clusterId)}" title="Click to expand">
+            <span>${meta.icon}</span>
+            <span><b style="color:var(--text);">${escapeHtml(firstName)}</b> ${escapeHtml(meta.label)} · </span>
+            <span class="act-cluster-count">${it.count}× across ${distinctTargets} target${distinctTargets===1?'':'s'}</span>
+          </div>`);
+        }
+      } else if (it.kind === 'noise') {
+        const noiseKey = it.hourKey;
+        if (_actExpandedNoise.has(noiseKey)) {
+          // Render the underlying noisy rows when this bucket is expanded.
+          const noisyRows = _actCurrentRows.filter(r => ACT_NOISE_KEYS.has(r.action) && new Date(r.ts || r.created_at).toISOString().slice(0,13) === it.hourKey);
+          for (const r of noisyRows) parts.push(_actRenderRowHtml(r));
+          parts.push(`<div class="act-noise-summary" data-noise-key="${escapeHtml(noiseKey)}" style="cursor:pointer;">— collapse routine events for ${escapeHtml(it.hourKey.replace('T', ' '))}h —</div>`);
+        } else {
+          parts.push(`<div class="act-noise-summary" data-noise-key="${escapeHtml(noiseKey)}" style="cursor:pointer;">+${it.count} routine event${it.count===1?'':'s'} hidden · click to show</div>`);
+        }
+      }
+    }
+  }
+  list.innerHTML = parts.join('');
+
+  // Cluster expand/collapse wiring.
+  list.querySelectorAll('[data-cluster-id]').forEach(el => el.addEventListener('click', () => {
+    const cid = el.dataset.clusterId;
+    if (_actExpandedClusters.has(cid)) _actExpandedClusters.delete(cid); else _actExpandedClusters.add(cid);
+    _actRenderActivityFeed();
+  }));
+  list.querySelectorAll('[data-noise-key]').forEach(el => el.addEventListener('click', () => {
+    const k = el.dataset.noiseKey;
+    if (_actExpandedNoise.has(k)) _actExpandedNoise.delete(k); else _actExpandedNoise.add(k);
+    _actRenderActivityFeed();
+  }));
+}
+
+function _actSyncChips() {
+  document.querySelectorAll('#actChips .act-chip').forEach(c => {
+    if (c.dataset.chip) c.classList.toggle('active', c.dataset.chip === _actChipState);
+  });
 }
 
 document.getElementById('activityRefreshBtn')?.addEventListener('click', loadActivityTab);
@@ -2824,6 +3567,39 @@ document.getElementById('actActionFilter')?.addEventListener('change', loadActiv
 let _actSearchTimer;
 document.getElementById('actSearch')?.addEventListener('input', () => {
   clearTimeout(_actSearchTimer); _actSearchTimer = setTimeout(loadActivityTab, 350);
+});
+
+// Chip clicks → re-render without re-fetching.
+document.querySelectorAll('#actChips .act-chip[data-chip]').forEach(c => c.addEventListener('click', () => {
+  _actChipState = c.dataset.chip; _actSyncChips(); _actRenderActivityFeed();
+}));
+document.getElementById('actHideNoise')?.addEventListener('change', (e) => {
+  _actHideNoise = e.target.checked;
+  _actRenderActivityFeed();
+});
+
+// Live tail — 30-second polling. Off by default; stored per session.
+document.getElementById('actLiveTail')?.addEventListener('change', (e) => {
+  _actLiveTail = e.target.checked;
+  if (_actLiveTailTimer) { clearInterval(_actLiveTailTimer); _actLiveTailTimer = null; }
+  if (_actLiveTail) _actLiveTailTimer = setInterval(() => { if (document.body.dataset.tab === 'activity') loadActivityTab(); }, 30000);
+});
+
+// Keyboard shortcuts: only when the Activity tab is active and we're not
+// typing in another input. `/` focuses search; `f` cycles chips; Esc clears.
+document.addEventListener('keydown', (e) => {
+  if (document.body.dataset.tab !== 'activity') return;
+  const tag = (e.target.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'textarea' || tag === 'select') {
+    if (e.key === 'Escape') { e.target.blur(); }
+    return;
+  }
+  if (e.key === '/') { e.preventDefault(); document.getElementById('actSearch')?.focus(); return; }
+  if (e.key === 'f') {
+    const chips = ['all', 'today', 'mine', 'important', 'failures', 'money', 'alerts'];
+    const i = chips.indexOf(_actChipState);
+    _actChipState = chips[(i + 1) % chips.length]; _actSyncChips(); _actRenderActivityFeed();
+  }
 });
 
 // ═══════════════════════════════════════════════════════════════════════

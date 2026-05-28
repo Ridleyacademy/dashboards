@@ -25,6 +25,11 @@
   let pollTimer = null;
   let cachedRows = [];
   let cachedUnread = 0;
+  // v292: suppresses pingForNew() on the very first poll after page load.
+  // Without it, every reload finds unread > 0 (the actual current count)
+  // vs lastBadgeShown=0 (just-initialised in-memory) and rings the chime
+  // even though nothing actually arrived since the user was last on the page.
+  let firstFetchAfterLoad = true;
   let dropdownOpen = false;
   let realtimeChannel = null;
   let lastBadgeShown = 0;
@@ -400,10 +405,14 @@
       const j = await r.json();
       if (!r.ok) { console.warn('notifications fetch failed', j); return; }
       const newUnread = j.unread || 0;
-      const grew = newUnread > lastBadgeShown;
+      // v292: never ping on the first fetch after page load — the unread
+      // count we get back is the current state, not "new since last poll".
+      // Without this guard, every reload played the chime.
+      const grew = !firstFetchAfterLoad && newUnread > lastBadgeShown;
       cachedRows = j.rows || [];
       setBadge(newUnread);
       lastBadgeShown = newUnread;
+      firstFetchAfterLoad = false;
       if (grew) pingForNew();
       if (dropdownOpen) renderRows();
     } catch (e) { console.warn('notifications fetch error', e); }

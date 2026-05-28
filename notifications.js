@@ -620,14 +620,32 @@
   async function refreshPushCta() {
     const el = document.querySelector('#notifBellPanel .notif-push-cta');
     if (!el) return;
+    // v288: platform-aware unsupported message. iOS Chrome/FF and similar
+    // can't subscribe; Android Chrome / Desktop Chrome / Safari ≥16.4 can.
     if (!pushSupported()) {
-      el.innerHTML = '<span>Push not supported on this browser. Add to home screen on iOS 16.4+ for push.</span>';
+      const ua = navigator.userAgent;
+      const isIOS = /iPad|iPhone|iPod/.test(ua);
+      const isIOSNonSafari = isIOS && /(CriOS|FxiOS|EdgiOS|OPiOS)/.test(ua);
+      if (isIOSNonSafari) {
+        el.innerHTML = '<span>📱 Push only works in Safari on iOS. Open ridleyacademy.team in Safari and add to home screen.</span>';
+      } else if (isIOS) {
+        el.innerHTML = '<span>📱 Add Ridley to your home screen (Share → Add to Home Screen) to enable push notifications.</span>';
+      } else {
+        el.innerHTML = '<span>Push not supported on this browser.</span>';
+      }
       return;
     }
     const perm = Notification.permission;
     const sub = await getCurrentPushSub();
     if (perm === 'denied') {
-      el.innerHTML = '<span>🔕 Push notifications blocked in browser settings.</span>';
+      // v288: Android Chrome has a deep-link to per-site notification
+      // settings. Surface it so users don't have to hunt through menus.
+      const isAndroid = /Android/.test(navigator.userAgent);
+      const settingsHref = isAndroid
+        ? `chrome://settings/content/siteDetails?site=${encodeURIComponent(window.location.origin)}`
+        : null;
+      el.innerHTML = '<span>🔕 Push notifications blocked in browser settings.</span>'
+        + (settingsHref ? ` <a href="${settingsHref}" style="color:#6b9eff;text-decoration:underline;font-size:0.66rem;">Open site settings</a>` : '');
       return;
     }
     if (sub) {
@@ -646,6 +664,57 @@
         refreshPushCta();
       });
     }
+  }
+
+  // v288: proactive one-time banner offering push enable on first sign-in.
+  // Without this, the user has to discover the bell panel + scroll inside to
+  // find the CTA. On Android most apps offer notifications immediately, so
+  // matching that expectation increases adoption a lot.
+  function maybeShowFirstTimePushBanner() {
+    if (!pushSupported()) return;
+    if (Notification.permission !== 'default') return; // granted / denied → nothing to ask
+    try { if (localStorage.getItem('push-cta-dismissed-v1')) return; } catch (_) {}
+    // Skip on the login page — wait until the user is signed in.
+    const onLogin = document.querySelector('[data-login-state]') || document.getElementById('loginCard');
+    if (onLogin && onLogin.offsetParent !== null) return;
+    setTimeout(async () => {
+      // Verify we're authed (Notification.permission default = no decision yet).
+      try {
+        const s = (typeof supa !== 'undefined' ? supa : window.supabase) || ensureSupa();
+        const { data: { session } } = await s.auth.getSession();
+        if (!session?.user?.id) return;
+      } catch (_) { return; }
+      if (document.getElementById('pushFirstTimeBanner')) return;
+      const m = document.createElement('div');
+      m.id = 'pushFirstTimeBanner';
+      m.style.cssText = 'position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#13141f;border:1px solid #34d399;border-radius:14px;padding:14px 18px;color:#eaecf8;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;font-size:0.88rem;font-weight:600;line-height:1.35;z-index:10000;box-shadow:0 18px 42px rgba(0,0,0,0.55);display:flex;align-items:center;gap:14px;max-width:92vw;';
+      m.innerHTML = `
+        <span style="font-size:1.6rem;">🔔</span>
+        <div style="flex:1;">
+          Get notified when an alert, turnover, or important update lands — even when this tab is closed.
+        </div>
+        <button id="pushBannerEnable" style="background:#34d399;border:0;color:#0b0c14;font-weight:800;border-radius:9px;padding:8px 14px;font-size:0.82rem;cursor:pointer;">Enable</button>
+        <button id="pushBannerClose" aria-label="Dismiss" style="background:transparent;border:0;color:#7880a8;font-size:1.3rem;cursor:pointer;padding:0 4px;">×</button>
+      `;
+      document.body.appendChild(m);
+      const dismiss = (remember) => {
+        if (remember) { try { localStorage.setItem('push-cta-dismissed-v1', '1'); } catch (_) {} }
+        m.style.transition = 'opacity .25s'; m.style.opacity = '0'; setTimeout(() => m.remove(), 250);
+      };
+      document.getElementById('pushBannerClose').addEventListener('click', () => dismiss(true));
+      document.getElementById('pushBannerEnable').addEventListener('click', async () => {
+        const btn = document.getElementById('pushBannerEnable');
+        btn.disabled = true; btn.textContent = 'Enabling…';
+        const res = await ensurePushSubscribed();
+        if (res.ok) {
+          try { localStorage.setItem('push-cta-dismissed-v1', '1'); } catch (_) {}
+          dismiss(false); refreshPushCta();
+        } else {
+          btn.disabled = false; btn.textContent = 'Try again';
+          console.warn('[push] subscribe failed:', res.reason);
+        }
+      });
+    }, 3500);
   }
 
   // Listen for service worker click messages so we can route without reload.
@@ -677,8 +746,8 @@
       setTimeout(init, 250);
       return;
     }
-    s.auth.getSession().then(({ data }) => { if (data?.session) { startPolling(); startRealtime(); injectPushCta(); } });
-    s.auth.onAuthStateChange((_e, sess) => { if (sess) { startPolling(); startRealtime(); injectPushCta(); } });
+    s.auth.getSession().then(({ data }) => { if (data?.session) { startPolling(); startRealtime(); injectPushCta(); maybeShowFirstTimePushBanner(); } });
+    s.auth.onAuthStateChange((_e, sess) => { if (sess) { startPolling(); startRealtime(); injectPushCta(); maybeShowFirstTimePushBanner(); } });
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

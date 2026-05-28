@@ -129,30 +129,50 @@
   const isIOS = /iPad|iPhone|iPod/.test(ua) && !('MSStream' in window);
   // iOS Safari only — exclude Chrome/Firefox/Edge/etc on iOS (they can't install PWAs anyway)
   const isIOSSafari = isIOS && /Safari/.test(ua) && !/(CriOS|FxiOS|EdgiOS|OPiOS|mercury|GSA)/.test(ua);
+  // v288: Android detection for the install + push UX paths.
+  const isAndroid = /Android/.test(ua);
+  const isAndroidChrome = isAndroid && /Chrome\//.test(ua) && !/(SamsungBrowser|EdgA|OPR|FBAN|FBAV)/.test(ua);
   const isStandalone =
     window.matchMedia?.('(display-mode: standalone)').matches ||
     window.navigator.standalone === true;
 
-  // Tag <html> so CSS can hide install UI even on iOS where the
-  // display-mode:standalone media query doesn't always match.
-  if (isStandalone) {
-    document.documentElement.classList.add('pwa-standalone');
-  }
+  // Tag <html> so CSS / sibling scripts can branch on the install state.
+  if (isStandalone) document.documentElement.classList.add('pwa-standalone');
+  if (isAndroid)    document.documentElement.classList.add('pwa-android');
+  if (isIOS)        document.documentElement.classList.add('pwa-ios');
 
   let deferredPrompt = null;
+  let installPromptFired = false;
 
-  // Capture Android/Desktop install prompt
+  // Capture Android/Desktop install prompt (Chrome fires this when the site
+  // meets PWA install criteria — manifest valid, SW registered, engagement
+  // heuristic met).
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferredPrompt = e;
+    installPromptFired = true;
+    // Now that Chrome has confirmed installability, surface the topbar
+    // Install button (init hid it on Android because the event hadn't fired
+    // yet — see maybeShowInstallButton).
     document.querySelectorAll('[data-pwa-install]').forEach(el => el.style.display = '');
+    // First-visit Android nudge (one-shot).
+    maybeAutoShowAndroidHint();
+  });
+  // After successful install, hide the button — no longer needed.
+  window.addEventListener('appinstalled', () => {
+    deferredPrompt = null;
+    document.querySelectorAll('[data-pwa-install]').forEach(el => el.style.display = 'none');
+    try { localStorage.setItem('pwa-android-hint-shown-v1', '1'); } catch (_) {}
   });
 
-  // Only show install button on iOS Safari (mobile). Other browsers either
-  // don't support installation (iOS Chrome/FF) or have native install UI we
-  // don't need to duplicate.
+  // Show the topbar Install button when:
+  //   - Not already installed (standalone), AND
+  //   - We're on iOS Safari (the hint flow handles install), OR
+  //   - We're on Android Chrome AND beforeinstallprompt has fired (so
+  //     clicking the button actually does something — otherwise we'd be
+  //     pretending an action is available when it isn't).
   function maybeShowInstallButton() {
-    const show = !isStandalone && isIOSSafari;
+    const show = !isStandalone && (isIOSSafari || (isAndroidChrome && installPromptFired));
     document.querySelectorAll('[data-pwa-install]').forEach(el => {
       el.style.display = show ? '' : 'none';
     });
@@ -219,6 +239,47 @@
     }, 1500);
   }
 
+  // v288: Android counterpart to showIOSHint. On Android Chrome we DO have a
+  // programmatic prompt (deferredPrompt.prompt()) — but Chrome won't fire
+  // beforeinstallprompt until the engagement heuristic is met (~30s of
+  // active use), and many users never notice the topbar Install button
+  // even after it appears. So we show a one-time toast pointing at it.
+  const ANDROID_HINT_KEY = 'pwa-android-hint-shown-v1';
+  function showAndroidHint() {
+    if (document.getElementById('pwaAndroidHint')) return;
+    const m = document.createElement('div');
+    m.id = 'pwaAndroidHint';
+    m.style.cssText = 'position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#13141f;border:1px solid #6b9eff;border-radius:14px;padding:14px 18px;color:#eaecf8;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;font-size:0.88rem;font-weight:600;line-height:1.35;z-index:10001;box-shadow:0 18px 42px rgba(0,0,0,0.55);display:flex;align-items:center;gap:14px;max-width:92vw;animation:pwaFadeIn .22s ease-out both;';
+    if (!document.getElementById('pwaHintKf')) {
+      const st = document.createElement('style'); st.id = 'pwaHintKf';
+      st.textContent = '@keyframes pwaFadeIn { from { opacity:0; transform:translate(-50%, 8px); } to { opacity:1; transform:translate(-50%, 0); } }';
+      document.head.appendChild(st);
+    }
+    m.innerHTML = `
+      <span style="font-size:1.6rem;">📱</span>
+      <div style="flex:1;">
+        Install Ridley as an app for faster access and push notifications.
+      </div>
+      <button id="pwaAndroidInstallNow" style="background:#6b9eff;border:0;color:#0b0c14;font-weight:800;border-radius:9px;padding:8px 14px;font-size:0.82rem;cursor:pointer;">Install</button>
+      <button id="pwaAndroidHintClose" aria-label="Dismiss" style="background:transparent;border:0;color:#7880a8;font-size:1.3rem;cursor:pointer;padding:0 4px;">×</button>
+    `;
+    document.body.appendChild(m);
+    const dismiss = () => { m.style.transition = 'opacity .25s'; m.style.opacity = '0'; setTimeout(() => m.remove(), 250); };
+    document.getElementById('pwaAndroidHintClose').addEventListener('click', dismiss);
+    document.getElementById('pwaAndroidInstallNow').addEventListener('click', () => { window.showInstallPrompt(); dismiss(); });
+    setTimeout(dismiss, 12000);
+  }
+  function maybeAutoShowAndroidHint() {
+    if (isStandalone) return;
+    if (!isAndroidChrome) return;
+    if (!deferredPrompt) return; // wait until Chrome confirms it's installable
+    try { if (localStorage.getItem(ANDROID_HINT_KEY)) return; } catch (_) {}
+    setTimeout(() => {
+      showAndroidHint();
+      try { localStorage.setItem(ANDROID_HINT_KEY, '1'); } catch (_) {}
+    }, 1500);
+  }
+
   window.showInstallPrompt = function () {
     if (isStandalone) return;
     if (deferredPrompt) {
@@ -229,7 +290,14 @@
       });
       return;
     }
-    if (isIOSSafari) showIOSHint();
+    if (isIOSSafari) { showIOSHint(); return; }
+    // v288: Android Chrome before beforeinstallprompt has fired — tell the
+    // user to use the Chrome menu's "Install app" / "Add to Home Screen"
+    // option directly. (Same UX as iOS but with the Android wording.)
+    if (isAndroidChrome) {
+      alert('To install Ridley:\n\n1. Tap the ⋮ menu in Chrome (top-right)\n2. Tap "Install app" or "Add to Home Screen"\n3. Confirm');
+      return;
+    }
   };
 
   document.addEventListener('click', (e) => {
@@ -242,6 +310,7 @@
   function init() {
     maybeShowInstallButton();
     maybeAutoShowHint();
+    maybeAutoShowAndroidHint();
   }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);

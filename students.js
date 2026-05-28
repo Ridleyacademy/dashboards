@@ -350,7 +350,11 @@ const advFilters = {
   has_survey:      null,
   has_gdrive:      null,
   // Buckets (multi-select) for the days-left/since-activity fields.
-  days_left_bucket:        [],   // 'expired' | 'urgent' | 'soon' | 'active'
+  // Time-until-end uses OVERLAPPING thresholds: 'lt7' includes everyone ≤ 7d,
+  // 'lt14' everyone ≤ 14d (including ≤7), etc. Plus state buckets and a
+  // user-supplied custom threshold ('custom' + expiring_custom_days).
+  days_left_bucket:        [],   // 'expired'|'lt7'|'lt14'|'lt30'|'lt60'|'lt90'|'custom'|'paused'|'delayed'|'unknown'
+  expiring_custom_days:    '',   // numeric string, only used when 'custom' is selected
   inactive_days_bucket:    [],   // 'never' | '60+' | '30-60' | '0-30'
 };
 
@@ -358,6 +362,9 @@ function _advFilterCount() {
   let n = 0;
   for (const k of Object.keys(advFilters)) {
     const v = advFilters[k];
+    // 'expiring_custom_days' is a sub-input for the 'custom' bucket choice —
+    // it doesn't add a filter on its own.
+    if (k === 'expiring_custom_days') continue;
     if (Array.isArray(v)) n += v.length;
     else if (v !== null && v !== undefined) n += 1;
   }
@@ -365,6 +372,7 @@ function _advFilterCount() {
 }
 function _clearAdvFilters() {
   for (const k of Object.keys(advFilters)) {
+    if (k === 'expiring_custom_days') { advFilters[k] = ''; continue; }
     advFilters[k] = Array.isArray(advFilters[k]) ? [] : null;
   }
 }
@@ -380,15 +388,25 @@ function _setTriFilter(key, value) {
   else advFilters[key] = value;
 }
 
-// Buckets for days_left
-function _daysLeftBucket(s) {
-  if (s.derived_status === 'Paused') return 'paused';
-  if (s.derived_status === 'Delayed start') return 'delayed';
-  if (s.days_left == null) return 'unknown';
-  if (s.days_left < 0)  return 'expired';
-  if (s.days_left <= 7) return 'urgent';   // ≤ 1 week
-  if (s.days_left <= 30) return 'soon';    // ≤ 30 days
-  return 'active';
+// Test whether a student matches a single days-left bucket value. Unlike
+// strict bucketing, the 'lt*' buckets OVERLAP — lt30 includes lt7, lt14, etc.
+// This matches user intuition for "show me everyone expiring within 30 days".
+function _matchesDaysLeftBucket(s, b) {
+  if (b === 'paused')  return s.derived_status === 'Paused';
+  if (b === 'delayed') return s.derived_status === 'Delayed start';
+  if (b === 'unknown') return s.days_left == null && s.derived_status !== 'Paused' && s.derived_status !== 'Delayed start';
+  if (b === 'expired') return s.days_left != null && s.days_left < 0;
+  if (s.days_left == null || s.days_left < 0) return false;
+  if (b === 'lt7')   return s.days_left <= 7;
+  if (b === 'lt14')  return s.days_left <= 14;
+  if (b === 'lt30')  return s.days_left <= 30;
+  if (b === 'lt60')  return s.days_left <= 60;
+  if (b === 'lt90')  return s.days_left <= 90;
+  if (b === 'custom') {
+    const t = parseInt(advFilters.expiring_custom_days, 10);
+    return Number.isFinite(t) && t > 0 && s.days_left <= t;
+  }
+  return false;
 }
 function _daysSinceActivity(s) {
   const d = s.last_activity_date;
@@ -430,7 +448,7 @@ function _applyAdvFilters(rows) {
     if (!matchTri('has_video',       !!(s.video_url || s.video_submitted_date))) return false;
     if (!matchTri('has_survey',      (s.surveys_count || 0) > 0 || !!s.survey_url || !!s.survey_submitted_date)) return false;
     if (!matchTri('has_gdrive',      !!s.gdrive_url)) return false;
-    if (advFilters.days_left_bucket.length && !advFilters.days_left_bucket.includes(_daysLeftBucket(s))) return false;
+    if (advFilters.days_left_bucket.length && !advFilters.days_left_bucket.some(b => _matchesDaysLeftBucket(s, b))) return false;
     if (advFilters.inactive_days_bucket.length && !advFilters.inactive_days_bucket.includes(_inactiveBucket(s))) return false;
     return true;
   });
@@ -491,15 +509,29 @@ function renderAdvFilterPanel() {
     </div>
     ${sectionMulti('product', '📦 Product', _uniqueValues('product', '(none)'))}
     ${sectionMulti('derived_status', '🚦 Lifecycle status', _uniqueValues('derived_status', '(none)'))}
-    ${sectionBucket('days_left_bucket', '⏱ Time until end', [
+    ${sectionBucket('days_left_bucket', '⏱ Expiring within', [
       { val: 'expired', label: 'Expired' },
-      { val: 'urgent', label: '≤ 7 days' },
-      { val: 'soon', label: '≤ 30 days' },
-      { val: 'active', label: '> 30 days' },
+      { val: 'lt7',  label: '≤ 1 week' },
+      { val: 'lt14', label: '≤ 2 weeks' },
+      { val: 'lt30', label: '≤ 30 days' },
+      { val: 'lt60', label: '≤ 60 days' },
+      { val: 'lt90', label: '≤ 90 days' },
+      { val: 'custom', label: 'Custom…' },
       { val: 'paused', label: 'Paused' },
       { val: 'delayed', label: 'Delayed start' },
       { val: 'unknown', label: 'Not onboarded' },
     ])}
+    ${advFilters.days_left_bucket.includes('custom') ? `
+      <div class="adv-filter-section" style="margin-top:-0.4rem;">
+        <div class="adv-filter-label">Custom threshold (days)</div>
+        <div class="adv-filter-options">
+          <input type="number" min="1" step="1" id="advExpiringCustomDays"
+            value="${escapeHtml(advFilters.expiring_custom_days || '')}"
+            placeholder="e.g. 45"
+            style="padding:0.35rem 0.55rem;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:0.8rem;width:120px;" />
+          <span style="font-size:0.7rem;color:var(--text-dim);align-self:center;">≤ N days until end</span>
+        </div>
+      </div>` : ''}
     ${sectionBucket('inactive_days_bucket', ICONS.calendar() + ' Days since last activity', [
       { val: '0-30', label: '≤ 30d' },
       { val: '30-60', label: '30–60d' },
@@ -548,6 +580,15 @@ function renderAdvFilterPanel() {
     _clearAdvFilters();
     _onAdvFiltersChanged();
   });
+  const customInp = document.getElementById('advExpiringCustomDays');
+  if (customInp) {
+    customInp.addEventListener('input', () => {
+      advFilters.expiring_custom_days = customInp.value.trim();
+      // Re-filter without re-rendering the whole panel (so focus stays in input).
+      renderActiveFiltersBar?.();
+      renderStudents?.();
+    });
+  }
 }
 
 function _activeFilterChipLabel(key, val) {
@@ -561,8 +602,11 @@ function _activeFilterChipLabel(key, val) {
     has_wins: 'Wins', has_video: 'Video', has_survey: 'Survey', has_gdrive: 'Drive',
   };
   const bucketLabels = {
-    expired: 'Expired', urgent: '≤ 7 days', soon: '≤ 30 days',
-    active: '> 30 days', paused: 'Paused', delayed: 'Delayed', unknown: 'Not onboarded',
+    expired: 'Expired',
+    lt7: '≤ 1 week', lt14: '≤ 2 weeks', lt30: '≤ 30 days',
+    lt60: '≤ 60 days', lt90: '≤ 90 days',
+    custom: advFilters.expiring_custom_days ? `≤ ${advFilters.expiring_custom_days}d` : 'Custom',
+    paused: 'Paused', delayed: 'Delayed', unknown: 'Not onboarded',
     'never': 'No activity', '60+': '60d+', '30-60': '30–60d', '0-30': '≤ 30d',
   };
   if (val === true || val === 'true') return `${labelMap[key]}: Yes`;

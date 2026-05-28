@@ -336,6 +336,11 @@ const filters = {
   turnover_mode: '',       // '' | 'ever' | 'range'  — has a turnover (in range)
   turnover_from: '',       // ISO yyyy-mm-dd, used only when turnover_mode='range'
   turnover_to:   '',       // ISO yyyy-mm-dd, used only when turnover_mode='range'
+  // "Expiring" threshold (days). Controls both the chip filter and the
+  // Expiring KPI. Defaults to 30 so existing behaviour is unchanged.
+  expiring_within_days: 30,
+  // Used only when expiring_within_days === 'custom'.
+  expiring_custom_days: '',
 };
 let showExpired = false;
 let showRefunded = false;
@@ -502,8 +507,22 @@ function _isAtRisk(s) {
   const status = s.derived_status;
   return both14 && status !== 'Expired' && status !== 'Paused' && status !== 'Not onboarded' && status !== 'Delayed start';
 }
+// Resolve the currently-selected "expiring within N days" threshold.
+// Returns a positive integer; falls back to 30 if invalid.
+function _expiringThreshold() {
+  const v = filters.expiring_within_days;
+  if (v === 'custom') {
+    const t = parseInt(filters.expiring_custom_days, 10);
+    return (Number.isFinite(t) && t > 0) ? t : 30;
+  }
+  const n = parseInt(v, 10);
+  return (Number.isFinite(n) && n > 0) ? n : 30;
+}
 function _isExpiring(s) {
-  return s.derived_status === 'Expiring soon' || (s.days_left != null && s.days_left >= 0 && s.days_left <= 30);
+  const t = _expiringThreshold();
+  // Always include the explicit "Expiring soon" derived status, plus any
+  // student whose days_left falls within the configured window.
+  return s.derived_status === 'Expiring soon' || (s.days_left != null && s.days_left >= 0 && s.days_left <= t);
 }
 function _isNeedsAttention(s) {
   return (s.coach_status || '').toLowerCase() === 'needs attention';
@@ -737,6 +756,29 @@ document.getElementById('showRefundedBtn').addEventListener('click', (e) => {
   e.currentTarget.firstChild.textContent = (showRefunded ? '✓ Showing refunded ' : '+ Show refunded ');
   renderAll();
 });
+// "Expiring within" window selector — controls both the chip filter and
+// the matching KPI tile so the count stays in sync with what's shown.
+(function wireExpiringWindow() {
+  const sel = document.getElementById('expiringWindowSel');
+  const custom = document.getElementById('expiringCustomDays');
+  if (!sel) return;
+  const apply = () => {
+    if (sel.value === 'custom') {
+      custom.style.display = '';
+      filters.expiring_within_days = 'custom';
+      filters.expiring_custom_days = custom.value.trim();
+    } else {
+      custom.style.display = 'none';
+      filters.expiring_within_days = parseInt(sel.value, 10) || 30;
+    }
+    renderAll();
+  };
+  sel.addEventListener('change', apply);
+  custom.addEventListener('input', () => {
+    filters.expiring_custom_days = custom.value.trim();
+    renderAll();
+  });
+})();
 document.getElementById('filtersBtn').addEventListener('click', openFiltersModal);
 document.getElementById('checkAll').addEventListener('change', (e) => {
   // "Select all" matches what's visible in the table: scope + chip filter +

@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v163-pwa-icons-pwa-real-install';
+const CACHE_NAME = 'ridley-v164-push-subscription-tracking';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [

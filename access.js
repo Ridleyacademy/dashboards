@@ -2658,6 +2658,10 @@ const ACT_LABELS = {
   'page.view':                   { icon: '📄', label: 'opened page',                    target: id => id },
   'action.failed':               { icon: '⚠️', label: 'action failed:',                target: id => id },
 
+  // Push subscription lifecycle (DB trigger on push_subscriptions).
+  'push.subscribed':             { icon: '🔔', label: 'enabled push on',                target: id => '#' + id },
+  'push.unsubscribed':           { icon: '🔕', label: 'disabled push on',               target: id => '#' + id },
+
   // Notification delivery (per channel, per device — DB trigger on
   // notification_dispatch_log fires these so we can see "did the push
   // actually land on Vale's phone" without a separate query).
@@ -3125,6 +3129,14 @@ function _formatActivity(r) {
     if (d.status) pushKV('HTTP status', d.status);
     if (d.method) pushKV('Method', d.method);
   }
+  // ─ Push subscription lifecycle
+  if (r.action === 'push.subscribed' || r.action === 'push.unsubscribed') {
+    if (d.platform)   pushKV('Platform', d.platform);
+    if (d.user_email) pushKV('User', d.user_email);
+    if (d.user_agent) pushKV('Device', d.user_agent);
+    if (d.reason)     pushKV('Reason', d.reason);
+    if (d.backfilled) pushKV('Backfilled', 'yes (existed before tracking)');
+  }
   // ─ Notification delivery results (per-device, per-channel)
   if (/^notification\.(push|email|inapp)_(sent|failed)$/.test(r.action)) {
     if (d.recipient_user_email || d.recipient_email) pushKV('To', d.recipient_user_email || d.recipient_email);
@@ -3274,6 +3286,8 @@ function _actSummary(r) {
     case 'notification.email_sent':    return 'Email sent to ' + A(d.recipient_email || d.recipient_user_email) + (d.notif_title ? ' · ' + escapeHtml(d.notif_title) : '');
     case 'notification.email_failed':  return 'Email <b>FAILED</b> to ' + A(d.recipient_email || d.recipient_user_email) + (d.error ? ' — ' + escapeHtml(d.error.slice(0, 80)) : '');
     case 'notification.inapp_failed':  return 'In-app dispatch failed for ' + A(d.recipient_first_name || d.recipient_user_email);
+    case 'push.subscribed':            return 'Enabled push notifications on ' + A(d.platform || 'a device') + (d.first_name ? ' (' + A(d.first_name) + ')' : '');
+    case 'push.unsubscribed':          return 'Disabled push notifications on ' + A(d.platform || 'a device');
   }
   return null;
 }

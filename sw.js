@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v162-android-pwa-polish';
+const CACHE_NAME = 'ridley-v163-pwa-icons-pwa-real-install';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [
@@ -68,8 +68,8 @@ self.addEventListener('push', (event) => {
   const title = data.title || 'Notification';
   const opts = {
     body: data.body || '',
-    icon: '/icons/icon-192.png',
-    badge: '/icons/icon-192.png',
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
     tag: data.alert_id ? ('alert-' + data.alert_id + '-' + (data.kind || '')) : undefined,
     renotify: !!data.alert_id,
     data: { link_url: data.link_url || '/', kind: data.kind || null, alert_id: data.alert_id || null, student_id: data.student_id || null },

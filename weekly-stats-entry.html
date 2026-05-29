@@ -66,7 +66,8 @@
 
   /* Topbar */
   .topbar { display: flex; align-items: center; gap: 10px; padding: 12px 32px; background: rgba(8,10,20,0.85); backdrop-filter: blur(20px); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; }
-  .topbar-logo { width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0; background: linear-gradient(135deg,#fbbf24,#34d399); display: flex; align-items: center; justify-content: center; box-shadow: 0 0 14px rgba(251,191,36,0.4); }
+  /* Green gradient matches the Stats Entry card on the home page. */
+  .topbar-logo { width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0; background: linear-gradient(135deg,#34d399,#10b981); display: flex; align-items: center; justify-content: center; box-shadow: 0 0 14px rgba(52,211,153,0.4); }
   .topbar-brand { font-size: 0.9rem; font-weight: 700; letter-spacing: -0.02em; }
   .topbar-spacer { flex: 1; }
   .tbtn { border: none; border-radius: 8px; padding: 6px 12px; font-size: 0.74rem; font-weight: 600; cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 5px; font-family: inherit; }
@@ -82,6 +83,15 @@
   .nav-dropdown-item { display: block; padding: 9px 13px; font-size: 0.78rem; font-weight: 600; color: var(--text-muted); text-decoration: none; border-radius: 9px; }
   .nav-dropdown-item:hover { background: var(--surface2); color: var(--text); }
   .nav-dropdown-item.active { color: var(--gold); background: var(--gold-bg); }
+  /* nav-menu.js generates .nav-menu-link items — style them identically. */
+  .nav-menu-link {
+    display: flex; align-items: center; gap: 10px; padding: 9px 13px; font-size: 0.78rem;
+    font-weight: 600; color: var(--text-muted); text-decoration: none; border-radius: 9px;
+    transition: all 0.12s;
+  }
+  .nav-menu-link:hover { background: var(--surface2); color: var(--text); }
+  .nav-menu-link.active { color: var(--green); background: rgba(52,211,153,0.10); }
+  .nav-menu-link svg { flex-shrink: 0; }
 
   .user-pill { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 4px 14px 4px 4px; }
   .user-pill-av { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; background: linear-gradient(135deg,#fbbf24,#34d399); color: #fff; font-size: 0.62rem; font-weight: 800; display: flex; align-items: center; justify-content: center; }
@@ -212,12 +222,8 @@
         Dashboards
         <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
       </button>
-      <div class="nav-dropdown-menu" id="navDropdownMenu">
-        <a class="nav-dropdown-item" href="home.html">🏠 Home</a>
-        <a class="nav-dropdown-item" href="weekly-stats.html">📊 Weekly Stats (Charts)</a>
-        <a class="nav-dropdown-item active" href="weekly-stats-entry.html">📝 Stats Entry</a>
-        <a class="nav-dropdown-item" href="income.html">💰 Income</a>
-      </div>
+      <!-- Items injected by nav-menu.js so the picker stays in sync with every other dashboard. -->
+      <div class="nav-dropdown-menu" id="navDropdownMenu"></div>
     </div>
 
     <div class="user-pill">
@@ -276,6 +282,7 @@
 </div>
 
 <script src="weekly-stats-entry.js"></script>
+<script src="nav-menu.js"></script>
 <script src="access-guard.js"></script>
 </body>
 </html>

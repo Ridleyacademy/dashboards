@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v166-expiring-filters';
+const CACHE_NAME = 'ridley-v167-weekly-stats';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [
@@ -24,6 +24,8 @@ const PRECACHE = [
   '/email-automations.js',
   '/access.html',
   '/access.js',
+  '/weekly-stats.html',
+  '/weekly-stats.js',
   '/ux.js',
 ];
 

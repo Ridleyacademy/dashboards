@@ -4,7 +4,7 @@
 // Adding a new role or page = edit ONLY this file. Per-page guards just call
 // RidleyPerms.canOpen(href, user) and trust the result.
 (function () {
-  const AVAILABLE_PERMS = ['sales', 'marketing', 'finance', 'calls', 'rep', 'sales_manager', 'mentorship', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'];
+  const AVAILABLE_PERMS = ['sales', 'marketing', 'finance', 'calls', 'rep', 'sales_manager', 'mentorship', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep', 'weekly_stats'];
 
   // Page → which roles grant access. `is_admin: true` always wins.
   // `roles: '*'` means anyone signed in.
@@ -27,6 +27,9 @@
     { href: 'coach.html',        id: 'coach',        roles: ['coach', 'ms_ic', 'delivery_ic'], excludesRoles: ['rep', 'ms_rep'], granular: 'coach.edit' },
     { href: 'email-automations.html', id: 'email_automations', roles: [], adminOnly: true },
     { href: 'access.html',       id: 'access',       roles: [], adminOnly: true, granular: 'users.manage' },
+    // Weekly Stats dashboard — Staff Meeting view. Primary gate is the
+    // granular `weekly_stats.view`; legacy `weekly_stats` role works too.
+    { href: 'weekly-stats.html', id: 'weekly_stats', roles: ['weekly_stats'], granular: 'weekly_stats.view' },
   ];
 
   // Resolve impersonation: when an admin "Views as" another user, all UI

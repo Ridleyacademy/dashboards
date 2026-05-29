@@ -334,46 +334,106 @@ function openDrilldown(metricKey) {
   const canvas = document.getElementById('drillChart');
   drillChartInst = makeMiniChart(canvas, pts, m);
 
-  // Raw rows table — editable for manual metrics.
+  // Raw rows table — editable for manual metrics, "Add new" row on top.
   const wrap = document.getElementById('drillTableWrap');
   const headerLabel = activePeriod === 'weekly' ? 'Week ending (Wed)' : 'Month';
   const rows = pts.slice().reverse(); // most recent first
+  const canMutate = capabilities.can_edit;
+  // Default "Add new" date = current period anchor. The bulk-import endpoint
+  // accepts derived keys as overrides, so this works for any metric.
+  const defaultNewDate = (() => {
+    const now = new Date();
+    if (activePeriod === 'weekly') {
+      const dow = now.getUTCDay();
+      const forward = (3 - dow + 7) % 7;
+      const d = new Date(now); d.setUTCDate(now.getUTCDate() + forward);
+      return d.toISOString().slice(0, 10);
+    }
+    return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString().slice(0, 10);
+  })();
+  const showActions = canMutate;  // both manual + derived: we allow override via bulk-import
   wrap.innerHTML = `
-    <div style="font-size:0.7rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">Raw values</div>
+    <div style="font-size:0.7rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">Raw values${m.source === 'derived' ? ' · derived metric — your entries OVERRIDE the auto-computed value for that period' : ''}</div>
     <table class="raw-table">
-      <thead><tr><th>${headerLabel}</th><th style="text-align:right;">Value</th>${m.source === 'manual' && capabilities.can_edit ? '<th style="text-align:right;">Actions</th>' : ''}</tr></thead>
+      <thead><tr><th>${headerLabel}</th><th style="text-align:right;">Value</th>${showActions ? '<th style="text-align:right;">Actions</th>' : ''}</tr></thead>
       <tbody>
+        ${canMutate ? `
+          <tr id="addRow" style="background:var(--surface2);">
+            <td><input type="date" id="addRowDate" class="row-edit" style="width:140px;text-align:left;" value="${defaultNewDate}"></td>
+            <td class="td-num"><input type="number" step="0.01" id="addRowValue" class="row-edit" placeholder="${m.unit === 'usd' ? '$' : ''}new value"></td>
+            <td style="text-align:right;"><button class="row-save-btn" id="addRowSave" style="background:rgba(52,211,153,0.18);border:1px solid rgba(52,211,153,0.4);color:var(--green);border-radius:6px;padding:4px 12px;font-size:0.72rem;font-weight:800;cursor:pointer;font-family:inherit;">+ Add</button></td>
+          </tr>
+        ` : ''}
         ${rows.map(p => `
           <tr data-period="${p.period_start}">
             <td>${p.period_start}</td>
             <td class="td-num">${
-              m.source === 'manual' && capabilities.can_edit
+              canMutate
                 ? `<input type="number" step="0.01" class="row-edit" value="${p.value ?? ''}" data-orig="${p.value ?? ''}">`
                 : fmtVal(p.value, m.unit)
             }</td>
-            ${m.source === 'manual' && capabilities.can_edit ? `<td style="text-align:right;"><button class="btn-ghost row-save" style="padding:4px 10px;font-size:0.72rem;">Save</button> <button class="btn-danger row-del" style="padding:4px 10px;font-size:0.72rem;">×</button></td>` : ''}
+            ${showActions ? `<td style="text-align:right;"><button class="btn-ghost row-save" style="padding:4px 10px;font-size:0.72rem;">Save</button> <button class="btn-danger row-del" style="padding:4px 10px;font-size:0.72rem;">×</button></td>` : ''}
           </tr>
         `).join('')}
       </tbody>
     </table>
   `;
 
-  // Wire inline edits
-  if (m.source === 'manual' && capabilities.can_edit) {
+  // Wire "Add new" row.
+  if (canMutate) {
+    document.getElementById('addRowSave')?.addEventListener('click', async () => {
+      const dateInput = document.getElementById('addRowDate');
+      const valInput  = document.getElementById('addRowValue');
+      let dateVal = dateInput.value;
+      const v = valInput.value.trim();
+      if (!dateVal) { dateInput.style.borderColor = 'var(--red)'; return; }
+      if (v === '') { valInput.style.borderColor  = 'var(--red)'; return; }
+      // Snap the chosen date to the right boundary (Wed for weekly, 1st for monthly).
+      const d = new Date(dateVal + 'T00:00:00Z');
+      if (activePeriod === 'monthly') {
+        dateVal = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)).toISOString().slice(0, 10);
+      } else {
+        const dow = d.getUTCDay();
+        const forward = (3 - dow + 7) % 7;
+        d.setUTCDate(d.getUTCDate() + forward);
+        dateVal = d.toISOString().slice(0, 10);
+      }
+      try {
+        // Use bulk-import so it works for BOTH manual and derived (as override).
+        await apiFetch('?api=bulk-import', {
+          method: 'POST',
+          body: JSON.stringify({ rows: [{
+            metric_key: metricKey,
+            period_type: activePeriod,
+            period_start: dateVal,
+            value_num: Number(v),
+          }] }),
+        });
+        await loadData();
+        openDrilldown(metricKey);  // re-render with the new row
+      } catch (e) {
+        alert('Add failed: ' + (e.message || e));
+      }
+    });
+  }
+
+  // Wire inline edits (works for both manual metrics and derived overrides).
+  if (canMutate) {
     wrap.querySelectorAll('tr[data-period]').forEach(tr => {
       const period_start = tr.dataset.period;
       tr.querySelector('.row-save')?.addEventListener('click', async () => {
         const inp = tr.querySelector('.row-edit');
         const v = inp.value.trim();
         try {
-          await apiFetch('?api=upsert', {
+          // bulk-import accepts derived keys (as overrides); upsert doesn't.
+          await apiFetch('?api=bulk-import', {
             method: 'POST',
-            body: JSON.stringify({
+            body: JSON.stringify({ rows: [{
               metric_key: metricKey,
               period_type: activePeriod,
               period_start,
               value_num: v === '' ? null : Number(v),
-            }),
+            }] }),
           });
           inp.dataset.orig = v;
           inp.style.borderColor = 'var(--green)';
@@ -387,6 +447,8 @@ function openDrilldown(metricKey) {
       tr.querySelector('.row-del')?.addEventListener('click', async () => {
         if (!confirm(`Delete value for ${period_start}?`)) return;
         try {
+          // delete works for both — removes the manual row / override.
+          // For a derived metric this means "fall back to the auto-computed value."
           await apiFetch('?api=delete', {
             method: 'POST',
             body: JSON.stringify({ metric_key: metricKey, period_type: activePeriod, period_start }),

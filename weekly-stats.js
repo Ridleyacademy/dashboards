@@ -465,9 +465,29 @@ function openDrilldown(metricKey) {
   document.getElementById('drillModal').classList.add('open');
 }
 
-document.getElementById('drillClose').addEventListener('click', () => {
+function closeDrillModal() {
   document.getElementById('drillModal').classList.remove('open');
   if (drillChartInst) { try { drillChartInst.destroy(); } catch (_) {} drillChartInst = null; }
+}
+document.getElementById('drillClose').addEventListener('click', closeDrillModal);
+
+// Click-outside and Escape-to-close for every modal-overlay on the page.
+// Clicks land on the backdrop (the overlay itself), not the inner card —
+// so e.target === currentTarget means the user clicked outside the card.
+['drillModal','addModal','importModal'].forEach(id => {
+  const el = document.getElementById(id); if (!el) return;
+  el.addEventListener('click', (e) => {
+    if (e.target !== el) return;
+    if (id === 'drillModal') closeDrillModal();
+    else el.classList.remove('open');
+  });
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  const open = document.querySelector('.modal-overlay.open');
+  if (!open) return;
+  if (open.id === 'drillModal') closeDrillModal();
+  else open.classList.remove('open');
 });
 
 // ── Period / division tabs ──────────────────────────────────────────

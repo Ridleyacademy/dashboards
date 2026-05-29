@@ -97,6 +97,7 @@ function presetRange(name) {
     case 'last-13w': from.setUTCDate(now.getUTCDate() - 91); break;
     case 'last-26w': from.setUTCDate(now.getUTCDate() - 182); break;
     case 'ytd':      from.setUTCMonth(0); from.setUTCDate(1); break;
+    case 'last-4m':  from.setUTCMonth(now.getUTCMonth() - 4); break;
     case 'last-6m':  from.setUTCMonth(now.getUTCMonth() - 6); break;
     case 'last-12m': from.setUTCMonth(now.getUTCMonth() - 12); break;
     default:         from.setUTCDate(now.getUTCDate() - 91);
@@ -116,7 +117,7 @@ function loadStoredRange() {
   document.getElementById('drLabel').textContent = labelForPreset(preset, dateFrom, dateTo);
 }
 function labelForPreset(preset, from, to) {
-  const map = { 'last-4w':'Last 4 Weeks','last-13w':'Last 13 Weeks','last-26w':'Last 26 Weeks','ytd':'Year to Date','last-6m':'Last 6 Months','last-12m':'Last 12 Months' };
+  const map = { 'last-4w':'Last 4 Weeks','last-13w':'Last 13 Weeks','last-26w':'Last 26 Weeks','ytd':'Year to Date','last-4m':'Last 4 Months','last-6m':'Last 6 Months','last-12m':'Last 12 Months' };
   return map[preset] || `${from} → ${to}`;
 }
 
@@ -497,6 +498,16 @@ document.getElementById('periodTabs').addEventListener('click', e => {
   const btn = e.target.closest('.pill-tab'); if (!btn) return;
   document.querySelectorAll('#periodTabs .pill-tab').forEach(b => b.classList.toggle('active', b === btn));
   activePeriod = btn.dataset.period;
+  // Swap to the period-appropriate default range so the chart density
+  // stays sensible (weekly = last 13 weeks, monthly = last 4 months).
+  const defaultPreset = activePeriod === 'monthly' ? 'last-4m' : 'last-13w';
+  const r = presetRange(defaultPreset);
+  dateFrom = r.from; dateTo = r.to;
+  document.getElementById('dateFrom').value = r.from;
+  document.getElementById('dateTo').value   = r.to;
+  document.querySelectorAll('.dr-preset').forEach(x => x.classList.toggle('active', x.dataset.preset === defaultPreset));
+  document.getElementById('drLabel').textContent = labelForPreset(defaultPreset, r.from, r.to);
+  localStorage.setItem('weekly-stats:range', JSON.stringify({ preset: defaultPreset }));
   loadData();
 });
 document.getElementById('divisionTabs').addEventListener('click', e => {

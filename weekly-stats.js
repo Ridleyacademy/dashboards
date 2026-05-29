@@ -522,12 +522,14 @@ function applyEditCapabilityToButtons() {
   impBtn.style.display = capabilities.can_import ? '' : 'none';
 }
 document.getElementById('addEntryBtn').addEventListener('click', () => {
-  // Default to last Monday for weekly, 1st-of-month for monthly.
+  // Default to the current week's Thursday (start of the Thu→Wed business
+  // week) for weekly, 1st-of-month for monthly.
   const now = new Date();
-  const dow = now.getUTCDay() || 7;
-  const lastMon = new Date(now); lastMon.setUTCDate(now.getUTCDate() - (dow - 1));
+  const dow = now.getUTCDay();
+  const back = (dow - 4 + 7) % 7;
+  const lastThu = new Date(now); lastThu.setUTCDate(now.getUTCDate() - back);
   document.getElementById('addPeriodType').value = 'weekly';
-  document.getElementById('addPeriodStart').value = isoDate(lastMon);
+  document.getElementById('addPeriodStart').value = isoDate(lastThu);
   document.getElementById('addValue').value = '';
   document.getElementById('addNotes').value = '';
   document.getElementById('addError').textContent = '';
@@ -544,8 +546,10 @@ document.getElementById('addPeriodType').addEventListener('change', (e) => {
   if (e.target.value === 'monthly') {
     document.getElementById('addPeriodStart').value = isoDate(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)));
   } else {
-    const dow = d.getUTCDay() || 7;
-    d.setUTCDate(d.getUTCDate() - (dow - 1));
+    // Snap to the Thursday that opens the team's Thu→Wed business week.
+    const dow = d.getUTCDay();
+    const back = (dow - 4 + 7) % 7;
+    d.setUTCDate(d.getUTCDate() - back);
     document.getElementById('addPeriodStart').value = isoDate(d);
   }
 });

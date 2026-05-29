@@ -184,8 +184,10 @@ function renderAll() {
   // Filter catalog to the active division + period. Monthly view shows only
   // 'monthly' metrics; weekly shows everything else.
   const visible = catalog.filter(m => {
-    if (activePeriod === 'weekly'  && m.division === 'monthly') return false;
-    if (activePeriod === 'monthly' && m.division !== 'monthly') return false;
+    // Weekly view hides EOM-snapshot metrics (active rosters etc. that
+    // only make sense monthly). Monthly view shows everything — weekly
+    // data is rolled up on the server.
+    if (activePeriod === 'weekly' && m.division === 'monthly') return false;
     if (activeDivision === 'all') return true;
     return m.division === activeDivision;
   });

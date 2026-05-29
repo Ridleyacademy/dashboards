@@ -154,9 +154,13 @@ async function loadSnapshot() {
 // ── Render ──────────────────────────────────────────────────────────
 function renderForm() {
   // Filter to visible metrics for the active period:
-  //   weekly  → everything except 'monthly'
-  //   monthly → only 'monthly'
-  const visible = catalog.filter(m => activePeriod === 'monthly' ? m.division === 'monthly' : m.division !== 'monthly');
+  //   weekly  → hide 'monthly' division (active rosters etc. only make
+  //             sense as month-end snapshots)
+  //   monthly → show ALL metrics; weeklies are rolled up server-side and
+  //             editing a row saves a monthly override
+  const visible = catalog.filter(m =>
+    activePeriod === 'weekly' ? m.division !== 'monthly' : true
+  );
   const bySnap  = new Map(snapshot.map(s => [s.metric_key, s]));
 
   const area = document.getElementById('formArea');

@@ -93,6 +93,24 @@ function presetRange(name) {
   now.setUTCHours(0,0,0,0);
   const from = new Date(now);
   switch (name) {
+    // Standard presets — match income.html / coach.html / calls.html etc.
+    case 'last-30': from.setUTCDate(now.getUTCDate() - 30); break;
+    case 'this-week': {
+      // Current Thu-Wed business week. `from` = the Thursday that opened it.
+      const dow = now.getUTCDay();
+      const back = (dow - 4 + 7) % 7;
+      from.setUTCDate(now.getUTCDate() - back);
+      break;
+    }
+    case 'last-week': {
+      const dow = now.getUTCDay();
+      const back = (dow - 4 + 7) % 7 + 7;
+      from.setUTCDate(now.getUTCDate() - back);
+      const t = new Date(from); t.setUTCDate(from.getUTCDate() + 6);
+      return { from: isoDate(from), to: isoDate(t), preset: name };
+    }
+    case 'mtd':      from.setUTCDate(1); break;
+    // Weekly Stats-specific (longer trends)
     case 'last-4w':  from.setUTCDate(now.getUTCDate() - 28); break;
     case 'last-13w': from.setUTCDate(now.getUTCDate() - 91); break;
     case 'last-26w': from.setUTCDate(now.getUTCDate() - 182); break;
@@ -117,7 +135,10 @@ function loadStoredRange() {
   document.getElementById('drLabel').textContent = labelForPreset(preset, dateFrom, dateTo);
 }
 function labelForPreset(preset, from, to) {
-  const map = { 'last-4w':'Last 4 Weeks','last-13w':'Last 13 Weeks','last-26w':'Last 26 Weeks','ytd':'Year to Date','last-4m':'Last 4 Months','last-6m':'Last 6 Months','last-12m':'Last 12 Months' };
+  const map = {
+    'last-30':'Last 30 Days','this-week':'This Week (Thu–Wed)','last-week':'Last Week (Thu–Wed)','mtd':'Month to Date',
+    'last-4w':'Last 4 Weeks','last-13w':'Last 13 Weeks','last-26w':'Last 26 Weeks','ytd':'Year to Date','last-4m':'Last 4 Months','last-6m':'Last 6 Months','last-12m':'Last 12 Months',
+  };
   return map[preset] || `${from} → ${to}`;
 }
 

@@ -308,8 +308,15 @@
       </button>
       <div class="daterange-popup" id="daterangePopup">
         <div class="dr-presets">
-          <button class="dr-preset" data-preset="last-4w">Last 4 Weeks</button>
+          <button class="dr-preset" data-preset="last-30">Last 30 Days</button>
           <button class="dr-preset active" data-preset="last-13w">Last 13 Weeks</button>
+          <button class="dr-preset" data-preset="this-week">This Week (Thu – Wed)</button>
+          <button class="dr-preset" data-preset="last-week">Last Week (Thu – Wed)</button>
+          <button class="dr-preset" data-preset="mtd">Month to Date</button>
+        </div>
+        <div class="dr-divider"></div>
+        <div class="dr-custom-label">Longer ranges</div>
+        <div class="dr-presets" style="margin-bottom:10px;">
           <button class="dr-preset" data-preset="last-26w">Last 26 Weeks</button>
           <button class="dr-preset" data-preset="ytd">Year to Date</button>
           <button class="dr-preset" data-preset="last-4m">Last 4 Months</button>
@@ -333,10 +340,6 @@
     </button>
 
     <button class="tbtn tbtn-ghost" id="themeBtn" style="font-size:1rem;padding:5px 10px;" title="Toggle theme"></button>
-
-    <a href="weekly-stats-entry.html" class="tbtn tbtn-success" id="entryLinkBtn" title="Fill in the weekly numbers" style="text-decoration:none;">📝 Enter stats</a>
-    <button class="tbtn tbtn-ghost" id="addEntryBtn" title="Log a single metric value (quick correction)">+ Quick add</button>
-    <button class="tbtn tbtn-primary" id="importBtn" title="Bulk import a CSV backlog">⬆ Import backlog</button>
 
     <div class="nav-dropdown" id="navDropdown">
       <button class="tbtn tbtn-ghost" id="navDropdownBtn">
@@ -370,7 +373,7 @@
     <!-- Banner row (errors / warnings) -->
     <div id="banners"></div>
 
-    <!-- Controls row: period + division -->
+    <!-- Controls row: period + division + actions -->
     <div class="controls-row">
       <div class="pill-tabs" id="periodTabs">
         <button class="pill-tab active" data-period="weekly">Weekly</button>
@@ -383,6 +386,10 @@
         <button class="pill-tab" data-div="D4">D4 · Mentorship</button>
         <button class="pill-tab" data-div="D5">D5 · Masterclass</button>
       </div>
+      <div style="flex:1;"></div>
+      <a href="weekly-stats-entry.html" class="tbtn tbtn-success" id="entryLinkBtn" title="Fill in this period's numbers" style="text-decoration:none;padding:8px 14px;font-size:0.78rem;">📝 Enter stats</a>
+      <button class="tbtn tbtn-ghost" id="addEntryBtn" title="Log a single metric value (quick correction)" style="padding:8px 14px;font-size:0.78rem;">+ Quick add</button>
+      <button class="tbtn tbtn-ghost" id="importBtn" title="Bulk import a CSV backlog" style="padding:8px 14px;font-size:0.78rem;">⬆ Import CSV</button>
     </div>
 
     <!-- KPI strip -->

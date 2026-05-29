@@ -336,7 +336,7 @@ function openDrilldown(metricKey) {
 
   // Raw rows table — editable for manual metrics.
   const wrap = document.getElementById('drillTableWrap');
-  const headerLabel = activePeriod === 'weekly' ? 'Week starting' : 'Month';
+  const headerLabel = activePeriod === 'weekly' ? 'Week ending (Wed)' : 'Month';
   const rows = pts.slice().reverse(); // most recent first
   wrap.innerHTML = `
     <div style="font-size:0.7rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">Raw values</div>
@@ -522,14 +522,14 @@ function applyEditCapabilityToButtons() {
   impBtn.style.display = capabilities.can_import ? '' : 'none';
 }
 document.getElementById('addEntryBtn').addEventListener('click', () => {
-  // Default to the current week's Thursday (start of the Thu→Wed business
-  // week) for weekly, 1st-of-month for monthly.
+  // Default to the Wednesday that closes the current Thu→Wed week for
+  // weekly, or the 1st of the month for monthly.
   const now = new Date();
   const dow = now.getUTCDay();
-  const back = (dow - 4 + 7) % 7;
-  const lastThu = new Date(now); lastThu.setUTCDate(now.getUTCDate() - back);
+  const forward = (3 - dow + 7) % 7;
+  const wedAnchor = new Date(now); wedAnchor.setUTCDate(now.getUTCDate() + forward);
   document.getElementById('addPeriodType').value = 'weekly';
-  document.getElementById('addPeriodStart').value = isoDate(lastThu);
+  document.getElementById('addPeriodStart').value = isoDate(wedAnchor);
   document.getElementById('addValue').value = '';
   document.getElementById('addNotes').value = '';
   document.getElementById('addError').textContent = '';
@@ -546,10 +546,10 @@ document.getElementById('addPeriodType').addEventListener('change', (e) => {
   if (e.target.value === 'monthly') {
     document.getElementById('addPeriodStart').value = isoDate(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)));
   } else {
-    // Snap to the Thursday that opens the team's Thu→Wed business week.
+    // Snap to the Wednesday that closes the team's Thu→Wed business week.
     const dow = d.getUTCDay();
-    const back = (dow - 4 + 7) % 7;
-    d.setUTCDate(d.getUTCDate() - back);
+    const forward = (3 - dow + 7) % 7;
+    d.setUTCDate(d.getUTCDate() + forward);
     document.getElementById('addPeriodStart').value = isoDate(d);
   }
 });

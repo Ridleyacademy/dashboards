@@ -34,14 +34,14 @@ const fmtMoney = (v) => v == null || v === '' ? '—' : '$' + Math.round(Number(
 const fmtCount = (v) => v == null || v === '' ? '—' : Number(v).toLocaleString();
 const fmtVal   = (v, unit) => unit === 'usd' ? fmtMoney(v) : fmtCount(v);
 function isoDate(d) { return d.toISOString().slice(0, 10); }
-// Business weeks run Thursday → Wednesday. Return the Thursday that opens
-// the current week (or today, if today is Thursday).
-function lastThursdayUTC() {
+// Business weeks run Thursday → Wednesday. We anchor on the WEDNESDAY that
+// closes the current week (the date the team uses to label weeks).
+function currentWeekAnchorUTC() {
   const d = new Date();
   d.setUTCHours(0,0,0,0);
-  const dow = d.getUTCDay();                       // Sun=0..Sat=6, Thu=4
-  const back = (dow - 4 + 7) % 7;                  // 0..6 days back to Thursday
-  d.setUTCDate(d.getUTCDate() - back);
+  const dow = d.getUTCDay();                       // Sun=0..Sat=6, Wed=3
+  const forward = (3 - dow + 7) % 7;               // 0..6 days forward to Wed
+  d.setUTCDate(d.getUTCDate() + forward);
   return isoDate(d);
 }
 function thisMonthStartUTC() {
@@ -58,10 +58,10 @@ function snapToBoundary(iso, type) {
   if (!iso) return iso;
   const d = new Date(iso + 'T00:00:00Z');
   if (type === 'monthly') return isoDate(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)));
-  // Snap to the Thursday that opens the team's Thu→Wed business week.
+  // Snap to the Wednesday that closes the team's Thu→Wed business week.
   const dow = d.getUTCDay();
-  const back = (dow - 4 + 7) % 7;
-  d.setUTCDate(d.getUTCDate() - back);
+  const forward = (3 - dow + 7) % 7;
+  d.setUTCDate(d.getUTCDate() + forward);
   return isoDate(d);
 }
 function escapeHtml(s) {
@@ -100,8 +100,9 @@ async function onAuthed(session) {
   }
   setState('dashboard');
 
-  // Default period: most recent Thursday (start of the Thu→Wed business week).
-  activeStart = lastThursdayUTC();
+  // Default period: the Wednesday that closes the current Thu→Wed business
+  // week (or today, if today is a Wednesday).
+  activeStart = currentWeekAnchorUTC();
   document.getElementById('periodStart').value = activeStart;
   syncPeriodHint();
 
@@ -299,9 +300,11 @@ function syncPeriodHint() {
   const inp  = document.getElementById('periodStart');
   if (!inp.value) { hint.textContent = ''; return; }
   if (activePeriod === 'weekly') {
-    const start = new Date(inp.value + 'T00:00:00Z');
-    const end   = new Date(start); end.setUTCDate(end.getUTCDate() + 6);
-    hint.textContent = `Week: ${isoDate(start)} → ${isoDate(end)}`;
+    // The period_start column stores the WEDNESDAY that closes the
+    // Thu→Wed business week — derive the Thursday it opened from there.
+    const end   = new Date(inp.value + 'T00:00:00Z');
+    const start = new Date(end); start.setUTCDate(end.getUTCDate() - 6);
+    hint.textContent = `Week: ${isoDate(start)} (Thu) → ${isoDate(end)} (Wed)`;
   } else {
     const start = new Date(inp.value + 'T00:00:00Z');
     const end   = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 0));
@@ -314,9 +317,9 @@ document.getElementById('periodType').addEventListener('change', (e) => {
     e.target.value = activePeriod; return;
   }
   activePeriod = e.target.value;
-  activeStart = snapToBoundary(activeStart || (activePeriod === 'monthly' ? thisMonthStartUTC() : lastThursdayUTC()), activePeriod);
+  activeStart = snapToBoundary(activeStart || (activePeriod === 'monthly' ? thisMonthStartUTC() : currentWeekAnchorUTC()), activePeriod);
   if (activePeriod === 'monthly' && !activeStart) activeStart = thisMonthStartUTC();
-  if (activePeriod === 'weekly'  && !activeStart) activeStart = lastThursdayUTC();
+  if (activePeriod === 'weekly'  && !activeStart) activeStart = currentWeekAnchorUTC();
   document.getElementById('periodStart').value = activeStart;
   syncPeriodHint();
   loadSnapshot();
@@ -337,7 +340,7 @@ document.getElementById('periodQuick').addEventListener('click', (e) => {
   const btn = e.target.closest('button[data-quick]'); if (!btn) return;
   if (dirty.size && !confirm('Switching period will discard unsaved changes. Continue?')) return;
   document.querySelectorAll('#periodQuick button').forEach(b => b.classList.toggle('active', b === btn));
-  const base = activePeriod === 'monthly' ? thisMonthStartUTC() : lastThursdayUTC();
+  const base = activePeriod === 'monthly' ? thisMonthStartUTC() : currentWeekAnchorUTC();
   const offsetMap = { 'this': 0, 'last': -1, 'prev2': -2, 'prev3': -3 };
   const offset = offsetMap[btn.dataset.quick] ?? 0;
   activeStart = shiftPeriod(base, activePeriod, offset);

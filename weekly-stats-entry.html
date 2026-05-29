@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Weekly Stats · Data Entry</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="permissions.js"></script>
+<style>
+  /* Shared design system with weekly-stats.html — keep these two in sync. */
+  :root {
+    --bg: #080a14;
+    --surface: #0f1120; --surface2: #141728; --surface3: #191e30;
+    --border: #1f2438; --border-light: #272d45;
+    --text: #eaecf8; --text-muted: #7880a8; --text-dim: #3e4668;
+    --blue: #6b9eff; --blue-glow: rgba(107,158,255,0.3); --blue-bg: rgba(107,158,255,0.1);
+    --green: #34d399; --green-bg: rgba(52,211,153,0.1);
+    --purple: #a78bfa; --purple-bg: rgba(167,139,250,0.1);
+    --gold: #fbbf24; --gold-bg: rgba(251,191,36,0.1);
+    --red: #f87171; --cyan: #22d3ee;
+  }
+  body.light {
+    --bg: #f0f2fa; --surface: #ffffff; --surface2: #f5f6fc; --surface3: #eceef8;
+    --border: #dde1f2; --border-light: #ccd1e8;
+    --text: #0f1220; --text-muted: #525b82; --text-dim: #9099be;
+    --blue-bg: rgba(107,158,255,0.1); --green-bg: rgba(52,211,153,0.1);
+  }
+  body.light .topbar { background: rgba(255,255,255,0.9); }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+  body::before {
+    content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background: radial-gradient(ellipse at 15% 15%, rgba(107,158,255,0.07) 0%, transparent 55%),
+                radial-gradient(ellipse at 85% 85%, rgba(167,139,250,0.05) 0%, transparent 55%);
+  }
+
+  /* State machine — copied from weekly-stats.html */
+  .full-center { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; position: relative; z-index: 1; }
+  .login-wrap { width: 100%; max-width: 420px; }
+  .login-logo { width: 56px; height: 56px; border-radius: 16px; margin: 0 auto 24px; background: linear-gradient(135deg,#fbbf24,#34d399); display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 32px rgba(251,191,36,0.4); }
+  .login-card { background: var(--surface); border: 1px solid var(--border); border-radius: 24px; padding: 40px 36px; box-shadow: 0 32px 80px rgba(0,0,0,0.6); }
+  .login-card h1 { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.03em; text-align: center; margin-bottom: 4px; }
+  .login-card .sub { color: var(--text-muted); font-size: 0.84rem; text-align: center; margin-bottom: 28px; }
+  .input-group { margin-bottom: 12px; }
+  .input-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-muted); margin-bottom: 6px; display: block; }
+  .auth-input { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 13px 16px; color: var(--text); font-size: 0.92rem; outline: none; }
+  .auth-input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-bg); }
+  .auth-btn { width: 100%; margin-top: 8px; background: linear-gradient(135deg,#6b9eff,#4a7de0); border: none; border-radius: 12px; padding: 14px; color: #fff; font-size: 0.92rem; font-weight: 700; cursor: pointer; box-shadow: 0 4px 16px rgba(107,158,255,0.35); font-family: inherit; }
+  .auth-error { color: var(--red); font-size: 0.78rem; margin-top: 10px; min-height: 1em; text-align: center; }
+  .spinner { width: 40px; height: 40px; border: 3px solid var(--border); border-top-color: var(--blue); border-radius: 50%; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  body[data-state="loading"] #app, body[data-state="loading"] #login, body[data-state="loading"] #denied { display: none; }
+  body[data-state="loading"] #boot { display: flex; }
+  body[data-state="login"] #app, body[data-state="login"] #boot, body[data-state="login"] #denied { display: none; }
+  body[data-state="login"] #login { display: flex; }
+  body[data-state="denied"] #app, body[data-state="denied"] #boot, body[data-state="denied"] #login { display: none; }
+  body[data-state="denied"] #denied { display: flex; }
+  body[data-state="dashboard"] #login, body[data-state="dashboard"] #boot, body[data-state="dashboard"] #denied { display: none; }
+  body[data-state="dashboard"] #app { display: block; }
+
+  /* Topbar */
+  .topbar { display: flex; align-items: center; gap: 10px; padding: 12px 32px; background: rgba(8,10,20,0.85); backdrop-filter: blur(20px); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; }
+  .topbar-logo { width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0; background: linear-gradient(135deg,#fbbf24,#34d399); display: flex; align-items: center; justify-content: center; box-shadow: 0 0 14px rgba(251,191,36,0.4); }
+  .topbar-brand { font-size: 0.9rem; font-weight: 700; letter-spacing: -0.02em; }
+  .topbar-spacer { flex: 1; }
+  .tbtn { border: none; border-radius: 8px; padding: 6px 12px; font-size: 0.74rem; font-weight: 600; cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 5px; font-family: inherit; }
+  .tbtn-ghost { background: var(--surface2); color: var(--text-muted); border: 1px solid var(--border); }
+  .tbtn-ghost:hover { color: var(--text); border-color: var(--border-light); }
+  .tbtn-primary { background: linear-gradient(135deg,#6b9eff,#4a7de0); color: #fff; box-shadow: 0 2px 10px rgba(107,158,255,0.3); }
+  .tbtn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(107,158,255,0.4); }
+  .tbtn-success { background: linear-gradient(135deg,#34d399,#10b981); color: #08231a; box-shadow: 0 2px 10px rgba(52,211,153,0.3); font-weight: 800; }
+
+  .nav-dropdown { position: relative; }
+  .nav-dropdown-menu { display: none; position: absolute; top: calc(100% + 8px); right: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 6px; min-width: 200px; box-shadow: 0 16px 48px rgba(0,0,0,0.5); z-index: 200; }
+  .nav-dropdown-menu.open { display: block; }
+  .nav-dropdown-item { display: block; padding: 9px 13px; font-size: 0.78rem; font-weight: 600; color: var(--text-muted); text-decoration: none; border-radius: 9px; }
+  .nav-dropdown-item:hover { background: var(--surface2); color: var(--text); }
+  .nav-dropdown-item.active { color: var(--gold); background: var(--gold-bg); }
+
+  .user-pill { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 4px 14px 4px 4px; }
+  .user-pill-av { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; background: linear-gradient(135deg,#fbbf24,#34d399); color: #fff; font-size: 0.62rem; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+  .user-pill-email { font-size: 0.73rem; color: var(--text-muted); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* Page */
+  #app { position: relative; z-index: 1; }
+  .main { max-width: 920px; margin: 0 auto; padding: 36px 32px 100px; animation: fadeUp 0.5s ease both; }
+  @keyframes fadeUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+  @media(max-width:700px) { .main { padding: 24px 16px 80px; } .topbar { padding: 10px 16px; gap: 6px; flex-wrap: wrap; } }
+
+  .page-head { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; flex-wrap: wrap; }
+  .page-title { font-size: 1.6rem; font-weight: 900; letter-spacing: -0.03em; }
+  .page-sub { color: var(--text-muted); font-size: 0.86rem; margin-bottom: 24px; }
+
+  /* Period selector card */
+  .period-card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 18px 22px; margin-bottom: 22px; display: flex; gap: 16px; align-items: end; flex-wrap: wrap; }
+  .period-field { display: flex; flex-direction: column; gap: 6px; }
+  .period-label { font-size: 0.65rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-dim); }
+  .period-input, .period-select { background: var(--surface2); border: 1px solid var(--border); border-radius: 9px; padding: 9px 12px; color: var(--text); font-size: 0.86rem; outline: none; font-family: inherit; color-scheme: dark; min-width: 160px; }
+  body.light .period-input { color-scheme: light; }
+  .period-input:focus, .period-select:focus { border-color: var(--blue); }
+  .period-quick { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+  .period-quick button { background: var(--surface2); border: 1px solid var(--border); color: var(--text-muted); border-radius: 8px; padding: 7px 11px; font-size: 0.72rem; font-weight: 600; cursor: pointer; font-family: inherit; }
+  .period-quick button:hover { color: var(--text); border-color: var(--border-light); }
+  .period-quick button.active { background: rgba(34,211,238,0.1); color: var(--cyan); border-color: var(--cyan); }
+
+  /* Section header */
+  .sec-label { display: flex; align-items: center; gap: 12px; margin: 24px 0 14px; }
+  .sec-label-text { font-size: 0.66rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-dim); white-space: nowrap; }
+  .sec-label-line { flex: 1; height: 1px; background: var(--border); }
+
+  /* Entry rows */
+  .group-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 4px 18px; margin-bottom: 14px; }
+  .entry-row { display: grid; grid-template-columns: 1fr 140px 80px; align-items: center; gap: 14px; padding: 12px 4px; border-bottom: 1px solid var(--border); }
+  .entry-row:last-child { border-bottom: none; }
+  @media(max-width:600px) { .entry-row { grid-template-columns: 1fr 110px; } .entry-row .save-cell { grid-column: 1 / -1; justify-self: end; } }
+  .entry-label { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .entry-label-text { font-size: 0.86rem; font-weight: 700; color: var(--text); }
+  .entry-meta { font-size: 0.7rem; color: var(--text-dim); }
+  .src-tag { display: inline-block; font-size: 0.58rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; padding: 1px 6px; border-radius: 999px; vertical-align: middle; margin-right: 6px; }
+  .src-derived { background: var(--green-bg); color: var(--green); }
+  .src-manual { background: var(--blue-bg); color: var(--blue); }
+  .entry-input { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; color: var(--text); font-size: 0.88rem; outline: none; font-family: inherit; font-variant-numeric: tabular-nums; text-align: right; }
+  .entry-input:focus { border-color: var(--blue); }
+  .entry-input.dirty { border-color: var(--gold); background: rgba(251,191,36,0.05); }
+  .entry-input.saved { border-color: var(--green); }
+  .entry-input.error { border-color: var(--red); }
+  .entry-input[readonly] { background: transparent; border-color: transparent; color: var(--text-muted); cursor: default; }
+  .row-save-btn { background: rgba(52,211,153,0.12); border: 1px solid rgba(52,211,153,0.3); color: var(--green); border-radius: 8px; padding: 7px 10px; font-size: 0.7rem; font-weight: 800; cursor: pointer; font-family: inherit; transition: all 0.12s; opacity: 0.4; pointer-events: none; }
+  .row-save-btn.active { opacity: 1; pointer-events: auto; }
+  .row-save-btn:hover { background: rgba(52,211,153,0.22); }
+
+  /* Bottom action bar */
+  .bottom-bar { position: sticky; bottom: 0; background: rgba(8,10,20,0.92); backdrop-filter: blur(20px); border-top: 1px solid var(--border); margin: 30px -32px -100px; padding: 16px 32px; display: flex; align-items: center; gap: 14px; justify-content: flex-end; flex-wrap: wrap; z-index: 50; }
+  .bottom-bar .status { flex: 1; font-size: 0.82rem; color: var(--text-muted); }
+  .bottom-bar .status.dirty { color: var(--gold); }
+  .bottom-bar .status.saved { color: var(--green); }
+
+  /* Banners */
+  .banner { padding: 10px 14px; border-radius: 10px; font-size: 0.82rem; margin-bottom: 16px; }
+  .banner-info  { background: var(--blue-bg); color: var(--blue); }
+  .banner-warn  { background: rgba(251,191,36,0.1); color: var(--gold); }
+  .banner-error { background: rgba(248,113,113,0.1); color: var(--red); }
+
+  /* Skeletons */
+  .skel { background: linear-gradient(90deg, var(--surface2) 0%, var(--surface3) 50%, var(--surface2) 100%); background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 6px; display: inline-block; }
+  @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+</style>
+</head>
+<body data-state="loading">
+
+<!-- Boot -->
+<div id="boot" class="full-center">
+  <div style="text-align:center;">
+    <div class="spinner" style="margin:0 auto 16px;"></div>
+    <div style="color:var(--text-muted);font-size:0.84rem;">Loading entry sheet…</div>
+  </div>
+</div>
+
+<!-- Login -->
+<div id="login" class="full-center">
+  <div class="login-wrap">
+    <div class="login-logo">
+      <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+    </div>
+    <div class="login-card">
+      <h1>Weekly Stats · Data Entry</h1>
+      <p class="sub">Sign in to enter the week's numbers</p>
+      <form id="loginForm">
+        <div class="input-group"><label class="input-label" for="email">Email address</label><input class="auth-input" type="email" id="email" required autocomplete="email"></div>
+        <div class="input-group"><label class="input-label" for="password">Password</label><input class="auth-input" type="password" id="password" required autocomplete="current-password"></div>
+        <button type="submit" class="auth-btn" id="sendBtn">Sign In</button>
+        <div class="auth-error" id="loginError"></div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Denied -->
+<div id="denied" class="full-center">
+  <div class="login-wrap">
+    <div class="login-logo" style="background:linear-gradient(135deg,#f87171,#ef4444);box-shadow:0 8px 32px rgba(248,113,113,0.4);">
+      <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+    </div>
+    <div class="login-card">
+      <h1>Access Restricted</h1>
+      <p class="sub">You need the <code>weekly_stats.edit</code> permission (or admin) to edit values. Contact your administrator.</p>
+      <button class="auth-btn" id="deniedSignOutBtn" style="background:linear-gradient(135deg,#f87171,#ef4444);">Sign Out</button>
+    </div>
+  </div>
+</div>
+
+<!-- App -->
+<div id="app">
+  <header class="topbar">
+    <div class="topbar-logo">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+    </div>
+    <span class="topbar-brand">Stats Entry</span>
+    <div class="topbar-spacer"></div>
+
+    <a href="weekly-stats.html" class="tbtn tbtn-ghost" title="Switch to the analytics view">📊 View charts</a>
+    <button class="tbtn tbtn-ghost" id="themeBtn" style="font-size:1rem;padding:5px 10px;" title="Toggle theme"></button>
+
+    <div class="nav-dropdown" id="navDropdown">
+      <button class="tbtn tbtn-ghost" id="navDropdownBtn">
+        Dashboards
+        <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="nav-dropdown-menu" id="navDropdownMenu">
+        <a class="nav-dropdown-item" href="home.html">🏠 Home</a>
+        <a class="nav-dropdown-item" href="weekly-stats.html">📊 Weekly Stats (Charts)</a>
+        <a class="nav-dropdown-item active" href="weekly-stats-entry.html">📝 Stats Entry</a>
+        <a class="nav-dropdown-item" href="income.html">💰 Income</a>
+      </div>
+    </div>
+
+    <div class="user-pill">
+      <div class="user-pill-av" id="userAvatar">U</div>
+      <span class="user-pill-email" id="userEmail"></span>
+    </div>
+    <button class="tbtn tbtn-ghost" id="signOutBtn">
+      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      Sign Out
+    </button>
+  </header>
+
+  <div class="main">
+    <div class="page-head">
+      <div class="page-title">Enter weekly stats</div>
+    </div>
+    <div class="page-sub">Fill in the numbers for the chosen period and save. Derived metrics (auto-computed from existing data) are shown read-only so you have full context — only blue-tagged <span class="src-tag src-manual">manual</span> rows need your input.</div>
+
+    <div id="banners"></div>
+
+    <!-- Period selector -->
+    <div class="period-card">
+      <div class="period-field">
+        <span class="period-label">Period type</span>
+        <select id="periodType" class="period-select">
+          <option value="weekly">Weekly</option>
+          <option value="monthly">Monthly</option>
+        </select>
+      </div>
+      <div class="period-field">
+        <span class="period-label">Period start</span>
+        <input type="date" id="periodStart" class="period-input">
+        <div id="periodHint" style="font-size:0.7rem;color:var(--text-dim);margin-top:2px;"></div>
+      </div>
+      <div class="period-field">
+        <span class="period-label">Quick pick</span>
+        <div class="period-quick" id="periodQuick">
+          <button data-quick="this">This period</button>
+          <button data-quick="last">Last period</button>
+          <button data-quick="prev2">2 ago</button>
+          <button data-quick="prev3">3 ago</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Form (populated by JS) -->
+    <div id="formArea"></div>
+
+    <!-- Bottom action bar -->
+    <div class="bottom-bar">
+      <div class="status" id="saveStatus">Idle</div>
+      <button class="tbtn tbtn-ghost" id="reloadBtn">↻ Reload values</button>
+      <button class="tbtn tbtn-success" id="saveAllBtn" style="padding:10px 22px;font-size:0.86rem;" disabled>Save all changes</button>
+    </div>
+  </div>
+</div>
+
+<script src="weekly-stats-entry.js"></script>
+<script src="access-guard.js"></script>
+</body>
+</html>

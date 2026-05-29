@@ -30,6 +30,9 @@
     // Weekly Stats dashboard — Staff Meeting view. Primary gate is the
     // granular `weekly_stats.view`; legacy `weekly_stats` role works too.
     { href: 'weekly-stats.html', id: 'weekly_stats', roles: ['weekly_stats'], granular: 'weekly_stats.view' },
+    // Weekly Stats data entry — same gate as the view (edit permission is
+    // checked server-side; the page renders read-only for viewers).
+    { href: 'weekly-stats-entry.html', id: 'weekly_stats_entry', roles: ['weekly_stats'], granular: 'weekly_stats.view' },
   ];
 
   // Resolve impersonation: when an admin "Views as" another user, all UI

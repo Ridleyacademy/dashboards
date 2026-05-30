@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v176-ra-favicon';
+const CACHE_NAME = 'ridley-v177-favicon-cachebust';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [

@@ -40,6 +40,11 @@ let students = [];
 let currentStudent = null;     // full row when one is selected
 let mentors = [];
 let coaches = [];
+let reps = [];          // assignable rep display names — driven by ?api=reps
+// True when the user can ONLY edit the `rep` field on the profile (sales
+// manager who also holds ms_rep). isProfileReadOnly is still true in that
+// case; this is an exception layered on top.
+let canEditRepOnly = false;
 // MS rep only: read-only on the CRM except for resigns + alerts.
 let isMsRepOnly = false;
 // True when the signed-in user can VIEW the MS dashboard but should NOT be
@@ -117,6 +122,10 @@ async function onAuthed(session) {
     || v2.includes('students.edit')
     || (!isRep && (ps.includes('coach') || ps.includes('ms_ic') || ps.includes('delivery_ic')));
   isProfileReadOnly = !canEditProfile;
+  // Sales managers who also hold MS-rep need to reassign students between
+  // reps even though they can't edit the rest of the profile. Server-side
+  // enforcement still applies (students v65 ?api=update-rep).
+  canEditRepOnly = !canEditProfile && (isAdmin || (ps.includes('sales_manager') && ps.includes('ms_rep')));
   // Default-to-mine for both Coach and MS-Rep roles. Mentorship I/C and
   // Delivery I/C don't trigger the auto-filter — they see everyone by default.
   // _isMine matches the user against either coach OR rep on the student row.
@@ -142,6 +151,7 @@ async function onAuthed(session) {
   // so any URL-hash openStudent below has the full list available.
   loadMentors();
   loadCoaches();
+  loadReps();
   await loadStudents();
   // URL params honored on first load:
   //   ?student=N&openAlert=K     open student then jump to a specific alert
@@ -323,6 +333,18 @@ async function loadCoaches() {
     if (r.ok) {
       // Show first_name when present, otherwise email; both are valid coach identifiers.
       coaches = (j.coaches || []).map(c => c.first_name || c.email).filter(Boolean);
+    }
+  } catch (_) { /* non-fatal */ }
+}
+async function loadReps() {
+  try {
+    const r = await fetch(STUDENTS_BASE + '?api=reps', { headers: { Authorization: 'Bearer ' + currentSession.access_token } });
+    const j = await r.json();
+    if (r.ok) {
+      // Use the display name (first_name or email handle) — that's what gets
+      // written into mentorship_students.rep so the column stays a free-form
+      // text label that older legacy values can still match against.
+      reps = (j.reps || []).map(r => r.display).filter(Boolean);
     }
   } catch (_) { /* non-fatal */ }
 }
@@ -1190,7 +1212,7 @@ const SECTIONS = [
     { k: 'name',    label: 'Name *',          type: 'text',  full: true },
     { k: 'email',   label: 'Email',           type: 'email' },
     { k: 'phone',   label: 'Phone',           type: 'tel'   },
-    { k: 'rep',     label: 'Rep',         type: 'text'  },
+    { k: 'rep',     label: 'Rep',             type: 'datalist', opts: 'reps', placeholder: 'Type or pick a rep…' },
     { k: 'status',  label: 'Status',          type: 'select', opts: STATUSES },
   ]],
   ['Purchase', [
@@ -1267,7 +1289,9 @@ function _buildField(field, value) {
     }
     inner = `<select class="field-select" id="${id}" data-key="${field.k}">${optHtml}</select>`;
   } else if (field.type === 'datalist') {
-    const opts = field.opts === 'coaches' ? coaches : (Array.isArray(field.opts) ? field.opts : []);
+    const opts = field.opts === 'coaches' ? coaches
+              : field.opts === 'reps'    ? reps
+              : (Array.isArray(field.opts) ? field.opts : []);
     const dlId = 'dl-' + field.k;
     const optHtml = (opts || []).map(o => `<option value="${String(o).replace(/"/g,'&quot;')}"></option>`).join('');
     inner = `<input class="field-input" type="text" id="${id}" data-key="${field.k}" list="${dlId}"${field.placeholder ? ` placeholder="${field.placeholder}"` : ''}><datalist id="${dlId}">${optHtml}</datalist>`;
@@ -1956,11 +1980,14 @@ function renderProfile() {
   // Profile lockdown: disable every base-field input + hide save/delete for
   // anyone who can VIEW the board but isn't a profile editor (admin / coach /
   // ms_ic / delivery_ic). Resigns + Alerts stay editable — they're the rep's
-  // primary workflow.
+  // primary workflow. Plus: if `canEditRepOnly` (sales_manager+ms_rep), the
+  // single `rep` field stays editable and gets its own inline Save button.
   if (isProfileReadOnly) {
     card.querySelectorAll('input, select, textarea').forEach(el => {
       // Spare resign rows (.resign-* classes) — they need to be editable.
       if (el.closest('table') && (el.classList.contains('resign-date') || el.classList.contains('resign-months') || el.classList.contains('resign-amount') || el.classList.contains('resign-notes'))) return;
+      // Rep field stays editable for the sales_manager+ms_rep combo.
+      if (canEditRepOnly && el.id === 'f-rep') return;
       // Field-level inputs are tagged with id="f-*" — that's the entire
       // IDENTITY / ONBOARDING / PAUSES / COACH / ACTIVITY HISTORY /
       // RESOURCES / ADMIN surface.
@@ -1974,8 +2001,60 @@ function renderProfile() {
     const delBtn  = document.getElementById('prof-delete'); if (delBtn)  delBtn.style.display  = 'none';
     const msg = document.getElementById('prof-msg');
     if (msg && !msg.textContent) {
-      msg.textContent = isMsRepOnly ? 'Read-only (MS rep)' : 'Read-only';
+      msg.textContent = canEditRepOnly
+        ? 'Read-only · except the Rep field'
+        : (isMsRepOnly ? 'Read-only (MS rep)' : 'Read-only');
       msg.style.color = 'var(--text-dim)';
+    }
+    // For canEditRepOnly users, attach a small "Save rep" button right after
+    // the Rep input so the workflow is obvious.
+    if (canEditRepOnly && !isNew) {
+      const repInput = card.querySelector('#f-rep');
+      const repField = repInput?.closest('.field');
+      if (repField && !repField.querySelector('.rep-save-btn')) {
+        const wrap = document.createElement('div');
+        wrap.style.cssText = 'display:flex;gap:8px;align-items:center;margin-top:6px;';
+        wrap.innerHTML = `
+          <button type="button" class="rep-save-btn" style="background:linear-gradient(135deg,#34d399,#10b981);color:#08231a;border:none;border-radius:8px;padding:6px 14px;font-size:0.74rem;font-weight:800;cursor:pointer;font-family:inherit;">Save rep</button>
+          <span class="rep-save-msg" style="font-size:0.72rem;color:var(--text-dim);"></span>
+        `;
+        repField.appendChild(wrap);
+        const btn = wrap.querySelector('.rep-save-btn');
+        const msgEl = wrap.querySelector('.rep-save-msg');
+        const origRep = (repInput.value || '').trim();
+        repInput.addEventListener('input', () => {
+          const v = (repInput.value || '').trim();
+          btn.disabled = v === (repInput.dataset.savedOrig || origRep);
+          btn.style.opacity = btn.disabled ? '0.5' : '1';
+          msgEl.textContent = '';
+        });
+        btn.disabled = true; btn.style.opacity = '0.5';
+        btn.addEventListener('click', async () => {
+          const v = (repInput.value || '').trim();
+          btn.disabled = true; btn.style.opacity = '0.5';
+          msgEl.textContent = 'Saving…'; msgEl.style.color = 'var(--text-dim)';
+          try {
+            const r = await fetch(STUDENTS_BASE + '?api=update-rep', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
+              body: JSON.stringify({ id: currentStudent.id, rep: v }),
+            });
+            const j = await r.json();
+            if (!r.ok) throw new Error(j.error || 'Save failed');
+            repInput.dataset.savedOrig = v;
+            // Reflect locally so the row colour / "Mine" filter recalculates.
+            currentStudent.rep = v || null;
+            const idx = students.findIndex(s => s.id === currentStudent.id);
+            if (idx >= 0) students[idx].rep = v || null;
+            msgEl.textContent = '✓ Saved'; msgEl.style.color = 'var(--green)';
+            setTimeout(() => { msgEl.textContent = ''; }, 1500);
+          } catch (e) {
+            msgEl.textContent = 'Failed: ' + (e.message || e);
+            msgEl.style.color = 'var(--red)';
+            btn.disabled = false; btn.style.opacity = '1';
+          }
+        });
+      }
     }
   }
   if (!isNew) {

@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v183-no-status-dropdown';
+const CACHE_NAME = 'ridley-v184-no-dup-refunded';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [

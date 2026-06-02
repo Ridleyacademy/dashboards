@@ -1862,7 +1862,7 @@ function renderProfile() {
     : ds === 'Expired'       ? `⚠ Expired (${Math.abs(s.days_left || 0)}d ago)`
     : ds === 'Paused'        ? '⏸ Paused'
     : ds === 'Delayed start' ? `⏳ Delayed start (${s.days_until_start}d to go${s.delayed_start_date ? ' — ' + s.delayed_start_date : ''})`
-    : ds === 'Refunded'      ? `↩ Refunded${s.refunded_date ? ' ' + s.refunded_date : ''}`
+    : ds === 'Refunded'      ? `↩ Refunded${s.refunded_date ? ' ' + s.refunded_date : ''}${s.refunded_amount != null ? ' — $' + Number(s.refunded_amount).toLocaleString() : ''}`
     : ds === 'Graduated'     ? `🎓 Graduated${s.graduated_at ? ' ' + String(s.graduated_at).slice(0,10) : ''}`
     : ds === 'Cancelled'     ? '✕ Cancelled'
     : 'Not onboarded';
@@ -1890,10 +1890,9 @@ function renderProfile() {
     badges.push(`<span class="badge" style="background:rgba(107,158,255,0.18);color:#6b9eff;border:1px solid rgba(107,158,255,0.4);display:inline-flex;align-items:center;gap:5px;" title="Total assignments received from this student${hint}">${ICONS.music(13)} ${s.lessons_total} lesson${s.lessons_total !== 1 ? 's' : ''}</span>`);
   }
   if (s.verified)         badges.push('<span class="badge ver">✓ Verified</span>');
-  if (s.refunded_date) {
-    const amt = s.refunded_amount != null ? ` — $${Number(s.refunded_amount).toLocaleString()}` : '';
-    badges.push(`<span class="badge exp" style="background:rgba(244,114,182,0.18);color:#f472b6;border:1px solid rgba(244,114,182,0.4);">↩ Refunded ${s.refunded_date}${amt}</span>`);
-  }
+  // The lifecycle chip already renders the Refunded badge with date + amount,
+  // so no extra refunded pill here (used to be a second chip that duplicated
+  // the same info — see the chain above).
 
   card.innerHTML = `
     <div class="profile-head">

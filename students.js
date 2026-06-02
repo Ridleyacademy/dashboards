@@ -301,11 +301,13 @@ async function loadStudents() {
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || 'Failed');
     const rows = j.rows || [];
-    const sigPrev = students.length + ':' + (students[0]?.id || '') + ':' + (students[students.length-1]?.id || '');
-    const sigNew = rows.length + ':' + (rows[0]?.id || '') + ':' + (rows[rows.length-1]?.id || '');
     students = rows;
     _writeStudentsCache(rows);
-    if (sigPrev !== sigNew || !cache) renderStudentList();
+    // Always re-render. The previous optimisation (skip render if first/last
+    // IDs unchanged) missed in-place field updates — e.g. setting an onboarded
+    // date doesn't change the list shape, but the derived_status badge on
+    // that row needs to refresh from "Not onboarded" to "Active".
+    renderStudentList();
   } catch (e) {
     if (!students.length) {
       list.innerHTML = '';

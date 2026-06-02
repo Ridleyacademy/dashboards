@@ -1180,6 +1180,20 @@ async function openStudent(id) {
     if (_openStudentLatestId !== id) return;
     if (!r.ok) throw new Error(j.error || 'Failed');
     currentStudent = j.row || null;
+    // Sync the freshly-computed lifecycle back into the sidebar list. Without
+    // this the sidebar can show a stale derived_status (e.g. "Expired") even
+    // though the profile pane shows the correct new state — happens when an
+    // onboarded_date or pause is edited from elsewhere after the list was
+    // last fetched. We merge instead of replace so list-only roll-ups
+    // (open_alerts_count etc.) aren't clobbered by the GET payload which
+    // doesn't include those rollups.
+    if (currentStudent && currentStudent.id) {
+      const idx = students.findIndex(x => x.id === currentStudent.id);
+      if (idx >= 0) {
+        students[idx] = { ...students[idx], ...currentStudent };
+        try { renderStudentList(); } catch (_) {}
+      }
+    }
     currentPauses  = Array.isArray(j.pauses)  ? j.pauses  : [];
     currentResigns = Array.isArray(j.resigns) ? j.resigns : [];
     currentAlerts  = Array.isArray(j.alerts)  ? j.alerts  : [];
@@ -1970,7 +1984,9 @@ function renderProfile() {
   if (!isNew) {
     document.getElementById('prof-display-name').textContent = s.name || '(unnamed)';
     const subParts = [];
-    if (s.status)            subParts.push(s.status);
+    // Show the derived (lifecycle) status to match the badge chip — raw
+    // status is no longer user-editable since v310 and can lag the data.
+    if (s.derived_status)    subParts.push(s.derived_status);
     if (s.coach || s.mentor) subParts.push('Coach: ' + (s.coach || s.mentor));
     if (s.months_count != null) subParts.push(s.months_count + ' months');
     if (s.email)             subParts.push(s.email);

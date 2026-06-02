@@ -974,6 +974,11 @@ async function openProfileModal(id) {
         <button type="button" class="btn-ghost pf-jump-logs" title="View / add logs (coach notes, wins, rep notes, IC notes, turnovers)" style="padding:6px 12px;font-size:0.78rem;">
           📋 Logs${(row.coach_notes_count|0) > 0 ? ` <span style="background:rgba(34,211,238,0.18);color:#22d3ee;border-radius:9px;padding:1px 7px;margin-left:4px;font-size:0.7rem;font-weight:800;">${row.coach_notes_count}</span>` : ''}
         </button>
+        ${(row.lessons_total|0) > 0 ? `
+        <span class="pf-lessons" title="Lessons done = assignments received from this student${(row.lessons_total - (row.lessons_received_count|0)) ? ' (' + (row.lessons_received_count|0) + ' logged + ' + (row.lessons_total - (row.lessons_received_count|0)) + ' backlog)' : ''}" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;font-size:0.78rem;background:rgba(107,158,255,0.14);color:#6b9eff;border:1px solid rgba(107,158,255,0.35);border-radius:8px;font-weight:700;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+          ${row.lessons_total} lesson${row.lessons_total !== 1 ? 's' : ''}
+        </span>` : ''}
         <a href="students.html?student=${row.id}" target="_blank" class="btn-ghost" title="Open in full CRM">Full profile ↗</a>
         <button class="close" data-x>×</button>
       </div>

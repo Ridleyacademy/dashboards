@@ -825,11 +825,8 @@ function renderStudentList() {
     // dot color carries lifecycle status (Expired = red dot etc.).
     const tinyBadges = [];
     if (s.wins_count) tinyBadges.push(`<span class="badge win" style="font-size:0.55rem;padding:1px 6px;margin-left:6px;vertical-align:middle;" title="${s.wins_count} win${s.wins_count !== 1 ? 's' : ''}">★ ${s.wins_count}</span>`);
-    if (s.lessons_total) {
-      const got = s.lessons_received_count || 0;
-      const back = (s.lessons_total || 0) - got;
-      tinyBadges.push(`<span class="badge" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;background:rgba(107,158,255,0.18);color:#6b9eff;" title="${s.lessons_total} lesson${s.lessons_total !== 1 ? 's' : ''} done${back ? ' · ' + got + ' logged + ' + back + ' backlog' : ''}">📘 ${s.lessons_total}</span>`);
-    }
+    // Lessons count is shown inside the profile/popup only — kept out of the
+    // sidebar row to keep the meta line uncluttered.
     if (s.verified)        tinyBadges.push('<span class="badge ver" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;">✓</span>');
     if (s.open_alerts_count) tinyBadges.push(`<span class="badge exp" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;" title="${s.open_alerts_count} unresolved alert${s.open_alerts_count !== 1 ? 's' : ''}">⚠ ${s.open_alerts_count}</span>`);
     if (s.derived_status === 'Paused') tinyBadges.push('<span class="badge win" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;" title="Paused">⏸</span>');
@@ -1886,7 +1883,9 @@ function renderProfile() {
     const got = s.lessons_received_count || 0;
     const back = (s.lessons_total || 0) - got;
     const hint = back ? ` (${got} logged + ${back} backlog)` : '';
-    badges.push(`<span class="badge" style="background:rgba(107,158,255,0.18);color:#6b9eff;border:1px solid rgba(107,158,255,0.4);" title="Total assignments received from this student${hint}">📘 ${s.lessons_total} lesson${s.lessons_total !== 1 ? 's' : ''}</span>`);
+    // Eighth-note SVG (Feather "music") — feels right for a piano academy
+    // and matches the rest of the lucide-style icons across the dashboard.
+    badges.push(`<span class="badge" style="background:rgba(107,158,255,0.18);color:#6b9eff;border:1px solid rgba(107,158,255,0.4);display:inline-flex;align-items:center;gap:5px;" title="Total assignments received from this student${hint}">${ICONS.music(13)} ${s.lessons_total} lesson${s.lessons_total !== 1 ? 's' : ''}</span>`);
   }
   if (s.verified)         badges.push('<span class="badge ver">✓ Verified</span>');
   if (s.refunded_date) {

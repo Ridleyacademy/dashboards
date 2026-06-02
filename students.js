@@ -1840,16 +1840,40 @@ function renderProfile() {
   }).join('');
 
   // Status badges in header — computed lifecycle is the source of truth.
+  // Keep this in sync with the server's computeLifecycle output: any of
+  // Active, Inactive, Expiring soon, Expired, Paused, Delayed start,
+  // Not onboarded, Refunded, Graduated, Cancelled.
   const badges = [];
   const ds = s.derived_status || 'Not onboarded';
-  const dsClass = ds === 'Active' ? 'ver' : ds === 'Expiring soon' ? 'win' : ds === 'Expired' ? 'exp' : ds === 'Paused' ? 'win' : ds === 'Delayed start' ? 'ver' : 'exp';
-  const dsLabel = ds === 'Active' ? '● Active'
+  const dsClass =
+      ds === 'Active'        ? 'ver'
+    : ds === 'Inactive'      ? 'exp'
+    : ds === 'Expiring soon' ? 'win'
+    : ds === 'Expired'       ? 'exp'
+    : ds === 'Paused'        ? 'win'
+    : ds === 'Delayed start' ? 'ver'
+    : ds === 'Refunded'      ? 'exp'
+    : ds === 'Graduated'     ? 'ver'
+    : ds === 'Cancelled'     ? 'exp'
+    : 'exp';
+  const dsLabel =
+      ds === 'Active'        ? '● Active'
+    : ds === 'Inactive'      ? '○ Inactive'
     : ds === 'Expiring soon' ? `⚠ Expiring soon (${s.days_left}d left)`
     : ds === 'Expired'       ? `⚠ Expired (${Math.abs(s.days_left || 0)}d ago)`
     : ds === 'Paused'        ? '⏸ Paused'
     : ds === 'Delayed start' ? `⏳ Delayed start (${s.days_until_start}d to go${s.delayed_start_date ? ' — ' + s.delayed_start_date : ''})`
+    : ds === 'Refunded'      ? `↩ Refunded${s.refunded_date ? ' ' + s.refunded_date : ''}`
+    : ds === 'Graduated'     ? `🎓 Graduated${s.graduated_at ? ' ' + String(s.graduated_at).slice(0,10) : ''}`
+    : ds === 'Cancelled'     ? '✕ Cancelled'
     : 'Not onboarded';
-  const dsStyle = ds === 'Delayed start' ? ' style="background:rgba(96,165,250,0.18);color:#60a5fa;"' : '';
+  // Visually distinguish a few statuses that share the default colour class.
+  const dsStyle =
+      ds === 'Delayed start' ? ' style="background:rgba(96,165,250,0.18);color:#60a5fa;"'
+    : ds === 'Inactive'      ? ' style="background:rgba(120,128,168,0.18);color:#7880a8;"'
+    : ds === 'Refunded'      ? ' style="background:rgba(244,114,182,0.18);color:#f472b6;"'
+    : ds === 'Graduated'     ? ' style="background:rgba(52,211,153,0.18);color:#34d399;"'
+    : '';
   badges.push(`<span class="badge ${dsClass}"${dsStyle}>${dsLabel}</span>`);
   if (s.effective_end_date) {
     badges.push(`<span class="badge ver" style="background:rgba(120,128,168,0.18);color:#7880a8;">Ends ${s.effective_end_date}</span>`);

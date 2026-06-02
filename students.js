@@ -853,6 +853,48 @@ function renderStudentList() {
   }
 }
 
+// Update one student's sidebar row without re-rendering the whole list — keeps
+// scroll position intact when ?api=get returns fresh lifecycle for the opened
+// student. Mirrors the row shape built inside renderStudentList.
+function _updateStudentRowInPlace(s) {
+  const row = document.querySelector(`#studentList .student-row[data-id="${s.id}"]`);
+  if (!row) return;
+  // Status dot
+  const dot = row.querySelector('.status-dot');
+  if (dot) dot.className = 'status-dot status-derived-' + (s.derived_status || 'Notonboarded').replace(/\s/g, '');
+  // Name + tiny badges
+  const nameEl = row.querySelector('.student-row-name');
+  if (nameEl) {
+    nameEl.textContent = s.name || '(unnamed)';
+    const tinyBadges = [];
+    if (s.wins_count) tinyBadges.push(`<span class="badge win" style="font-size:0.55rem;padding:1px 6px;margin-left:6px;vertical-align:middle;" title="${s.wins_count} win${s.wins_count !== 1 ? 's' : ''}">★ ${s.wins_count}</span>`);
+    if (s.verified)        tinyBadges.push('<span class="badge ver" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;">✓</span>');
+    if (s.open_alerts_count) tinyBadges.push(`<span class="badge exp" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;" title="${s.open_alerts_count} unresolved alert${s.open_alerts_count !== 1 ? 's' : ''}">⚠ ${s.open_alerts_count}</span>`);
+    if (s.derived_status === 'Paused') tinyBadges.push('<span class="badge win" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;" title="Paused">⏸</span>');
+    if (s.refunded_date) tinyBadges.push(`<span class="badge exp" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;background:rgba(244,114,182,0.18);color:#f472b6;" title="Refunded on ${s.refunded_date}${s.refunded_amount != null ? ' — $' + s.refunded_amount : ''}">↩ Refunded</span>`);
+    if (_dupCache.has(s.id)) tinyBadges.push('<span class="badge exp" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;background:rgba(167,139,250,0.18);color:#a78bfa;" title="Possible duplicate of another student (same email or name)">⎘ dup</span>');
+    if (tinyBadges.length) nameEl.insertAdjacentHTML('beforeend', tinyBadges.join(''));
+  }
+  // Meta text (status · coach · daysLeft)
+  const metaEl = row.querySelector('.meta-text');
+  if (metaEl) {
+    const metaParts = [];
+    if (s.derived_status)          metaParts.push(s.derived_status);
+    else if (s.status)             metaParts.push(s.status);
+    const coach = s.coach || s.mentor;
+    if (coach)                     metaParts.push('· ' + coach);
+    if (s.derived_status === 'Delayed start' && s.days_until_start != null) {
+      metaParts.push('· ' + s.days_until_start + 'd to start');
+    } else if (s.days_left != null && s.derived_status !== 'Not onboarded') {
+      const dl = s.days_left;
+      metaParts.push('· ' + (dl >= 0 ? `${dl}d left` : `${Math.abs(dl)}d ago`));
+    } else if (s.months_count != null) {
+      metaParts.push('· ' + s.months_count + 'mo');
+    }
+    metaEl.textContent = metaParts.join(' ');
+  }
+}
+
 document.getElementById('studentSearch').addEventListener('input', renderStudentList);
 document.getElementById('refreshBtn').addEventListener('click', loadStudents);
 document.getElementById('addStudentBtn').addEventListener('click', () => openStudent(null));
@@ -1180,18 +1222,37 @@ async function openStudent(id) {
     if (_openStudentLatestId !== id) return;
     if (!r.ok) throw new Error(j.error || 'Failed');
     currentStudent = j.row || null;
-    // Sync the freshly-computed lifecycle back into the sidebar list. Without
-    // this the sidebar can show a stale derived_status (e.g. "Expired") even
-    // though the profile pane shows the correct new state — happens when an
-    // onboarded_date or pause is edited from elsewhere after the list was
-    // last fetched. We merge instead of replace so list-only roll-ups
-    // (open_alerts_count etc.) aren't clobbered by the GET payload which
-    // doesn't include those rollups.
+    // Sync the freshly-computed lifecycle back into the sidebar list.
+    // Without this the sidebar can show a stale derived_status (e.g.
+    // "Expired") even though the profile pane shows the correct new state.
+    // We merge instead of replace so list-only roll-ups (open_alerts_count
+    // etc.) aren't clobbered by the GET payload.
+    //
+    // To avoid scroll-jump every time someone clicks a student, we DON'T
+    // re-render the whole list. We update just the matching row in place
+    // (status dot + meta line), preserving scroll position. If the row isn't
+    // currently in the DOM (filtered out, virtualised, etc.) we skip.
     if (currentStudent && currentStudent.id) {
       const idx = students.findIndex(x => x.id === currentStudent.id);
       if (idx >= 0) {
-        students[idx] = { ...students[idx], ...currentStudent };
-        try { renderStudentList(); } catch (_) {}
+        const before = students[idx];
+        const after = { ...before, ...currentStudent };
+        students[idx] = after;
+        // Only update the DOM if something the sidebar actually displays
+        // changed — avoids any flicker on a no-op click.
+        const changedDisplay =
+          before.derived_status !== after.derived_status ||
+          before.days_left      !== after.days_left      ||
+          before.coach          !== after.coach          ||
+          before.mentor         !== after.mentor         ||
+          before.name           !== after.name           ||
+          before.verified       !== after.verified       ||
+          (before.wins_count || 0)        !== (after.wins_count || 0) ||
+          (before.open_alerts_count || 0) !== (after.open_alerts_count || 0) ||
+          (before.refunded_date || '')    !== (after.refunded_date || '');
+        if (changedDisplay) {
+          try { _updateStudentRowInPlace(after); } catch (_) {}
+        }
       }
     }
     currentPauses  = Array.isArray(j.pauses)  ? j.pauses  : [];

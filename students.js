@@ -1217,7 +1217,9 @@ const SECTIONS = [
     { k: 'email',   label: 'Email',           type: 'email' },
     { k: 'phone',   label: 'Phone',           type: 'tel'   },
     { k: 'rep',     label: 'Rep',             type: 'datalist', opts: 'reps', placeholder: 'Type or pick a rep…' },
-    { k: 'status',  label: 'Status',          type: 'select', opts: STATUSES },
+    // Status is now fully auto-derived in computeLifecycle (Active / Inactive
+    // / Expiring / Expired / Paused / Delayed / Refunded / Graduated etc.)
+    // and surfaced via the header chip — no manual override field needed.
   ]],
   ['Purchase', [
     { k: 'first_purchase_date', label: '1st purchase date',          type: 'date' },
@@ -1961,9 +1963,9 @@ function renderProfile() {
   card.querySelectorAll('.zoom-history-btn').forEach(btn => {
     btn.addEventListener('click', () => openZoomHistoryModal());
   });
-  // Status default
-  const statusEl = document.getElementById('f-status');
-  if (statusEl && !STATUSES.includes(statusEl.value)) statusEl.value = 'Active';
+  // Status field used to live in the Identity section; now it's fully
+  // derived. DB still keeps the raw column ('Active' by default) for the
+  // tiny number of cases where lifecycle reads status === 'Cancelled'.
 
   // Header sub-line
   if (!isNew) {

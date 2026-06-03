@@ -32,7 +32,8 @@ const DIVISION_GROUPS = [
 // ── Helpers ─────────────────────────────────────────────────────────
 const fmtMoney = (v) => v == null || v === '' ? '—' : '$' + Math.round(Number(v)).toLocaleString();
 const fmtCount = (v) => v == null || v === '' ? '—' : Number(v).toLocaleString();
-const fmtVal   = (v, unit) => unit === 'usd' ? fmtMoney(v) : fmtCount(v);
+const fmtPctV  = (v) => v == null || v === '' ? '—' : Number(v).toFixed(1) + '%';
+const fmtVal   = (v, unit) => unit === 'usd' ? fmtMoney(v) : (unit === 'pct' ? fmtPctV(v) : fmtCount(v));
 function isoDate(d) { return d.toISOString().slice(0, 10); }
 // Business weeks run Thursday → Wednesday. We anchor on the WEDNESDAY that
 // closes the current week (the date the team uses to label weeks).
@@ -182,13 +183,13 @@ function renderForm() {
         <div class="entry-row" data-key="${escapeHtml(m.key)}">
           <div class="entry-label">
             <div class="entry-label-text"><span class="src-tag ${isManual ? 'src-manual' : 'src-derived'}">${isManual ? 'manual' : 'auto'}</span>${escapeHtml(m.label)}</div>
-            <div class="entry-meta">Prior ${activePeriod === 'weekly' ? 'week' : 'month'}: ${prevDisplay}${m.unit === 'usd' ? ' · USD' : ''}${isManual ? '' : ' · auto-computed, edit upstream'}</div>
+            <div class="entry-meta">Prior ${activePeriod === 'weekly' ? 'week' : 'month'}: ${prevDisplay}${m.unit === 'usd' ? ' · USD' : (m.unit === 'pct' ? ' · enter as percent (e.g. 47.5 = 47.5%)' : '')}${isManual ? '' : ' · auto-computed, edit upstream'}</div>
           </div>
-          <input type="number" step="${m.unit === 'usd' ? '0.01' : '1'}" class="entry-input"
+          <input type="number" step="${m.unit === 'usd' ? '0.01' : (m.unit === 'pct' ? '0.1' : '1')}" class="entry-input"
             value="${escapeHtml(currentRaw)}"
             data-orig="${escapeHtml(currentRaw)}"
             ${readonly ? 'readonly' : ''}
-            placeholder="${m.unit === 'usd' ? '$' : ''}—">
+            placeholder="${m.unit === 'usd' ? '$' : (m.unit === 'pct' ? '%' : '')}—">
           <div class="save-cell">
             ${isManual && capabilities.can_edit ? `<button class="row-save-btn" data-row-save="${escapeHtml(m.key)}">Save</button>` : ''}
           </div>

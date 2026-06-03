@@ -25,17 +25,21 @@ let drillChartInst = null;
 
 // Top KPI metric keys per division — the ones that get the prominent strip.
 const HIGHLIGHT_KEYS = {
-  all:    ['phone_sales_total_gi','mentorship_gi_overall','refunds_salvaged_amount','disputes_won'],
-  D2:     ['phone_sales_total_gi','phone_sales_recurrent_gi','mentorship_gi_overall','masterclass_gi_phone'],
-  D3:     ['refunds_salvaged_amount','refunds_approved_amount','disputes_won','recovered_failed_rebills'],
-  D4:     ['mentorship_wins','mentorship_resigns_weekly','students_onboarded','students_completed_mentorship'],
-  D5:     ['masterclass_starters','masterclass_purchasers','masterclass_gi_phone','active_masterclass_students'],
+  all:           ['phone_sales_total_gi','mentorship_gi_overall','refunds_salvaged_amount','disputes_won'],
+  staff_meeting: ['phone_sales_total_gi','mentorship_gi_overall','active_mentorship_students_pct','refunds_salvaged_amount'],
+  D2:            ['phone_sales_total_gi','phone_sales_recurrent_gi','mentorship_gi_overall','masterclass_gi_phone'],
+  D3:            ['refunds_salvaged_amount','refunds_approved_amount','disputes_won','recovered_failed_rebills'],
+  D4:            ['mentorship_wins','mentorship_resigns_weekly','students_onboarded','students_completed_mentorship'],
+  D5:            ['masterclass_starters','masterclass_purchasers','masterclass_gi_phone','active_masterclass_students'],
 };
 
 // ── Formatters ──────────────────────────────────────────────────────
 const fmtMoney = (v) => v == null ? '—' : '$' + Math.round(Number(v)).toLocaleString();
 const fmtCount = (v) => v == null ? '—' : Number(v).toLocaleString();
-const fmtVal   = (v, unit) => unit === 'usd' ? fmtMoney(v) : fmtCount(v);
+// Percentages render with one decimal and a % suffix; values stored as the
+// raw percent (so 47.5 means 47.5%, not 0.475 — keeps manual entry sane).
+const fmtPctVal = (v) => v == null ? '—' : Number(v).toFixed(1) + '%';
+const fmtVal   = (v, unit) => unit === 'usd' ? fmtMoney(v) : (unit === 'pct' ? fmtPctVal(v) : fmtCount(v));
 const fmtPct   = (cur, prev) => {
   if (prev == null || prev === 0) return cur > 0 ? '+∞' : '0%';
   const pct = ((cur - prev) / Math.abs(prev)) * 100;
@@ -208,7 +212,10 @@ function renderAll() {
   const visible = catalog.filter(m => {
     // Weekly view hides EOM-snapshot metrics (active rosters etc. that
     // only make sense monthly). Monthly view shows everything — weekly
-    // data is rolled up on the server.
+    // data is rolled up on the server. Exception: the Staff Meeting tab
+    // explicitly INCLUDES monthly-flagged metrics (active rosters are
+    // part of the standing report) so we don't apply that filter there.
+    if (activeDivision === 'staff_meeting') return !!m.in_staff_meeting;
     if (activePeriod === 'weekly' && m.division === 'monthly') return false;
     if (activeDivision === 'all') return true;
     return m.division === activeDivision;
@@ -308,6 +315,7 @@ function cssId(s) { return String(s).replace(/[^a-zA-Z0-9_-]/g, '_'); }
 function makeMiniChart(canvas, points, metric) {
   const ctx = canvas.getContext('2d');
   const isUsd = metric.unit === 'usd';
+  const isPct = metric.unit === 'pct';
   // Per-segment trend colouring — soft cream for up, coral for down. The
   // line carries the trend story; the FILL beneath stays neutral (a faint
   // slate wash) so a down-then-up series doesn't read as "all bad" just
@@ -408,7 +416,9 @@ function makeMiniChart(canvas, points, metric) {
             font: { size: 10 },
             maxTicksLimit: 4,
             padding: 6,
-            callback: (v) => isUsd ? '$' + (v >= 1000 ? (v/1000).toFixed(0) + 'k' : v) : v,
+            callback: (v) => isUsd
+              ? '$' + (v >= 1000 ? (v/1000).toFixed(0) + 'k' : v)
+              : (isPct ? v + '%' : v),
           },
           grid: { color: 'rgba(255,255,255,0.04)', drawTicks: false },
           border: { display: false },

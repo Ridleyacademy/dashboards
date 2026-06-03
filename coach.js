@@ -2095,7 +2095,7 @@ function _meetingCardHtml(m, opts) {
         <button data-zm-invitees="${m.id}" title="See invited students">Invitees</button>
         ${m.join_url ? `<button data-zm-copy="${m.id}" title="Copy join link">Copy link</button>` : ''}
         ${m.start_url ? `<button data-zm-start="${m.id}" title="Open host start URL">Start as host</button>` : ''}
-        ${!isZoomOnly ? `<button data-zm-resched="${m.id}">Reschedule</button>` : ''}
+        ${!isZoomOnly ? `<button data-zm-edit="${m.id}" title="Edit meeting (topic, time, recurrence, settings)">Edit</button>` : ''}
         <button class="danger" data-zm-cancel="${m.id}">Cancel</button>
       </div>
     </div>`;
@@ -2164,7 +2164,7 @@ function renderUpcomingMeetings() {
   list.innerHTML = html;
 
   list.querySelectorAll('[data-zm-cancel]').forEach(b => b.addEventListener('click', () => cancelMeeting(b.dataset.zmCancel)));
-  list.querySelectorAll('[data-zm-resched]').forEach(b => b.addEventListener('click', () => openRescheduleModal(parseInt(b.dataset.zmResched,10))));
+  list.querySelectorAll('[data-zm-edit]').forEach(b => b.addEventListener('click', () => openEditMeetingModal(parseInt(b.dataset.zmEdit,10))));
   list.querySelectorAll('[data-zm-copy]').forEach(b => b.addEventListener('click', () => {
     const m = upcomingMeetings.find(x => x.id == b.dataset.zmCopy);
     if (m?.join_url) { navigator.clipboard.writeText(m.join_url); b.textContent='Copied!'; setTimeout(()=>b.textContent='Copy link',1200); }
@@ -2257,6 +2257,7 @@ function openInviteesModal(meeting) {
       <div class="modal-head">
         <h2>Invitees · ${escapeHtml(meeting.topic||'Meeting')}${isRecurring ? ' <span style="font-size:0.65rem;font-weight:700;color:#a78bfa;background:rgba(167,139,250,0.12);padding:3px 7px;border-radius:6px;margin-left:6px;vertical-align:middle;">RECURRING</span>' : ''}</h2>
         ${failedCount > 0 ? `<button id="inv-resend-btn" class="btn-ghost" style="padding:7px 12px;font-size:0.78rem;background:rgba(251,191,36,0.10);border-color:rgba(251,191,36,0.4);color:#fbbf24;" title="Re-send the invite email + reminders for invitees whose email failed (typically rate-limit). Zoom registrations stay intact.">↻ Resend ${failedCount} failed</button>` : ''}
+        ${isSystemMeeting ? `<button id="inv-edit-btn" class="btn-ghost" style="padding:7px 12px;font-size:0.78rem;" title="Edit topic, date/time, duration, recurrence, advanced settings">✎ Edit</button>` : ''}
         ${isSystemMeeting ? `<button id="inv-add-btn" class="btn-primary" style="padding:7px 14px;font-size:0.78rem;">+ Add students</button>` : ''}
         <button class="close" data-x>×</button>
       </div>
@@ -2280,6 +2281,7 @@ function openInviteesModal(meeting) {
               <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">${status}
                 ${r.join_url ? `<button data-copy-link="${escapeHtml(r.join_url)}" style="background:transparent;border:1px solid var(--border);color:var(--text-dim);border-radius:6px;padding:3px 8px;font-size:0.7rem;cursor:pointer;">Copy personal link</button>` : ''}
               </div>
+              ${r.email ? `<button data-remove-reg="${escapeHtml(r.email)}" data-remove-name="${escapeHtml(name)}" title="Un-invite this student (cancels their Zoom registration + stops reminders)" style="background:transparent;border:none;color:#f87171;cursor:pointer;font-size:1.1rem;padding:4px 6px;border-radius:6px;line-height:1;">×</button>` : ''}
             </div>`;
           }).join('') : '<div style="padding:24px;text-align:center;color:var(--text-dim);font-size:0.86rem;">No invitees on this meeting.</div>'}
         </div>
@@ -2298,6 +2300,28 @@ function openInviteesModal(meeting) {
     const orig = b.textContent; b.textContent = 'Copied!'; setTimeout(() => b.textContent = orig, 1200);
   }));
   document.getElementById('inv-add-btn')?.addEventListener('click', () => { close(); openAddInviteesModal(meeting); });
+  document.getElementById('inv-edit-btn')?.addEventListener('click', () => { close(); openEditMeetingModal(meeting.id); });
+  // Inline un-invite buttons on each invitee row.
+  m.querySelectorAll('[data-remove-reg]').forEach(b => b.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    const email = btn.dataset.removeReg;
+    const name = btn.dataset.removeName || email;
+    if (!confirm(`Un-invite ${name}? Their Zoom registration will be cancelled and future reminders for this meeting will stop.`)) return;
+    btn.disabled = true; btn.textContent = '…';
+    try {
+      const body = (typeof meeting.id === 'string' && meeting.id.startsWith('zoom-'))
+        ? { zoom_meeting_id: meeting.id.slice(5), email }
+        : { id: Number(meeting.id), email };
+      await _zoomFetch('remove-student', { method:'POST', body });
+      await loadUpcomingMeetings();
+      const refreshed = (upcomingMeetings || []).find(x => String(x.id) === String(meeting.id));
+      close();
+      if (refreshed) openInviteesModal(refreshed);
+    } catch (e2) {
+      btn.disabled = false; btn.textContent = '×';
+      alert('Remove failed: ' + (e2.message || e2));
+    }
+  }));
   document.getElementById('inv-resend-btn')?.addEventListener('click', async (e) => {
     const btn = e.currentTarget;
     if (btn.disabled) return;
@@ -2860,43 +2884,196 @@ async function openScheduleZoomModal(prefilledIds) {
   });
 }
 
-function openRescheduleModal(id) {
-  const meeting = upcomingMeetings.find(x => x.id === id);
-  if (!meeting) return;
+// Edit an already-created meeting in one place: topic, date/time, duration,
+// recurrence on/off + cadence + end, and the common advanced toggles. Calls
+// `api=update` on save — backend PATCHes Zoom, re-syncs occurrences[] for
+// recurring meetings, and dispatches `zoom_rescheduled` to every existing
+// invitee with the new ICS attached.
+function openEditMeetingModal(idOrMeeting) {
+  const meeting = (typeof idOrMeeting === 'object' && idOrMeeting !== null)
+    ? idOrMeeting
+    : upcomingMeetings.find(x => x.id === idOrMeeting || x.id === Number(idOrMeeting));
+  if (!meeting) { alert('Meeting not found in the upcoming list.'); return; }
   document.getElementById('szModal')?.remove();
-  const cur = new Date(meeting.scheduled_start_time);
+
+  const cur = new Date(meeting.scheduled_start_time || Date.now());
   const pad = n => String(n).padStart(2,'0');
   const curVal = `${cur.getFullYear()}-${pad(cur.getMonth()+1)}-${pad(cur.getDate())}T${pad(cur.getHours())}:${pad(cur.getMinutes())}`;
+
+  // Read existing recurrence so we can pre-select the cadence dropdown. Zoom
+  // returns { type: 1|2|3, weekly_days, repeat_interval, end_times, end_date_time }.
+  // type 2 + repeat_interval 1 = weekly; type 2 + repeat_interval 2 = biweekly.
+  const rec = meeting.recurrence || null;
+  let recDefault = '';
+  if (rec) {
+    if (rec.type === 1) recDefault = 'daily';
+    else if (rec.type === 2 && (rec.repeat_interval || 1) === 1) recDefault = 'weekly';
+    else if (rec.type === 2) recDefault = 'biweekly';
+    else if (rec.type === 3) recDefault = 'monthly';
+  }
+  const recEndCount = rec?.end_times || 4;
+  const recEndDate  = rec?.end_date_time ? rec.end_date_time.slice(0, 10) : '';
+  const recHadEndDate = !!rec?.end_date_time;
+
+  // Default advanced values — only changed-from-default get sent so we don't
+  // overwrite Zoom settings the user never touched. We don't have the full
+  // current `settings` from Zoom hydrated locally, so the Advanced block
+  // here is opt-in: a separate "Override advanced settings" toggle.
   const m = document.createElement('div');
   m.id = 'szModal'; m.className = 'modal-bg';
   m.innerHTML = `
-    <div class="modal-card" style="max-width:440px;">
-      <div class="modal-head"><h2>Reschedule "${escapeHtml(meeting.topic||'')}"</h2><button class="close" data-x>×</button></div>
+    <div class="modal-card" style="max-width:560px;">
+      <div class="modal-head">
+        <h2>Edit · ${escapeHtml(meeting.topic || 'Meeting')}</h2>
+        <button class="close" data-x>×</button>
+      </div>
       <div class="modal-body" style="grid-template-columns:1fr;">
-        <div><label>New start</label><input id="rs-start" type="datetime-local" value="${curVal}"></div>
-        <div><label>Duration (min)</label><input id="rs-duration" type="number" min="15" step="15" value="${meeting.scheduled_duration_minutes||60}"></div>
-        <div id="rs-result-wrap"></div>
+        <div><label>Topic</label><input id="ed-topic" type="text" value="${escapeHtml(meeting.topic || '')}"></div>
+        <div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;">
+          <div><label>Start (your local time)</label><input id="ed-start" type="datetime-local" value="${curVal}"></div>
+          <div><label>Duration (min)</label><input id="ed-duration" type="number" min="15" step="15" value="${meeting.scheduled_duration_minutes || 60}"></div>
+        </div>
+        <div>
+          <label>Recurrence</label>
+          <select id="ed-recurrence">
+            <option value="" ${recDefault === '' ? 'selected' : ''}>None — one-off meeting</option>
+            <option value="daily" ${recDefault === 'daily' ? 'selected' : ''}>Daily</option>
+            <option value="weekly" ${recDefault === 'weekly' ? 'selected' : ''}>Weekly</option>
+            <option value="biweekly" ${recDefault === 'biweekly' ? 'selected' : ''}>Every 2 weeks</option>
+            <option value="monthly" ${recDefault === 'monthly' ? 'selected' : ''}>Monthly</option>
+          </select>
+        </div>
+        <div id="ed-recurrence-end" style="display:${recDefault ? 'block' : 'none'};border:1px solid var(--border);border-radius:8px;padding:10px;background:var(--bg);">
+          <label style="font-size:0.78rem;">End the series</label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:end;margin-top:4px;">
+            <div>
+              <select id="ed-rec-end-type">
+                <option value="count" ${!recHadEndDate ? 'selected' : ''}>After N sessions</option>
+                <option value="date" ${recHadEndDate ? 'selected' : ''}>On a specific date</option>
+              </select>
+            </div>
+            <div>
+              <input id="ed-rec-end-count" type="number" min="2" max="50" value="${recEndCount}" style="display:${!recHadEndDate ? '' : 'none'};">
+              <input id="ed-rec-end-date" type="date" value="${recEndDate}" style="display:${recHadEndDate ? '' : 'none'};">
+            </div>
+          </div>
+          <div style="font-size:0.7rem;color:var(--text-dim);margin-top:6px;">Up to 50 sessions or 2 years out.</div>
+        </div>
+        <details id="ed-advanced" style="border:1px solid var(--border);border-radius:8px;padding:8px 10px;">
+          <summary style="cursor:pointer;font-size:0.84rem;font-weight:600;">Override advanced settings <span style="color:var(--text-dim);font-weight:400;font-size:0.74rem;">(leave closed to keep current)</span></summary>
+          <div style="display:flex;flex-direction:column;gap:6px;margin-top:10px;font-size:0.82rem;">
+            <label><input type="checkbox" id="ed-waiting" checked> Waiting room</label>
+            <label><input type="checkbox" id="ed-jbh"> Allow join before host</label>
+            <label><input type="checkbox" id="ed-mute" checked> Mute participants on entry</label>
+            <label><input type="checkbox" id="ed-passcode" checked> Require passcode</label>
+            <label>Auto-record:
+              <select id="ed-record" style="margin-left:6px;">
+                <option value="none">Off</option>
+                <option value="local">Local</option>
+                <option value="cloud">Cloud</option>
+              </select>
+            </label>
+            <label>Custom passcode (optional):<input id="ed-customPasscode" type="text" maxlength="10" placeholder="leave blank to keep current" style="margin-left:6px;"></label>
+            <label>Alternative hosts (comma-separated emails):<input id="ed-altHosts" type="text" placeholder="" style="margin-left:6px;"></label>
+          </div>
+        </details>
+        <div style="font-size:0.74rem;color:var(--text-dim);">
+          Material changes (topic / time / duration / recurrence) send a single "meeting updated" email + fresh calendar attachment to existing invitees.
+        </div>
+        <div id="ed-result-wrap"></div>
       </div>
       <div class="modal-foot">
         <button class="btn-ghost" data-x>Cancel</button>
-        <button class="btn-primary" id="rs-save">Save</button>
+        <button class="btn-primary" id="ed-save">Save changes</button>
       </div>
     </div>`;
   document.body.appendChild(m);
   const close = () => m.remove();
   m.addEventListener('click', e => { if (e.target === m || e.target.matches('[data-x]')) close(); });
-  document.getElementById('rs-save').addEventListener('click', async () => {
-    const startIso = new Date(document.getElementById('rs-start').value).toISOString();
-    const duration = parseInt(document.getElementById('rs-duration').value, 10);
-    const wrap = document.getElementById('rs-result-wrap');
+
+  // Toggle the end-controls block when recurrence changes
+  const recSel = document.getElementById('ed-recurrence');
+  const recEndWrap = document.getElementById('ed-recurrence-end');
+  const recEndTypeSel = document.getElementById('ed-rec-end-type');
+  const recEndCountEl = document.getElementById('ed-rec-end-count');
+  const recEndDateEl = document.getElementById('ed-rec-end-date');
+  recSel.addEventListener('change', () => { recEndWrap.style.display = recSel.value ? 'block' : 'none'; });
+  recEndTypeSel.addEventListener('change', () => {
+    if (recEndTypeSel.value === 'count') { recEndCountEl.style.display = ''; recEndDateEl.style.display = 'none'; }
+    else { recEndCountEl.style.display = 'none'; recEndDateEl.style.display = ''; }
+  });
+
+  document.getElementById('ed-save').addEventListener('click', async () => {
+    const btn = document.getElementById('ed-save');
+    const wrap = document.getElementById('ed-result-wrap');
+    const topic = document.getElementById('ed-topic').value.trim();
+    const localStart = document.getElementById('ed-start').value;
+    const duration = parseInt(document.getElementById('ed-duration').value, 10);
+    if (!topic || !localStart || !duration) {
+      wrap.innerHTML = '<div class="sz-result err">Topic, start, and duration are required.</div>'; return;
+    }
+    const startIso = new Date(localStart).toISOString();
+
+    // Build recurrence change instructions. If the user has set the cadence
+    // to none AND the meeting was previously recurring → ask to REMOVE; if
+    // they set a cadence → SET; if neither → don't touch recurrence.
+    let recurrence_change = null;
+    const wasRecurring = !!meeting.is_recurring;
+    const newRecVal = recSel.value;
+    if (wasRecurring && !newRecVal) {
+      recurrence_change = { action: 'remove' };
+    } else if (newRecVal) {
+      const endTypeVal = recEndTypeSel.value;
+      recurrence_change = {
+        action: 'set',
+        config: {
+          type: newRecVal,
+          end_type: endTypeVal,
+          end_count: endTypeVal === 'count' ? parseInt(recEndCountEl.value, 10) || 4 : null,
+          end_date: endTypeVal === 'date' ? (recEndDateEl.value || null) : null,
+        },
+      };
+    }
+
+    // Advanced block only if the user opened/edited the override.
+    const advDetails = document.getElementById('ed-advanced');
+    let advanced = null;
+    if (advDetails.open) {
+      advanced = {
+        waiting_room: document.getElementById('ed-waiting').checked,
+        join_before_host: document.getElementById('ed-jbh').checked,
+        mute_upon_entry: document.getElementById('ed-mute').checked,
+        passcode: document.getElementById('ed-passcode').checked,
+        auto_recording: document.getElementById('ed-record').value,
+        custom_passcode: document.getElementById('ed-customPasscode').value.trim(),
+        alternative_hosts: document.getElementById('ed-altHosts').value.trim(),
+      };
+    }
+
+    btn.disabled = true; btn.textContent = 'Saving…';
     try {
-      await _zoomFetch('reschedule', { method:'POST', body:{ id, start_time: startIso, duration } });
-      wrap.innerHTML = '<div class="sz-result">✓ Rescheduled. Zoom will email registered students.</div>';
+      const body = (typeof meeting.id === 'string' && meeting.id.startsWith('zoom-'))
+        ? { zoom_meeting_id: meeting.id.slice(5) }
+        : { id: Number(meeting.id) };
+      body.topic = topic;
+      body.start_time = startIso;
+      body.duration = duration;
+      if (recurrence_change) body.recurrence_change = recurrence_change;
+      if (advanced) body.advanced = advanced;
+      const j = await _zoomFetch('update', { method:'POST', body });
+      const changedList = (j.changed || []).join(', ') || 'no material changes';
+      const sentMsg = j.notified ? ` · ${j.notified.sent} notified${j.notified.failed ? ' / ' + j.notified.failed + ' failed' : ''}` : '';
+      wrap.innerHTML = `<div class="sz-result">✓ Saved (${escapeHtml(changedList)})${escapeHtml(sentMsg)}.</div>`;
       await loadUpcomingMeetings();
-      setTimeout(close, 1200);
-    } catch (e) { wrap.innerHTML = `<div class="sz-result err">Failed: ${escapeHtml(e.message || String(e))}</div>`; }
+      setTimeout(close, 1500);
+    } catch (e) {
+      wrap.innerHTML = `<div class="sz-result err">Failed: ${escapeHtml(e.message || String(e))}</div>`;
+      btn.disabled = false; btn.textContent = 'Save changes';
+    }
   });
 }
+// Back-compat alias — older callers still reference openRescheduleModal.
+const openRescheduleModal = openEditMeetingModal;
 
 document.getElementById('bulkScheduleZoomBtn').addEventListener('click', () => {
   if (!selectedIds.size) return;

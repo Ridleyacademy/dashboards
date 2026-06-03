@@ -2194,18 +2194,74 @@ function openInviteesModal(meeting) {
   // meetings too — the edge function adopts the meeting into our DB on first
   // add. Keep the flag for downstream conditionals but always allow these.
   const isSystemMeeting = true;
+  // Recurring meeting? Render a per-occurrence pane so coaches can see
+  // exactly what's been sent for each future class (invite + 24h/1h/live
+  // reminders). The actual sending is handled autonomously by the
+  // zoom-scheduler cron job every 15 min — this pane is read-only status
+  // plus a manual "Sync from Zoom" / "Resend invite" escape hatch.
+  const isRecurring = !!meeting.is_recurring;
+  const occurrences = Array.isArray(meeting.occurrences) ? meeting.occurrences.slice() : [];
+  // Sort chronologically (defensive — they should already be ordered)
+  occurrences.sort((a, b) => new Date(a.start_time || 0) - new Date(b.start_time || 0));
+  // Only show future occurrences in the pane — past ones just clutter the
+  // panel. "Past" = start_time + duration < now.
+  const nowMs = Date.now();
+  const futureOccs = occurrences.filter(o => {
+    if (!o?.start_time) return false;
+    const endMs = Date.parse(o.start_time) + (Number(o.duration_minutes || 60) * 60_000);
+    return endMs > nowMs;
+  });
   const m = document.createElement('div');
   m.id = 'inviteesModal'; m.className = 'modal-bg';
+  // Build the recurring-occurrences pane if applicable. Each row shows the
+  // occurrence date + four pills (invite / 24h / 1h / live) — green when
+  // sent_at is stamped, dim when still pending. The first upcoming
+  // occurrence also gets a "Resend invite" link to re-fire emails for that
+  // single occurrence if something failed.
+  const occurrencesPane = (isRecurring && futureOccs.length) ? `
+    <div style="margin-top:14px;border:1px solid var(--border);border-radius:10px;background:var(--bg);">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--border);">
+        <div>
+          <div style="font-size:0.82rem;font-weight:600;color:var(--text);">Recurring schedule</div>
+          <div style="font-size:0.72rem;color:var(--text-dim);">${futureOccs.length} upcoming · auto-sends 4 days before each class</div>
+        </div>
+        <button id="inv-sync-occ-btn" class="btn-ghost" style="padding:5px 10px;font-size:0.72rem;" title="Re-fetch occurrence list from Zoom (in case the host rescheduled).">↻ Sync from Zoom</button>
+      </div>
+      <div style="max-height:240px;overflow-y:auto;">
+        ${futureOccs.slice(0, 20).map((occ, i) => {
+          const d = new Date(occ.start_time);
+          const dateStr = d.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric', timeZone:'UTC' });
+          const timeStr = d.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', timeZone:'UTC' }) + ' UTC';
+          const pill = (sent, label) => sent
+            ? `<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 6px;border-radius:4px;background:rgba(16,185,129,0.15);color:#10b981;font-size:0.68rem;font-weight:700;" title="Sent ${escapeHtml(sent)}">✓ ${label}</span>`
+            : `<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 6px;border-radius:4px;background:rgba(148,163,184,0.08);color:var(--text-dim);font-size:0.68rem;font-weight:600;">${label}</span>`;
+          return `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--border);">
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:0.82rem;font-weight:600;">${escapeHtml(dateStr)}</div>
+              <div style="font-size:0.7rem;color:var(--text-dim);">${escapeHtml(timeStr)}</div>
+            </div>
+            <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;">
+              ${pill(occ.invite_sent_at, 'invite')}
+              ${pill(occ.reminder_24h_sent_at, '24h')}
+              ${pill(occ.reminder_1h_sent_at, '1h')}
+              ${pill(occ.reminder_live_sent_at, 'live')}
+            </div>
+          </div>`;
+        }).join('')}
+        ${futureOccs.length > 20 ? `<div style="padding:8px 12px;text-align:center;font-size:0.72rem;color:var(--text-dim);">+${futureOccs.length - 20} more occurrences…</div>` : ''}
+      </div>
+    </div>` : '';
+
   m.innerHTML = `
     <div class="modal-card" style="max-width:620px;">
       <div class="modal-head">
-        <h2>Invitees · ${escapeHtml(meeting.topic||'Meeting')}</h2>
+        <h2>Invitees · ${escapeHtml(meeting.topic||'Meeting')}${isRecurring ? ' <span style="font-size:0.65rem;font-weight:700;color:#a78bfa;background:rgba(167,139,250,0.12);padding:3px 7px;border-radius:6px;margin-left:6px;vertical-align:middle;">RECURRING</span>' : ''}</h2>
         ${failedCount > 0 ? `<button id="inv-resend-btn" class="btn-ghost" style="padding:7px 12px;font-size:0.78rem;background:rgba(251,191,36,0.10);border-color:rgba(251,191,36,0.4);color:#fbbf24;" title="Re-send the invite email + reminders for invitees whose email failed (typically rate-limit). Zoom registrations stay intact.">↻ Resend ${failedCount} failed</button>` : ''}
         ${isSystemMeeting ? `<button id="inv-add-btn" class="btn-primary" style="padding:7px 14px;font-size:0.78rem;">+ Add students</button>` : ''}
         <button class="close" data-x>×</button>
       </div>
       <div class="modal-body" style="grid-template-columns:1fr;">
-        <div style="font-size:0.82rem;color:var(--text-dim);margin-bottom:10px;">${escapeHtml(t.date)} · ${escapeHtml(t.time)} · ${meeting.scheduled_duration_minutes||60} min · ${regs.length} invitee${regs.length===1?'':'s'}</div>
+        <div style="font-size:0.82rem;color:var(--text-dim);margin-bottom:10px;">${escapeHtml(t.date)} · ${escapeHtml(t.time)} · ${meeting.scheduled_duration_minutes||60} min · ${regs.length} invitee${regs.length===1?'':'s'}${isRecurring && futureOccs.length ? ` · ${futureOccs.length} upcoming classes` : ''}</div>
         <div style="border:1px solid var(--border);border-radius:10px;max-height:380px;overflow-y:auto;background:var(--bg);">
           ${regs.length ? regs.map(r => {
             const stu = allStudents.find(s => s.id === r.student_id);
@@ -2227,6 +2283,7 @@ function openInviteesModal(meeting) {
             </div>`;
           }).join('') : '<div style="padding:24px;text-align:center;color:var(--text-dim);font-size:0.86rem;">No invitees on this meeting.</div>'}
         </div>
+        ${occurrencesPane}
       </div>
       <div class="modal-foot">
         ${isSystemMeeting ? `<button id="inv-cancel-btn" class="btn-ghost" style="color:#f87171;border-color:rgba(248,113,113,0.4);">Cancel meeting</button>` : ''}
@@ -2262,6 +2319,29 @@ function openInviteesModal(meeting) {
     } catch (e2) {
       btn.disabled = false; btn.textContent = original;
       alert('Resend failed: ' + (e2.message || e2));
+    }
+  });
+  document.getElementById('inv-sync-occ-btn')?.addEventListener('click', async (e) => {
+    // Manual escape hatch: re-fetch the occurrence list from Zoom. Useful
+    // if the host changed the recurrence in Zoom directly (we don't get
+    // webhook events, so the DB drifts otherwise). Backend merges so we
+    // preserve sent_at stamps for occurrences we already had.
+    const btn = e.currentTarget;
+    if (btn.disabled) return;
+    const original = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Syncing…';
+    try {
+      const body = (typeof meeting.id === 'string' && meeting.id.startsWith('zoom-'))
+        ? { zoom_meeting_id: meeting.id.slice(5) }
+        : { id: Number(meeting.id) };
+      const j = await _zoomFetch('sync-occurrences', { method:'POST', body });
+      btn.textContent = `✓ ${j.total} occ · +${j.added}/-${j.removed}`;
+      await loadUpcomingMeetings();
+      const refreshed = (upcomingMeetings || []).find(x => String(x.id) === String(meeting.id));
+      if (refreshed) setTimeout(() => { close(); openInviteesModal(refreshed); }, 1200);
+    } catch (e2) {
+      btn.disabled = false; btn.textContent = original;
+      alert('Sync failed: ' + (e2.message || e2));
     }
   });
   document.getElementById('inv-cancel-btn')?.addEventListener('click', async () => {

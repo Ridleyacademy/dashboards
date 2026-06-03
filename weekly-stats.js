@@ -307,28 +307,40 @@ function cssId(s) { return String(s).replace(/[^a-zA-Z0-9_-]/g, '_'); }
 
 function makeMiniChart(canvas, points, metric) {
   const ctx = canvas.getContext('2d');
-  // Money metrics → green-tinted bars; counts → blue-tinted. Manual entries
-  // get a softer dashed line variant so we can spot them at a glance.
+  // Money metrics → green line; counts → blue; manual entries → purple. The
+  // fill below the line uses a fading gradient of the same colour so dense
+  // series read as one shape rather than a forest of bars.
   const isUsd = metric.unit === 'usd';
   const color = metric.source === 'manual' ? '#a78bfa' : (isUsd ? '#34d399' : '#6b9eff');
-  const grad = ctx.createLinearGradient(0, 0, 0, canvas.parentElement.clientHeight || 160);
-  grad.addColorStop(0, color + 'CC');
-  grad.addColorStop(1, color + '11');
+  const fill = ctx.createLinearGradient(0, 0, 0, canvas.parentElement.clientHeight || 160);
+  fill.addColorStop(0, color + '55');   // ~33% alpha at top
+  fill.addColorStop(1, color + '05');   // ~2% at bottom
   return new Chart(ctx, {
-    type: 'bar',
+    type: 'line',
     data: {
       labels: points.map(p => p.period_start),
       datasets: [{
         data: points.map(p => p.value),
-        backgroundColor: grad,
+        backgroundColor: fill,
         borderColor: color,
-        borderWidth: 1,
-        borderRadius: 4,
+        borderWidth: 2,
+        fill: true,
+        tension: 0.35,                  // gentle curve
+        pointRadius: points.length > 24 ? 0 : 2,
+        pointHoverRadius: 5,
+        pointBackgroundColor: color,
+        pointBorderColor: 'rgba(15,18,32,0.9)',
+        pointBorderWidth: 1,
+        spanGaps: true,                 // don't break the line on null gaps
+        // Manual-entry metrics get a dashed line so they're visually
+        // distinguishable from auto-derived ones at a glance.
+        borderDash: metric.source === 'manual' ? [4, 3] : [],
       }],
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { display: false },
         tooltip: {
@@ -339,7 +351,7 @@ function makeMiniChart(canvas, points, metric) {
       },
       scales: {
         x: { ticks: { color: '#7880a8', font: { size: 9 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 6 }, grid: { display: false } },
-        y: { ticks: { color: '#7880a8', font: { size: 9 }, callback: (v) => isUsd ? '$' + (v/1000).toFixed(0) + 'k' : v }, grid: { color: 'rgba(255,255,255,0.04)' } },
+        y: { ticks: { color: '#7880a8', font: { size: 9 }, callback: (v) => isUsd ? '$' + (v/1000).toFixed(0) + 'k' : v }, grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true },
       },
     },
   });

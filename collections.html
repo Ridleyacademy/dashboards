@@ -450,24 +450,9 @@
         <div class="kpi-income" id="kpiGI">—</div>
         <div class="kpi-sub" id="kpiGISub">gross income</div>
       </div>
-      <div class="kpi-card kpi-green">
-        <div class="kpi-label">Cash Sales</div>
-        <div class="kpi-value" id="kpiSales">—</div>
-        <div class="kpi-income" id="kpiSalesAmt">—</div>
-        <div class="kpi-sub" id="kpiSalesSub"></div>
-      </div>
-      <div class="kpi-card kpi-purple">
-        <div class="kpi-label">Payment Plans</div>
-        <div class="kpi-value" id="kpiPP">—</div>
-        <div class="kpi-income" id="kpiPPAmt">—</div>
-        <div class="kpi-sub" id="kpiPPSub"></div>
-      </div>
-      <div class="kpi-card kpi-blue">
-        <div class="kpi-label">Rebills</div>
-        <div class="kpi-value" id="kpiRebill">—</div>
-        <div class="kpi-income" id="kpiRebillAmt">—</div>
-        <div class="kpi-sub" id="kpiRebillSub"></div>
-      </div>
+      <!-- Collections are always Rebill, so we drop the Sale/PP/Rebill split
+           that lived here on the Declarations clone. Total + Verified +
+           Not Verified is the meaningful breakdown for this team. -->
       <div class="kpi-card kpi-green">
         <div class="kpi-label">Verified</div>
         <div class="kpi-value" id="kpiVerified">—</div>
@@ -484,7 +469,7 @@
 
     <div class="dash-row">
       <div class="chart-card">
-        <div class="chart-card-title">Declared Amount by Date</div>
+        <div class="chart-card-title">Collected Amount by Date</div>
         <div class="chart-wrap"><canvas id="dailyChart"></canvas></div>
       </div>
       <div class="product-card">
@@ -504,7 +489,7 @@
 
     <div class="table-card">
       <div class="table-toolbar">
-        <div class="table-title">Declaration Log</div>
+        <div class="table-title">Collection Log</div>
         <input class="search-box" type="search" id="searchBox" placeholder="Search name, email, product…" style="width:210px;">
         <select class="rep-filter" id="repFilter" style="display:none;">
           <option value="">All Reps</option>
@@ -517,24 +502,23 @@
         </button>
         <button class="tbtn tbtn-primary" id="addBtn">
           <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          Declare Sale
+          Add Collection
         </button>
       </div>
       <div>
         <table class="data-table" id="declTable">
           <colgroup>
-            <col class="admin-col" style="width:6%;"><!-- Rep -->
-            <col style="width:6%;"><!-- Date -->
-            <col style="width:10%;"><!-- Name -->
-            <col style="width:12%;"><!-- Email -->
-            <col style="width:11%;"><!-- Product -->
-            <col style="width:5%;"><!-- Type -->
-            <col style="width:6%;"><!-- Amount -->
-            <col style="width:8%;"><!-- Type of Sale -->
-            <col style="width:6%;"><!-- From -->
-            <col style="width:10%;"><!-- Note -->
-            <col style="width:14%;"><!-- Check -->
-            <col style="width:6%;"><!-- Actions -->
+            <col class="admin-col" style="width:7%;"><!-- Rep -->
+            <col style="width:7%;"><!-- Date -->
+            <col style="width:11%;"><!-- Name -->
+            <col style="width:13%;"><!-- Email -->
+            <col style="width:12%;"><!-- Product -->
+            <col style="width:7%;"><!-- Amount -->
+            <col style="width:9%;"><!-- Type of Sale -->
+            <col style="width:7%;"><!-- From -->
+            <col style="width:11%;"><!-- Note -->
+            <col style="width:15%;"><!-- Check -->
+            <col style="width:7%;"><!-- Actions -->
           </colgroup>
           <thead>
             <tr>
@@ -543,7 +527,6 @@
               <th data-col="name">Name</th>
               <th data-col="email">Email</th>
               <th data-col="product">Product</th>
-              <th data-col="type">Type</th>
               <th data-col="sale_amount" class="td-num">Amount</th>
               <th data-col="type_of_sale">Type of Sale</th>
               <th data-col="platform">From</th>
@@ -567,8 +550,8 @@
 <div class="modal-overlay" id="declModal">
   <div class="modal-card">
     <div class="modal-title" id="modalTitle">
-      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-      Declare Sale
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Add Collection
     </div>
     <input type="hidden" id="fId">
     <div class="modal-grid">
@@ -583,7 +566,7 @@
         <input class="modal-input" type="date" id="fDate">
       </div>
       <div class="modal-field">
-        <label class="modal-label">Sale Amount ($)</label>
+        <label class="modal-label">Amount ($)</label>
         <input class="modal-input" type="number" step="0.01" min="0" id="fAmount" placeholder="0.00">
       </div>
       <div class="modal-field full">
@@ -604,15 +587,11 @@
           <option value="A Luxury Music Retreat in Nashville">Experience</option>
         </select>
       </div>
-      <div class="modal-field">
-        <label class="modal-label">Type</label>
-        <select class="modal-input" id="fType">
-          <option value="Sale">Sale</option>
-          <option value="PP">PP</option>
-          <option value="Rebill">Rebill</option>
-        </select>
-      </div>
-      <div class="modal-field">
+      <!-- Type is forced to Rebill — collections are always rebill recovery,
+           so we hide the picker (kept as hidden field so existing save +
+           sales-check logic still flow through unchanged). -->
+      <input type="hidden" id="fType" value="Rebill">
+      <div class="modal-field full">
         <label class="modal-label">From (Platform)</label>
         <select class="modal-input" id="fPlatform">
           <option value="">— Select —</option>
@@ -844,9 +823,6 @@ function renderStats(rows) {
 
   const total = rows.length;
   let gi = 0,
-      salesCount = 0, salesGI = 0,
-      ppCount = 0,    ppGI = 0,
-      rebillCount = 0, rebillGI = 0,
       verified = 0,   verifiedGI = 0,
       unverified = 0, unverifiedGI = 0;
 
@@ -857,9 +833,7 @@ function renderStats(rows) {
     const amt = Number(r.sale_amount) || 0;
     gi += amt;
 
-    if      (r.type === 'Sale')   { salesCount++;   salesGI   += amt; }
-    else if (r.type === 'PP')     { ppCount++;       ppGI      += amt; }
-    else if (r.type === 'Rebill') { rebillCount++;   rebillGI  += amt; }
+    // No Sale / PP / Rebill split — collections are always rebill recovery.
 
     if      (r.sales_check === 'Yes')                           { verified++;   verifiedGI   += amt; }
     else if (r.sales_check === 'No' || r.sales_check === 'Maybe') { unverified++; unverifiedGI += amt; }
@@ -878,17 +852,7 @@ function renderStats(rows) {
   document.getElementById('kpiGI').textContent          = fmt(gi);
   document.getElementById('kpiGISub').textContent       = `gross income · ${total} collection${total !== 1 ? 's' : ''}`;
 
-  document.getElementById('kpiSales').textContent       = salesCount;
-  document.getElementById('kpiSalesAmt').textContent    = fmt(salesGI);
-  document.getElementById('kpiSalesSub').textContent    = pct(salesCount, total).replace(' · ', '') + '% of collections';
-
-  document.getElementById('kpiPP').textContent          = ppCount;
-  document.getElementById('kpiPPAmt').textContent       = fmt(ppGI);
-  document.getElementById('kpiPPSub').textContent       = pct(ppCount, total).replace(' · ', '') + '% of collections';
-
-  document.getElementById('kpiRebill').textContent      = rebillCount;
-  document.getElementById('kpiRebillAmt').textContent   = fmt(rebillGI);
-  document.getElementById('kpiRebillSub').textContent   = pct(rebillCount, total).replace(' · ', '') + '% of collections';
+  // Sale / PP / Rebill cards removed — collections are always Rebill.
 
   document.getElementById('kpiVerified').textContent    = verified;
   document.getElementById('kpiVerifiedAmt').textContent = fmt(verifiedGI);
@@ -911,7 +875,7 @@ function renderStats(rows) {
       data: {
         labels,
         datasets: [{
-          label: 'Declared Amount',
+          label: 'Collected Amount',
           data: values,
           backgroundColor: 'rgba(52,211,153,0.55)',
           borderColor: '#34d399',
@@ -1006,7 +970,10 @@ function renderTable() {
 
   document.getElementById('rowCount').textContent = `${rows.length} row${rows.length !== 1 ? 's' : ''}`;
 
-  const colspan = canSeeAll ? 12 : 11;
+  // Columns: Rep (admin) · Date · Name · Email · Product · Amount · Type of
+  // Sale · From · Note · Check · Actions  — Type column dropped since every
+  // row is implicitly Rebill.
+  const colspan = canSeeAll ? 11 : 10;
   if (!rows.length) {
     tbody.innerHTML = `<tr><td colspan="${colspan}" class="empty-state">No collections found</td></tr>`;
     return;
@@ -1019,7 +986,6 @@ function renderTable() {
     <td class="td-main" data-label="Name" style="${wrap}">${r.name||'—'}</td>
     <td class="muted" data-label="Email" style="${wrap}">${r.email||'—'}</td>
     <td class="muted" data-label="Product" style="${wrap}" title="${r.product||''}">${displayProduct(r.product)||'—'}</td>
-    <td data-label="Type">${typeBadge(r.type)}</td>
     <td class="td-money" data-label="Amount" style="white-space:nowrap;">${r.sale_amount ? fmtMoney(r.sale_amount) : '—'}</td>
     <td class="muted" data-label="Type of sale" style="${wrap}">${r.type_of_sale||'—'}</td>
     <td class="muted" data-label="From" style="${wrap}">${r.platform||'—'}</td>
@@ -1042,14 +1008,15 @@ function renderTable() {
 function openModal(row) {
   editRow = row || null;
   const isNew = !row?.id;
-  document.getElementById('modalTitle').childNodes[1].textContent = isNew ? ' Declare Sale' : ' Edit Declaration';
+  document.getElementById('modalTitle').childNodes[1].textContent = isNew ? ' Add Collection' : ' Edit Collection';
   document.getElementById('modalSaveBtn').textContent = isNew ? 'Submit' : 'Save Changes';
   document.getElementById('fId').value           = row?.id ?? '';
   document.getElementById('fDate').value         = (row?.date_closed || new Date().toISOString()).slice(0,10);
   document.getElementById('fName').value         = row?.name || '';
   document.getElementById('fEmail').value        = row?.email || '';
   document.getElementById('fProduct').value      = row?.product || '';
-  document.getElementById('fType').value         = row?.type || 'Sale';
+  // Type is always Rebill on collections (the input is hidden).
+  document.getElementById('fType').value         = 'Rebill';
   document.getElementById('fAmount').value       = row?.sale_amount ?? '';
   document.getElementById('fTypeOfSale').value   = row?.type_of_sale || '';
   document.getElementById('fPlatform').value     = row?.platform || '';

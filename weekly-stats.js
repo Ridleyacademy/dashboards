@@ -323,30 +323,43 @@ function makeMiniChart(canvas, points, metric) {
   fill.addColorStop(1, NEUTRAL_FILL + '00');           // transparent
 
   const seriesData = points.map(p => p.value);
+  // Custom plugin: paint a white halo behind the line BEFORE the dataset
+  // is drawn. Doing it via a plugin (instead of a second dataset) is the
+  // only way to guarantee the outline ends up BELOW the coloured line —
+  // dataset-order semantics in Chart.js are inconsistent enough that the
+  // two-dataset approach kept rendering the white on top, hiding the
+  // black/red entirely.
+  const whiteOutlinePlugin = {
+    id: 'whiteOutline_' + metric.key,
+    beforeDatasetDraw(chart, args) {
+      if (args.index !== 0) return;
+      const meta = chart.getDatasetMeta(0);
+      if (!meta?.data?.length) return;
+      const c = chart.ctx;
+      c.save();
+      c.strokeStyle = OUTLINE;
+      c.lineWidth = 5;
+      c.lineCap = 'round';
+      c.lineJoin = 'round';
+      c.beginPath();
+      let started = false;
+      for (let i = 0; i < meta.data.length; i++) {
+        const pt = meta.data[i];
+        if (!pt || pt.skip) continue;
+        if (!started) { c.moveTo(pt.x, pt.y); started = true; }
+        else c.lineTo(pt.x, pt.y);
+      }
+      c.stroke();
+      c.restore();
+    },
+  };
   return new Chart(ctx, {
     type: 'line',
+    plugins: [whiteOutlinePlugin],
     data: {
       labels: points.map(p => p.period_start),
       datasets: [
         {
-          // Bottom layer — wider white line acts as a halo/outline.
-          // Drawn first (order:0) so the coloured line sits on top.
-          label: '_outline',
-          data: seriesData,
-          borderColor: OUTLINE,
-          borderWidth: 4.5,
-          borderCapStyle: 'round',
-          borderJoinStyle: 'round',
-          fill: false,
-          tension: 0,
-          pointRadius: 0,
-          pointHoverRadius: 0,
-          spanGaps: true,
-          order: 0,
-        },
-        {
-          // Top layer — black for up, red for down, per segment.
-          // Carries the gradient fill below the line.
           label: metric.label || 'value',
           data: seriesData,
           backgroundColor: fill,
@@ -372,7 +385,6 @@ function makeMiniChart(canvas, points, metric) {
           pointBorderWidth: 1.5,
           spanGaps: true,
           borderDash: metric.source === 'manual' ? [4, 3] : [],
-          order: 1,
         },
       ],
     },
@@ -393,9 +405,6 @@ function makeMiniChart(canvas, points, metric) {
           titleFont: { size: 11, weight: '600' },
           bodyFont: { size: 11 },
           displayColors: false,
-          // Skip the underlying white-outline dataset so the tooltip
-          // only shows ONE value per period instead of two identical ones.
-          filter: (item) => item.dataset.label !== '_outline',
           callbacks: {
             title: (ctxs) => {
               if (!ctxs.length) return '';

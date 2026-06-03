@@ -2187,6 +2187,9 @@ function openInviteesModal(meeting) {
   document.getElementById('inviteesModal')?.remove();
   const t = _fmtMeetingTime(meeting.scheduled_start_time);
   const regs = meeting.registrants || [];
+  // Detect any invite emails that failed (rate-limit etc.) so we can show
+  // a one-click "Resend failed emails" button.
+  const failedCount = regs.filter(r => r && r.email && r.join_url && (r.email_sent === false || (r.email_error && /rate|429/i.test(String(r.email_error))))).length;
   // We now support cancel + add-students for externally-created (zoom-only)
   // meetings too — the edge function adopts the meeting into our DB on first
   // add. Keep the flag for downstream conditionals but always allow these.
@@ -2197,6 +2200,7 @@ function openInviteesModal(meeting) {
     <div class="modal-card" style="max-width:620px;">
       <div class="modal-head">
         <h2>Invitees · ${escapeHtml(meeting.topic||'Meeting')}</h2>
+        ${failedCount > 0 ? `<button id="inv-resend-btn" class="btn-ghost" style="padding:7px 12px;font-size:0.78rem;background:rgba(251,191,36,0.10);border-color:rgba(251,191,36,0.4);color:#fbbf24;" title="Re-send the invite email + reminders for invitees whose email failed (typically rate-limit). Zoom registrations stay intact.">↻ Resend ${failedCount} failed</button>` : ''}
         ${isSystemMeeting ? `<button id="inv-add-btn" class="btn-primary" style="padding:7px 14px;font-size:0.78rem;">+ Add students</button>` : ''}
         <button class="close" data-x>×</button>
       </div>
@@ -2237,6 +2241,29 @@ function openInviteesModal(meeting) {
     const orig = b.textContent; b.textContent = 'Copied!'; setTimeout(() => b.textContent = orig, 1200);
   }));
   document.getElementById('inv-add-btn')?.addEventListener('click', () => { close(); openAddInviteesModal(meeting); });
+  document.getElementById('inv-resend-btn')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    if (btn.disabled) return;
+    const original = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Resending…';
+    try {
+      const body = (typeof meeting.id === 'string' && meeting.id.startsWith('zoom-'))
+        ? { zoom_meeting_id: meeting.id.slice(5) }
+        : { id: Number(meeting.id) };
+      const j = await _zoomFetch('resend-failed-emails', { method: 'POST', body });
+      const msg = `Resent ${j.resent} email${j.resent === 1 ? '' : 's'}` + (j.still_failed ? ` · ${j.still_failed} still failed` : '');
+      btn.textContent = '✓ ' + msg;
+      // Refresh the modal so statuses update.
+      await loadUpcomingMeetings();
+      const refreshed = (upcomingMeetings || []).find(x => String(x.id) === String(meeting.id));
+      if (refreshed) {
+        setTimeout(() => { close(); openInviteesModal(refreshed); }, 1500);
+      }
+    } catch (e2) {
+      btn.disabled = false; btn.textContent = original;
+      alert('Resend failed: ' + (e2.message || e2));
+    }
+  });
   document.getElementById('inv-cancel-btn')?.addEventListener('click', async () => {
     if (!confirm(`Cancel "${meeting.topic || 'this meeting'}"? Registered students will be notified.`)) return;
     try {

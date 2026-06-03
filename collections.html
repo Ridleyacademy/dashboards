@@ -492,7 +492,7 @@
         <div class="table-title">Collection Log</div>
         <input class="search-box" type="search" id="searchBox" placeholder="Search name, email, product…" style="width:210px;">
         <select class="rep-filter" id="repFilter" style="display:none;">
-          <option value="">All Reps</option>
+          <option value="">All Collectors</option>
         </select>
         <div class="row-count-badge" id="rowCount">—</div>
         <button class="tbtn tbtn-ghost" id="autoAssignBtn"
@@ -508,7 +508,7 @@
       <div>
         <table class="data-table" id="declTable">
           <colgroup>
-            <col class="admin-col" style="width:7%;"><!-- Rep -->
+            <col class="admin-col" style="width:7%;"><!-- Collector -->
             <col style="width:7%;"><!-- Date -->
             <col style="width:11%;"><!-- Name -->
             <col style="width:13%;"><!-- Email -->
@@ -522,7 +522,7 @@
           </colgroup>
           <thead>
             <tr>
-              <th class="admin-col" data-col="rep_name">Rep</th>
+              <th class="admin-col" data-col="rep_name">Collector</th>
               <th data-col="date_closed">Date</th>
               <th data-col="name">Name</th>
               <th data-col="email">Email</th>
@@ -556,9 +556,9 @@
     <input type="hidden" id="fId">
     <div class="modal-grid">
       <div class="modal-field full" id="fRepField" style="display:none;">
-        <label class="modal-label">Assign Rep</label>
+        <label class="modal-label">Assign Collector</label>
         <select class="modal-input" id="fRep">
-          <option value="">— Select rep —</option>
+          <option value="">— Select collector —</option>
         </select>
       </div>
       <div class="modal-field">
@@ -745,7 +745,7 @@ async function loadDeclarations() {
     // whose user_id isn't linked to a rep_mappings row. Surface that
     // explicitly instead of showing a silently-empty dashboard.
     if (payload.error) {
-      renderErrorRow(payload.error + ' — ask an admin to link your account in Rep Mapping.');
+      renderErrorRow(payload.error + ' — ask an admin to link your account in Rep Mapping (used as the Collector identity).');
       declData = [];
       return;
     }
@@ -761,7 +761,7 @@ function populateRepFilter() {
   if (!canSeeAll) return;
   const sel = document.getElementById('repFilter');
   const reps = [...new Set(declData.map(r => r.rep_name).filter(Boolean))].sort();
-  sel.innerHTML = '<option value="">All Reps</option>' +
+  sel.innerHTML = '<option value="">All Collectors</option>' +
     reps.map(r => `<option value="${r}">${r}</option>`).join('');
 }
 
@@ -970,9 +970,9 @@ function renderTable() {
 
   document.getElementById('rowCount').textContent = `${rows.length} row${rows.length !== 1 ? 's' : ''}`;
 
-  // Columns: Rep (admin) · Date · Name · Email · Product · Amount · Type of
-  // Sale · From · Note · Check · Actions  — Type column dropped since every
-  // row is implicitly Rebill.
+  // Columns: Collector (admin) · Date · Name · Email · Product · Amount ·
+  // Type of Sale · From · Note · Check · Actions  — Type column dropped
+  // since every row is implicitly Rebill.
   const colspan = canSeeAll ? 11 : 10;
   if (!rows.length) {
     tbody.innerHTML = `<tr><td colspan="${colspan}" class="empty-state">No collections found</td></tr>`;
@@ -981,7 +981,7 @@ function renderTable() {
 
   const wrap = 'word-break:break-word;white-space:normal;line-height:1.35;';
   tbody.innerHTML = rows.map(r => `<tr>
-    <td class="admin-col muted" data-label="Rep" style="white-space:nowrap;">${r.rep_name||'—'}</td>
+    <td class="admin-col muted" data-label="Collector" style="white-space:nowrap;">${r.rep_name||'—'}</td>
     <td data-label="Date" style="white-space:nowrap;color:var(--text-muted);">${fmtDate(r.date_closed)}</td>
     <td class="td-main" data-label="Name" style="${wrap}">${r.name||'—'}</td>
     <td class="muted" data-label="Email" style="${wrap}">${r.email||'—'}</td>
@@ -1195,7 +1195,7 @@ function showAutoAssignModal(preview, scope) {
                 <thead style="background:#0f1120;color:#7880a8;font-size:0.68rem;text-transform:uppercase;letter-spacing:0.06em;">
                   <tr>
                     <th style="padding:8px 10px;text-align:center;width:30px;"><input type="checkbox" id="aaAutoAll" checked></th>
-                    <th style="padding:8px 10px;text-align:left;">Rep</th>
+                    <th style="padding:8px 10px;text-align:left;">Collector</th>
                     <th style="padding:8px 10px;text-align:left;">Date</th>
                     <th style="padding:8px 10px;text-align:left;">Email</th>
                     <th style="padding:8px 10px;text-align:left;">Product</th>
@@ -1289,7 +1289,7 @@ function showAutoAssignModal(preview, scope) {
                           <option value="">— pick —</option>
                           ${allReps.map(r => `<option value="${r}">${r}</option>`).join('')}
                         </select>
-                        ${s.existingRep ? `<div style="font-size:0.65rem;color:#fbbf24;margin-top:2px;">⚠ ${s.existingRep} already declared this</div>` : ''}
+                        ${s.existingRep ? `<div style="font-size:0.65rem;color:#fbbf24;margin-top:2px;">⚠ ${s.existingRep} already logged this</div>` : ''}
                         ${s.salesLogDuplicate ? `<div style="font-size:0.65rem;color:#fbbf24;margin-top:2px;">⚠ Sales Log has another row with same email + price (possible double-charge)</div>` : ''}
                       </td>
                       <td style="padding:8px 10px;color:#7880a8;">${s.date}</td>

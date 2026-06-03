@@ -4,7 +4,7 @@
 // Adding a new role or page = edit ONLY this file. Per-page guards just call
 // RidleyPerms.canOpen(href, user) and trust the result.
 (function () {
-  const AVAILABLE_PERMS = ['sales', 'marketing', 'finance', 'calls', 'rep', 'sales_manager', 'mentorship', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep', 'weekly_stats', 'collections'];
+  const AVAILABLE_PERMS = ['sales', 'marketing', 'finance', 'calls', 'rep', 'sales_manager', 'mentorship', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep', 'weekly_stats', 'collector'];
 
   // Page → which roles grant access. `is_admin: true` always wins.
   // `roles: '*'` means anyone signed in.
@@ -17,9 +17,9 @@
     { href: 'calls.html',        id: 'calls',        roles: ['calls', 'sales_manager', 'rep'] },
     { href: 'declarations.html', id: 'declarations', roles: ['rep', 'sales_manager'] },
     // Collections dashboard — chasing missed/disputed rebills. Lives in a
-    // separate table so it never mixes into rep declaration stats. Gated
-    // by the new collections / collections.view permission.
-    { href: 'collections.html', id: 'collections', roles: ['collections'], granular: 'collections.view' },
+    // separate table so it never mixes into rep declaration stats. Gated by
+    // the new `collector` role (legacy bucket) or collections.view granular.
+    { href: 'collections.html', id: 'collections', roles: ['collector'], granular: 'collections.view' },
     { href: 'students.html',     id: 'students',     roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'] },
     // Coach Dashboard: only true editors. Primary gate is the GRANULAR
     // `coach.edit` permission. Legacy fallback includes `coach` /

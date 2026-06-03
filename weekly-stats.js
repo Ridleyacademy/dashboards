@@ -312,7 +312,7 @@ function makeMiniChart(canvas, points, metric) {
   // line carries the trend story; the FILL beneath stays neutral (a faint
   // slate wash) so a down-then-up series doesn't read as "all bad" just
   // because the overall delta was negative.
-  const UP   = '#f5f5f4';                              // soft cream (off-white)
+  const UP   = '#22d3ee';                              // cyan-400 — vibrant on dark
   const DOWN = '#ef4444';                              // red-500
   const NEUTRAL_FILL = '#94a3b8';                      // slate-400 — fill only
   // Neutral, very subtle fill — the line colour does the trend signaling.

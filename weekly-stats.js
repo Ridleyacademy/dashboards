@@ -312,10 +312,12 @@ function makeMiniChart(canvas, points, metric) {
   // line carries the trend story; the FILL beneath stays neutral (a faint
   // slate wash) so a down-then-up series doesn't read as "all bad" just
   // because the overall delta was negative.
-  // Clean two-tone line: white for up segments, red for down. No outline,
-  // no fill, no point clutter — the line itself does all the work. White
-  // on the dark dashboard background is readable without any halo trick.
-  const UP   = '#ffffff';                              // white up
+  // Clean two-tone line: theme-aware "up" colour (white on dark, near-
+  // black on light), red on every down segment regardless of theme. No
+  // outline, no fill, no point clutter — the line itself does all the
+  // work. Theme is determined the same way the page does it.
+  const isLight = document.body.classList.contains('light');
+  const UP   = isLight ? '#0f172a' : '#ffffff';        // slate-900 / white
   const DOWN = '#ef4444';                              // red-500 down
 
   const seriesData = points.map(p => p.value);
@@ -345,7 +347,7 @@ function makeMiniChart(canvas, points, metric) {
           pointRadius: 0,                              // no clutter — hover reveals
           pointHoverRadius: 4,
           pointHoverBackgroundColor: UP,
-          pointHoverBorderColor: '#0f1220',
+          pointHoverBorderColor: isLight ? '#ffffff' : '#0f1220',
           pointHoverBorderWidth: 2,
           spanGaps: true,
           borderDash: metric.source === 'manual' ? [4, 3] : [],

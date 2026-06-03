@@ -312,7 +312,7 @@ function makeMiniChart(canvas, points, metric) {
   // segment is red when it's going DOWN and white/light when it's going UP
   // or flat. (Plain black gets lost on the dark theme — using a near-white
   // for "up" so it's readable.)
-  const UP   = '#e5e7eb';                              // up / flat → light grey-white
+  const UP   = '#000000';                              // up / flat → black
   const DOWN = '#f87171';                              // down → red
   // Overall trend (used for fill tint + point colour).
   const firstV = points.find(p => p.value != null)?.value ?? 0;
@@ -367,7 +367,24 @@ function makeMiniChart(canvas, points, metric) {
         },
       },
       scales: {
-        x: { ticks: { color: '#7880a8', font: { size: 9 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 6 }, grid: { display: false } },
+        x: {
+          ticks: {
+            color: '#7880a8',
+            font: { size: 9 },
+            autoSkip: false,             // show EVERY period label
+            maxRotation: 60,             // rotate so they fit horizontally
+            minRotation: 45,
+            // Compact label: "M/D" so weekly labels don't overflow.
+            callback: function (val) {
+              const raw = this.getLabelForValue(val);
+              if (!raw) return raw;
+              const d = new Date(raw);
+              if (isNaN(d)) return raw;
+              return (d.getUTCMonth() + 1) + '/' + d.getUTCDate();
+            },
+          },
+          grid: { display: false },
+        },
         y: { ticks: { color: '#7880a8', font: { size: 9 }, callback: (v) => isUsd ? '$' + (v/1000).toFixed(0) + 'k' : v }, grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true },
       },
     },

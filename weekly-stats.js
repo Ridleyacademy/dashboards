@@ -271,26 +271,27 @@ function renderKpiStrip(visible) {
 }
 
 // ── Drag-and-drop card ordering ─────────────────────────────────────
-// Persists per (division, period) in localStorage so each tab can have its
-// own preferred layout. Metrics not in the saved order fall through to the
-// catalog's sort_order. A drop inserts the source BEFORE the target card.
-function _orderKey() { return 'wstats_order:' + activeDivision + ':' + activePeriod; }
-function _loadOrder() {
-  try { return JSON.parse(localStorage.getItem(_orderKey()) || '[]'); } catch { return []; }
+// Persists GLOBALLY for all users via the weekly_stats_metrics.sort_order
+// column. On drop, we compute the new full key sequence (across whatever's
+// currently visible in this tab), POST it to ?api=reorder, and update the
+// in-memory catalog so the page reflects the new order without a reload.
+// The server gates writes by capabilities.can_edit, so view-only users see
+// the global order but can't change it.
+function _sortByCatalogOrder(metrics) {
+  // Catalog rows already carry sort_order — this is just a stable sort by it.
+  return metrics.slice().sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
 }
-function _saveOrder(keys) {
-  try { localStorage.setItem(_orderKey(), JSON.stringify(keys)); } catch (_) {}
-}
-function _sortByCustomOrder(metrics) {
-  const order = _loadOrder();
-  if (!order.length) return metrics;
-  const idx = new Map(order.map((k, i) => [k, i]));
-  return metrics.slice().sort((a, b) => {
-    const ai = idx.has(a.key) ? idx.get(a.key) : Number.MAX_SAFE_INTEGER;
-    const bi = idx.has(b.key) ? idx.get(b.key) : Number.MAX_SAFE_INTEGER;
-    if (ai !== bi) return ai - bi;
-    return (a.sort_order || 0) - (b.sort_order || 0);
-  });
+async function _persistOrder(orderedKeys) {
+  try {
+    await apiFetch('?api=reorder', { method: 'POST', body: { ordered_keys: orderedKeys } });
+    // Reflect new sort_order locally so the next render keeps it without a reload.
+    orderedKeys.forEach((k, i) => {
+      const m = catalog.find(x => x.key === k);
+      if (m) m.sort_order = 100 + i * 10;
+    });
+  } catch (e) {
+    setBanner('Reorder failed: ' + (e.message || e), 'error');
+  }
 }
 let _dndDragKey = null;
 
@@ -305,8 +306,9 @@ function renderChartGrid(visible) {
     return;
   }
 
-  // Apply any saved drag-and-drop order before rendering.
-  const ordered = _sortByCustomOrder(visible);
+  // Sort by catalog sort_order — which the server persisted across users
+  // via ?api=reorder.
+  const ordered = _sortByCatalogOrder(visible);
 
   grid.innerHTML = ordered.map(m => {
     const pts = seriesByMetric.get(m.key) || [];
@@ -315,8 +317,8 @@ function renderChartGrid(visible) {
     const cls = delta > 0 ? 'up' : delta < 0 ? 'down' : '';
     const arrow = delta > 0 ? '▲' : delta < 0 ? '▼' : '–';
     return `
-      <div class="chart-card" data-key="${escapeHtml(m.key)}" draggable="true">
-        <div class="chart-card-drag" title="Drag to reorder" aria-hidden="true">⋮⋮</div>
+      <div class="chart-card" data-key="${escapeHtml(m.key)}" ${capabilities.can_edit ? 'draggable="true"' : ''}>
+        ${capabilities.can_edit ? '<div class="chart-card-drag" title="Drag to reorder (saved for everyone)" aria-hidden="true">⋮⋮</div>' : ''}
         <div class="chart-card-head">
           <div class="chart-card-title">${escapeHtml(m.label)}</div>
           <div class="chart-card-source ${m.source === 'derived' ? 'src-derived' : 'src-manual'}">${m.source}</div>
@@ -366,21 +368,26 @@ function renderChartGrid(visible) {
       card.classList.add('dnd-over');
     });
     card.addEventListener('dragleave', () => card.classList.remove('dnd-over'));
-    card.addEventListener('drop', (e) => {
+    card.addEventListener('drop', async (e) => {
       e.preventDefault();
       card.classList.remove('dnd-over');
       const fromKey = _dndDragKey;
       const toKey = card.dataset.key;
       if (!fromKey || fromKey === toKey) return;
-      const currentOrder = Array.from(grid.querySelectorAll('.chart-card')).map(c => c.dataset.key);
-      const fromIdx = currentOrder.indexOf(fromKey);
-      const toIdx   = currentOrder.indexOf(toKey);
+      // Compute the new order across the WHOLE catalog (not just visible).
+      // We reorder by lifting the dragged key out and re-inserting it where
+      // the target sits in the global catalog ordering, so the change makes
+      // sense from every tab — not only the one the user is on.
+      const allKeys = _sortByCatalogOrder(catalog).map(m => m.key);
+      const fromIdx = allKeys.indexOf(fromKey);
+      const toIdx   = allKeys.indexOf(toKey);
       if (fromIdx < 0 || toIdx < 0) return;
-      const [moved] = currentOrder.splice(fromIdx, 1);
-      // Insert before the target — feels natural for left-to-right grids.
-      const insertAt = currentOrder.indexOf(toKey);
-      currentOrder.splice(insertAt, 0, moved);
-      _saveOrder(currentOrder);
+      const [moved] = allKeys.splice(fromIdx, 1);
+      const insertAt = allKeys.indexOf(toKey);  // may shift after splice
+      allKeys.splice(insertAt, 0, moved);
+      // Optimistic local update + server persist. _persistOrder reflects
+      // the new sort_order into catalog so renderAll uses it immediately.
+      await _persistOrder(allKeys);
       renderAll();
     });
   });

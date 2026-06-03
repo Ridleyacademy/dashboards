@@ -307,14 +307,21 @@ function cssId(s) { return String(s).replace(/[^a-zA-Z0-9_-]/g, '_'); }
 
 function makeMiniChart(canvas, points, metric) {
   const ctx = canvas.getContext('2d');
-  // Money metrics → green line; counts → blue; manual entries → purple. The
-  // fill below the line uses a fading gradient of the same colour so dense
-  // series read as one shape rather than a forest of bars.
   const isUsd = metric.unit === 'usd';
-  const color = metric.source === 'manual' ? '#a78bfa' : (isUsd ? '#34d399' : '#6b9eff');
+  // Per-segment colouring so the line reads as a trend at a glance: each
+  // segment is red when it's going DOWN and white/light when it's going UP
+  // or flat. (Plain black gets lost on the dark theme — using a near-white
+  // for "up" so it's readable.)
+  const UP   = '#e5e7eb';                              // up / flat → light grey-white
+  const DOWN = '#f87171';                              // down → red
+  // Overall trend (used for fill tint + point colour).
+  const firstV = points.find(p => p.value != null)?.value ?? 0;
+  const lastV  = [...points].reverse().find(p => p.value != null)?.value ?? 0;
+  const overallDown = lastV < firstV;
+  const tintColor = overallDown ? DOWN : UP;
   const fill = ctx.createLinearGradient(0, 0, 0, canvas.parentElement.clientHeight || 160);
-  fill.addColorStop(0, color + '55');   // ~33% alpha at top
-  fill.addColorStop(1, color + '05');   // ~2% at bottom
+  fill.addColorStop(0, tintColor + '33');
+  fill.addColorStop(1, tintColor + '04');
   return new Chart(ctx, {
     type: 'line',
     data: {
@@ -322,18 +329,28 @@ function makeMiniChart(canvas, points, metric) {
       datasets: [{
         data: points.map(p => p.value),
         backgroundColor: fill,
-        borderColor: color,
+        borderColor: tintColor,
         borderWidth: 2,
         fill: true,
-        tension: 0.35,                  // gentle curve
+        tension: 0,                                    // straight segments, no curve
+        stepped: false,
+        // Colour each segment individually based on its own direction.
+        // Chart.js's `segment.borderColor` callback runs per pair of points;
+        // return red when the second point is lower than the first.
+        segment: {
+          borderColor: (s) => {
+            const a = s.p0?.parsed?.y;
+            const b = s.p1?.parsed?.y;
+            if (a == null || b == null) return tintColor;
+            return b < a ? DOWN : UP;
+          },
+        },
         pointRadius: points.length > 24 ? 0 : 2,
         pointHoverRadius: 5,
-        pointBackgroundColor: color,
+        pointBackgroundColor: tintColor,
         pointBorderColor: 'rgba(15,18,32,0.9)',
         pointBorderWidth: 1,
-        spanGaps: true,                 // don't break the line on null gaps
-        // Manual-entry metrics get a dashed line so they're visually
-        // distinguishable from auto-derived ones at a glance.
+        spanGaps: true,
         borderDash: metric.source === 'manual' ? [4, 3] : [],
       }],
     },

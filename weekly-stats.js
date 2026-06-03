@@ -175,8 +175,13 @@ async function loadData() {
   setBanner('');
   spin(true);
   try {
+    // Staff Meeting is a virtual tab — its metrics span multiple divisions,
+    // selected via the in_staff_meeting flag in renderAll(). Asking the server
+    // for `division=staff_meeting` would match zero rows. Fetch everything in
+    // that case and let the client filter.
+    const sendDiv = (activeDivision !== 'all' && activeDivision !== 'staff_meeting');
     const url = `?api=series&period=${activePeriod}&from=${dateFrom}&to=${dateTo}`
-      + (activeDivision !== 'all' ? `&division=${activeDivision}` : '');
+      + (sendDiv ? `&division=${activeDivision}` : '');
     const j = await apiFetch(url);
     seriesByMetric = new Map((j.series || []).map(s => [s.metric_key, s.points]));
     renderAll();

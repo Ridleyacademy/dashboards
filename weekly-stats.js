@@ -236,29 +236,8 @@ function pickHighlights(visible) {
 
 function lastTwoValues(points) {
   if (!points || !points.length) return { current: 0, previous: 0 };
-  // Walk back from the end and pick the last point with a real reported
-  // value. Trailing zeros usually mean "this week hasn't been logged yet"
-  // (the series is zero-filled for missing periods) — using 0 as "current"
-  // makes every card read 0 on Wednesdays before entry happens. By
-  // skipping trailing zeros/nulls we surface the latest known value, and
-  // the "previous" is the one before that for the delta. If a metric is
-  // genuinely all zeros (no data ever) we fall through and report 0.
-  let lastIdx = -1;
-  for (let i = points.length - 1; i >= 0; i--) {
-    const v = points[i]?.value;
-    if (v != null && Number(v) !== 0) { lastIdx = i; break; }
-  }
-  if (lastIdx < 0) return { current: 0, previous: 0 };
-  const current  = Number(points[lastIdx].value) || 0;
-  // "previous" is the most recent non-zero/non-null value BEFORE lastIdx,
-  // so the delta compares two real reported values rather than landing
-  // on a trailing-zero week.
-  let prevIdx = -1;
-  for (let i = lastIdx - 1; i >= 0; i--) {
-    const v = points[i]?.value;
-    if (v != null && Number(v) !== 0) { prevIdx = i; break; }
-  }
-  const previous = prevIdx >= 0 ? (Number(points[prevIdx].value) || 0) : 0;
+  const current  = points[points.length - 1]?.value ?? 0;
+  const previous = points.length >= 2 ? points[points.length - 2].value : 0;
   return { current, previous };
 }
 

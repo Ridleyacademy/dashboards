@@ -312,8 +312,9 @@ function makeMiniChart(canvas, points, metric) {
   // line carries the trend story; the FILL beneath stays neutral (a faint
   // slate wash) so a down-then-up series doesn't read as "all bad" just
   // because the overall delta was negative.
-  const UP   = '#22d3ee';                              // cyan-400 — vibrant on dark
-  const DOWN = '#ef4444';                              // red-500
+  const UP      = '#000000';                           // black up
+  const DOWN    = '#ef4444';                           // red-500 down
+  const OUTLINE = '#ffffff';                           // white halo so black stays readable on dark
   const NEUTRAL_FILL = '#94a3b8';                      // slate-400 — fill only
   // Neutral, very subtle fill — the line colour does the trend signaling.
   const fill = ctx.createLinearGradient(0, 0, 0, canvas.parentElement.clientHeight || 160);
@@ -321,38 +322,59 @@ function makeMiniChart(canvas, points, metric) {
   fill.addColorStop(0.85, NEUTRAL_FILL + '06');        // ~2%
   fill.addColorStop(1, NEUTRAL_FILL + '00');           // transparent
 
+  const seriesData = points.map(p => p.value);
   return new Chart(ctx, {
     type: 'line',
     data: {
       labels: points.map(p => p.period_start),
-      datasets: [{
-        data: points.map(p => p.value),
-        backgroundColor: fill,
-        borderColor: UP,                               // default; segments override
-        borderWidth: 2.25,
-        borderCapStyle: 'round',
-        borderJoinStyle: 'round',
-        fill: true,
-        tension: 0,                                    // straight segments
-        // Per-segment border colour: red where the next value is lower,
-        // cream where it's same/higher. Runs once per pair of points.
-        segment: {
-          borderColor: (s) => {
-            const a = s.p0?.parsed?.y;
-            const b = s.p1?.parsed?.y;
-            if (a == null || b == null) return UP;
-            return b < a ? DOWN : UP;
-          },
+      datasets: [
+        {
+          // Bottom layer — wider white line acts as a halo/outline.
+          // Drawn first (order:0) so the coloured line sits on top.
+          label: '_outline',
+          data: seriesData,
+          borderColor: OUTLINE,
+          borderWidth: 4.5,
+          borderCapStyle: 'round',
+          borderJoinStyle: 'round',
+          fill: false,
+          tension: 0,
+          pointRadius: 0,
+          pointHoverRadius: 0,
+          spanGaps: true,
+          order: 0,
         },
-        pointRadius: points.length > 32 ? 0 : (points.length > 20 ? 1.5 : 2.5),
-        pointHoverRadius: 6,
-        pointHoverBorderWidth: 2,
-        pointBackgroundColor: '#0f1220',
-        pointBorderColor: UP,
-        pointBorderWidth: 1.5,
-        spanGaps: true,
-        borderDash: metric.source === 'manual' ? [4, 3] : [],
-      }],
+        {
+          // Top layer — black for up, red for down, per segment.
+          // Carries the gradient fill below the line.
+          label: metric.label || 'value',
+          data: seriesData,
+          backgroundColor: fill,
+          borderColor: UP,                             // default; segments override
+          borderWidth: 2.5,
+          borderCapStyle: 'round',
+          borderJoinStyle: 'round',
+          fill: true,
+          tension: 0,
+          segment: {
+            borderColor: (s) => {
+              const a = s.p0?.parsed?.y;
+              const b = s.p1?.parsed?.y;
+              if (a == null || b == null) return UP;
+              return b < a ? DOWN : UP;
+            },
+          },
+          pointRadius: points.length > 32 ? 0 : (points.length > 20 ? 2 : 3),
+          pointHoverRadius: 6,
+          pointHoverBorderWidth: 2,
+          pointBackgroundColor: UP,
+          pointBorderColor: OUTLINE,
+          pointBorderWidth: 1.5,
+          spanGaps: true,
+          borderDash: metric.source === 'manual' ? [4, 3] : [],
+          order: 1,
+        },
+      ],
     },
     options: {
       responsive: true,
@@ -371,6 +393,9 @@ function makeMiniChart(canvas, points, metric) {
           titleFont: { size: 11, weight: '600' },
           bodyFont: { size: 11 },
           displayColors: false,
+          // Skip the underlying white-outline dataset so the tooltip
+          // only shows ONE value per period instead of two identical ones.
+          filter: (item) => item.dataset.label !== '_outline',
           callbacks: {
             title: (ctxs) => {
               if (!ctxs.length) return '';

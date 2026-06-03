@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v198-weekly-stats-cyan-up';
+const CACHE_NAME = 'ridley-v199-weekly-stats-black-white-outline';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [

@@ -312,62 +312,27 @@ function makeMiniChart(canvas, points, metric) {
   // line carries the trend story; the FILL beneath stays neutral (a faint
   // slate wash) so a down-then-up series doesn't read as "all bad" just
   // because the overall delta was negative.
-  const UP      = '#000000';                           // black up
-  const DOWN    = '#ef4444';                           // red-500 down
-  const OUTLINE = '#ffffff';                           // white halo so black stays readable on dark
-  const NEUTRAL_FILL = '#94a3b8';                      // slate-400 — fill only
-  // Neutral, very subtle fill — the line colour does the trend signaling.
-  const fill = ctx.createLinearGradient(0, 0, 0, canvas.parentElement.clientHeight || 160);
-  fill.addColorStop(0, NEUTRAL_FILL + '22');           // ~13% alpha
-  fill.addColorStop(0.85, NEUTRAL_FILL + '06');        // ~2%
-  fill.addColorStop(1, NEUTRAL_FILL + '00');           // transparent
+  // Clean two-tone line: white for up segments, red for down. No outline,
+  // no fill, no point clutter — the line itself does all the work. White
+  // on the dark dashboard background is readable without any halo trick.
+  const UP   = '#ffffff';                              // white up
+  const DOWN = '#ef4444';                              // red-500 down
 
   const seriesData = points.map(p => p.value);
-  // Custom plugin: paint a white halo behind the line BEFORE the dataset
-  // is drawn. Doing it via a plugin (instead of a second dataset) is the
-  // only way to guarantee the outline ends up BELOW the coloured line —
-  // dataset-order semantics in Chart.js are inconsistent enough that the
-  // two-dataset approach kept rendering the white on top, hiding the
-  // black/red entirely.
-  const whiteOutlinePlugin = {
-    id: 'whiteOutline_' + metric.key,
-    beforeDatasetDraw(chart, args) {
-      if (args.index !== 0) return;
-      const meta = chart.getDatasetMeta(0);
-      if (!meta?.data?.length) return;
-      const c = chart.ctx;
-      c.save();
-      c.strokeStyle = OUTLINE;
-      c.lineWidth = 5;
-      c.lineCap = 'round';
-      c.lineJoin = 'round';
-      c.beginPath();
-      let started = false;
-      for (let i = 0; i < meta.data.length; i++) {
-        const pt = meta.data[i];
-        if (!pt || pt.skip) continue;
-        if (!started) { c.moveTo(pt.x, pt.y); started = true; }
-        else c.lineTo(pt.x, pt.y);
-      }
-      c.stroke();
-      c.restore();
-    },
-  };
   return new Chart(ctx, {
     type: 'line',
-    plugins: [whiteOutlinePlugin],
     data: {
       labels: points.map(p => p.period_start),
       datasets: [
         {
           label: metric.label || 'value',
           data: seriesData,
-          backgroundColor: fill,
+          backgroundColor: 'transparent',
           borderColor: UP,                             // default; segments override
-          borderWidth: 2.5,
+          borderWidth: 2,
           borderCapStyle: 'round',
           borderJoinStyle: 'round',
-          fill: true,
+          fill: false,
           tension: 0,
           segment: {
             borderColor: (s) => {
@@ -377,12 +342,11 @@ function makeMiniChart(canvas, points, metric) {
               return b < a ? DOWN : UP;
             },
           },
-          pointRadius: points.length > 32 ? 0 : (points.length > 20 ? 2 : 3),
-          pointHoverRadius: 6,
+          pointRadius: 0,                              // no clutter — hover reveals
+          pointHoverRadius: 4,
+          pointHoverBackgroundColor: UP,
+          pointHoverBorderColor: '#0f1220',
           pointHoverBorderWidth: 2,
-          pointBackgroundColor: UP,
-          pointBorderColor: OUTLINE,
-          pointBorderWidth: 1.5,
           spanGaps: true,
           borderDash: metric.source === 'manual' ? [4, 3] : [],
         },

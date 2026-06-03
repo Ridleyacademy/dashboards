@@ -308,20 +308,31 @@ function cssId(s) { return String(s).replace(/[^a-zA-Z0-9_-]/g, '_'); }
 function makeMiniChart(canvas, points, metric) {
   const ctx = canvas.getContext('2d');
   const isUsd = metric.unit === 'usd';
-  // Per-segment colouring so the line reads as a trend at a glance: each
-  // segment is red when it's going DOWN and white/light when it's going UP
-  // or flat. (Plain black gets lost on the dark theme — using a near-white
-  // for "up" so it's readable.)
-  const UP   = '#000000';                              // up / flat → black
-  const DOWN = '#f87171';                              // down → red
-  // Overall trend (used for fill tint + point colour).
+  // Per-segment trend colouring — emerald going up, coral going down.
+  // These are picked to pop against the dark theme card backgrounds while
+  // keeping the canonical "good/bad" semantics; tonal weight is balanced
+  // so neither overwhelms the other on a noisy series.
+  const UP   = '#22c55e';                              // emerald-500
+  const DOWN = '#ef4444';                              // red-500
+  // Overall trend (used for fill tint + point ring colour).
   const firstV = points.find(p => p.value != null)?.value ?? 0;
   const lastV  = [...points].reverse().find(p => p.value != null)?.value ?? 0;
   const overallDown = lastV < firstV;
   const tintColor = overallDown ? DOWN : UP;
+  // Layered fill: a stronger band of the trend colour near the top fading
+  // into transparent — the area is suggestive, not loud.
   const fill = ctx.createLinearGradient(0, 0, 0, canvas.parentElement.clientHeight || 160);
-  fill.addColorStop(0, tintColor + '33');
-  fill.addColorStop(1, tintColor + '04');
+  fill.addColorStop(0, tintColor + '38');              // ~22% alpha
+  fill.addColorStop(0.7, tintColor + '0C');            // ~5%
+  fill.addColorStop(1, tintColor + '00');              // transparent
+
+  // Sparse-label strategy: with 13+ weeks the labels overlap if we draw
+  // them all; instead we draw EVERY label as a tick mark on the axis but
+  // only LABEL roughly 7 of them, evenly spaced. The user still gets the
+  // full granular grid lines / tooltip on hover, but the bottom axis stays
+  // legible. The remaining points all get tick marks underneath.
+  const labelStride = Math.max(1, Math.ceil(points.length / 7));
+
   return new Chart(ctx, {
     type: 'line',
     data: {
@@ -330,13 +341,13 @@ function makeMiniChart(canvas, points, metric) {
         data: points.map(p => p.value),
         backgroundColor: fill,
         borderColor: tintColor,
-        borderWidth: 2,
+        borderWidth: 2.25,
+        borderCapStyle: 'round',
+        borderJoinStyle: 'round',
         fill: true,
-        tension: 0,                                    // straight segments, no curve
-        stepped: false,
-        // Colour each segment individually based on its own direction.
-        // Chart.js's `segment.borderColor` callback runs per pair of points;
-        // return red when the second point is lower than the first.
+        tension: 0,                                    // straight segments
+        // Per-segment border colour: red where the next value is lower,
+        // emerald where it's same/higher. Runs once per pair of points.
         segment: {
           borderColor: (s) => {
             const a = s.p0?.parsed?.y;
@@ -345,11 +356,12 @@ function makeMiniChart(canvas, points, metric) {
             return b < a ? DOWN : UP;
           },
         },
-        pointRadius: points.length > 24 ? 0 : 2,
-        pointHoverRadius: 5,
-        pointBackgroundColor: tintColor,
-        pointBorderColor: 'rgba(15,18,32,0.9)',
-        pointBorderWidth: 1,
+        pointRadius: points.length > 32 ? 0 : (points.length > 20 ? 1.5 : 2.5),
+        pointHoverRadius: 6,
+        pointHoverBorderWidth: 2,
+        pointBackgroundColor: '#0f1220',
+        pointBorderColor: tintColor,
+        pointBorderWidth: 1.5,
         spanGaps: true,
         borderDash: metric.source === 'manual' ? [4, 3] : [],
       }],
@@ -357,35 +369,69 @@ function makeMiniChart(canvas, points, metric) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      layout: { padding: { top: 6, right: 6, bottom: 2, left: 2 } },
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { display: false },
         tooltip: {
+          backgroundColor: 'rgba(15,18,32,0.95)',
+          borderColor: 'rgba(255,255,255,0.08)',
+          borderWidth: 1,
+          padding: 8,
+          titleColor: '#e5e7eb',
+          bodyColor: '#cbd5e1',
+          titleFont: { size: 11, weight: '600' },
+          bodyFont: { size: 11 },
+          displayColors: false,
           callbacks: {
-            label: (ctx) => fmtVal(ctx.raw, metric.unit),
+            title: (ctxs) => {
+              if (!ctxs.length) return '';
+              const d = new Date(ctxs[0].label);
+              if (isNaN(d)) return ctxs[0].label;
+              return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+            },
+            label: (c) => fmtVal(c.raw, metric.unit),
           },
         },
       },
       scales: {
         x: {
           ticks: {
-            color: '#7880a8',
-            font: { size: 9 },
-            autoSkip: false,             // show EVERY period label
-            maxRotation: 60,             // rotate so they fit horizontally
-            minRotation: 45,
-            // Compact label: "M/D" so weekly labels don't overflow.
-            callback: function (val) {
+            color: '#8a93b8',
+            font: { size: 10, weight: '500' },
+            autoSkip: false,
+            maxRotation: 0,
+            minRotation: 0,
+            padding: 4,
+            // Tick mark stays for every point (so the user can see all
+            // weeks exist), but the LABEL is blank unless its index falls
+            // on a stride boundary. Anchor to the LAST point so the most
+            // recent week is always labeled.
+            callback: function (val, idx, allTicks) {
+              const lastIdx = allTicks.length - 1;
+              const showLabel = ((lastIdx - idx) % labelStride === 0);
+              if (!showLabel) return '';
               const raw = this.getLabelForValue(val);
-              if (!raw) return raw;
               const d = new Date(raw);
               if (isNaN(d)) return raw;
-              return (d.getUTCMonth() + 1) + '/' + d.getUTCDate();
+              return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
             },
           },
-          grid: { display: false },
+          grid: { display: false, drawTicks: true, tickColor: 'rgba(255,255,255,0.12)', tickLength: 4 },
+          border: { color: 'rgba(255,255,255,0.08)' },
         },
-        y: { ticks: { color: '#7880a8', font: { size: 9 }, callback: (v) => isUsd ? '$' + (v/1000).toFixed(0) + 'k' : v }, grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true },
+        y: {
+          ticks: {
+            color: '#8a93b8',
+            font: { size: 10 },
+            maxTicksLimit: 4,
+            padding: 6,
+            callback: (v) => isUsd ? '$' + (v >= 1000 ? (v/1000).toFixed(0) + 'k' : v) : v,
+          },
+          grid: { color: 'rgba(255,255,255,0.04)', drawTicks: false },
+          border: { display: false },
+          beginAtZero: true,
+        },
       },
     },
   });

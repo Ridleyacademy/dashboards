@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v203-weekly-stats-pdf-parity-and-staff-tab';
+const CACHE_NAME = 'ridley-v204-weekly-stats-skip-trailing-zeros';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [

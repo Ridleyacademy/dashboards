@@ -1,1 +1,1 @@
-2026-06-04T09:00:00Z-v338-weekly-stats-reorder-mode
+2026-06-04T09:30:00Z-v339-weekly-stats-edit-metric-invert-tight-y

@@ -468,7 +468,11 @@ function makeMiniChart(canvas, points, metric) {
               const a = s.p0?.parsed?.y;
               const b = s.p1?.parsed?.y;
               if (a == null || b == null) return UP;
-              return b < a ? DOWN : UP;
+              // "Lower is better" metrics flip the semantic — a rising value
+              // is the bad direction (e.g., more refunds → red). Default
+              // case: a falling value is bad.
+              const isBad = metric.invert_chart ? (b > a) : (b < a);
+              return isBad ? DOWN : UP;
             },
           },
           pointRadius: 0,                              // no clutter — hover reveals
@@ -541,7 +545,33 @@ function makeMiniChart(canvas, points, metric) {
           },
           grid: { color: 'rgba(255,255,255,0.04)', drawTicks: false },
           border: { display: false },
-          beginAtZero: true,
+          // Auto-scale tight to the data so the line uses the full vertical
+          // space instead of being flattened against a y=0 floor. We give
+          // ~12% breathing room above and below the actual data range so
+          // the peaks/troughs don't kiss the card edges.
+          ...(function () {
+            const nums = (points || []).map(p => Number(p.value)).filter(n => Number.isFinite(n));
+            if (!nums.length) return { beginAtZero: true };
+            const lo = Math.min(...nums), hi = Math.max(...nums);
+            // Flat series → expand slightly so we don't draw a single line on top of an axis.
+            if (lo === hi) {
+              const pad = Math.max(1, Math.abs(lo) * 0.12);
+              return { min: lo - pad, max: hi + pad };
+            }
+            const span = hi - lo;
+            const pad = span * 0.12;
+            let yMin = lo - pad;
+            let yMax = hi + pad;
+            // Don't go below zero for non-negative metrics — easier to read.
+            if (lo >= 0 && yMin < 0) yMin = 0;
+            // Cap pct at 0..100 so it doesn't draw above the scale ceiling.
+            if (isPct) { yMax = Math.min(100, yMax); yMin = Math.max(0, yMin); }
+            return { min: yMin, max: yMax };
+          })(),
+          // "Lower is better" metrics flip the axis so a rising chart still
+          // reads as good. Combined with our existing red-down / white-up
+          // segment colour, a refund spike now draws DOWNWARD-and-red.
+          reverse: !!metric.invert_chart,
         },
       },
     },
@@ -554,7 +584,20 @@ function openDrilldown(metricKey) {
   if (!m) return;
   const pts = seriesByMetric.get(metricKey) || [];
   document.getElementById('drillTitle').textContent = m.label;
-  document.getElementById('drillSub').textContent = `${m.division} · ${m.source === 'derived' ? 'auto-computed from existing data' : 'manually entered / imported'} · ${pts.length} data points`;
+  document.getElementById('drillSub').textContent = `${m.division} · ${m.source === 'derived' ? 'auto-computed from existing data' : 'manually entered / imported'} · ${pts.length} data points${m.invert_chart ? ' · lower-is-better (Y-axis inverted)' : ''}`;
+
+  // Edit-metric button + form: only visible for users who can edit.
+  const editBtn = document.getElementById('drillEditBtn');
+  const editForm = document.getElementById('drillEditForm');
+  editForm.style.display = 'none';
+  if (editBtn) {
+    editBtn.style.display = capabilities.can_edit ? '' : 'none';
+    editBtn.dataset.metricKey = metricKey;
+  }
+  // Pre-fill the form for this metric (in case the user opens it).
+  document.getElementById('drillEditLabel').value = m.label || '';
+  document.getElementById('drillEditInvert').checked = !!m.invert_chart;
+  document.getElementById('drillEditMsg').textContent = '';
 
   // Big chart
   if (drillChartInst) { try { drillChartInst.destroy(); } catch (_) {} drillChartInst = null; }
@@ -697,6 +740,57 @@ function closeDrillModal() {
   if (drillChartInst) { try { drillChartInst.destroy(); } catch (_) {} drillChartInst = null; }
 }
 document.getElementById('drillClose').addEventListener('click', closeDrillModal);
+
+// ── Drill-down: Edit metric (rename + invert) ──────────────────────
+document.getElementById('drillEditBtn')?.addEventListener('click', () => {
+  const form = document.getElementById('drillEditForm');
+  const open = form.style.display === 'none' || !form.style.display;
+  form.style.display = open ? 'block' : 'none';
+  if (open) document.getElementById('drillEditLabel').focus();
+});
+document.getElementById('drillEditCancel')?.addEventListener('click', () => {
+  document.getElementById('drillEditForm').style.display = 'none';
+});
+document.getElementById('drillEditSave')?.addEventListener('click', async () => {
+  const btn = document.getElementById('drillEditSave');
+  const msg = document.getElementById('drillEditMsg');
+  const editBtn = document.getElementById('drillEditBtn');
+  const key = editBtn?.dataset?.metricKey;
+  if (!key) { msg.textContent = 'No metric loaded.'; return; }
+  const m = catalog.find(x => x.key === key);
+  if (!m) { msg.textContent = 'Metric not found in catalog.'; return; }
+  const newLabel  = document.getElementById('drillEditLabel').value.trim();
+  const newInvert = document.getElementById('drillEditInvert').checked;
+  if (!newLabel) { msg.textContent = 'Label is required.'; return; }
+  // Build patch with only fields the user actually changed.
+  const patch = { key };
+  if (newLabel !== m.label) patch.label = newLabel;
+  if (newInvert !== !!m.invert_chart) patch.invert_chart = newInvert;
+  if (Object.keys(patch).length === 1) {
+    msg.textContent = 'No changes to save.';
+    return;
+  }
+  btn.disabled = true; btn.textContent = 'Saving…';
+  msg.textContent = '';
+  try {
+    await apiFetch('?api=update-metric', { method:'POST', body: JSON.stringify(patch) });
+    // Reflect in the in-memory catalog so the dashboard updates without a refetch.
+    if (patch.label != null) m.label = patch.label;
+    if (patch.invert_chart != null) m.invert_chart = patch.invert_chart;
+    msg.textContent = '✓ Saved';
+    // Re-render the drilldown (chart + title) AND the grid card behind it.
+    setTimeout(() => {
+      document.getElementById('drillEditForm').style.display = 'none';
+      msg.textContent = '';
+      openDrilldown(key);
+      renderAll();
+    }, 500);
+  } catch (e) {
+    msg.textContent = 'Save failed: ' + (e.message || e);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save';
+  }
+});
 
 // Click-outside and Escape-to-close for every modal-overlay on the page.
 // Clicks land on the backdrop (the overlay itself), not the inner card —

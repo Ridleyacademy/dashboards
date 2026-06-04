@@ -428,8 +428,37 @@
 <!-- Drill-down modal -->
 <div class="modal-overlay" id="drillModal">
   <div class="modal-card">
-    <div class="modal-title" id="drillTitle">Metric</div>
-    <div class="modal-sub" id="drillSub"></div>
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:4px;">
+      <div style="flex:1;min-width:0;">
+        <div class="modal-title" id="drillTitle">Metric</div>
+        <div class="modal-sub" id="drillSub"></div>
+      </div>
+      <button id="drillEditBtn" title="Rename or invert this metric"
+        style="background:rgba(167,139,250,0.10);border:1px solid rgba(167,139,250,0.35);color:#a78bfa;border-radius:8px;padding:6px 12px;font-size:0.78rem;font-weight:700;cursor:pointer;white-space:nowrap;display:none;">
+        ✎ Edit metric
+      </button>
+    </div>
+
+    <!-- Inline edit form — hidden until ✎ Edit is clicked -->
+    <div id="drillEditForm" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px;margin:8px 0 14px;">
+      <div style="display:grid;grid-template-columns:1fr;gap:10px;">
+        <div>
+          <label style="font-size:0.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:4px;">Label</label>
+          <input id="drillEditLabel" type="text" maxlength="120"
+            style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:0.88rem;outline:none;">
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.84rem;user-select:none;">
+          <input id="drillEditInvert" type="checkbox" style="width:16px;height:16px;cursor:pointer;">
+          <span><strong>Lower is better</strong> — flip Y-axis so higher values appear lower in the chart (useful for refunds, resigns, disputes lost, etc.)</span>
+        </label>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px;">
+          <button class="btn-ghost" id="drillEditCancel" style="padding:7px 14px;font-size:0.78rem;">Cancel</button>
+          <button class="btn-primary" id="drillEditSave" style="padding:7px 14px;font-size:0.78rem;">Save</button>
+        </div>
+        <div id="drillEditMsg" style="font-size:0.78rem;color:var(--text-dim);min-height:1em;"></div>
+      </div>
+    </div>
+
     <div style="height:260px;position:relative;"><canvas id="drillChart"></canvas></div>
     <div id="drillTableWrap" style="margin-top:18px;"></div>
     <div class="modal-actions">

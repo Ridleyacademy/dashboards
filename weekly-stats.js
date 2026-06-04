@@ -448,6 +448,35 @@ function makeMiniChart(canvas, points, metric) {
   const DOWN = '#ef4444';                              // red-500 down
 
   const seriesData = points.map(p => p.value);
+  // Pre-compute a "nice" Y-axis: rounded min/max + a stepSize that all
+  // gridlines land on. Sharing one stepSize between bounds and ticks
+  // guarantees evenly-spaced horizontal lines (e.g. 0 / 5 / 10 / 15 / 20)
+  // instead of Chart.js's auto-spacing which can drift on tight ranges.
+  const yScale = (function () {
+    const nums = (points || []).map(p => Number(p.value)).filter(n => Number.isFinite(n));
+    if (!nums.length) return null;
+    const lo = Math.min(...nums), hi = Math.max(...nums);
+    if (lo === hi) {
+      const pad = Math.max(1, Math.abs(lo) * 0.12);
+      const step = Math.max(1, Math.pow(10, Math.floor(Math.log10(pad))));
+      return {
+        min: Math.floor((lo - pad) / step) * step,
+        max: Math.ceil ((hi + pad) / step) * step,
+        stepSize: step,
+      };
+    }
+    const span = hi - lo;
+    // Step ≈ 1/4 of the span, rounded to a power of 10.
+    // span 8 → step 1; span 50 → 10; span 12 000 → 1 000.
+    const step = Math.max(1, Math.pow(10, Math.floor(Math.log10(span / 4))));
+    const pad = span * 0.12;
+    let yMin = Math.floor((lo - pad) / step) * step;
+    let yMax = Math.ceil ((hi + pad) / step) * step;
+    if (lo >= 0 && yMin < 0) yMin = 0;
+    if (metric.unit === 'pct') { yMax = Math.min(100, yMax); yMin = Math.max(0, yMin); }
+    return { min: yMin, max: yMax, stepSize: step };
+  })();
+
   return new Chart(ctx, {
     type: 'line',
     data: {
@@ -537,12 +566,13 @@ function makeMiniChart(canvas, points, metric) {
           ticks: {
             color: '#8a93b8',
             font: { size: 10 },
-            maxTicksLimit: 4,
             padding: 6,
+            // Force ticks to land exactly on multiples of the niceStep so
+            // every horizontal gridline sits at an even interval.
+            stepSize: yScale?.stepSize,
             callback: (v) => {
               // Round every tick label to a clean integer (or 1 decimal for
-              // pct) — Chart.js sometimes emits fractional ticks like
-              // 25.7599999998 even when the bounds are integers.
+              // pct) — defensive, in case Chart.js emits a fractional tick.
               if (isUsd) return '$' + (Math.abs(v) >= 1000 ? (v/1000).toFixed(0) + 'k' : Math.round(v));
               if (isPct) return (Math.round(v * 10) / 10) + '%';
               return Math.round(v);
@@ -550,35 +580,7 @@ function makeMiniChart(canvas, points, metric) {
           },
           grid: { color: 'rgba(255,255,255,0.04)', drawTicks: false },
           border: { display: false },
-          // Auto-scale tight to the data so the line uses the full vertical
-          // space instead of being flattened against a y=0 floor. We give
-          // ~12% breathing room above and below the actual data range so
-          // the peaks/troughs don't kiss the card edges.
-          ...(function () {
-            // Auto-scale tight to the data, then snap the min/max to a "nice"
-            // step so the axis labels are clean integers (no 25.7599999998
-            // floating-point junk). Step is picked from the data's span so
-            // we don't over-quantise small ranges or under-quantise large ones.
-            const nums = (points || []).map(p => Number(p.value)).filter(n => Number.isFinite(n));
-            if (!nums.length) return { beginAtZero: true };
-            const lo = Math.min(...nums), hi = Math.max(...nums);
-            if (lo === hi) {
-              const pad = Math.max(1, Math.abs(lo) * 0.12);
-              return { min: Math.floor(lo - pad), max: Math.ceil(hi + pad) };
-            }
-            const span = hi - lo;
-            // Step ≈ 1/4 of the span, rounded to a power of 10. Examples:
-            // span=8 → step=1, span=50 → step=10, span=12000 → step=1000.
-            const niceStep = Math.max(1, Math.pow(10, Math.floor(Math.log10(span / 4))));
-            const pad = span * 0.12;
-            let yMin = Math.floor((lo - pad) / niceStep) * niceStep;
-            let yMax = Math.ceil ((hi + pad) / niceStep) * niceStep;
-            // Don't go below zero for non-negative metrics — easier to read.
-            if (lo >= 0 && yMin < 0) yMin = 0;
-            // Cap pct at 0..100.
-            if (isPct) { yMax = Math.min(100, yMax); yMin = Math.max(0, yMin); }
-            return { min: yMin, max: yMax };
-          })(),
+          ...(yScale ? { min: yScale.min, max: yScale.max } : { beginAtZero: true }),
           // "Lower is better" metrics flip the axis so a rising chart still
           // reads as good. Combined with our existing red-down / white-up
           // segment colour, a refund spike now draws DOWNWARD-and-red.

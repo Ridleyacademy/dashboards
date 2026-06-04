@@ -223,7 +223,11 @@ function renderAll() {
     if (activeDivision === 'staff_meeting') return !!m.in_staff_meeting;
     if (activePeriod === 'weekly' && m.division === 'monthly') return false;
     if (activeDivision === 'all') return true;
-    return m.division === activeDivision;
+    // A metric appears in its primary division AND any extra_tabs the
+    // catalog says it belongs to — lets the same metric show under D4
+    // AND Staff Meeting AND e.g. D5 without storing values twice.
+    const allTabs = [m.division, ...(Array.isArray(m.extra_tabs) ? m.extra_tabs : [])];
+    return allTabs.includes(activeDivision);
   });
   // Sort by the catalog's sort_order so the persisted order (set via the
   // Reorder Mode + ?api=reorder) shows up here too.
@@ -687,6 +691,18 @@ function openDrilldown(metricKey) {
   document.getElementById('drillEditLabel').value = m.label || '';
   document.getElementById('drillEditInvert').checked = !!m.invert_chart;
   document.getElementById('drillEditPointLabels').checked = !!m.show_point_labels;
+  document.getElementById('drillEditStaff').checked = !!m.in_staff_meeting;
+  // Tab multi-checkbox — disable the "home" tab (you can't remove a metric
+  // from its primary division here; use the home dropdown via SQL if needed).
+  const currentExtras = new Set(Array.isArray(m.extra_tabs) ? m.extra_tabs : []);
+  document.querySelectorAll('#drillEditTabs input[data-tab]').forEach(cb => {
+    const t = cb.dataset.tab;
+    cb.checked = currentExtras.has(t);
+    cb.disabled = (t === m.division);
+    // Visually mark the home tab as "already shown there".
+    cb.parentElement.style.opacity = (t === m.division) ? '0.5' : '1';
+    cb.parentElement.title = (t === m.division) ? 'This metric\'s home tab' : '';
+  });
   document.getElementById('drillEditMsg').textContent = '';
 
   // Big chart
@@ -852,12 +868,21 @@ document.getElementById('drillEditSave')?.addEventListener('click', async () => 
   const newLabel       = document.getElementById('drillEditLabel').value.trim();
   const newInvert      = document.getElementById('drillEditInvert').checked;
   const newPointLabels = document.getElementById('drillEditPointLabels').checked;
+  const newStaff       = document.getElementById('drillEditStaff').checked;
+  // Collect the checked extra tabs (the home tab is disabled in the UI).
+  const newExtraTabs = Array.from(document.querySelectorAll('#drillEditTabs input[data-tab]'))
+    .filter(cb => cb.checked && !cb.disabled)
+    .map(cb => cb.dataset.tab);
+  const curExtraTabs = Array.isArray(m.extra_tabs) ? [...m.extra_tabs].sort().join(',') : '';
+  const newExtraJoin = [...newExtraTabs].sort().join(',');
   if (!newLabel) { msg.textContent = 'Label is required.'; return; }
   // Build patch with only fields the user actually changed.
   const patch = { key };
   if (newLabel       !== m.label)                  patch.label             = newLabel;
   if (newInvert      !== !!m.invert_chart)         patch.invert_chart      = newInvert;
   if (newPointLabels !== !!m.show_point_labels)    patch.show_point_labels = newPointLabels;
+  if (newStaff       !== !!m.in_staff_meeting)     patch.in_staff_meeting  = newStaff;
+  if (newExtraJoin   !== curExtraTabs)             patch.extra_tabs        = newExtraTabs;
   if (Object.keys(patch).length === 1) {
     msg.textContent = 'No changes to save.';
     return;
@@ -870,6 +895,8 @@ document.getElementById('drillEditSave')?.addEventListener('click', async () => 
     if (patch.label != null) m.label = patch.label;
     if (patch.invert_chart != null) m.invert_chart = patch.invert_chart;
     if (patch.show_point_labels != null) m.show_point_labels = patch.show_point_labels;
+    if (patch.in_staff_meeting != null) m.in_staff_meeting = patch.in_staff_meeting;
+    if (patch.extra_tabs != null) m.extra_tabs = patch.extra_tabs;
     msg.textContent = '✓ Saved';
     // Re-render the drilldown (chart + title) AND the grid card behind it.
     setTimeout(() => {
@@ -888,7 +915,7 @@ document.getElementById('drillEditSave')?.addEventListener('click', async () => 
 // Click-outside and Escape-to-close for every modal-overlay on the page.
 // Clicks land on the backdrop (the overlay itself), not the inner card —
 // so e.target === currentTarget means the user clicked outside the card.
-['drillModal','addModal','importModal'].forEach(id => {
+['drillModal','addModal','importModal','createMetricModal'].forEach(id => {
   const el = document.getElementById(id); if (!el) return;
   el.addEventListener('click', (e) => {
     if (e.target !== el) return;
@@ -1025,9 +1052,11 @@ function applyEditCapabilityToButtons() {
   const addBtn = document.getElementById('addEntryBtn');
   const impBtn = document.getElementById('importBtn');
   const reBtn  = document.getElementById('reorderBtn');
+  const cmBtn  = document.getElementById('createMetricBtn');
   addBtn.style.display = capabilities.can_edit   ? '' : 'none';
   impBtn.style.display = capabilities.can_import ? '' : 'none';
   if (reBtn) reBtn.style.display = capabilities.can_edit ? '' : 'none';
+  if (cmBtn) cmBtn.style.display = capabilities.can_edit ? '' : 'none';
 }
 document.getElementById('addEntryBtn').addEventListener('click', () => {
   // Default to the Wednesday that closes the current Thu→Wed week for
@@ -1100,6 +1129,55 @@ document.getElementById('importBtn').addEventListener('click', () => {
 document.getElementById('reorderBtn')?.addEventListener('click', () => {
   if (!capabilities.can_edit) return;
   _enterReorderMode();
+});
+
+// ── Add manual graph (create-metric modal) ─────────────────────────
+document.getElementById('createMetricBtn')?.addEventListener('click', () => {
+  if (!capabilities.can_edit) return;
+  // Reset the form to sane defaults each open.
+  document.getElementById('cmLabel').value = '';
+  document.getElementById('cmDivision').value = 'D4';
+  document.getElementById('cmUnit').value = 'count';
+  document.getElementById('cmStaff').checked = false;
+  document.querySelectorAll('#cmTabs input[data-tab]').forEach(cb => cb.checked = false);
+  document.getElementById('cmMsg').textContent = '';
+  document.getElementById('createMetricModal').classList.add('open');
+  document.getElementById('cmLabel').focus();
+});
+document.getElementById('cmCancel')?.addEventListener('click', () => {
+  document.getElementById('createMetricModal').classList.remove('open');
+});
+document.getElementById('cmSave')?.addEventListener('click', async () => {
+  const btn = document.getElementById('cmSave');
+  const msg = document.getElementById('cmMsg');
+  const label = document.getElementById('cmLabel').value.trim();
+  const division = document.getElementById('cmDivision').value;
+  const unit = document.getElementById('cmUnit').value;
+  const inStaff = document.getElementById('cmStaff').checked;
+  const extraTabs = Array.from(document.querySelectorAll('#cmTabs input[data-tab]'))
+    .filter(cb => cb.checked && cb.dataset.tab !== division) // skip home tab
+    .map(cb => cb.dataset.tab);
+  if (!label) { msg.textContent = 'Name is required.'; return; }
+  btn.disabled = true; btn.textContent = 'Creating…';
+  msg.textContent = '';
+  try {
+    const res = await apiFetch('?api=create-metric', {
+      method: 'POST',
+      body: JSON.stringify({ label, division, unit, in_staff_meeting: inStaff, extra_tabs: extraTabs }),
+    });
+    msg.textContent = '✓ Created — refreshing catalog…';
+    // Re-fetch the catalog so the new metric shows up immediately.
+    await fetchCatalog();
+    await loadData();
+    setTimeout(() => {
+      document.getElementById('createMetricModal').classList.remove('open');
+      msg.textContent = '';
+    }, 700);
+  } catch (e) {
+    msg.textContent = 'Create failed: ' + (e.message || e);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Create';
+  }
 });
 document.getElementById('reorderSaveBtn')?.addEventListener('click', _saveReorder);
 document.getElementById('reorderCancelBtn')?.addEventListener('click', () => _exitReorderMode(true));

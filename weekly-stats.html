@@ -401,6 +401,7 @@
       <a href="weekly-stats-entry.html" class="tbtn tbtn-success" id="entryLinkBtn" title="Fill in this period's numbers" style="text-decoration:none;padding:8px 14px;font-size:0.78rem;">📝 Enter stats</a>
       <button class="tbtn tbtn-ghost" id="addEntryBtn" title="Log a single metric value (quick correction)" style="padding:8px 14px;font-size:0.78rem;">+ Quick add</button>
       <button class="tbtn tbtn-ghost" id="importBtn" title="Bulk import a CSV backlog" style="padding:8px 14px;font-size:0.78rem;">⬆ Import CSV</button>
+      <button class="tbtn tbtn-ghost" id="createMetricBtn" title="Add a new manual metric to track" style="padding:8px 14px;font-size:0.78rem;">+ Add manual graph</button>
       <button class="tbtn tbtn-ghost" id="reorderBtn" title="Drag-and-drop to reorder the metric cards (saved for everyone)" style="padding:8px 14px;font-size:0.78rem;">↕ Reorder</button>
     </div>
 
@@ -455,6 +456,18 @@
           <input id="drillEditPointLabels" type="checkbox" style="width:16px;height:16px;cursor:pointer;">
           <span><strong>Show value at each point</strong> — print the numeric value above every data point on the line (like the Data Studio version).</span>
         </label>
+        <div>
+          <label style="font-size:0.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:4px;">Also show in these tabs</label>
+          <div id="drillEditTabs" style="display:flex;flex-wrap:wrap;gap:8px;font-size:0.82rem;">
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" data-tab="D2"> D2 · Phone Sales</label>
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" data-tab="D3"> D3 · Recurring</label>
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" data-tab="D4"> D4 · Mentorship</label>
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" data-tab="D5"> D5 · Masterclass</label>
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" data-tab="monthly"> Monthly</label>
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" id="drillEditStaff"> ⭐ Staff Meeting</label>
+          </div>
+          <div style="font-size:0.7rem;color:var(--text-dim);margin-top:4px;">The metric's <em>home</em> tab (where you enter data) stays the same — these are additional places it'll appear.</div>
+        </div>
         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px;">
           <button class="btn-ghost" id="drillEditCancel" style="padding:7px 14px;font-size:0.78rem;">Cancel</button>
           <button class="btn-primary" id="drillEditSave" style="padding:7px 14px;font-size:0.78rem;">Save</button>
@@ -538,6 +551,57 @@ disputes_won,weekly,2026-04-22,2
     <div class="modal-actions">
       <button class="btn-ghost" id="importCancel">Cancel</button>
       <button class="tbtn tbtn-primary" id="importConfirm" style="padding:9px 18px;" disabled>Import (0 rows)</button>
+    </div>
+  </div>
+</div>
+
+<!-- Create-metric modal (admin / weekly_stats.edit only) -->
+<div class="modal-overlay" id="createMetricModal">
+  <div class="modal-card">
+    <div class="modal-title">Add manual graph</div>
+    <div class="modal-sub" style="margin-bottom:14px;">Create a new metric you'll fill in manually each week. After it's created you can enter values from the Enter Stats sheet or the metric's drilldown.</div>
+    <div style="display:grid;grid-template-columns:1fr;gap:12px;">
+      <div>
+        <label style="font-size:0.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:4px;">Name</label>
+        <input id="cmLabel" type="text" maxlength="120" placeholder="e.g. Coaching no-shows"
+          style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:0.92rem;outline:none;">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div>
+          <label style="font-size:0.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:4px;">Home tab</label>
+          <select id="cmDivision" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:0.88rem;outline:none;">
+            <option value="D2">D2 · Phone Sales</option>
+            <option value="D3">D3 · Recurring &amp; Refunds</option>
+            <option value="D4" selected>D4 · Mentorship</option>
+            <option value="D5">D5 · Masterclass</option>
+            <option value="monthly">Monthly</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:0.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:4px;">Unit</label>
+          <select id="cmUnit" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:0.88rem;outline:none;">
+            <option value="count" selected>Count</option>
+            <option value="usd">Dollars ($)</option>
+            <option value="pct">Percentage (%)</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label style="font-size:0.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:4px;">Also show in</label>
+        <div id="cmTabs" style="display:flex;flex-wrap:wrap;gap:8px;font-size:0.82rem;">
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" data-tab="D2"> D2</label>
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" data-tab="D3"> D3</label>
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" data-tab="D4"> D4</label>
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" data-tab="D5"> D5</label>
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" data-tab="monthly"> Monthly</label>
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" id="cmStaff"> ⭐ Staff Meeting</label>
+        </div>
+      </div>
+      <div id="cmMsg" style="font-size:0.78rem;color:var(--text-dim);min-height:1em;"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" id="cmCancel">Cancel</button>
+      <button class="btn-primary" id="cmSave">Create</button>
     </div>
   </div>
 </div>

@@ -283,7 +283,7 @@ function _sortByCatalogOrder(metrics) {
 }
 async function _persistOrder(orderedKeys) {
   try {
-    await apiFetch('?api=reorder', { method: 'POST', body: JSON.stringify({ ordered_keys: orderedKeys }) });
+    await apiFetch('?api=reorder', { method: 'POST', body: { ordered_keys: orderedKeys } });
     // Reflect new sort_order locally so the next render keeps it without a reload.
     orderedKeys.forEach((k, i) => {
       const m = catalog.find(x => x.key === k);

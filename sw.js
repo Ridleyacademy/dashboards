@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v212-weekly-stats-edit-metric-invert-tight-y';
+const CACHE_NAME = 'ridley-v213-weekly-stats-nice-axis-ticks';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [

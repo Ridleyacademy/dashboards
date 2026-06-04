@@ -1,1 +1,1 @@
-2026-06-04T09:30:00Z-v339-weekly-stats-edit-metric-invert-tight-y
+2026-06-04T09:40:00Z-v340-weekly-stats-nice-axis-ticks

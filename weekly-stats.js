@@ -539,9 +539,14 @@ function makeMiniChart(canvas, points, metric) {
             font: { size: 10 },
             maxTicksLimit: 4,
             padding: 6,
-            callback: (v) => isUsd
-              ? '$' + (v >= 1000 ? (v/1000).toFixed(0) + 'k' : v)
-              : (isPct ? v + '%' : v),
+            callback: (v) => {
+              // Round every tick label to a clean integer (or 1 decimal for
+              // pct) — Chart.js sometimes emits fractional ticks like
+              // 25.7599999998 even when the bounds are integers.
+              if (isUsd) return '$' + (Math.abs(v) >= 1000 ? (v/1000).toFixed(0) + 'k' : Math.round(v));
+              if (isPct) return (Math.round(v * 10) / 10) + '%';
+              return Math.round(v);
+            },
           },
           grid: { color: 'rgba(255,255,255,0.04)', drawTicks: false },
           border: { display: false },
@@ -550,21 +555,27 @@ function makeMiniChart(canvas, points, metric) {
           // ~12% breathing room above and below the actual data range so
           // the peaks/troughs don't kiss the card edges.
           ...(function () {
+            // Auto-scale tight to the data, then snap the min/max to a "nice"
+            // step so the axis labels are clean integers (no 25.7599999998
+            // floating-point junk). Step is picked from the data's span so
+            // we don't over-quantise small ranges or under-quantise large ones.
             const nums = (points || []).map(p => Number(p.value)).filter(n => Number.isFinite(n));
             if (!nums.length) return { beginAtZero: true };
             const lo = Math.min(...nums), hi = Math.max(...nums);
-            // Flat series → expand slightly so we don't draw a single line on top of an axis.
             if (lo === hi) {
               const pad = Math.max(1, Math.abs(lo) * 0.12);
-              return { min: lo - pad, max: hi + pad };
+              return { min: Math.floor(lo - pad), max: Math.ceil(hi + pad) };
             }
             const span = hi - lo;
+            // Step ≈ 1/4 of the span, rounded to a power of 10. Examples:
+            // span=8 → step=1, span=50 → step=10, span=12000 → step=1000.
+            const niceStep = Math.max(1, Math.pow(10, Math.floor(Math.log10(span / 4))));
             const pad = span * 0.12;
-            let yMin = lo - pad;
-            let yMax = hi + pad;
+            let yMin = Math.floor((lo - pad) / niceStep) * niceStep;
+            let yMax = Math.ceil ((hi + pad) / niceStep) * niceStep;
             // Don't go below zero for non-negative metrics — easier to read.
             if (lo >= 0 && yMin < 0) yMin = 0;
-            // Cap pct at 0..100 so it doesn't draw above the scale ceiling.
+            // Cap pct at 0..100.
             if (isPct) { yMax = Math.min(100, yMax); yMin = Math.max(0, yMin); }
             return { min: yMin, max: yMax };
           })(),

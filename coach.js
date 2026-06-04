@@ -2268,19 +2268,45 @@ function openInviteesModal(meeting) {
           const d = new Date(occ.start_time);
           const dateStr = d.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric', timeZone:'UTC' });
           const timeStr = d.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', timeZone:'UTC' }) + ' UTC';
-          const pill = (sent, label) => sent
-            ? `<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 6px;border-radius:4px;background:rgba(16,185,129,0.15);color:#10b981;font-size:0.68rem;font-weight:700;" title="Sent ${escapeHtml(sent)}">✓ ${label}</span>`
-            : `<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 6px;border-radius:4px;background:rgba(148,163,184,0.08);color:var(--text-dim);font-size:0.68rem;font-weight:600;">${label}</span>`;
+          // Each pill takes the occurrence's sent_at + the kind key in
+          // send_log. Three visual states:
+          //   ✓ green   — at least one recipient received the email
+          //   ◐ amber   — partial success (some sent, some failed)
+          //   ✗ red     — every recipient failed (e.g. Resend quota wall)
+          //   ⋯ amber   — attempt in flight (eager-stamp before dispatch)
+          //   (gray)    — no attempt yet
+          const logEntries = Array.isArray(occ.send_log) ? occ.send_log : [];
+          const pill = (sent, label, kindKey) => {
+            // Most recent log entry for this kind
+            const latest = [...logEntries].reverse().find(e => e && e.kind === kindKey);
+            const status = latest?.status; // 'sent' | 'partial' | 'failed' | 'in_progress' | undefined
+            const tip = latest
+              ? `Attempt ${latest.attempt || '?'} · ${status || 'logged'} · ${latest.fired ?? '?'} fired / ${latest.failed ?? '?'} failed · ${escapeHtml(latest.at || '')}`
+              : (sent ? `Sent ${escapeHtml(sent)}` : 'Not yet attempted');
+            if (sent && status !== 'failed') {
+              if (status === 'partial') {
+                return `<span title="${tip}" style="display:inline-flex;align-items:center;gap:3px;padding:2px 6px;border-radius:4px;background:rgba(251,191,36,0.15);color:#fbbf24;font-size:0.68rem;font-weight:700;">◐ ${label}</span>`;
+              }
+              return `<span title="${tip}" style="display:inline-flex;align-items:center;gap:3px;padding:2px 6px;border-radius:4px;background:rgba(16,185,129,0.15);color:#10b981;font-size:0.68rem;font-weight:700;">✓ ${label}</span>`;
+            }
+            if (status === 'failed') {
+              return `<span title="${tip}" style="display:inline-flex;align-items:center;gap:3px;padding:2px 6px;border-radius:4px;background:rgba(248,113,113,0.15);color:#f87171;font-size:0.68rem;font-weight:700;">✗ ${label}</span>`;
+            }
+            if (status === 'in_progress') {
+              return `<span title="${tip}" style="display:inline-flex;align-items:center;gap:3px;padding:2px 6px;border-radius:4px;background:rgba(251,191,36,0.15);color:#fbbf24;font-size:0.68rem;font-weight:700;">⋯ ${label}</span>`;
+            }
+            return `<span title="${tip}" style="display:inline-flex;align-items:center;gap:3px;padding:2px 6px;border-radius:4px;background:rgba(148,163,184,0.08);color:var(--text-dim);font-size:0.68rem;font-weight:600;">${label}</span>`;
+          };
           return `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--border);">
             <div style="flex:1;min-width:0;">
               <div style="font-size:0.82rem;font-weight:600;">${escapeHtml(dateStr)}</div>
               <div style="font-size:0.7rem;color:var(--text-dim);">${escapeHtml(timeStr)}</div>
             </div>
             <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;">
-              ${pill(occ.invite_sent_at, 'invite')}
-              ${pill(occ.reminder_24h_sent_at, '24h')}
-              ${pill(occ.reminder_1h_sent_at, '1h')}
-              ${pill(occ.reminder_live_sent_at, 'live')}
+              ${pill(occ.invite_sent_at,        'invite', 'invite')}
+              ${pill(occ.reminder_24h_sent_at,  '24h',    'reminder_24h')}
+              ${pill(occ.reminder_1h_sent_at,   '1h',     'reminder_1h')}
+              ${pill(occ.reminder_live_sent_at, 'live',   'reminder_live')}
             </div>
           </div>`;
         }).join('')}

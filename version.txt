@@ -1,1 +1,1 @@
-2026-06-04T10:45:00Z-v345-weekly-stats-create-and-multi-tab
+2026-06-04T11:00:00Z-v346-weekly-stats-instant-tabs-skeleton

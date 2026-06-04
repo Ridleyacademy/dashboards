@@ -171,24 +171,66 @@ async function fetchCatalog() {
   populateAddMetricSelect();
 }
 
-async function loadData() {
+// Cache key: any series payload is fully determined by (period, from, to).
+// We always fetch ALL metrics — division filtering happens client-side so
+// switching tabs is free (no network call).
+let _seriesCache = new Map();           // "period|from|to" → series Map
+function _seriesCacheKey() { return `${activePeriod}|${dateFrom}|${dateTo}`; }
+
+async function loadData(force) {
   setBanner('');
+  const key = _seriesCacheKey();
+  // Cache hit — paint instantly from memory.
+  if (!force && _seriesCache.has(key)) {
+    seriesByMetric = _seriesCache.get(key);
+    renderAll();
+    return;
+  }
+  // Cache miss — show skeleton cards while the network runs.
+  renderSkeleton();
   spin(true);
   try {
-    // Staff Meeting is a virtual tab — its metrics span multiple divisions,
-    // selected via the in_staff_meeting flag in renderAll(). Asking the server
-    // for `division=staff_meeting` would match zero rows. Fetch everything in
-    // that case and let the client filter.
-    const sendDiv = (activeDivision !== 'all' && activeDivision !== 'staff_meeting');
-    const url = `?api=series&period=${activePeriod}&from=${dateFrom}&to=${dateTo}`
-      + (sendDiv ? `&division=${activeDivision}` : '');
+    // No `division=` param — fetch everything and filter client-side.
+    // Server-side division filter would re-hit the network on every tab
+    // switch; client-side filter makes tab switching instant.
+    const url = `?api=series&period=${activePeriod}&from=${dateFrom}&to=${dateTo}`;
     const j = await apiFetch(url);
     seriesByMetric = new Map((j.series || []).map(s => [s.metric_key, s.points]));
+    _seriesCache.set(key, seriesByMetric);
     renderAll();
   } catch (e) {
     setBanner('Failed to load: ' + (e.message || e), 'error');
   } finally {
     spin(false);
+  }
+}
+
+// Invalidate the cache whenever the user makes a mutation that could change
+// values: upsert, delete, bulk-import, create-metric, reorder, edit-metric.
+// Called from every save handler.
+function _invalidateSeriesCache() { _seriesCache.clear(); }
+
+// Render shimmering placeholder cards while we wait for the API.
+function renderSkeleton() {
+  const visible = catalog.filter(m => {
+    if (activeDivision === 'staff_meeting') return !!m.in_staff_meeting;
+    if (activePeriod === 'weekly' && m.division === 'monthly') return false;
+    if (activeDivision === 'all') return true;
+    const allTabs = [m.division, ...(Array.isArray(m.extra_tabs) ? m.extra_tabs : [])];
+    return allTabs.includes(activeDivision);
+  });
+  const count = Math.max(4, visible.length || 6);
+  const kpi = document.getElementById('kpiGrid');
+  const grid = document.getElementById('chartGrid');
+  if (kpi) {
+    kpi.innerHTML = Array.from({ length: 4 }).map(() =>
+      `<div class="kpi-card skel-card" aria-hidden="true"></div>`
+    ).join('');
+  }
+  if (grid) {
+    grid.innerHTML = Array.from({ length: count }).map(() =>
+      `<div class="chart-card skel-card" aria-hidden="true" style="height:236px;"></div>`
+    ).join('');
   }
 }
 
@@ -785,7 +827,7 @@ function openDrilldown(metricKey) {
             value_num: Number(v),
           }] }),
         });
-        await loadData();
+        await loadData(true);
         openDrilldown(metricKey);  // re-render with the new row
       } catch (e) {
         alert('Add failed: ' + (e.message || e));
@@ -814,7 +856,7 @@ function openDrilldown(metricKey) {
           inp.dataset.orig = v;
           inp.style.borderColor = 'var(--green)';
           setTimeout(() => inp.style.borderColor = '', 700);
-          await loadData();
+          await loadData(true);
           openDrilldown(metricKey);  // refresh modal contents
         } catch (e) {
           alert('Save failed: ' + (e.message || e));
@@ -829,7 +871,7 @@ function openDrilldown(metricKey) {
             method: 'POST',
             body: JSON.stringify({ metric_key: metricKey, period_type: activePeriod, period_start }),
           });
-          await loadData();
+          await loadData(true);
           openDrilldown(metricKey);
         } catch (e) {
           alert('Delete failed: ' + (e.message || e));
@@ -952,7 +994,11 @@ document.getElementById('divisionTabs').addEventListener('click', e => {
   const btn = e.target.closest('.pill-tab'); if (!btn) return;
   document.querySelectorAll('#divisionTabs .pill-tab').forEach(b => b.classList.toggle('active', b === btn));
   activeDivision = btn.dataset.div;
-  loadData();
+  // Division switching is purely a client-side filter — we already have
+  // every metric's series in memory. Skip the network call and re-render
+  // from cache for instant tab switches.
+  if (seriesByMetric && seriesByMetric.size) renderAll();
+  else loadData();
 });
 
 // ── Date range UI ────────────────────────────────────────────────────
@@ -1106,7 +1152,7 @@ document.getElementById('addSave').addEventListener('click', async () => {
       body: JSON.stringify({ metric_key, period_type, period_start, value_num: Number(value), notes: notes || null }),
     });
     document.getElementById('addModal').classList.remove('open');
-    await loadData();
+    await loadData(true);
   } catch (e) {
     err.textContent = e.message || 'Save failed';
   }
@@ -1168,7 +1214,7 @@ document.getElementById('cmSave')?.addEventListener('click', async () => {
     msg.textContent = '✓ Created — refreshing catalog…';
     // Re-fetch the catalog so the new metric shows up immediately.
     await fetchCatalog();
-    await loadData();
+    await loadData(true);
     setTimeout(() => {
       document.getElementById('createMetricModal').classList.remove('open');
       msg.textContent = '';
@@ -1268,7 +1314,7 @@ document.getElementById('importConfirm').addEventListener('click', async () => {
     }
     document.getElementById('importPreview').innerHTML = `<div class="banner banner-info">✓ Imported ${upserted} row${upserted === 1 ? '' : 's'} (${skipped} skipped)</div>`;
     btn.textContent = 'Done';
-    await loadData();
+    await loadData(true);
     setTimeout(() => document.getElementById('importModal').classList.remove('open'), 1200);
   } catch (e) {
     document.getElementById('importPreview').innerHTML += `<div class="inline-error">Import failed: ${escapeHtml(e.message || e)}</div>`;

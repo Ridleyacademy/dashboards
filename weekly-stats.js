@@ -496,24 +496,50 @@ function makeMiniChart(canvas, points, metric) {
       c.fillStyle   = isLight ? '#0f172a' : '#e5e7eb';
       c.strokeStyle = isLight ? 'rgba(255,255,255,0.85)' : 'rgba(15,18,32,0.85)';
       c.lineWidth = 3;
-      for (let i = 0; i < meta.data.length; i++) {
+      const area = chart.chartArea;
+      // Track every rectangle we've already drawn so we can skip any new
+      // label that would collide with one of them. Result: every value
+      // that's actually drawn stays fully legible — overlapping labels
+      // are dropped rather than stacked on top of each other.
+      const drawn = [];
+      const overlaps = (a, b) =>
+        a.x < b.x + b.w && a.x + a.w > b.x &&
+        a.y < b.y + b.h && a.y + a.h > b.y;
+      // Always prefer drawing the LAST (most recent) point's label, then
+      // the first, then sweep middle. That way the rightmost / leftmost
+      // values are guaranteed visible and the rest fill in where they fit.
+      const order = [];
+      const n = meta.data.length;
+      if (n) { order.push(n - 1); if (n > 1) order.push(0); }
+      for (let i = 1; i < n - 1; i++) order.push(i);
+      for (const i of order) {
         const pt = meta.data[i];
         if (!pt || pt.skip) continue;
         const raw = chart.data.datasets[0].data[i];
         if (raw == null || !Number.isFinite(Number(raw))) continue;
         const txt = fmtVal(raw, metric.unit);
-        // Position the label ABOVE the point by default; if the point sits
-        // near the top edge of the canvas, flip it BELOW so it doesn't get
-        // clipped. (When the axis is reversed, "above" the point in chart
-        // coordinates is still pixel-up — same logic works.)
-        const chartArea = chart.chartArea;
-        const aboveY = pt.y - 6;
-        const useAbove = aboveY > chartArea.top + 10;
-        const tx = pt.x;
-        const ty = useAbove ? aboveY : pt.y + 14;
+        const w = c.measureText(txt).width;
+        const h = 12;
+        // Clamp the label horizontally so it can't bleed out of the card
+        // even when a point sits at the very edge of the chart area.
+        const padX = 2;
+        let tx = pt.x;
+        const halfW = w / 2 + padX;
+        if (tx - halfW < area.left)  tx = area.left  + halfW;
+        if (tx + halfW > area.right) tx = area.right - halfW;
+        // Above by default; flip below if it'd be clipped at the top.
+        let ty = pt.y - 6;
+        const useAbove = (ty - h) > area.top + 2;
+        if (!useAbove) ty = Math.min(area.bottom - 2, pt.y + 14);
+        const rect = { x: tx - w / 2, y: ty - h, w, h };
+        // Skip this label if it overlaps any already-drawn label.
+        let blocked = false;
+        for (const r of drawn) { if (overlaps(rect, r)) { blocked = true; break; } }
+        if (blocked) continue;
         // Stroke first (halo) so the label stays legible over the line.
         c.strokeText(txt, tx, ty);
         c.fillText(txt, tx, ty);
+        drawn.push(rect);
       }
       c.restore();
     },

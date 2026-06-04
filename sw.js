@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v215-weekly-stats-point-labels-toggle';
+const CACHE_NAME = 'ridley-v216-weekly-stats-point-label-collision';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [

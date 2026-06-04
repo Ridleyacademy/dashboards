@@ -1,1 +1,1 @@
-2026-06-04T10:00:00Z-v342-weekly-stats-point-labels-toggle
+2026-06-04T10:15:00Z-v343-weekly-stats-point-label-collision

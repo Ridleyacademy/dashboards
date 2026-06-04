@@ -477,8 +477,51 @@ function makeMiniChart(canvas, points, metric) {
     return { min: yMin, max: yMax, stepSize: step };
   })();
 
+  // Plugin: draws each data point's value above the point. Activated only
+  // when metric.show_point_labels is true. Mimics the Data Studio report
+  // we replaced — useful on charts where the team reads exact weekly
+  // numbers off the chart at a glance.
+  const pointLabelsPlugin = {
+    id: 'pointLabels_' + metric.key,
+    afterDatasetDraw(chart, args) {
+      if (!metric.show_point_labels) return;
+      if (args.index !== 0) return;
+      const meta = chart.getDatasetMeta(0);
+      if (!meta?.data?.length) return;
+      const c = chart.ctx;
+      c.save();
+      c.font = '600 10px -apple-system, BlinkMacSystemFont, "Inter", sans-serif';
+      c.textAlign = 'center';
+      c.textBaseline = 'bottom';
+      c.fillStyle   = isLight ? '#0f172a' : '#e5e7eb';
+      c.strokeStyle = isLight ? 'rgba(255,255,255,0.85)' : 'rgba(15,18,32,0.85)';
+      c.lineWidth = 3;
+      for (let i = 0; i < meta.data.length; i++) {
+        const pt = meta.data[i];
+        if (!pt || pt.skip) continue;
+        const raw = chart.data.datasets[0].data[i];
+        if (raw == null || !Number.isFinite(Number(raw))) continue;
+        const txt = fmtVal(raw, metric.unit);
+        // Position the label ABOVE the point by default; if the point sits
+        // near the top edge of the canvas, flip it BELOW so it doesn't get
+        // clipped. (When the axis is reversed, "above" the point in chart
+        // coordinates is still pixel-up — same logic works.)
+        const chartArea = chart.chartArea;
+        const aboveY = pt.y - 6;
+        const useAbove = aboveY > chartArea.top + 10;
+        const tx = pt.x;
+        const ty = useAbove ? aboveY : pt.y + 14;
+        // Stroke first (halo) so the label stays legible over the line.
+        c.strokeText(txt, tx, ty);
+        c.fillText(txt, tx, ty);
+      }
+      c.restore();
+    },
+  };
+
   return new Chart(ctx, {
     type: 'line',
+    plugins: [pointLabelsPlugin],
     data: {
       labels: points.map(p => p.period_start),
       datasets: [
@@ -610,6 +653,7 @@ function openDrilldown(metricKey) {
   // Pre-fill the form for this metric (in case the user opens it).
   document.getElementById('drillEditLabel').value = m.label || '';
   document.getElementById('drillEditInvert').checked = !!m.invert_chart;
+  document.getElementById('drillEditPointLabels').checked = !!m.show_point_labels;
   document.getElementById('drillEditMsg').textContent = '';
 
   // Big chart
@@ -772,13 +816,15 @@ document.getElementById('drillEditSave')?.addEventListener('click', async () => 
   if (!key) { msg.textContent = 'No metric loaded.'; return; }
   const m = catalog.find(x => x.key === key);
   if (!m) { msg.textContent = 'Metric not found in catalog.'; return; }
-  const newLabel  = document.getElementById('drillEditLabel').value.trim();
-  const newInvert = document.getElementById('drillEditInvert').checked;
+  const newLabel       = document.getElementById('drillEditLabel').value.trim();
+  const newInvert      = document.getElementById('drillEditInvert').checked;
+  const newPointLabels = document.getElementById('drillEditPointLabels').checked;
   if (!newLabel) { msg.textContent = 'Label is required.'; return; }
   // Build patch with only fields the user actually changed.
   const patch = { key };
-  if (newLabel !== m.label) patch.label = newLabel;
-  if (newInvert !== !!m.invert_chart) patch.invert_chart = newInvert;
+  if (newLabel       !== m.label)                  patch.label             = newLabel;
+  if (newInvert      !== !!m.invert_chart)         patch.invert_chart      = newInvert;
+  if (newPointLabels !== !!m.show_point_labels)    patch.show_point_labels = newPointLabels;
   if (Object.keys(patch).length === 1) {
     msg.textContent = 'No changes to save.';
     return;
@@ -790,6 +836,7 @@ document.getElementById('drillEditSave')?.addEventListener('click', async () => 
     // Reflect in the in-memory catalog so the dashboard updates without a refetch.
     if (patch.label != null) m.label = patch.label;
     if (patch.invert_chart != null) m.invert_chart = patch.invert_chart;
+    if (patch.show_point_labels != null) m.show_point_labels = patch.show_point_labels;
     msg.textContent = '✓ Saved';
     // Re-render the drilldown (chart + title) AND the grid card behind it.
     setTimeout(() => {

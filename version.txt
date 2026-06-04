@@ -1,1 +1,1 @@
-2026-06-04T09:50:00Z-v341-weekly-stats-even-gridlines
+2026-06-04T10:00:00Z-v342-weekly-stats-point-labels-toggle

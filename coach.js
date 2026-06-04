@@ -2061,11 +2061,47 @@ async function loadUpcomingMeetings() {
   }
 }
 
+// All Zoom meeting times are shown in America/Chicago (the team's working
+// timezone) so every viewer sees the same time the host originally meant,
+// regardless of where they happen to be browsing. The timezone short-name
+// is appended so there's no ambiguity ("3:00 PM CDT" not just "3:00 PM").
+// Previously this used the browser's local zone, which made a UTC-stored
+// meeting (e.g. 20:00 UTC) display as 2 AM next day for someone browsing
+// in UTC+6, even though the host scheduled it for "3 PM CT".
+const MEETING_TZ = 'America/Chicago';
+// Convert a naive "YYYY-MM-DDTHH:MM" string (which the user typed thinking
+// of MEETING_TZ) into the correct UTC ISO. Used by the Create + Edit
+// modals so a value the user enters as "3:00 PM Central" lands at the
+// right UTC moment in the DB regardless of the user's own browser zone.
+function _meetingLocalToUTC(localStr) {
+  if (!localStr) return null;
+  const seed = new Date(localStr + ':00Z');                            // treat input AS UTC for now
+  if (isNaN(seed.getTime())) return null;
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: MEETING_TZ, year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+  }).formatToParts(seed);
+  const m = {};
+  for (const p of parts) if (p.type !== 'literal') m[p.type] = p.value;
+  if (m.hour === '24') m.hour = '00';
+  const projUTC = Date.parse(`${m.year}-${m.month}-${m.day}T${m.hour}:${m.minute}:${m.second}Z`);
+  const offsetMs = projUTC - seed.getTime();
+  return new Date(seed.getTime() - offsetMs).toISOString();
+}
 function _fmtMeetingTime(iso) {
   if (!iso) return '—';
   const d = new Date(iso);
-  const date = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', weekday: 'short' });
-  const time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  const date = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', weekday: 'short', timeZone: MEETING_TZ });
+  const timeOnly = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: MEETING_TZ });
+  // Pull the timezone abbreviation (CDT/CST) from the same formatter
+  const tzAbbr = (function () {
+    try {
+      const parts = new Intl.DateTimeFormat('en-US', { timeZone: MEETING_TZ, timeZoneName: 'short' }).formatToParts(d);
+      const z = parts.find(p => p.type === 'timeZoneName');
+      return z ? z.value : '';
+    } catch (_) { return ''; }
+  })();
+  const time = tzAbbr ? `${timeOnly} ${tzAbbr}` : timeOnly;
   return { date, time };
 }
 
@@ -2525,11 +2561,23 @@ async function openScheduleZoomModal(prefilledIds) {
     ? loadZoomHosts().catch(() => {})
     : null;
   document.getElementById('szModal')?.remove();
-  // Default: 24h from now, rounded to next 15-min mark
+  // Default: 24h from now, rounded to next 15-min mark — formatted as
+  // Chicago-local so the datetime-local input shows the team's working
+  // timezone regardless of where the user is browsing from.
   const def = new Date(Date.now() + 24*60*60*1000);
   def.setMinutes(Math.ceil(def.getMinutes()/15)*15, 0, 0);
   const pad = n => String(n).padStart(2,'0');
-  const localDtVal = `${def.getFullYear()}-${pad(def.getMonth()+1)}-${pad(def.getDate())}T${pad(def.getHours())}:${pad(def.getMinutes())}`;
+  const ctSeed = (function () {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: MEETING_TZ, year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: false,
+    }).formatToParts(def);
+    const o = {};
+    for (const p of parts) if (p.type !== 'literal') o[p.type] = p.value;
+    if (o.hour === '24') o.hour = '00';
+    return o;
+  })();
+  const localDtVal = `${ctSeed.year}-${ctSeed.month}-${ctSeed.day}T${ctSeed.hour}:${ctSeed.minute}`;
 
   // Pool = ALL students for privileged viewers; ONLY my students for coaches.
   // Prefilled IDs (from bulk select) come pre-checked.
@@ -2572,7 +2620,7 @@ async function openScheduleZoomModal(prefilledIds) {
         <div><label>Topic</label>
           <input id="sz-topic" type="text" placeholder="e.g. Weekly check-in — Module 5" value="Mentorship Zoom — ${new Date().toLocaleDateString()}"></div>
         <div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;">
-          <div><label>Start (your local time)</label>
+          <div><label>Start (US Central time)</label>
             <input id="sz-start" type="datetime-local" value="${localDtVal}"></div>
           <div><label>Duration (min)</label>
             <input id="sz-duration" type="number" min="15" step="15" value="60"></div>
@@ -2830,7 +2878,7 @@ async function openScheduleZoomModal(prefilledIds) {
     const wrap = document.getElementById('sz-result-wrap');
     if (!topic || !localStart || !duration) { wrap.innerHTML = '<div class="sz-result err">Topic, start time, and duration are required.</div>'; return; }
     // local datetime → UTC ISO
-    const startIso = new Date(localStart).toISOString();
+    const startIso = _meetingLocalToUTC(localStart);
     const hostSel = document.getElementById('sz-host');
     const host_user_id = hostSel?.value || null;
     // Advanced settings
@@ -2896,9 +2944,23 @@ function openEditMeetingModal(idOrMeeting) {
   if (!meeting) { alert('Meeting not found in the upcoming list.'); return; }
   document.getElementById('szModal')?.remove();
 
+  // Build the datetime-local pre-fill in America/Chicago so the user sees
+  // the SAME time the meeting was originally created with (matches the
+  // dashboard display + the calendar invite that went out).
   const cur = new Date(meeting.scheduled_start_time || Date.now());
   const pad = n => String(n).padStart(2,'0');
-  const curVal = `${cur.getFullYear()}-${pad(cur.getMonth()+1)}-${pad(cur.getDate())}T${pad(cur.getHours())}:${pad(cur.getMinutes())}`;
+  const ctParts = (function () {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: false,
+    }).formatToParts(cur);
+    const map = {};
+    for (const p of parts) if (p.type !== 'literal') map[p.type] = p.value;
+    // hour can be "24" at midnight in some implementations
+    if (map.hour === '24') map.hour = '00';
+    return map;
+  })();
+  const curVal = `${ctParts.year}-${ctParts.month}-${ctParts.day}T${ctParts.hour}:${ctParts.minute}`;
 
   // Read existing recurrence so we can pre-select the cadence dropdown. Zoom
   // returns { type: 1|2|3, weekly_days, repeat_interval, end_times, end_date_time }.
@@ -2930,7 +2992,7 @@ function openEditMeetingModal(idOrMeeting) {
       <div class="modal-body" style="grid-template-columns:1fr;">
         <div><label>Topic</label><input id="ed-topic" type="text" value="${escapeHtml(meeting.topic || '')}"></div>
         <div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;">
-          <div><label>Start (your local time)</label><input id="ed-start" type="datetime-local" value="${curVal}"></div>
+          <div><label>Start (US Central time)</label><input id="ed-start" type="datetime-local" value="${curVal}"></div>
           <div><label>Duration (min)</label><input id="ed-duration" type="number" min="15" step="15" value="${meeting.scheduled_duration_minutes || 60}"></div>
         </div>
         <div>
@@ -3012,7 +3074,7 @@ function openEditMeetingModal(idOrMeeting) {
     if (!topic || !localStart || !duration) {
       wrap.innerHTML = '<div class="sz-result err">Topic, start, and duration are required.</div>'; return;
     }
-    const startIso = new Date(localStart).toISOString();
+    const startIso = _meetingLocalToUTC(localStart);
 
     // Build recurrence change instructions. If the user has set the cadence
     // to none AND the meeting was previously recurring → ask to REMOVE; if

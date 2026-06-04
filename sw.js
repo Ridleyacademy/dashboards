@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v209-weekly-stats-reorder-stringify';
+const CACHE_NAME = 'ridley-v210-weekly-stats-reorder-instant';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [

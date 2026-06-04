@@ -190,24 +190,10 @@
   @media(max-width:900px) { .chart-grid { grid-template-columns: 1fr; } }
   .chart-card {
     background: var(--surface); border: 1px solid var(--border); border-radius: 18px;
-    padding: 18px 20px 16px; transition: transform 0.18s, border-color 0.18s, opacity 0.18s; cursor: pointer;
+    padding: 18px 20px 16px; transition: transform 0.18s, border-color 0.18s; cursor: pointer;
     position: relative;
   }
   .chart-card:hover { transform: translateY(-2px); border-color: var(--border-light); }
-  /* Drag-and-drop affordances. The drag handle is the visual cue at the
-     top-right; the whole card is draggable so the user can grab anywhere. */
-  .chart-card-drag {
-    position: absolute; top: 8px; right: 10px; padding: 2px 4px;
-    color: var(--text-dim); font-size: 0.78rem; letter-spacing: -1px;
-    opacity: 0; transition: opacity 0.15s; cursor: grab; user-select: none;
-    pointer-events: none;  /* let underlying card handle drag */
-  }
-  .chart-card:hover .chart-card-drag { opacity: 0.55; }
-  .chart-card.dnd-dragging { opacity: 0.35; cursor: grabbing; }
-  .chart-card.dnd-over {
-    border-color: var(--accent2, #22d3ee);
-    box-shadow: -3px 0 0 0 var(--accent2, #22d3ee);  /* drop indicator on the left edge */
-  }
   .chart-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
   .chart-card-title { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); flex: 1; }
   .chart-card-source { font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; padding: 2px 7px; border-radius: 999px; }

@@ -270,30 +270,6 @@ function renderKpiStrip(visible) {
   }).join('');
 }
 
-// ── Drag-and-drop card ordering ─────────────────────────────────────
-// Persists per (division, period) in localStorage so each tab can have its
-// own preferred layout. Metrics not in the saved order fall through to the
-// catalog's sort_order. A drop inserts the source BEFORE the target card.
-function _orderKey() { return 'wstats_order:' + activeDivision + ':' + activePeriod; }
-function _loadOrder() {
-  try { return JSON.parse(localStorage.getItem(_orderKey()) || '[]'); } catch { return []; }
-}
-function _saveOrder(keys) {
-  try { localStorage.setItem(_orderKey(), JSON.stringify(keys)); } catch (_) {}
-}
-function _sortByCustomOrder(metrics) {
-  const order = _loadOrder();
-  if (!order.length) return metrics;
-  const idx = new Map(order.map((k, i) => [k, i]));
-  return metrics.slice().sort((a, b) => {
-    const ai = idx.has(a.key) ? idx.get(a.key) : Number.MAX_SAFE_INTEGER;
-    const bi = idx.has(b.key) ? idx.get(b.key) : Number.MAX_SAFE_INTEGER;
-    if (ai !== bi) return ai - bi;
-    return (a.sort_order || 0) - (b.sort_order || 0);
-  });
-}
-let _dndDragKey = null;
-
 function renderChartGrid(visible) {
   const grid = document.getElementById('chartGrid');
   // Tear down old Chart.js instances — they leak memory otherwise.
@@ -305,18 +281,14 @@ function renderChartGrid(visible) {
     return;
   }
 
-  // Apply any saved drag-and-drop order before rendering.
-  const ordered = _sortByCustomOrder(visible);
-
-  grid.innerHTML = ordered.map(m => {
+  grid.innerHTML = visible.map(m => {
     const pts = seriesByMetric.get(m.key) || [];
     const { current, previous } = lastTwoValues(pts);
     const delta = current - previous;
     const cls = delta > 0 ? 'up' : delta < 0 ? 'down' : '';
     const arrow = delta > 0 ? '▲' : delta < 0 ? '▼' : '–';
     return `
-      <div class="chart-card" data-key="${escapeHtml(m.key)}" draggable="true">
-        <div class="chart-card-drag" title="Drag to reorder" aria-hidden="true">⋮⋮</div>
+      <div class="chart-card" data-key="${escapeHtml(m.key)}">
         <div class="chart-card-head">
           <div class="chart-card-title">${escapeHtml(m.label)}</div>
           <div class="chart-card-source ${m.source === 'derived' ? 'src-derived' : 'src-manual'}">${m.source}</div>
@@ -326,63 +298,20 @@ function renderChartGrid(visible) {
           <span class="chart-card-delta ${cls}">${arrow} ${fmtPct(current, previous)}</span>
         </div>
         <div class="chart-card-wrap"><canvas id="c-${cssId(m.key)}"></canvas></div>
-        <div class="chart-card-foot">${pts.length} ${activePeriod === 'weekly' ? 'weeks' : 'months'} · ${m.division} · click to expand · drag to reorder</div>
+        <div class="chart-card-foot">${pts.length} ${activePeriod === 'weekly' ? 'weeks' : 'months'} · ${m.division} · click to expand</div>
       </div>`;
   }).join('');
 
   // Mount Chart.js instances after the DOM has the canvases.
-  for (const m of ordered) {
+  for (const m of visible) {
     const ctx = document.getElementById(`c-${cssId(m.key)}`);
     if (!ctx) continue;
     chartInstances.set(m.key, makeMiniChart(ctx, seriesByMetric.get(m.key) || [], m));
   }
 
-  // Click-to-drilldown + drag-and-drop wiring.
+  // Click-to-drilldown.
   grid.querySelectorAll('.chart-card').forEach(card => {
-    // Click opens the drilldown — HTML5 drag and click are mutually
-    // exclusive (a real drag won't fire click), so this is safe.
-    card.addEventListener('click', (e) => {
-      // Suppress click during/just-after a drag — defensive guard.
-      if (card.dataset.justDragged === '1') { delete card.dataset.justDragged; return; }
-      openDrilldown(card.dataset.key);
-    });
-    card.addEventListener('dragstart', (e) => {
-      _dndDragKey = card.dataset.key;
-      card.classList.add('dnd-dragging');
-      try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', card.dataset.key); } catch (_) {}
-    });
-    card.addEventListener('dragend', () => {
-      card.classList.remove('dnd-dragging');
-      grid.querySelectorAll('.chart-card.dnd-over').forEach(c => c.classList.remove('dnd-over'));
-      // Block the click that some browsers fire after dragend.
-      card.dataset.justDragged = '1';
-      setTimeout(() => { delete card.dataset.justDragged; }, 50);
-      _dndDragKey = null;
-    });
-    card.addEventListener('dragover', (e) => {
-      if (!_dndDragKey || _dndDragKey === card.dataset.key) return;
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-      card.classList.add('dnd-over');
-    });
-    card.addEventListener('dragleave', () => card.classList.remove('dnd-over'));
-    card.addEventListener('drop', (e) => {
-      e.preventDefault();
-      card.classList.remove('dnd-over');
-      const fromKey = _dndDragKey;
-      const toKey = card.dataset.key;
-      if (!fromKey || fromKey === toKey) return;
-      const currentOrder = Array.from(grid.querySelectorAll('.chart-card')).map(c => c.dataset.key);
-      const fromIdx = currentOrder.indexOf(fromKey);
-      const toIdx   = currentOrder.indexOf(toKey);
-      if (fromIdx < 0 || toIdx < 0) return;
-      const [moved] = currentOrder.splice(fromIdx, 1);
-      // Insert before the target — feels natural for left-to-right grids.
-      const insertAt = currentOrder.indexOf(toKey);
-      currentOrder.splice(insertAt, 0, moved);
-      _saveOrder(currentOrder);
-      renderAll();
-    });
+    card.addEventListener('click', () => openDrilldown(card.dataset.key));
   });
 }
 

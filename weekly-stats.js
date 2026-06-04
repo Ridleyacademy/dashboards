@@ -527,19 +527,26 @@ function makeMiniChart(canvas, points, metric) {
         const halfW = w / 2 + padX;
         if (tx - halfW < area.left)  tx = area.left  + halfW;
         if (tx + halfW > area.right) tx = area.right - halfW;
-        // Above by default; flip below if it'd be clipped at the top.
-        let ty = pt.y - 6;
-        const useAbove = (ty - h) > area.top + 2;
-        if (!useAbove) ty = Math.min(area.bottom - 2, pt.y + 14);
-        const rect = { x: tx - w / 2, y: ty - h, w, h };
-        // Skip this label if it overlaps any already-drawn label.
-        let blocked = false;
-        for (const r of drawn) { if (overlaps(rect, r)) { blocked = true; break; } }
-        if (blocked) continue;
+        // Try ABOVE first, then BELOW. We keep the first candidate that
+        // (a) stays inside the chart area vertically and
+        // (b) doesn't overlap any previously-drawn label rect.
+        const candidates = [];
+        const aboveTy = pt.y - 6;
+        if (aboveTy - h > area.top + 2) candidates.push(aboveTy);
+        const belowTy = pt.y + 14;
+        if (belowTy < area.bottom - 2) candidates.push(belowTy);
+        let placed = null;
+        for (const ty of candidates) {
+          const rect = { x: tx - w / 2, y: ty - h, w, h };
+          let blocked = false;
+          for (const r of drawn) { if (overlaps(rect, r)) { blocked = true; break; } }
+          if (!blocked) { placed = { tx, ty, rect }; break; }
+        }
+        if (!placed) continue;
         // Stroke first (halo) so the label stays legible over the line.
-        c.strokeText(txt, tx, ty);
-        c.fillText(txt, tx, ty);
-        drawn.push(rect);
+        c.strokeText(txt, placed.tx, placed.ty);
+        c.fillText(txt, placed.tx, placed.ty);
+        drawn.push(placed.rect);
       }
       c.restore();
     },

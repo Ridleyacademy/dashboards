@@ -225,6 +225,9 @@ function renderAll() {
     if (activeDivision === 'all') return true;
     return m.division === activeDivision;
   });
+  // Sort by the catalog's sort_order so the persisted order (set via the
+  // Reorder Mode + ?api=reorder) shows up here too.
+  visible.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
   renderKpiStrip(visible);
   renderChartGrid(visible);
 }
@@ -244,6 +247,110 @@ function lastTwoValues(points) {
   const current  = points[points.length - 1]?.value ?? 0;
   const previous = points.length >= 2 ? points[points.length - 2].value : 0;
   return { current, previous };
+}
+
+// ── Reorder mode ────────────────────────────────────────────────────
+// Explicit toggle to keep drag-and-drop predictable: cards are only
+// draggable when reorder mode is on. Drops just rearrange DOM (no
+// re-render, no network call). On Save we collect the final key order
+// and POST to ?api=reorder. On Cancel we reload from server.
+let _reorderMode = false;
+let _reorderDragEl = null;            // the currently-dragged .chart-card element
+
+function _enterReorderMode() {
+  _reorderMode = true;
+  document.body.classList.add('reordering');
+  document.getElementById('reorderBar').style.display = 'flex';
+  document.getElementById('reorderBtn').style.display = 'none';
+  // Re-render the grid so the drag listeners get wired and the click
+  // handler picks up the _reorderMode flag. The chart instances are
+  // re-built, which is fine — we want a clean slate for the mode.
+  renderAll();
+}
+function _exitReorderMode(reloadFromServer) {
+  _reorderMode = false;
+  _reorderDragEl = null;
+  document.body.classList.remove('reordering');
+  document.getElementById('reorderBar').style.display = 'none';
+  document.getElementById('reorderBtn').style.display = '';
+  if (reloadFromServer) {
+    // Cancel — discard local changes by re-fetching the catalog so the
+    // sort_order column drives the next render.
+    fetchCatalog().then(renderAll).catch(() => renderAll());
+  } else {
+    renderAll();
+  }
+}
+
+function _attachReorderListeners(grid) {
+  // Native HTML5 drag-and-drop. Each card is draggable; on drop we move
+  // the dragged element before the drop target (or after, if dropped on
+  // the latter half of the target). No DB calls happen here — Save
+  // commits the final order.
+  grid.querySelectorAll('.chart-card').forEach(card => {
+    card.setAttribute('draggable', 'true');
+
+    card.addEventListener('dragstart', (e) => {
+      _reorderDragEl = card;
+      card.classList.add('dragging');
+      try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', card.dataset.key || ''); } catch (_) {}
+    });
+    card.addEventListener('dragend', () => {
+      card.classList.remove('dragging');
+      grid.querySelectorAll('.chart-card.drop-target').forEach(c => c.classList.remove('drop-target'));
+      _reorderDragEl = null;
+    });
+    card.addEventListener('dragover', (e) => {
+      if (!_reorderDragEl || _reorderDragEl === card) return;
+      e.preventDefault();
+      try { e.dataTransfer.dropEffect = 'move'; } catch (_) {}
+      card.classList.add('drop-target');
+    });
+    card.addEventListener('dragleave', () => card.classList.remove('drop-target'));
+    card.addEventListener('drop', (e) => {
+      e.preventDefault();
+      card.classList.remove('drop-target');
+      if (!_reorderDragEl || _reorderDragEl === card) return;
+      // Decide BEFORE vs AFTER based on the cursor position relative to
+      // the target's vertical center — feels natural when moving cards
+      // within a vertical column.
+      const rect = card.getBoundingClientRect();
+      const after = (e.clientY - rect.top) > rect.height / 2;
+      if (after) card.parentNode.insertBefore(_reorderDragEl, card.nextSibling);
+      else        card.parentNode.insertBefore(_reorderDragEl, card);
+    });
+  });
+}
+
+async function _saveReorder() {
+  const btn = document.getElementById('reorderSaveBtn');
+  const grid = document.getElementById('chartGrid');
+  // Read the current DOM order — this is the user's chosen order.
+  const visibleOrder = Array.from(grid.querySelectorAll('.chart-card')).map(c => c.dataset.key).filter(Boolean);
+  if (!visibleOrder.length) { _exitReorderMode(false); return; }
+  // Compute the FULL catalog order: keep the user's choices for visible
+  // cards, then append every other metric in its existing sort_order.
+  const visibleSet = new Set(visibleOrder);
+  const otherKeys = catalog
+    .filter(m => !visibleSet.has(m.key))
+    .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+    .map(m => m.key);
+  const fullOrder = [...visibleOrder, ...otherKeys];
+
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    await apiFetch('?api=reorder', { method: 'POST', body: JSON.stringify({ ordered_keys: fullOrder }) });
+    // Update local sort_order so we don't need a full refetch.
+    fullOrder.forEach((k, i) => {
+      const m = catalog.find(x => x.key === k);
+      if (m) m.sort_order = 100 + i * 10;
+    });
+    btn.textContent = '✓ Saved';
+    setTimeout(() => _exitReorderMode(false), 600);
+  } catch (e) {
+    btn.disabled = false; btn.textContent = '✓ Save order';
+    setBanner('Save failed: ' + (e.message || e), 'error');
+  }
 }
 
 function renderKpiStrip(visible) {
@@ -288,7 +395,8 @@ function renderChartGrid(visible) {
     const cls = delta > 0 ? 'up' : delta < 0 ? 'down' : '';
     const arrow = delta > 0 ? '▲' : delta < 0 ? '▼' : '–';
     return `
-      <div class="chart-card" data-key="${escapeHtml(m.key)}">
+      <div class="chart-card" data-key="${escapeHtml(m.key)}" style="position:relative;">
+        <div class="reorder-handle" title="Drag to move">⋮⋮</div>
         <div class="chart-card-head">
           <div class="chart-card-title">${escapeHtml(m.label)}</div>
           <div class="chart-card-source ${m.source === 'derived' ? 'src-derived' : 'src-manual'}">${m.source}</div>
@@ -309,10 +417,16 @@ function renderChartGrid(visible) {
     chartInstances.set(m.key, makeMiniChart(ctx, seriesByMetric.get(m.key) || [], m));
   }
 
-  // Click-to-drilldown.
+  // Click-to-drilldown — disabled in reorder mode so a stray click doesn't
+  // open the modal mid-drag. Reorder mode wires its own drag listeners on
+  // each card via _attachReorderListeners(grid).
   grid.querySelectorAll('.chart-card').forEach(card => {
-    card.addEventListener('click', () => openDrilldown(card.dataset.key));
+    card.addEventListener('click', () => {
+      if (_reorderMode) return;
+      openDrilldown(card.dataset.key);
+    });
   });
+  if (_reorderMode) _attachReorderListeners(grid);
 }
 
 function cssId(s) { return String(s).replace(/[^a-zA-Z0-9_-]/g, '_'); }
@@ -723,8 +837,10 @@ function populateAddMetricSelect() {
 function applyEditCapabilityToButtons() {
   const addBtn = document.getElementById('addEntryBtn');
   const impBtn = document.getElementById('importBtn');
+  const reBtn  = document.getElementById('reorderBtn');
   addBtn.style.display = capabilities.can_edit   ? '' : 'none';
   impBtn.style.display = capabilities.can_import ? '' : 'none';
+  if (reBtn) reBtn.style.display = capabilities.can_edit ? '' : 'none';
 }
 document.getElementById('addEntryBtn').addEventListener('click', () => {
   // Default to the Wednesday that closes the current Thu→Wed week for
@@ -791,6 +907,15 @@ document.getElementById('importBtn').addEventListener('click', () => {
   parsedImportRows = [];
   document.getElementById('importModal').classList.add('open');
 });
+
+// Reorder Mode: toggle in → Save commits via api=reorder, Cancel restores
+// from server. Wired here so it runs on page load.
+document.getElementById('reorderBtn')?.addEventListener('click', () => {
+  if (!capabilities.can_edit) return;
+  _enterReorderMode();
+});
+document.getElementById('reorderSaveBtn')?.addEventListener('click', _saveReorder);
+document.getElementById('reorderCancelBtn')?.addEventListener('click', () => _exitReorderMode(true));
 document.getElementById('importCancel').addEventListener('click', () => {
   document.getElementById('importModal').classList.remove('open');
 });

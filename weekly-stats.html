@@ -188,6 +188,22 @@
   /* Chart grid (one card per metric) */
   .chart-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; }
   @media(max-width:900px) { .chart-grid { grid-template-columns: 1fr; } }
+
+  /* Reorder mode — applied to body when active. Cards get a grab cursor +
+     a visible drag handle on hover; clicking the chart no longer opens the
+     drilldown (pointer-events disabled on chart canvases). */
+  body.reordering .chart-card { cursor: grab; user-select: none; }
+  body.reordering .chart-card:hover { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold), 0 12px 24px rgba(0,0,0,0.3); }
+  body.reordering .chart-card.dragging { opacity: 0.4; cursor: grabbing; }
+  body.reordering .chart-card.drop-target { box-shadow: 0 0 0 2px var(--gold) inset, 0 12px 24px rgba(251,191,36,0.25); transform: scale(1.01); }
+  body.reordering .chart-card canvas { pointer-events: none; }
+  .reorder-handle {
+    position: absolute; top: 12px; right: 12px; width: 28px; height: 28px;
+    border-radius: 6px; background: rgba(251,191,36,0.15); color: var(--gold);
+    display: none; align-items: center; justify-content: center; font-size: 1rem;
+    font-weight: 800; pointer-events: none; z-index: 5;
+  }
+  body.reordering .reorder-handle { display: flex; }
   .chart-card {
     background: var(--surface); border: 1px solid var(--border); border-radius: 18px;
     padding: 18px 20px 16px; transition: transform 0.18s, border-color 0.18s; cursor: pointer;
@@ -385,11 +401,22 @@
       <a href="weekly-stats-entry.html" class="tbtn tbtn-success" id="entryLinkBtn" title="Fill in this period's numbers" style="text-decoration:none;padding:8px 14px;font-size:0.78rem;">📝 Enter stats</a>
       <button class="tbtn tbtn-ghost" id="addEntryBtn" title="Log a single metric value (quick correction)" style="padding:8px 14px;font-size:0.78rem;">+ Quick add</button>
       <button class="tbtn tbtn-ghost" id="importBtn" title="Bulk import a CSV backlog" style="padding:8px 14px;font-size:0.78rem;">⬆ Import CSV</button>
+      <button class="tbtn tbtn-ghost" id="reorderBtn" title="Drag-and-drop to reorder the metric cards (saved for everyone)" style="padding:8px 14px;font-size:0.78rem;">↕ Reorder</button>
     </div>
 
     <!-- KPI strip -->
     <div class="sec-label"><span class="sec-label-text">Highlights</span><div class="sec-label-line"></div></div>
     <div class="kpi-grid" id="kpiGrid"></div>
+
+    <!-- Reorder mode banner — only visible when reorder mode is on -->
+    <div id="reorderBar" style="display:none;align-items:center;gap:10px;padding:10px 14px;margin:14px 0;background:linear-gradient(135deg,rgba(251,191,36,0.10),rgba(167,139,250,0.08));border:1px solid rgba(251,191,36,0.35);border-radius:10px;">
+      <span style="font-size:1rem;">↕</span>
+      <div style="flex:1;font-size:0.84rem;font-weight:600;color:var(--text);">
+        Reorder mode — drag any card by its handle. Changes save for everyone when you hit Save.
+      </div>
+      <button class="tbtn tbtn-ghost" id="reorderCancelBtn" style="padding:6px 14px;font-size:0.78rem;">Cancel</button>
+      <button class="tbtn tbtn-success" id="reorderSaveBtn" style="padding:6px 14px;font-size:0.78rem;">✓ Save order</button>
+    </div>
 
     <!-- Chart grid -->
     <div class="sec-label"><span class="sec-label-text">Metrics</span><div class="sec-label-line"></div></div>

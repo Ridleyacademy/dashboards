@@ -281,13 +281,17 @@ function _sortByCatalogOrder(metrics) {
   // Catalog rows already carry sort_order — this is just a stable sort by it.
   return metrics.slice().sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
 }
-// Fire-and-forget: persist the new order to the server in the background.
-// The drop handler already moved the card in the DOM and updated the
-// in-memory catalog, so we don't await this — the user sees the change
-// instantly. Errors surface as a non-blocking banner.
-function _persistOrder(orderedKeys) {
-  apiFetch('?api=reorder', { method: 'POST', body: JSON.stringify({ ordered_keys: orderedKeys }) })
-    .catch(e => setBanner('Reorder save failed: ' + (e.message || e), 'error'));
+async function _persistOrder(orderedKeys) {
+  try {
+    await apiFetch('?api=reorder', { method: 'POST', body: JSON.stringify({ ordered_keys: orderedKeys }) });
+    // Reflect new sort_order locally so the next render keeps it without a reload.
+    orderedKeys.forEach((k, i) => {
+      const m = catalog.find(x => x.key === k);
+      if (m) m.sort_order = 100 + i * 10;
+    });
+  } catch (e) {
+    setBanner('Reorder failed: ' + (e.message || e), 'error');
+  }
 }
 let _dndDragKey = null;
 
@@ -364,36 +368,27 @@ function renderChartGrid(visible) {
       card.classList.add('dnd-over');
     });
     card.addEventListener('dragleave', () => card.classList.remove('dnd-over'));
-    card.addEventListener('drop', (e) => {
+    card.addEventListener('drop', async (e) => {
       e.preventDefault();
       card.classList.remove('dnd-over');
       const fromKey = _dndDragKey;
       const toKey = card.dataset.key;
       if (!fromKey || fromKey === toKey) return;
-
-      // 1. Move the DOM element NOW — no waiting on the network, no
-      //    Chart.js destroy/rebuild. Cards keep their live chart instances;
-      //    the user sees the card snap into place instantly.
-      const draggedEl = grid.querySelector(`.chart-card[data-key="${fromKey}"]`);
-      if (draggedEl) grid.insertBefore(draggedEl, card);
-
-      // 2. Update the in-memory catalog's sort_order so subsequent
-      //    re-renders (tab switch, refresh button) use the new order.
+      // Compute the new order across the WHOLE catalog (not just visible).
+      // We reorder by lifting the dragged key out and re-inserting it where
+      // the target sits in the global catalog ordering, so the change makes
+      // sense from every tab — not only the one the user is on.
       const allKeys = _sortByCatalogOrder(catalog).map(m => m.key);
-      const fi = allKeys.indexOf(fromKey);
-      if (fi >= 0) allKeys.splice(fi, 1);
-      const ti = allKeys.indexOf(toKey);
-      allKeys.splice(ti >= 0 ? ti : allKeys.length, 0, fromKey);
-      allKeys.forEach((k, i) => {
-        const m = catalog.find(x => x.key === k);
-        if (m) m.sort_order = 100 + i * 10;
-      });
-
-      // 3. Persist to the server in the background. No await — the user
-      //    already sees the new order. If the network call fails we
-      //    surface a banner; the local state is still correct so a
-      //    refresh would reload from server and revert.
-      _persistOrder(allKeys);
+      const fromIdx = allKeys.indexOf(fromKey);
+      const toIdx   = allKeys.indexOf(toKey);
+      if (fromIdx < 0 || toIdx < 0) return;
+      const [moved] = allKeys.splice(fromIdx, 1);
+      const insertAt = allKeys.indexOf(toKey);  // may shift after splice
+      allKeys.splice(insertAt, 0, moved);
+      // Optimistic local update + server persist. _persistOrder reflects
+      // the new sort_order into catalog so renderAll uses it immediately.
+      await _persistOrder(allKeys);
+      renderAll();
     });
   });
 }

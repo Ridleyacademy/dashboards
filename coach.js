@@ -3059,7 +3059,7 @@ function openEditMeetingModal(idOrMeeting) {
           <div style="font-size:0.7rem;color:var(--text-dim);margin-top:6px;">Up to 50 sessions or 2 years out.</div>
         </div>
         <details id="ed-advanced" style="border:1px solid var(--border);border-radius:8px;padding:8px 10px;">
-          <summary style="cursor:pointer;font-size:0.84rem;font-weight:600;">Override advanced settings <span style="color:var(--text-dim);font-weight:400;font-size:0.74rem;">(leave closed to keep current)</span></summary>
+          <summary style="cursor:pointer;font-size:0.84rem;font-weight:600;">Advanced settings <span id="ed-adv-hint" style="color:var(--text-dim);font-weight:400;font-size:0.74rem;">(loading current settings…)</span></summary>
           <div style="display:flex;flex-direction:column;gap:6px;margin-top:10px;font-size:0.82rem;">
             <label><input type="checkbox" id="ed-waiting" checked> Waiting room</label>
             <label><input type="checkbox" id="ed-jbh"> Allow join before host</label>
@@ -3089,6 +3089,38 @@ function openEditMeetingModal(idOrMeeting) {
   document.body.appendChild(m);
   const close = () => m.remove();
   m.addEventListener('click', e => { if (e.target === m || e.target.matches('[data-x]')) close(); });
+
+  // Fetch the LIVE Zoom settings so the advanced block shows real values
+  // (recording mode, waiting room, etc.) instead of static form defaults.
+  // This also means opening "Override advanced settings" and saving keeps
+  // the true config rather than silently resetting it. Runs in the
+  // background; the summary shows a tiny "loading…" hint until it lands.
+  let _edSettingsLoaded = false;
+  (async () => {
+    try {
+      const body = (typeof meeting.id === 'string' && meeting.id.startsWith('zoom-'))
+        ? { zoom_meeting_id: meeting.id.slice(5) }
+        : { id: Number(meeting.id) };
+      const r = await _zoomFetch('get-settings', { method:'POST', body });
+      const s = r?.settings || {};
+      const set = (id, v) => { const el = document.getElementById(id); if (el && v != null) el.checked = !!v; };
+      if (s.auto_recording != null) {
+        const rec = document.getElementById('ed-record');
+        if (rec) rec.value = ['none','local','cloud'].includes(s.auto_recording) ? s.auto_recording : 'none';
+      }
+      set('ed-waiting',  s.waiting_room);
+      set('ed-jbh',      s.join_before_host);
+      set('ed-mute',     s.mute_upon_entry);
+      const alt = document.getElementById('ed-altHosts');
+      if (alt && typeof s.alternative_hosts === 'string') alt.value = s.alternative_hosts;
+      _edSettingsLoaded = true;
+      const hint = document.getElementById('ed-adv-hint');
+      if (hint) hint.textContent = '(showing current Zoom settings)';
+    } catch (e) {
+      const hint = document.getElementById('ed-adv-hint');
+      if (hint) hint.textContent = '(could not load current settings — edits will overwrite)';
+    }
+  })();
 
   // Toggle the end-controls block when recurrence changes
   const recSel = document.getElementById('ed-recurrence');

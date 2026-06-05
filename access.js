@@ -3293,9 +3293,12 @@ function _actSummary(r) {
 }
 
 // v286: quick-filter chip state + noise filter + smart aggregation.
+// v347: mentorship.zoom_attendance removed from noise — Zoom attendance
+// is the highest-signal record of "student showed up to a session" and
+// the team needs it visible by default.
 const ACT_NOISE_KEYS = new Set([
   'page.view', 'notification.read', 'email.delivered', 'email.opened',
-  'mentorship.zoom_attendance', 'webhook.fanbasis',
+  'webhook.fanbasis',
   // Successful delivery rows fan out per-recipient/per-device — collapse by
   // default so an alert with 4 recipients doesn't add 12 rows to the feed.
   // Failures (notification.push_failed / email_failed) stay visible.

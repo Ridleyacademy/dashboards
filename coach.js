@@ -2182,6 +2182,8 @@ function renderUpcomingMeetings() {
           ${next.start_url && _isMyMeeting(next) ? `<button data-zm-start="${next.id}" class="btn-primary" style="padding:9px 16px;font-size:0.85rem;">Start as host →</button>` : ''}
           ${next.join_url ? `<button data-zm-open="${next.id}" class="btn-ghost" style="padding:9px 16px;font-size:0.85rem;">Open Zoom</button>` : ''}
           <button data-zm-invitees="${next.id}" class="btn-ghost" style="padding:9px 16px;font-size:0.85rem;">Invitees (${invited})</button>
+          ${next.join_url ? `<button data-zm-copy="${next.id}" class="btn-ghost" style="padding:9px 16px;font-size:0.85rem;" title="Copy host join link">Copy link</button>` : ''}
+          ${!(typeof next.id === 'string' && String(next.id).startsWith('zoom-')) ? `<button data-zm-edit="${next.id}" class="btn-ghost" style="padding:9px 16px;font-size:0.85rem;" title="Edit topic, date/time, recurrence, settings">Edit</button>` : ''}
           <button data-zm-cancel="${next.id}" class="btn-ghost" style="padding:9px 16px;font-size:0.85rem;color:#f87171;border-color:rgba(248,113,113,0.4);">Cancel</button>
         </div>
       </div>

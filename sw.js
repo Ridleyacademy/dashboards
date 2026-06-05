@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v225-edit-modal-real-zoom-settings';
+const CACHE_NAME = 'ridley-v226-reminder-skipped-pill';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [

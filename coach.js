@@ -2277,8 +2277,21 @@ function openInviteesModal(meeting) {
           //   ◐ amber   — partial success (some sent, some failed)
           //   ✗ red     — every recipient failed (e.g. Resend quota wall)
           //   ⋯ amber   — attempt in flight (eager-stamp before dispatch)
-          //   (gray)    — no attempt yet
+          //   ⊘ orange  — skipped (window closed before it could fire)
+          //   (gray)    — no attempt yet, still upcoming
           const logEntries = Array.isArray(occ.send_log) ? occ.send_log : [];
+          // When each reminder's send window CLOSES, expressed as ms before the
+          // occurrence start (negative = after start). Mirrors zoom-scheduler's
+          // windows: invite T-84h, 24h T-22h, 1h T-45m, live T+10m. If a pill
+          // is unsent AND we're already past its window close, it can never
+          // fire → show it as "skipped" (orange) rather than pending (gray).
+          const _occStartMs = Date.parse(occ.start_time);
+          const _windowCloseBeforeMs = {
+            invite:        84 * 3600 * 1000,
+            reminder_24h:  22 * 3600 * 1000,
+            reminder_1h:   45 * 60 * 1000,
+            reminder_live: -10 * 60 * 1000,
+          };
           const pill = (sent, label, kindKey) => {
             // Most recent log entry for this kind
             const latest = [...logEntries].reverse().find(e => e && e.kind === kindKey);
@@ -2297,6 +2310,20 @@ function openInviteesModal(meeting) {
             }
             if (status === 'in_progress') {
               return `<span title="${tip}" style="display:inline-flex;align-items:center;gap:3px;padding:2px 6px;border-radius:4px;background:rgba(251,191,36,0.15);color:#fbbf24;font-size:0.68rem;font-weight:700;">⋯ ${label}</span>`;
+            }
+            // SKIPPED: never sent + the send window has already closed →
+            // it can no longer fire. Orange (≠ red failure). This happens when
+            // a meeting is created/rescheduled closer to start than the
+            // reminder's lead time (e.g. set up 2h before → 24h reminder is
+            // already moot).
+            const closeMs = _windowCloseBeforeMs[kindKey];
+            if (!sent && Number.isFinite(_occStartMs) && closeMs != null && nowMs > (_occStartMs - closeMs)) {
+              const leadLabel = kindKey === 'invite' ? '4-day invite'
+                : kindKey === 'reminder_24h' ? '24-hour reminder'
+                : kindKey === 'reminder_1h' ? '1-hour reminder'
+                : 'going-live reminder';
+              const skipTip = `Skipped — the ${leadLabel} window closed before this class was scheduled at its current time (set up too close to start). Future classes will get it normally.`;
+              return `<span title="${skipTip}" style="display:inline-flex;align-items:center;gap:3px;padding:2px 6px;border-radius:4px;background:rgba(251,146,60,0.15);color:#fb923c;font-size:0.68rem;font-weight:700;">⊘ ${label}</span>`;
             }
             return `<span title="${tip}" style="display:inline-flex;align-items:center;gap:3px;padding:2px 6px;border-radius:4px;background:rgba(148,163,184,0.08);color:var(--text-dim);font-size:0.68rem;font-weight:600;">${label}</span>`;
           };

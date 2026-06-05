@@ -2061,14 +2061,14 @@ async function loadUpcomingMeetings() {
   }
 }
 
-// All Zoom meeting times are shown in America/Chicago (the team's working
-// timezone) so every viewer sees the same time the host originally meant,
-// regardless of where they happen to be browsing. The timezone short-name
-// is appended so there's no ambiguity ("3:00 PM CDT" not just "3:00 PM").
-// Previously this used the browser's local zone, which made a UTC-stored
-// meeting (e.g. 20:00 UTC) display as 2 AM next day for someone browsing
-// in UTC+6, even though the host scheduled it for "3 PM CT".
-const MEETING_TZ = 'America/Chicago';
+// All Zoom meeting times are shown in US Eastern (America/New_York) so every
+// viewer sees the same time the host originally meant, regardless of where
+// they happen to be browsing. The timezone short-name is appended so there's
+// no ambiguity ("3:00 PM EDT" not just "3:00 PM"). Previously this used the
+// browser's local zone, which made a UTC-stored meeting (e.g. 20:00 UTC)
+// display as 2 AM next day for someone browsing in UTC+6, even though the
+// host scheduled it for "4 PM ET".
+const MEETING_TZ = 'America/New_York';
 // Convert a naive "YYYY-MM-DDTHH:MM" string (which the user typed thinking
 // of MEETING_TZ) into the correct UTC ISO. Used by the Create + Edit
 // modals so a value the user enters as "3:00 PM Central" lands at the
@@ -2268,8 +2268,9 @@ function openInviteesModal(meeting) {
       <div style="max-height:240px;overflow-y:auto;">
         ${futureOccs.slice(0, 20).map((occ, i) => {
           const d = new Date(occ.start_time);
-          const dateStr = d.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric', timeZone:'UTC' });
-          const timeStr = d.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', timeZone:'UTC' }) + ' UTC';
+          const dateStr = d.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric', timeZone:MEETING_TZ });
+          const _occTz = (function(){ try { const pp = new Intl.DateTimeFormat('en-US',{timeZone:MEETING_TZ,timeZoneName:'short'}).formatToParts(d); const z = pp.find(x=>x.type==='timeZoneName'); return z?z.value:''; } catch(_){ return ''; } })();
+          const timeStr = d.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', timeZone:MEETING_TZ }) + (_occTz ? ' ' + _occTz : '');
           // Each pill takes the occurrence's sent_at + the kind key in
           // send_log. Three visual states:
           //   ✓ green   — at least one recipient received the email
@@ -2648,7 +2649,7 @@ async function openScheduleZoomModal(prefilledIds) {
         <div><label>Topic</label>
           <input id="sz-topic" type="text" placeholder="e.g. Weekly check-in — Module 5" value="Mentorship Zoom — ${new Date().toLocaleDateString()}"></div>
         <div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;">
-          <div><label>Start (US Central time)</label>
+          <div><label>Start (US Eastern time)</label>
             <input id="sz-start" type="datetime-local" value="${localDtVal}"></div>
           <div><label>Duration (min)</label>
             <input id="sz-duration" type="number" min="15" step="15" value="60"></div>
@@ -2972,14 +2973,14 @@ function openEditMeetingModal(idOrMeeting) {
   if (!meeting) { alert('Meeting not found in the upcoming list.'); return; }
   document.getElementById('szModal')?.remove();
 
-  // Build the datetime-local pre-fill in America/Chicago so the user sees
-  // the SAME time the meeting was originally created with (matches the
+  // Build the datetime-local pre-fill in MEETING_TZ (US Eastern) so the user
+  // sees the SAME time the meeting was originally created with (matches the
   // dashboard display + the calendar invite that went out).
   const cur = new Date(meeting.scheduled_start_time || Date.now());
   const pad = n => String(n).padStart(2,'0');
   const ctParts = (function () {
     const parts = new Intl.DateTimeFormat('en-US', {
-      timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit',
+      timeZone: MEETING_TZ, year: 'numeric', month: '2-digit', day: '2-digit',
       hour: '2-digit', minute: '2-digit', hour12: false,
     }).formatToParts(cur);
     const map = {};
@@ -2989,6 +2990,14 @@ function openEditMeetingModal(idOrMeeting) {
     return map;
   })();
   const curVal = `${ctParts.year}-${ctParts.month}-${ctParts.day}T${ctParts.hour}:${ctParts.minute}`;
+  // Baseline values captured at modal-open so the Save handler can detect
+  // which fields the user ACTUALLY changed — and only send those. Without
+  // this, the modal always re-sent start_time, and round-trip conversion
+  // drift made the backend think the time changed (firing a spurious
+  // "meeting updated" email) even when the user only toggled a setting.
+  const _origStartLocal = curVal;
+  const _origTopic = (meeting.topic || '');
+  const _origDuration = Number(meeting.scheduled_duration_minutes || 60);
 
   // Read existing recurrence so we can pre-select the cadence dropdown. Zoom
   // returns { type: 1|2|3, weekly_days, repeat_interval, end_times, end_date_time }.
@@ -3020,7 +3029,7 @@ function openEditMeetingModal(idOrMeeting) {
       <div class="modal-body" style="grid-template-columns:1fr;">
         <div><label>Topic</label><input id="ed-topic" type="text" value="${escapeHtml(meeting.topic || '')}"></div>
         <div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;">
-          <div><label>Start (US Central time)</label><input id="ed-start" type="datetime-local" value="${curVal}"></div>
+          <div><label>Start (US Eastern time)</label><input id="ed-start" type="datetime-local" value="${curVal}"></div>
           <div><label>Duration (min)</label><input id="ed-duration" type="number" min="15" step="15" value="${meeting.scheduled_duration_minutes || 60}"></div>
         </div>
         <div>
@@ -3145,11 +3154,26 @@ function openEditMeetingModal(idOrMeeting) {
       const body = (typeof meeting.id === 'string' && meeting.id.startsWith('zoom-'))
         ? { zoom_meeting_id: meeting.id.slice(5) }
         : { id: Number(meeting.id) };
-      body.topic = topic;
-      body.start_time = startIso;
-      body.duration = duration;
+      // Only include a field if the user ACTUALLY changed it. Sending an
+      // unchanged start_time would make the backend re-detect a "material"
+      // change (because of round-trip conversion drift) and fire a spurious
+      // "meeting updated" email — exactly the bug we're fixing. Comparing
+      // each input against the baseline captured at modal-open keeps a
+      // settings-only edit from touching the schedule.
+      if (topic !== _origTopic) body.topic = topic;
+      if (localStart !== _origStartLocal) body.start_time = startIso;
+      if (duration !== _origDuration) body.duration = duration;
       if (recurrence_change) body.recurrence_change = recurrence_change;
       if (advanced) body.advanced = advanced;
+      // Nothing to change? Don't even hit the API.
+      const hasChange = ['topic','start_time','duration','recurrence_change','advanced']
+        .some(k => body[k] !== undefined);
+      if (!hasChange) {
+        wrap.innerHTML = '<div class="sz-result">No changes to save.</div>';
+        btn.disabled = false; btn.textContent = 'Save changes';
+        setTimeout(close, 1000);
+        return;
+      }
       const j = await _zoomFetch('update', { method:'POST', body });
       const changedList = (j.changed || []).join(', ') || 'no material changes';
       const sentMsg = j.notified ? ` · ${j.notified.sent} notified${j.notified.failed ? ' / ' + j.notified.failed + ' failed' : ''}` : '';

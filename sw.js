@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v223-access-zoom-attendance-not-noise';
+const CACHE_NAME = 'ridley-v224-zoom-eastern-time-and-no-spurious-reschedule';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [

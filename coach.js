@@ -2360,11 +2360,23 @@ function openInviteesModal(meeting) {
             const stu = allStudents.find(s => s.id === r.student_id);
             const name = stu?.name || (r.email||'').split('@')[0] || 'Unknown';
             const ok = r.email_sent === true;
-            const status = ok
-              ? `<span style="color:var(--accent2);font-size:0.72rem;font-weight:700;">✓ Email sent</span>`
-              : (r.error
-                  ? `<span style="color:#f87171;font-size:0.72rem;font-weight:700;">✗ ${escapeHtml(r.error)}</span>`
-                  : (r.email_error ? `<span style="color:#f87171;font-size:0.72rem;font-weight:700;">✗ ${escapeHtml(r.email_error)}</span>` : `<span style="color:var(--text-dim);font-size:0.72rem;">No status</span>`));
+            const errText = r.error || r.email_error || '';
+            // Rate-limit / 429 errors are TRANSIENT — dispatch-event retries
+            // them automatically and they self-heal, so don't alarm the user
+            // with a red failure. Show a soft amber "sending…" instead. Only
+            // genuinely-stuck, non-rate-limit errors (bad address, bounce,
+            // suppressed, quota wall) render red.
+            const isTransient = errText && /rate.?limit|\b429\b|retry after/i.test(errText);
+            let status;
+            if (ok) {
+              status = `<span style="color:var(--accent2);font-size:0.72rem;font-weight:700;">✓ Email sent</span>`;
+            } else if (isTransient) {
+              status = `<span title="Hit Resend's per-second limit — automatically retrying. No action needed." style="color:#fbbf24;font-size:0.72rem;font-weight:700;">⟳ Sending…</span>`;
+            } else if (errText) {
+              status = `<span title="${escapeHtml(errText)}" style="color:#f87171;font-size:0.72rem;font-weight:700;">✗ ${escapeHtml(errText)}</span>`;
+            } else {
+              status = `<span style="color:var(--text-dim);font-size:0.72rem;">No status</span>`;
+            }
             return `<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--border);">
               <div style="flex:1;">
                 <div style="font-weight:600;font-size:0.88rem;">${escapeHtml(name)}</div>

@@ -633,6 +633,7 @@ const supa = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 let currentSession = null;
 let declData       = [];
 let canSeeAll      = false;
+let canAssignCollector = false;  // admins only — everyone else IS the collector
 let editRow        = null;
 let repsList       = [];
 let sortCol        = 'date_closed';
@@ -700,6 +701,13 @@ async function onAuthed(session) {
   if (canSeeAll) {
     document.body.classList.add('can-see-all');
     document.getElementById('repFilter').style.display = 'block';
+  }
+  // Only ADMINS may choose/assign who the collector is. A non-admin collector
+  // (e.g. the Collections role) always logs entries against their own
+  // identity — the server attributes them automatically — so we hide the
+  // "Assign Collector" picker for them entirely.
+  if (eff.is_admin) {
+    canAssignCollector = true;
     document.getElementById('fRepField').style.display = 'block';
     // Load reps for the assign dropdown
     try {
@@ -1021,7 +1029,7 @@ function openModal(row) {
   document.getElementById('fTypeOfSale').value   = row?.type_of_sale || '';
   document.getElementById('fPlatform').value     = row?.platform || '';
   document.getElementById('fNote').value         = row?.note || '';
-  if (canSeeAll) document.getElementById('fRep').value = row?.rep_name || '';
+  if (canAssignCollector) document.getElementById('fRep').value = row?.rep_name || '';
   document.getElementById('modalErr').textContent = '';
   document.getElementById('modalSaveBtn').disabled = false;
   document.getElementById('declModal').classList.add('open');
@@ -1054,7 +1062,7 @@ document.getElementById('modalSaveBtn').addEventListener('click', async () => {
     type_of_sale: document.getElementById('fTypeOfSale').value.trim() || null,
     platform:     document.getElementById('fPlatform').value    || null,
     note:         document.getElementById('fNote').value.trim() || null,
-    ...(canSeeAll && { rep_name: document.getElementById('fRep').value || null }),
+    ...(canAssignCollector && { rep_name: document.getElementById('fRep').value || null }),
   };
 
   try {

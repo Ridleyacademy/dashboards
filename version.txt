@@ -1,1 +1,1 @@
-2026-06-05T18:30:00Z-v354-transient-ratelimit-sending-not-failed
+2026-06-08T00:00:00Z-v355-coach-work-hours

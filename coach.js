@@ -2,6 +2,7 @@ const SUPABASE_URL = "https://pojqljrhhtnigyrtzdzz.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBvanFsanJoaHRuaWd5cnR6ZHp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTA3ODMsImV4cCI6MjA5MTM4Njc4M30.PcSBDqOzbiZxZ7IAs5efqx0gsAlAG0cj3GqUOkAmxos";
 const STUDENTS_BASE = SUPABASE_URL + '/functions/v1/students';
 const ZOOM_MEETINGS_BASE = SUPABASE_URL + '/functions/v1/zoom-meetings';
+const COACH_HOURS_BASE = SUPABASE_URL + '/functions/v1/coach-hours';
 const supa = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: true, detectSessionInUrl: true, autoRefreshToken: true }});
 
 let currentSession = null;
@@ -2037,6 +2038,184 @@ async function _zoomFetch(api, opts = {}) {
   return j;
 }
 
+// ── Work Hours ──────────────────────────────────────────────────────────
+async function _hoursFetch(api, opts = {}) {
+  const qs = new URLSearchParams({ api, ...(opts.params || {}) }).toString();
+  const r = await fetch(COACH_HOURS_BASE + '?' + qs, {
+    method: opts.method || 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer ' + currentSession.access_token,
+    },
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+  return j;
+}
+
+// Monday of the ISO week containing a given Date (used as weekly period_start).
+function _weekMonday(d) {
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const dow = (x.getDay() + 6) % 7; // 0 = Monday
+  x.setDate(x.getDate() - dow);
+  const y = x.getFullYear(), m = String(x.getMonth() + 1).padStart(2, '0'), day = String(x.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+function _todayISO() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+async function openWorkHoursModal() {
+  let boot;
+  try {
+    boot = await _hoursFetch('bootstrap');
+  } catch (e) {
+    alert('Could not load work-hours settings: ' + (e.message || e));
+    return;
+  }
+  const canAll = !!boot.can_edit_all;
+  const myNames = boot.my_coach_names || [];
+  const coaches = boot.coaches || [];
+  // Default selected coach: privileged → first coach in list; coach → own name.
+  let selCoach = canAll ? (coaches[0] || '') : (myNames[0] || '');
+
+  const m = document.createElement('div');
+  m.id = 'whModal'; m.className = 'modal-bg';
+  m.innerHTML = `
+    <div class="modal-card" style="max-width:560px;">
+      <div class="modal-head">
+        <h2>Work Hours</h2>
+        <button class="close" data-x>×</button>
+      </div>
+      <div class="modal-body" style="grid-template-columns:1fr;">
+        ${canAll ? `
+        <div><label>Coach</label>
+          <select id="wh-coach">
+            ${coaches.map(c => `<option value="${escapeHtml(c)}"${c===selCoach?' selected':''}>${escapeHtml(c)}</option>`).join('')}
+          </select>
+          <div style="font-size:0.72rem;color:var(--text-dim);margin-top:4px;">As an admin / I-C you can view and enter hours for any coach.</div>
+        </div>` : `
+        <div style="font-size:0.78rem;color:var(--accent2);background:rgba(34,211,238,0.08);border:1px solid rgba(34,211,238,0.3);border-radius:6px;padding:8px 10px;">
+          Entering hours for <strong>${escapeHtml(selCoach || '(your coach identity not found)')}</strong>.
+        </div>`}
+
+        ${ (canAll || selCoach) ? `
+        <div style="display:flex;gap:8px;align-items:center;">
+          <label style="margin:0;">Entry type</label>
+          <div class="wh-toggle" style="display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;">
+            <button type="button" id="wh-mode-daily" class="wh-mode active" data-mode="daily" style="padding:6px 14px;font-size:0.78rem;border:none;cursor:pointer;background:var(--accent2);color:#06231a;font-weight:700;">Daily</button>
+            <button type="button" id="wh-mode-weekly" class="wh-mode" data-mode="weekly" style="padding:6px 14px;font-size:0.78rem;border:none;cursor:pointer;background:transparent;color:var(--text);">Weekly</button>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:10px;">
+          <div>
+            <label id="wh-date-label">Date</label>
+            <input id="wh-date" type="date" value="${_todayISO()}">
+          </div>
+          <div>
+            <label>Hours</label>
+            <input id="wh-hours" type="number" min="0" max="168" step="0.25" placeholder="e.g. 7.5">
+          </div>
+        </div>
+        <div><label>Notes (optional)</label>
+          <textarea id="wh-notes" style="min-height:48px;" placeholder="Optional"></textarea></div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button type="button" id="wh-save" class="btn-primary" style="padding:8px 16px;">Save hours</button>
+          <span id="wh-msg" style="font-size:0.76rem;color:var(--text-dim);"></span>
+        </div>
+        <hr style="border:none;border-top:1px solid var(--border);margin:4px 0;">
+        <div>
+          <label style="margin-bottom:6px;">Recent entries${canAll ? ' (selected coach)' : ''}</label>
+          <div id="wh-list" style="font-size:0.8rem;color:var(--text-dim);">Loading…</div>
+        </div>` : `
+        <div style="font-size:0.82rem;color:#f87171;padding:10px 0;">
+          We couldn't match your account to a coach name, so there's nothing to enter.
+          Ask an admin to log your hours, or check that your email/first name matches your coach name.
+        </div>`}
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  const close = () => m.remove();
+  m.addEventListener('click', e => { if (e.target === m || e.target.matches('[data-x]')) close(); });
+
+  if (!(canAll || selCoach)) return;
+
+  let mode = 'daily';
+  const $ = id => m.querySelector(id);
+  const coachSel = $('#wh-coach');
+  if (coachSel) coachSel.addEventListener('change', () => { selCoach = coachSel.value; refreshList(); });
+
+  function setMode(newMode) {
+    mode = newMode;
+    m.querySelectorAll('.wh-mode').forEach(b => {
+      const on = b.dataset.mode === mode;
+      b.classList.toggle('active', on);
+      b.style.background = on ? 'var(--accent2)' : 'transparent';
+      b.style.color = on ? '#06231a' : 'var(--text)';
+      b.style.fontWeight = on ? '700' : '400';
+    });
+    $('#wh-date-label').textContent = mode === 'weekly' ? 'Any date in the week' : 'Date';
+    refreshList();
+  }
+  $('#wh-mode-daily').addEventListener('click', () => setMode('daily'));
+  $('#wh-mode-weekly').addEventListener('click', () => setMode('weekly'));
+
+  async function refreshList() {
+    const listEl = $('#wh-list');
+    if (!listEl) return;
+    listEl.textContent = 'Loading…';
+    try {
+      const params = {};
+      if (canAll && selCoach) params.coach = selCoach;
+      const j = await _hoursFetch('list', { params });
+      let rows = (j.rows || []).filter(r => r.period_type === mode);
+      if (!canAll) rows = rows; // coach already scoped server-side
+      rows = rows.slice(0, 12);
+      if (!rows.length) { listEl.innerHTML = '<span style="color:var(--text-dim);">No entries yet.</span>'; return; }
+      listEl.innerHTML = rows.map(r => `
+        <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);">
+          <span style="flex:0 0 110px;color:var(--text);">${escapeHtml(r.work_date)}</span>
+          <span style="flex:1;font-weight:700;color:var(--text);">${Number(r.hours)} h</span>
+          ${canAll ? `<span style="flex:0 0 auto;color:var(--text-dim);font-size:0.72rem;">${escapeHtml(r.coach_name)}</span>` : ''}
+          <button type="button" data-del="${r.id}" title="Delete" style="background:transparent;border:none;color:#f87171;cursor:pointer;font-size:0.9rem;padding:0 4px;">×</button>
+        </div>${r.notes ? `<div style="font-size:0.7rem;color:var(--text-dim);padding:0 0 4px 0;">${escapeHtml(r.notes)}</div>` : ''}`).join('');
+      listEl.querySelectorAll('[data-del]').forEach(btn => btn.addEventListener('click', async () => {
+        if (!confirm('Delete this entry?')) return;
+        try { await _hoursFetch('delete', { method: 'POST', body: { id: Number(btn.dataset.del) } }); refreshList(); }
+        catch (e) { alert('Delete failed: ' + (e.message || e)); }
+      }));
+    } catch (e) {
+      listEl.innerHTML = `<span style="color:#f87171;">Failed: ${escapeHtml(e.message || e)}</span>`;
+    }
+  }
+
+  $('#wh-save').addEventListener('click', async () => {
+    const msg = $('#wh-msg');
+    const coach = canAll ? selCoach : (myNames[0] || '');
+    const hours = Number($('#wh-hours').value);
+    const rawDate = $('#wh-date').value;
+    if (!coach) { msg.textContent = 'No coach selected.'; msg.style.color = '#f87171'; return; }
+    if (!rawDate) { msg.textContent = 'Pick a date.'; msg.style.color = '#f87171'; return; }
+    if (!Number.isFinite(hours) || hours < 0 || hours > 168) { msg.textContent = 'Hours must be 0–168.'; msg.style.color = '#f87171'; return; }
+    const work_date = mode === 'weekly' ? _weekMonday(new Date(rawDate + 'T00:00:00')) : rawDate;
+    msg.textContent = 'Saving…'; msg.style.color = 'var(--text-dim)';
+    try {
+      await _hoursFetch('upsert', { method: 'POST', body: {
+        coach_name: coach, period_type: mode, work_date, hours, notes: $('#wh-notes').value || null,
+      }});
+      msg.textContent = 'Saved ✓'; msg.style.color = 'var(--accent2)';
+      $('#wh-hours').value = ''; $('#wh-notes').value = '';
+      refreshList();
+    } catch (e) {
+      msg.textContent = 'Failed: ' + (e.message || e); msg.style.color = '#f87171';
+    }
+  });
+
+  refreshList();
+}
+
 async function loadUpcomingMeetings() {
   if (!currentSession) return;
   try {
@@ -3265,6 +3444,7 @@ document.getElementById('bulkScheduleZoomBtn').addEventListener('click', () => {
   openScheduleZoomModal([...selectedIds]);
 });
 document.getElementById('scheduleZoomTopBtn').addEventListener('click', () => openScheduleZoomModal(null));
+document.getElementById('workHoursTopBtn')?.addEventListener('click', () => openWorkHoursModal());
 
 // ── Session groups (preset student groups for re-use) ───────────
 let sessionGroups = [];

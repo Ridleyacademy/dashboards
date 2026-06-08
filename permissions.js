@@ -4,7 +4,7 @@
 // Adding a new role or page = edit ONLY this file. Per-page guards just call
 // RidleyPerms.canOpen(href, user) and trust the result.
 (function () {
-  const AVAILABLE_PERMS = ['sales', 'marketing', 'finance', 'calls', 'rep', 'sales_manager', 'mentorship', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep', 'weekly_stats', 'collector', 'treasury_ic', 'refunds_view'];
+  const AVAILABLE_PERMS = ['sales', 'marketing', 'finance', 'calls', 'rep', 'sales_manager', 'mentorship', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep', 'weekly_stats', 'collector', 'collections', 'treasury_ic', 'refunds_view'];
 
   // Page → which roles grant access. `is_admin: true` always wins.
   // `roles: '*'` means anyone signed in.
@@ -19,7 +19,7 @@
     // Collections dashboard — chasing missed/disputed rebills. Lives in a
     // separate table so it never mixes into rep declaration stats. Gated by
     // the new `collector` role (legacy bucket) or collections.view granular.
-    { href: 'collections.html', id: 'collections', roles: ['collector'], granular: 'collections.view' },
+    { href: 'collections.html', id: 'collections', roles: ['collector', 'collections'], granular: 'collections.view' },
     // Refunds dashboard — logging refunds salvaged + refunds done. Its own
     // table, completely separate from collections. Treasury I/C + Delivery I/C
     // (and admins) can enter/edit; `refunds_view` is a read-only tier.

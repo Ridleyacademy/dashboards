@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v232-collector-admin-only';
+const CACHE_NAME = 'ridley-v233-coll-actions-fit';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [

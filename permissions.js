@@ -23,7 +23,7 @@
     // Refunds dashboard — logging refunds salvaged + refunds done. Its own
     // table, completely separate from collections. Treasury I/C + Delivery I/C
     // (and admins) can enter/edit; `refunds_view` is a read-only tier.
-    { href: 'refunds.html', id: 'refunds', roles: ['treasury_ic', 'delivery_ic', 'refunds_view'], granular: 'refunds.view' },
+    { href: 'refunds.html', id: 'refunds', roles: ['treasury_ic', 'delivery_ic', 'refunds_view', 'refunds'], granular: 'refunds.view' },
     { href: 'students.html',     id: 'students',     roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'] },
     // Coach Dashboard: only true editors. Primary gate is the GRANULAR
     // `coach.edit` permission. Legacy fallback includes `coach` /

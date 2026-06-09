@@ -27,7 +27,7 @@
     // Support dashboard — customer support ticket log. Gated by the `support`
     // role (granular support.view) — its own table, separate from everything else.
     { href: 'support.html', id: 'support', roles: ['support'], granular: 'support.view' },
-    { href: 'students.html',     id: 'students',     roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'] },
+    { href: 'students.html',     id: 'students',     roles: ['students', 'mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'], granular: 'students.view' },
     // Coach Dashboard: only true editors. Primary gate is the GRANULAR
     // `coach.edit` permission. Legacy fallback includes `coach` /
     // `ms_ic` / `delivery_ic` for users whose JWT predates the

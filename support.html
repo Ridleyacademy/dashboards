@@ -334,8 +334,6 @@
       <div class="modal-field full">
         <label class="modal-label">Flags</label>
         <div class="modal-flags">
-          <label><input type="checkbox" id="cRefundTagged"> Refund tagged</label>
-          <label><input type="checkbox" id="cDispute"> Dispute opened (Stripe/PayPal)</label>
           <label><input type="checkbox" id="cFollowUp"> Follow up</label>
           <label><input type="checkbox" id="cUnsub"> Unsubscribed</label>
           <label><input type="checkbox" id="cSpam"> Spam folder</label>
@@ -383,10 +381,13 @@ let tyFilter = '';   // ticket type filter
 let sortCol = 'ticket_date';
 let sortDir = 'desc';
 
-const TYPES = ['Minor','Refund','Critical','Damaging','Other comms'];
+const TYPES = ['Minor','Refund','Critical','Damaging','Other comms','Double Payment','Dispute Started','Dispute Won','Dispute Lost'];
 const STATUSES = ['Pending','Active','Solved'];
 const STATUS_BADGE = { Pending:'badge-gold', Active:'badge-blue', Solved:'badge-green' };
-const TYPE_BADGE = { Minor:'badge-dim', Refund:'badge-red', Critical:'badge-red', Damaging:'badge-purple', 'Other comms':'badge-blue' };
+const TYPE_BADGE = { Minor:'badge-dim', Refund:'badge-red', Critical:'badge-red', Damaging:'badge-purple', 'Other comms':'badge-blue',
+  'Double Payment':'badge-gold', 'Dispute Started':'badge-gold', 'Dispute Won':'badge-green', 'Dispute Lost':'badge-red' };
+// Types that push a state to the Refunds board (shown as a hint in the modal).
+const REFUND_SYNC_TYPES = { 'Dispute Started':'Dispute Started', 'Dispute Won':'Dispute Won', 'Dispute Lost':'Dispute Lost', 'Refund':'Processed (when Solved)' };
 
 function setState(s) { document.body.dataset.state = s; }
 function escapeHtmlR(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
@@ -480,19 +481,21 @@ function getBaseRows() {
 function renderStats(rows) {
   const total = rows.length;
   const byStatus = { Pending:0, Active:0, Solved:0 };
-  let refundTagged = 0, disputes = 0;
+  let refunds = 0, disputes = 0, doublePay = 0;
   for (const r of rows) {
     if (byStatus[r.status] !== undefined) byStatus[r.status]++;
-    if (r.refund_tagged) refundTagged++;
-    if (r.dispute_opened) disputes++;
+    if (r.ticket_type === 'Refund') refunds++;
+    if (r.ticket_type === 'Double Payment') doublePay++;
+    if (r.ticket_type && r.ticket_type.indexOf('Dispute') === 0) disputes++;
   }
   const open = byStatus.Pending + byStatus.Active;
   const cards = [
     { label:'Total Tickets', value: total, cls:'kpi-blue', sub: `${rows.length} in range` },
     { label:'Open (Pending+Active)', value: open, cls:'kpi-gold', sub:'awaiting resolution' },
     { label:'Solved', value: byStatus.Solved, cls:'kpi-green', sub:'closed out' },
-    { label:'Refund Tagged', value: refundTagged, cls:'kpi-red', sub:'flagged as refund' },
-    { label:'Disputes Opened', value: disputes, cls:'kpi-purple', sub:'Stripe / PayPal' },
+    { label:'Refunds', value: refunds, cls:'kpi-red', sub:'refund tickets' },
+    { label:'Disputes', value: disputes, cls:'kpi-purple', sub:'started / won / lost' },
+    { label:'Double Payments', value: doublePay, cls:'kpi-gold', sub:'auto-detected + manual' },
   ];
   document.getElementById('kpiGrid').innerHTML = cards.map(c=>`
     <div class="kpi-card ${c.cls}"><div class="kpi-label">${c.label}</div><div class="kpi-value">${c.value}</div><div class="kpi-sub">${c.sub}</div></div>`).join('');
@@ -503,8 +506,6 @@ function statusBadge(s){ if(!s)return '<span class="badge badge-dim"><span class
 function typeBadge(t){ if(!t)return '<span class="muted">—</span>'; return `<span class="badge ${TYPE_BADGE[t]||'badge-dim'}"><span class="badge-dot"></span>${escapeHtmlR(t)}</span>`; }
 function flagChips(r){
   const out=[];
-  if(r.refund_tagged) out.push('Refund');
-  if(r.dispute_opened) out.push('Dispute');
   if(r.follow_up) out.push('Follow-up');
   if(r.unsubscribed) out.push('Unsub');
   if(r.spam_folder) out.push('Spam');
@@ -586,8 +587,6 @@ function openModal(row) {
   document.getElementById('fName').value = row?.name || '';
   document.getElementById('fEmail').value = row?.email || '';
   document.getElementById('fCourseStatus').value = row?.course_status || '';
-  document.getElementById('cRefundTagged').checked = !!row?.refund_tagged;
-  document.getElementById('cDispute').checked = !!row?.dispute_opened;
   document.getElementById('cFollowUp').checked = !!row?.follow_up;
   document.getElementById('cUnsub').checked = !!row?.unsubscribed;
   document.getElementById('cSpam').checked = !!row?.spam_folder;
@@ -601,7 +600,7 @@ function openModal(row) {
   document.getElementById('fAddNote').value = '';
   document.getElementById('fAddNoteMsg').textContent = '';
   if (!isNew) loadTimeline(row.id);
-  ['fType','fStatus','fDate','fAck','fClosed','fName','fEmail','fCourseStatus','fNote','cRefundTagged','cDispute','cFollowUp','cUnsub','cSpam','cTrustpilot','cErased'].forEach(id=>{ const el=document.getElementById(id); if(el)el.disabled=viewOnly; });
+  ['fType','fStatus','fDate','fAck','fClosed','fName','fEmail','fCourseStatus','fNote','cFollowUp','cUnsub','cSpam','cTrustpilot','cErased'].forEach(id=>{ const el=document.getElementById(id); if(el)el.disabled=viewOnly; });
   document.getElementById('modalSaveBtn').style.display = viewOnly ? 'none' : '';
   document.querySelector('#fActivityWrap .rf-addnote').style.display = viewOnly ? 'none' : '';
   document.getElementById('modalTitleText').textContent = viewOnly ? 'Ticket details' : (isNew ? 'New Ticket' : 'Edit Ticket');
@@ -639,8 +638,6 @@ document.getElementById('modalSaveBtn').addEventListener('click', async () => {
     name: document.getElementById('fName').value.trim() || null,
     email: document.getElementById('fEmail').value.trim() || null,
     course_status: document.getElementById('fCourseStatus').value.trim() || null,
-    refund_tagged: document.getElementById('cRefundTagged').checked,
-    dispute_opened: document.getElementById('cDispute').checked,
     follow_up: document.getElementById('cFollowUp').checked,
     unsubscribed: document.getElementById('cUnsub').checked,
     spam_folder: document.getElementById('cSpam').checked,
@@ -654,7 +651,10 @@ document.getElementById('modalSaveBtn').addEventListener('click', async () => {
     const j=await res.json(); if(!res.ok||!j.ok)throw new Error(j.error||'Save failed');
     document.getElementById('declModal').classList.remove('open');
     if (j.refundSync && j.refundSync.done) {
-      alert(j.refundSync.created ? 'A new "Processed" refund record was created on the Refunds board for this customer.' : 'The customer\'s refund record was marked "Processed" on the Refunds board.');
+      const lbl = ({processed:'Processed',dispute_started:'Dispute Started',dispute_won:'Dispute Won',dispute_lost:'Dispute Lost'})[j.refundSync.target] || j.refundSync.target;
+      alert(j.refundSync.created
+        ? 'Refunds board: a new "'+lbl+'" record was created for this customer.'
+        : 'Refunds board: this customer\'s record was set to "'+lbl+'".');
     }
     await loadTickets();
   } catch(err){ errEl.textContent=err.message||'Error saving'; btn.disabled=false; btn.textContent=isNew?'Submit':'Save Changes'; }

@@ -217,6 +217,7 @@
   .badge-purple { background:var(--purple-bg); color:var(--purple); } .badge-purple .badge-dot { background:var(--purple); }
   .badge-red    { background:var(--red-bg);    color:var(--red);    } .badge-red    .badge-dot { background:var(--red); }
   .badge-dim    { background:var(--surface3);  color:var(--text-dim);} .badge-dim   .badge-dot { background:var(--text-dim); }
+  .badge-gold   { background:var(--gold-bg);   color:var(--gold);   } .badge-gold   .badge-dot { background:var(--gold); }
 
   /* ── Action buttons ─────────────────────────────── */
   .action-btn { display:inline-flex; align-items:center; justify-content:center; border:none; border-radius:6px; cursor:pointer; font-size:0.68rem; font-weight:600; padding:3px 8px; transition:background 0.12s; line-height:1.4; }
@@ -433,11 +434,9 @@
     <!-- ── Filter bar ──────────────────────────────── -->
     <div class="filter-bar">
       <span class="filter-label">Type</span>
-      <div class="rt-seg" id="rtSeg">
-        <button data-rt="" class="active">All</button>
-        <button data-rt="salvaged">Salvaged</button>
-        <button data-rt="refunded">Refunded</button>
-      </div>
+      <select class="filter-input" id="rtFilter" style="max-width:200px;">
+        <option value="">All Types</option>
+      </select>
       <span class="filter-sep">·</span>
       <span class="filter-label">Product</span>
       <select class="filter-input" id="productFilter" style="max-width:200px;">
@@ -455,26 +454,7 @@
       <div class="sec-label-line"></div>
     </div>
 
-    <div class="kpi-grid" id="kpiGrid">
-      <div class="kpi-card kpi-gold">
-        <div class="kpi-label">Total Records</div>
-        <div class="kpi-value" id="kpiTotal">—</div>
-        <div class="kpi-income" id="kpiGI">—</div>
-        <div class="kpi-sub" id="kpiGISub">total amount</div>
-      </div>
-      <div class="kpi-card kpi-green">
-        <div class="kpi-label">Refunds Salvaged</div>
-        <div class="kpi-value" id="kpiSalvaged">—</div>
-        <div class="kpi-income" id="kpiSalvagedAmt">—</div>
-        <div class="kpi-sub" id="kpiSalvagedSub">revenue retained</div>
-      </div>
-      <div class="kpi-card kpi-red">
-        <div class="kpi-label">Refunds Done</div>
-        <div class="kpi-value" id="kpiRefunded">—</div>
-        <div class="kpi-income" id="kpiRefundedAmt">—</div>
-        <div class="kpi-sub" id="kpiRefundedSub">money returned</div>
-      </div>
-    </div>
+    <div class="kpi-grid" id="kpiGrid"></div>
 
     <div class="dash-row">
       <div class="chart-card">
@@ -556,10 +536,7 @@
     <div class="modal-grid">
       <div class="modal-field full">
         <label class="modal-label">Record Type</label>
-        <div class="rt-pick" id="fTypePick">
-          <label data-rt="salvaged"><input type="radio" name="recordType" value="salvaged"> 🛟 Salvaged</label>
-          <label data-rt="refunded"><input type="radio" name="recordType" value="refunded"> 💸 Refunded</label>
-        </div>
+        <select class="modal-input" id="fType"></select>
       </div>
       <div class="modal-field">
         <label class="modal-label">Date</label>
@@ -630,9 +607,33 @@ let currentSession = null;
 let declData       = [];
 let canEdit        = false;
 let editRow        = null;
-let rtFilter       = '';   // '' | 'salvaged' | 'refunded'
+let rtFilter       = '';   // '' or a record_type slug
 let sortCol        = 'date_closed';
 let sortDir        = 'desc';
+
+// Record types (slug → label + badge color). Order drives the dropdowns + KPIs.
+const RECORD_TYPES = [
+  { v: 'request',         label: 'Refund Request',     badge: 'badge-gold'   },
+  { v: 'approved',        label: 'Refund Approved',    badge: 'badge-red'    },
+  { v: 'disapproved',     label: 'Refund Disapproved', badge: 'badge-green'  },
+  { v: 'processed',       label: 'Processed',          badge: 'badge-blue'   },
+  { v: 'dispute_started', label: 'Dispute Started',    badge: 'badge-purple' },
+  { v: 'dispute_won',     label: 'Dispute Won',        badge: 'badge-green'  },
+  { v: 'dispute_lost',    label: 'Dispute Lost',       badge: 'badge-red'    },
+];
+const RT_LABEL = Object.fromEntries(RECORD_TYPES.map(t => [t.v, t.label]));
+const RT_BADGE = Object.fromEntries(RECORD_TYPES.map(t => [t.v, t.badge]));
+// Back-compat: map the original two slugs onto the renamed ones.
+function rtCanon(v) { return v === 'salvaged' ? 'disapproved' : v === 'refunded' ? 'approved' : v; }
+
+// Populate the filter + modal dropdowns from RECORD_TYPES.
+function buildTypeSelectors() {
+  const f = document.getElementById('rtFilter');
+  if (f) f.innerHTML = '<option value="">All Types</option>' +
+    RECORD_TYPES.map(t => `<option value="${t.v}">${t.label}</option>`).join('');
+  const m = document.getElementById('fType');
+  if (m) m.innerHTML = RECORD_TYPES.map(t => `<option value="${t.v}">${t.label}</option>`).join('');
+}
 
 function setState(s) { document.body.dataset.state = s; }
 
@@ -768,7 +769,7 @@ function getBaseRows() {
     if (from && d < from) return false;
     if (to   && d > to)   return false;
     if (prod && r.product !== prod) return false;
-    if (rtFilter && r.record_type !== rtFilter) return false;
+    if (rtFilter && rtCanon(r.record_type) !== rtFilter) return false;
     return true;
   });
 }
@@ -780,9 +781,8 @@ function renderStats(rows) {
   const fmt = v => '$' + Math.round(v).toLocaleString('en-US');
 
   const total = rows.length;
-  let gi = 0,
-      salvaged = 0,   salvagedGI = 0,
-      refunded = 0,   refundedGI = 0;
+  let gi = 0;
+  const byType = Object.fromEntries(RECORD_TYPES.map(t => [t.v, { count: 0, amt: 0 }]));
 
   const dayMap  = {};
   const prodMap = {};
@@ -791,8 +791,8 @@ function renderStats(rows) {
     const amt = Number(r.sale_amount) || 0;
     gi += amt;
 
-    if      (r.record_type === 'salvaged') { salvaged++; salvagedGI += amt; }
-    else if (r.record_type === 'refunded') { refunded++; refundedGI += amt; }
+    const t = rtCanon(r.record_type);
+    if (byType[t]) { byType[t].count++; byType[t].amt += amt; }
 
     const day = (r.date_closed || '').slice(0, 10);
     if (day) { dayMap[day] = (dayMap[day] || 0) + amt; }
@@ -803,17 +803,30 @@ function renderStats(rows) {
     prodMap[prod].total += amt;
   }
 
-  document.getElementById('kpiTotal').textContent  = total;
-  document.getElementById('kpiGI').textContent     = fmt(gi);
-  document.getElementById('kpiGISub').textContent  = `total amount · ${total} record${total !== 1 ? 's' : ''}`;
-
-  document.getElementById('kpiSalvaged').textContent    = salvaged;
-  document.getElementById('kpiSalvagedAmt').textContent = fmt(salvagedGI);
-  document.getElementById('kpiSalvagedSub').textContent = 'revenue retained';
-
-  document.getElementById('kpiRefunded').textContent    = refunded;
-  document.getElementById('kpiRefundedAmt').textContent = fmt(refundedGI);
-  document.getElementById('kpiRefundedSub').textContent = 'money returned';
+  // KPI cards: a Total card, then one per record type (count + $ amount).
+  const kpiColors = {
+    request: 'kpi-gold', approved: 'kpi-red', disapproved: 'kpi-green',
+    processed: 'kpi-blue', dispute_started: 'kpi-purple',
+    dispute_won: 'kpi-green', dispute_lost: 'kpi-red',
+  };
+  let kpiHtml = `
+    <div class="kpi-card kpi-gold">
+      <div class="kpi-label">Total Records</div>
+      <div class="kpi-value">${total}</div>
+      <div class="kpi-income">${fmt(gi)}</div>
+      <div class="kpi-sub">total amount</div>
+    </div>`;
+  for (const t of RECORD_TYPES) {
+    const c = byType[t.v];
+    kpiHtml += `
+    <div class="kpi-card ${kpiColors[t.v] || 'kpi-blue'}">
+      <div class="kpi-label">${t.label}</div>
+      <div class="kpi-value">${c.count}</div>
+      <div class="kpi-income">${fmt(c.amt)}</div>
+      <div class="kpi-sub">${c.count === 1 ? '1 entry' : c.count + ' entries'}</div>
+    </div>`;
+  }
+  document.getElementById('kpiGrid').innerHTML = kpiHtml;
 
   // Daily bar chart
   const days   = Object.keys(dayMap).sort();
@@ -878,9 +891,10 @@ function fmtMoney(v) {
 }
 
 function recordTypeBadge(t) {
-  if (t === 'salvaged') return '<span class="badge badge-green"><span class="badge-dot"></span>Salvaged</span>';
-  if (t === 'refunded') return '<span class="badge badge-red"><span class="badge-dot"></span>Refunded</span>';
-  return '<span class="badge badge-dim"><span class="badge-dot"></span>—</span>';
+  const v = rtCanon(t);
+  const label = RT_LABEL[v];
+  if (!label) return '<span class="badge badge-dim"><span class="badge-dot"></span>—</span>';
+  return `<span class="badge ${RT_BADGE[v] || 'badge-dim'}"><span class="badge-dot"></span>${label}</span>`;
 }
 
 function renderTable() {
@@ -943,16 +957,6 @@ function renderTable() {
 }
 
 // ── Modal ─────────────────────────────────────────────────────────
-function setRtPick(val) {
-  document.querySelectorAll('#fTypePick label').forEach(l => {
-    l.classList.remove('sel-salvaged', 'sel-refunded');
-    const input = l.querySelector('input');
-    const on = l.dataset.rt === val;
-    input.checked = on;
-    if (on) l.classList.add('sel-' + val);
-  });
-}
-
 function openModal(row) {
   if (!canEdit) return;
   editRow = row || null;
@@ -960,7 +964,7 @@ function openModal(row) {
   document.getElementById('modalTitle').childNodes[2].textContent = isNew ? ' Add Refund' : ' Edit Refund';
   document.getElementById('modalSaveBtn').textContent = isNew ? 'Submit' : 'Save Changes';
   document.getElementById('fId').value           = row?.id ?? '';
-  setRtPick(row?.record_type || 'salvaged');
+  document.getElementById('fType').value          = rtCanon(row?.record_type) || 'request';
   document.getElementById('fDate').value         = (row?.date_closed || new Date().toISOString()).slice(0,10);
   document.getElementById('fName').value         = row?.name || '';
   document.getElementById('fEmail').value        = row?.email || '';
@@ -973,10 +977,6 @@ function openModal(row) {
   document.getElementById('modalSaveBtn').disabled = false;
   document.getElementById('declModal').classList.add('open');
 }
-
-document.querySelectorAll('#fTypePick label').forEach(l => {
-  l.addEventListener('click', () => setRtPick(l.dataset.rt));
-});
 
 document.getElementById('declModal').addEventListener('click', e => {
   if (e.target === document.getElementById('declModal')) document.getElementById('declModal').classList.remove('open');
@@ -993,9 +993,9 @@ document.getElementById('modalSaveBtn').addEventListener('click', async () => {
 
   const id    = document.getElementById('fId').value;
   const isNew = !id;
-  const rt = (document.querySelector('input[name="recordType"]:checked') || {}).value || '';
+  const rt = document.getElementById('fType').value || '';
   if (!rt) {
-    errEl.textContent = 'Pick a record type (Salvaged or Refunded).';
+    errEl.textContent = 'Pick a record type.';
     btn.disabled = false; btn.textContent = isNew ? 'Submit' : 'Save Changes';
     return;
   }
@@ -1076,12 +1076,9 @@ document.getElementById('declTable').addEventListener('click', e => {
   renderTable();
 });
 
-// Record-type segmented filter
-document.getElementById('rtSeg').addEventListener('click', e => {
-  const btn = e.target.closest('button[data-rt]');
-  if (!btn) return;
-  rtFilter = btn.dataset.rt;
-  document.querySelectorAll('#rtSeg button').forEach(b => b.classList.toggle('active', b === btn));
+// Record-type filter
+document.getElementById('rtFilter').addEventListener('change', e => {
+  rtFilter = e.target.value;
   renderTable();
 });
 
@@ -1224,6 +1221,7 @@ document.getElementById('setPwForm').addEventListener('submit', async e => {
 });
 
 // ── Boot ──────────────────────────────────────────────────────────
+buildTypeSelectors();
 setState('loading');
 initAuth().catch(() => setState('login'));
 </script>

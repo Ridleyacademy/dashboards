@@ -251,6 +251,19 @@
   .rt-pick input { display:none; }
   .rt-pick label.sel-salvaged { border-color:var(--green); color:var(--green); background:var(--green-bg); }
   .rt-pick label.sel-refunded { border-color:var(--red); color:var(--red); background:var(--red-bg); }
+
+  /* Activity timeline in the edit modal */
+  .rf-timeline { max-height:240px; overflow-y:auto; border:1px solid var(--border); border-radius:10px; padding:10px 12px; background:var(--surface2); margin-bottom:10px; }
+  .rf-ev { display:flex; gap:8px; padding:7px 0; border-bottom:1px solid var(--border); }
+  .rf-ev:last-child { border-bottom:none; }
+  .rf-ev-dot { flex:0 0 8px; width:8px; height:8px; border-radius:50%; margin-top:5px; background:var(--text-dim); }
+  .rf-ev.note .rf-ev-dot { background:var(--blue); }
+  .rf-ev.status_change .rf-ev-dot { background:var(--gold); }
+  .rf-ev.created .rf-ev-dot { background:var(--green); }
+  .rf-ev-body { flex:1; min-width:0; }
+  .rf-ev-text { font-size:0.82rem; color:var(--text); line-height:1.4; white-space:pre-wrap; word-break:break-word; }
+  .rf-ev-meta { font-size:0.68rem; color:var(--text-dim); margin-top:2px; }
+  .rf-empty { font-size:0.8rem; color:var(--text-dim); text-align:center; padding:14px 0; }
 </style>
 <link rel="stylesheet" href="skeletons.css">
 <link rel="manifest" href="manifest.json">
@@ -580,9 +593,22 @@
         <label class="modal-label">Type of Sale</label>
         <input class="modal-input" type="text" id="fTypeOfSale" placeholder="e.g. Organic, Webinar, DM…">
       </div>
-      <div class="modal-field full">
-        <label class="modal-label">Note</label>
+      <!-- New record only: the first note. -->
+      <div class="modal-field full" id="fNewNoteWrap">
+        <label class="modal-label">Note (optional)</label>
         <textarea class="modal-input" id="fNote" placeholder="Reason, who handled it, any context…"></textarea>
+      </div>
+      <!-- Existing record only: append-only notes + status-change history. -->
+      <div class="modal-field full" id="fActivityWrap" style="display:none;">
+        <label class="modal-label">Activity &amp; notes</label>
+        <div id="fTimeline" class="rf-timeline">Loading…</div>
+        <div class="rf-addnote">
+          <textarea class="modal-input" id="fAddNote" placeholder="Add a note… (saved immediately, never overwrites earlier notes)"></textarea>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+            <button type="button" class="modal-btn modal-btn-save" id="fAddNoteBtn" style="padding:7px 14px;font-size:0.8rem;">Add note</button>
+            <span id="fAddNoteMsg" style="font-size:0.74rem;color:var(--text-dim);"></span>
+          </div>
+        </div>
       </div>
     </div>
     <div class="modal-err" id="modalErr"></div>
@@ -936,7 +962,7 @@ function renderTable() {
       </td>`
     : () => `<td class="col-actions"></td>`;
 
-  tbody.innerHTML = rows.map(r => `<tr>
+  tbody.innerHTML = rows.map(r => `<tr data-row-id="${r.id}" style="cursor:pointer;">
     <td data-label="Type" style="white-space:nowrap;">${recordTypeBadge(r.record_type)}</td>
     <td data-label="Date" style="white-space:nowrap;color:var(--text-muted);">${fmtDate(r.date_closed)}</td>
     <td class="td-main" data-label="Name" style="${wrap}">${r.name||'—'}</td>
@@ -957,8 +983,55 @@ function renderTable() {
 }
 
 // ── Modal ─────────────────────────────────────────────────────────
+function _fmtEventTime(iso) {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+  } catch { return iso; }
+}
+
+function renderTimeline(events) {
+  const el = document.getElementById('fTimeline');
+  if (!events || !events.length) { el.innerHTML = '<div class="rf-empty">No activity yet.</div>'; return; }
+  el.innerHTML = events.map(ev => {
+    let text = '';
+    if (ev.event_type === 'note') text = ev.note || '';
+    else if (ev.event_type === 'status_change') text = `Status changed: ${RT_LABEL[rtCanon(ev.from_status)] || ev.from_status || '—'} → ${RT_LABEL[rtCanon(ev.to_status)] || ev.to_status || '—'}`;
+    else if (ev.event_type === 'created') text = `Created as ${RT_LABEL[rtCanon(ev.to_status)] || ev.to_status || '—'}`;
+    else text = ev.note || ev.event_type;
+    const who = ev.created_by_email ? ' · ' + ev.created_by_email : '';
+    return `<div class="rf-ev ${ev.event_type}">
+      <div class="rf-ev-dot"></div>
+      <div class="rf-ev-body">
+        <div class="rf-ev-text">${escapeHtmlR(text)}</div>
+        <div class="rf-ev-meta">${_fmtEventTime(ev.created_at)}${escapeHtmlR(who)}</div>
+      </div>
+    </div>`;
+  }).join('');
+  el.scrollTop = el.scrollHeight;
+}
+function escapeHtmlR(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+async function loadTimeline(refundId) {
+  const el = document.getElementById('fTimeline');
+  el.innerHTML = '<div class="rf-empty">Loading…</div>';
+  try {
+    const { data: { session } } = await supa.auth.getSession();
+    const res = await fetch(REFUNDS_BASE + '?api=events&refund_id=' + encodeURIComponent(refundId), {
+      headers: { Authorization: 'Bearer ' + session.access_token }
+    });
+    const j = await res.json();
+    if (!res.ok) throw new Error(j.error || 'Failed');
+    renderTimeline(j.events || []);
+  } catch (e) {
+    el.innerHTML = `<div class="rf-empty" style="color:var(--red);">${escapeHtmlR(e.message)}</div>`;
+  }
+}
+
 function openModal(row) {
-  if (!canEdit) return;
+  const viewOnly = !canEdit;
+  if (viewOnly && !row?.id) return;  // viewers can only open existing rows
   editRow = row || null;
   const isNew = !row?.id;
   document.getElementById('modalTitle').childNodes[2].textContent = isNew ? ' Add Refund' : ' Edit Refund';
@@ -972,11 +1045,57 @@ function openModal(row) {
   document.getElementById('fAmount').value       = row?.sale_amount ?? '';
   document.getElementById('fTypeOfSale').value   = row?.type_of_sale || '';
   document.getElementById('fPlatform').value     = row?.platform || '';
-  document.getElementById('fNote').value         = row?.note || '';
+  document.getElementById('fNote').value         = '';
   document.getElementById('modalErr').textContent = '';
   document.getElementById('modalSaveBtn').disabled = false;
+
+  // New record → show the first-note box. Existing → show the activity log.
+  document.getElementById('fNewNoteWrap').style.display = (isNew && !viewOnly) ? '' : 'none';
+  document.getElementById('fActivityWrap').style.display = isNew ? 'none' : '';
+  document.getElementById('fAddNote').value = '';
+  document.getElementById('fAddNoteMsg').textContent = '';
+  if (!isNew) loadTimeline(row.id);
+
+  // View-only (no edit permission): lock the fields, hide Save + the add-note
+  // composer, but still let them read the full notes + status history.
+  ['fType','fDate','fName','fEmail','fProduct','fAmount','fTypeOfSale','fPlatform','fNote'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.disabled = viewOnly;
+  });
+  document.getElementById('modalSaveBtn').style.display = viewOnly ? 'none' : '';
+  document.querySelector('#fActivityWrap .rf-addnote').style.display = viewOnly ? 'none' : '';
+  document.getElementById('modalTitle').childNodes[2].textContent =
+    viewOnly ? ' Refund details' : (isNew ? ' Add Refund' : ' Edit Refund');
+
   document.getElementById('declModal').classList.add('open');
 }
+
+// Append a note immediately (separate from Save).
+document.getElementById('fAddNoteBtn').addEventListener('click', async () => {
+  const id = document.getElementById('fId').value;
+  const ta = document.getElementById('fAddNote');
+  const msg = document.getElementById('fAddNoteMsg');
+  const note = ta.value.trim();
+  if (!id) return;
+  if (!note) { msg.textContent = 'Type a note first.'; msg.style.color = 'var(--red)'; return; }
+  msg.textContent = 'Adding…'; msg.style.color = 'var(--text-dim)';
+  try {
+    const { data: { session } } = await supa.auth.getSession();
+    const res = await fetch(REFUNDS_BASE + '?api=add-note', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+      body: JSON.stringify({ refund_id: Number(id), note }),
+    });
+    const j = await res.json();
+    if (!res.ok || !j.ok) throw new Error(j.error || 'Failed');
+    ta.value = '';
+    msg.textContent = 'Added ✓'; msg.style.color = 'var(--green)';
+    await loadTimeline(Number(id));
+    // refresh the underlying list so the Note column shows the latest note
+    loadDeclarations();
+  } catch (e) {
+    msg.textContent = 'Failed: ' + e.message; msg.style.color = 'var(--red)';
+  }
+});
 
 document.getElementById('declModal').addEventListener('click', e => {
   if (e.target === document.getElementById('declModal')) document.getElementById('declModal').classList.remove('open');
@@ -1060,11 +1179,18 @@ document.getElementById('addBtn').addEventListener('click', () => openModal(null
 document.getElementById('declBody').addEventListener('click', e => {
   const editBtn = e.target.closest('.action-btn-edit');
   const delBtn  = e.target.closest('.action-btn-del');
+  if (delBtn) { deleteRow(delBtn.dataset.id, delBtn); return; }
   if (editBtn) {
     const row = declData.find(r => String(r.id) === editBtn.dataset.id);
     if (row) openModal(row);
+    return;
   }
-  if (delBtn) deleteRow(delBtn.dataset.id, delBtn);
+  // Click anywhere else on the row → open the record (view notes + history).
+  const tr = e.target.closest('tr[data-row-id]');
+  if (tr) {
+    const row = declData.find(r => String(r.id) === tr.dataset.rowId);
+    if (row) openModal(row);
+  }
 });
 
 document.getElementById('declTable').addEventListener('click', e => {

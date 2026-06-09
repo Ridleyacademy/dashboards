@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v236-refunds-timeline';
+const CACHE_NAME = 'ridley-v237-support-dashboard';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [
@@ -30,6 +30,7 @@ const PRECACHE = [
   '/weekly-stats-entry.js',
   '/collections.html',
   '/refunds.html',
+  '/support.html',
   '/ux.js',
 ];
 

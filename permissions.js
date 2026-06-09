@@ -4,7 +4,7 @@
 // Adding a new role or page = edit ONLY this file. Per-page guards just call
 // RidleyPerms.canOpen(href, user) and trust the result.
 (function () {
-  const AVAILABLE_PERMS = ['sales', 'marketing', 'finance', 'calls', 'rep', 'sales_manager', 'mentorship', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep', 'weekly_stats', 'collector', 'collections', 'treasury_ic', 'refunds_view'];
+  const AVAILABLE_PERMS = ['sales', 'marketing', 'finance', 'calls', 'rep', 'sales_manager', 'mentorship', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep', 'weekly_stats', 'collector', 'collections', 'treasury_ic', 'refunds_view', 'support'];
 
   // Page → which roles grant access. `is_admin: true` always wins.
   // `roles: '*'` means anyone signed in.
@@ -24,6 +24,9 @@
     // table, completely separate from collections. Treasury I/C + Delivery I/C
     // (and admins) can enter/edit; `refunds_view` is a read-only tier.
     { href: 'refunds.html', id: 'refunds', roles: ['treasury_ic', 'delivery_ic', 'refunds_view', 'refunds'], granular: 'refunds.view' },
+    // Support dashboard — customer support ticket log. Gated by the `support`
+    // role (granular support.view) — its own table, separate from everything else.
+    { href: 'support.html', id: 'support', roles: ['support'], granular: 'support.view' },
     { href: 'students.html',     id: 'students',     roles: ['mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'] },
     // Coach Dashboard: only true editors. Primary gate is the GRANULAR
     // `coach.edit` permission. Legacy fallback includes `coach` /

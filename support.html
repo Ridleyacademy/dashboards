@@ -320,7 +320,7 @@
 <!-- Add / Edit Modal -->
 <div class="modal-overlay" id="declModal">
   <div class="modal-card">
-    <div class="modal-title" id="modalTitle"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> New Ticket</div>
+    <div class="modal-title" id="modalTitle"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> <span id="modalTitleText">New Ticket</span></div>
     <input type="hidden" id="fId">
     <div class="modal-grid">
       <div class="modal-field"><label class="modal-label">Type</label><select class="modal-input" id="fType"></select></div>
@@ -604,7 +604,7 @@ function openModal(row) {
   ['fType','fStatus','fDate','fAck','fClosed','fName','fEmail','fCourseStatus','fNote','cRefundTagged','cDispute','cFollowUp','cUnsub','cSpam','cTrustpilot','cErased'].forEach(id=>{ const el=document.getElementById(id); if(el)el.disabled=viewOnly; });
   document.getElementById('modalSaveBtn').style.display = viewOnly ? 'none' : '';
   document.querySelector('#fActivityWrap .rf-addnote').style.display = viewOnly ? 'none' : '';
-  document.getElementById('modalTitle').childNodes[2].textContent = viewOnly ? ' Ticket details' : (isNew ? ' New Ticket' : ' Edit Ticket');
+  document.getElementById('modalTitleText').textContent = viewOnly ? 'Ticket details' : (isNew ? 'New Ticket' : 'Edit Ticket');
   document.getElementById('declModal').classList.add('open');
 }
 

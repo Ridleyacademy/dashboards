@@ -274,6 +274,7 @@ function renderAll() {
   // Sort by the catalog's sort_order so the persisted order (set via the
   // Reorder Mode + ?api=reorder) shows up here too.
   visible.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+  updateCurrentPeriodBtn();
   renderKpiStrip(visible);
   renderChartGrid(visible);
 }
@@ -302,6 +303,47 @@ function lastTwoValues(points) {
 // and POST to ?api=reorder. On Cancel we reload from server.
 let _reorderMode = false;
 let _reorderDragEl = null;            // the currently-dragged .chart-card element
+
+// ── Current-period visibility toggle ─────────────────────────────────
+// OFF by default: the current, still-in-progress week/month is hidden
+// from the big numbers, KPI strip, and chart lines (it's incomplete and
+// reads as a misleading drop). Flip ON to surface it. Persisted across
+// tab switches (module global) and reloads (localStorage).
+let _showCurrentPeriod = (localStorage.getItem('weekly-stats:showCurrentPeriod') === '1');
+
+// ISO (YYYY-MM-DD) period_start of the CURRENT period for the active view:
+// the Wednesday that closes the in-progress Thu→Wed week, or the 1st of the
+// current month. Matches how rows are anchored server-side / in Add-entry.
+function currentPeriodStartISO() {
+  const now = new Date();
+  if (activePeriod === 'monthly') {
+    return isoDate(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)));
+  }
+  const dow = now.getUTCDay();
+  const forward = (3 - dow + 7) % 7;          // days until (or on) Wednesday
+  const wed = new Date(now); wed.setUTCDate(now.getUTCDate() + forward);
+  return isoDate(wed);
+}
+
+// Return points with the current in-progress period dropped when the toggle
+// is OFF. Only trims if the LAST point actually IS the current period.
+function displayPoints(points) {
+  if (_showCurrentPeriod || !points || !points.length) return points || [];
+  const last = points[points.length - 1];
+  if (last && String(last.period_start).slice(0, 10) === currentPeriodStartISO()) {
+    return points.slice(0, -1);
+  }
+  return points;
+}
+
+function updateCurrentPeriodBtn() {
+  const b = document.getElementById('currentWeekBtn');
+  if (!b) return;
+  const unit = activePeriod === 'monthly' ? 'month' : 'week';
+  b.textContent = (_showCurrentPeriod ? '👁 ' : '🚫 ') + 'Current ' + unit + ': ' + (_showCurrentPeriod ? 'On' : 'Off');
+  if (_showCurrentPeriod) { b.style.borderColor = 'var(--gold)'; b.style.color = 'var(--gold)'; }
+  else { b.style.borderColor = ''; b.style.color = ''; }
+}
 
 function _enterReorderMode() {
   _reorderMode = true;
@@ -409,7 +451,7 @@ function renderKpiStrip(visible) {
   const colors = ['var(--green)','var(--blue)','var(--purple)','var(--gold)'];
   const glows  = ['var(--green-glow)','var(--blue-glow)','rgba(167,139,250,0.3)','rgba(251,191,36,0.3)'];
   grid.innerHTML = picks.map((m, i) => {
-    const pts = seriesByMetric.get(m.key) || [];
+    const pts = displayPoints(seriesByMetric.get(m.key) || []);
     const { current, previous } = lastTwoValues(pts);
     const delta = current - previous;
     const cls = delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat';
@@ -435,7 +477,7 @@ function renderChartGrid(visible) {
   }
 
   grid.innerHTML = visible.map(m => {
-    const pts = seriesByMetric.get(m.key) || [];
+    const pts = displayPoints(seriesByMetric.get(m.key) || []);
     const { current, previous } = lastTwoValues(pts);
     const delta = current - previous;
     const cls = delta > 0 ? 'up' : delta < 0 ? 'down' : '';
@@ -460,7 +502,7 @@ function renderChartGrid(visible) {
   for (const m of visible) {
     const ctx = document.getElementById(`c-${cssId(m.key)}`);
     if (!ctx) continue;
-    chartInstances.set(m.key, makeMiniChart(ctx, seriesByMetric.get(m.key) || [], m));
+    chartInstances.set(m.key, makeMiniChart(ctx, displayPoints(seriesByMetric.get(m.key) || []), m));
   }
 
   // Click-to-drilldown — disabled in reorder mode so a stray click doesn't
@@ -1175,6 +1217,16 @@ document.getElementById('importBtn').addEventListener('click', () => {
 document.getElementById('reorderBtn')?.addEventListener('click', () => {
   if (!capabilities.can_edit) return;
   _enterReorderMode();
+});
+
+// Current-period toggle: show/hide the in-progress week/month everywhere.
+// View-only preference (available to everyone), remembered across tabs +
+// reloads. Re-renders in place from the cached series — no network call.
+document.getElementById('currentWeekBtn')?.addEventListener('click', () => {
+  _showCurrentPeriod = !_showCurrentPeriod;
+  localStorage.setItem('weekly-stats:showCurrentPeriod', _showCurrentPeriod ? '1' : '0');
+  updateCurrentPeriodBtn();
+  renderAll();
 });
 
 // ── Add manual graph (create-metric modal) ─────────────────────────

@@ -792,10 +792,12 @@ function openDrilldown(metricKey) {
   });
   document.getElementById('drillEditMsg').textContent = '';
 
-  // Big chart
+  // Big chart — respects the Current-period toggle (hide the in-progress
+  // week/month when it's off), same as the dashboard cards. The editable
+  // table below still lists every row so the current period stays editable.
   if (drillChartInst) { try { drillChartInst.destroy(); } catch (_) {} drillChartInst = null; }
   const canvas = document.getElementById('drillChart');
-  drillChartInst = makeMiniChart(canvas, pts, m);
+  drillChartInst = makeMiniChart(canvas, displayPoints(pts), m);
 
   // Raw rows table — editable for manual metrics, "Add new" row on top.
   const wrap = document.getElementById('drillTableWrap');

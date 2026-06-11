@@ -381,13 +381,13 @@ let tyFilter = '';   // ticket type filter
 let sortCol = 'ticket_date';
 let sortDir = 'desc';
 
-const TYPES = ['Minor','Refund','Critical','Damaging','Other comms','Double Payment','Dispute Started','Dispute Won','Dispute Lost'];
+const TYPES = ['Minor','Refund Request','Refund','Refunded','Critical','Damaging','Other comms','Double Payment','Dispute Started','Dispute Won','Dispute Lost'];
 const STATUSES = ['Pending','Active','Solved'];
 const STATUS_BADGE = { Pending:'badge-gold', Active:'badge-blue', Solved:'badge-green' };
-const TYPE_BADGE = { Minor:'badge-dim', Refund:'badge-red', Critical:'badge-red', Damaging:'badge-purple', 'Other comms':'badge-blue',
+const TYPE_BADGE = { Minor:'badge-dim', 'Refund Request':'badge-gold', Refund:'badge-red', Refunded:'badge-green', Critical:'badge-red', Damaging:'badge-purple', 'Other comms':'badge-blue',
   'Double Payment':'badge-gold', 'Dispute Started':'badge-gold', 'Dispute Won':'badge-green', 'Dispute Lost':'badge-red' };
 // Types that push a state to the Refunds board (shown as a hint in the modal).
-const REFUND_SYNC_TYPES = { 'Dispute Started':'Dispute Started', 'Dispute Won':'Dispute Won', 'Dispute Lost':'Dispute Lost', 'Refund':'Processed (when Solved)' };
+const REFUND_SYNC_TYPES = { 'Refund Request':'Refund Request', 'Refund':'Refund Approved', 'Refunded':'Processed', 'Dispute Started':'Dispute Started', 'Dispute Won':'Dispute Won', 'Dispute Lost':'Dispute Lost' };
 
 function setState(s) { document.body.dataset.state = s; }
 function escapeHtmlR(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
@@ -651,7 +651,7 @@ document.getElementById('modalSaveBtn').addEventListener('click', async () => {
     const j=await res.json(); if(!res.ok||!j.ok)throw new Error(j.error||'Save failed');
     document.getElementById('declModal').classList.remove('open');
     if (j.refundSync && j.refundSync.done) {
-      const lbl = ({processed:'Processed',dispute_started:'Dispute Started',dispute_won:'Dispute Won',dispute_lost:'Dispute Lost'})[j.refundSync.target] || j.refundSync.target;
+      const lbl = ({request:'Refund Request',approved:'Refund Approved',processed:'Processed',dispute_started:'Dispute Started',dispute_won:'Dispute Won',dispute_lost:'Dispute Lost'})[j.refundSync.target] || j.refundSync.target;
       alert(j.refundSync.created
         ? 'Refunds board: a new "'+lbl+'" record was created for this customer.'
         : 'Refunds board: this customer\'s record was set to "'+lbl+'".');

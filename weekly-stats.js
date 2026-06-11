@@ -40,11 +40,24 @@ const fmtCount = (v) => v == null ? '—' : Number(v).toLocaleString();
 // raw percent (so 47.5 means 47.5%, not 0.475 — keeps manual entry sane).
 const fmtPctVal = (v) => v == null ? '—' : Number(v).toFixed(1) + '%';
 const fmtVal   = (v, unit) => unit === 'usd' ? fmtMoney(v) : (unit === 'pct' ? fmtPctVal(v) : fmtCount(v));
-const fmtPct   = (cur, prev) => {
-  if (prev == null || prev === 0) return cur > 0 ? '+∞' : '0%';
-  const pct = ((cur - prev) / Math.abs(prev)) * 100;
+const fmtPct   = (cur, prev, invert = false) => {
+  // For inverted (lower-is-better) metrics, a drop is an improvement, so the
+  // displayed % is sign-flipped: e.g. raw -83% reads as +83%.
+  if (prev == null || prev === 0) return cur > 0 ? (invert ? '-∞' : '+∞') : '0%';
+  let pct = ((cur - prev) / Math.abs(prev)) * 100;
+  if (invert) pct = -pct;
   return (pct >= 0 ? '+' : '') + pct.toFixed(0) + '%';
 };
+
+// Arrow + color class + signed % for a delta, accounting for lower-is-better
+// (inverted) metrics where a decrease is good (green ▲) and an increase is
+// bad (red ▼). `flatCls` lets callers pick the zero-change class ('' vs 'flat').
+function deltaParts(current, previous, invert, flatCls = 'flat') {
+  const dir = invert ? (previous - current) : (current - previous); // >0 = good
+  const cls = dir > 0 ? 'up' : dir < 0 ? 'down' : flatCls;
+  const arrow = dir > 0 ? '▲' : dir < 0 ? '▼' : '–';
+  return { cls, arrow, pct: fmtPct(current, previous, invert) };
+}
 
 // ── State machine ───────────────────────────────────────────────────
 function setState(s) { document.body.dataset.state = s; }
@@ -456,14 +469,12 @@ function renderKpiStrip(visible) {
   grid.innerHTML = picks.map((m, i) => {
     const pts = displayPoints(seriesByMetric.get(m.key) || []);
     const { current, previous } = lastTwoValues(pts);
-    const delta = current - previous;
-    const cls = delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat';
-    const arrow = delta > 0 ? '▲' : delta < 0 ? '▼' : '–';
+    const { cls, arrow, pct } = deltaParts(current, previous, !!m.invert_chart, 'flat');
     return `
       <div class="kpi-card" style="--c-color:${colors[i]};--c-glow:${glows[i]};">
         <div class="kpi-label">${escapeHtml(m.label)}</div>
         <div class="kpi-value">${fmtVal(current, m.unit)}</div>
-        <div class="kpi-delta ${cls}">${arrow} ${fmtPct(current, previous)} <span style="color:var(--text-dim);font-weight:600;margin-left:4px;">vs prior ${activePeriod === 'weekly' ? 'week' : 'month'}</span></div>
+        <div class="kpi-delta ${cls}">${arrow} ${pct} <span style="color:var(--text-dim);font-weight:600;margin-left:4px;">vs prior ${activePeriod === 'weekly' ? 'week' : 'month'}</span></div>
       </div>`;
   }).join('');
 }
@@ -482,9 +493,8 @@ function renderChartGrid(visible) {
   grid.innerHTML = visible.map(m => {
     const pts = displayPoints(seriesByMetric.get(m.key) || []);
     const { current, previous } = lastTwoValues(pts);
-    const delta = current - previous;
-    const cls = delta > 0 ? 'up' : delta < 0 ? 'down' : '';
-    const arrow = delta > 0 ? '▲' : delta < 0 ? '▼' : '–';
+    const { cls, arrow } = deltaParts(current, previous, !!m.invert_chart, '');
+    const pct = fmtPct(current, previous, !!m.invert_chart);
     return `
       <div class="chart-card" data-key="${escapeHtml(m.key)}" style="position:relative;">
         <div class="reorder-handle" title="Drag to move">⋮⋮</div>
@@ -494,7 +504,7 @@ function renderChartGrid(visible) {
         </div>
         <div class="chart-card-now">
           <span class="chart-card-value">${fmtVal(current, m.unit)}</span>
-          <span class="chart-card-delta ${cls}">${arrow} ${fmtPct(current, previous)}</span>
+          <span class="chart-card-delta ${cls}">${arrow} ${pct}</span>
         </div>
         <div class="chart-card-wrap"><canvas id="c-${cssId(m.key)}"></canvas></div>
         <div class="chart-card-foot">${pts.length} ${activePeriod === 'weekly' ? 'weeks' : 'months'} · ${m.division} · click to expand</div>

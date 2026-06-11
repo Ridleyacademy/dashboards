@@ -380,6 +380,9 @@ const advFilters = {
   days_left_bucket:        [],   // 'expired'|'lt7'|'lt14'|'lt30'|'lt60'|'lt90'|'custom'|'paused'|'delayed'|'unknown'
   expiring_custom_days:    '',   // numeric string, only used when 'custom' is selected
   inactive_days_bucket:    [],   // 'never' | '60+' | '30-60' | '0-30'
+  // Tri: students whose term has EXPIRED (days_left < 0) but who were never
+  // given an onboarded date — likely never actually started before lapsing.
+  expired_never_onboarded: null,
 };
 
 function _advFilterCount() {
@@ -474,6 +477,7 @@ function _applyAdvFilters(rows) {
     if (!matchTri('has_gdrive',      !!s.gdrive_url)) return false;
     if (advFilters.days_left_bucket.length && !advFilters.days_left_bucket.some(b => _matchesDaysLeftBucket(s, b))) return false;
     if (advFilters.inactive_days_bucket.length && !advFilters.inactive_days_bucket.includes(_inactiveBucket(s))) return false;
+    if (!matchTri('expired_never_onboarded', (s.days_left != null && s.days_left < 0 && !s.student_onboarded_date))) return false;
     return true;
   });
 }
@@ -562,6 +566,7 @@ function renderAdvFilterPanel() {
       { val: '60+', label: '60d+' },
       { val: 'never', label: 'No activity ever' },
     ])}
+    ${sectionTri('expired_never_onboarded', '⚠ Expired &amp; never onboarded')}
     <div class="adv-filter-grid">
       ${sectionMulti('coach_status', ICONS.pulse() + ' Coach status', _uniqueValues('coach_status', '(none)'))}
       ${sectionMulti('level', '🎚 Level', _uniqueValues('level', '(none)'))}
@@ -624,6 +629,7 @@ function _activeFilterChipLabel(key, val) {
     days_left_bucket: 'Time left', inactive_days_bucket: 'Inactive',
     verified: 'Verified', has_open_alerts: 'Alerts',
     has_wins: 'Wins', has_video: 'Video', has_survey: 'Survey', has_gdrive: 'Drive',
+    expired_never_onboarded: 'Expired & never onboarded',
   };
   const bucketLabels = {
     expired: 'Expired',

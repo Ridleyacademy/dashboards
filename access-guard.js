@@ -112,6 +112,15 @@
       const user = session?.user;
       if (!user) return; // login flow handles unauth
 
+      // Suspended accounts: kill the session and bounce to login. The auth-level
+      // ban already blocks new logins + token refresh; this catches any
+      // still-valid token so a suspended user loses every board immediately.
+      if (user.app_metadata?.suspended === true) {
+        try { await supa.auth.signOut(); } catch (_) {}
+        window.location.replace('home.html?suspended=1');
+        return;
+      }
+
       const eff = effOf(user);
       const userIsAdmin = eff.is_admin;
       const archived = await getArchivedIds(session.access_token);

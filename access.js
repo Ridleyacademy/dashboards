@@ -322,6 +322,7 @@ async function loadUsersTab() {
         <div class="ax-row-name">${escapeHtml(display)}${secondary ? `<span style="font-weight:400;color:var(--text-dim);font-size:0.74rem;margin-left:6px;">${escapeHtml(secondary)}</span>` : ''}</div>
         <div class="ax-row-meta">
           <span class="ax-status ${status.cls}">${status.label}</span>
+          ${u.suspended ? '<span class="pill" style="background:rgba(251,191,36,0.18);color:var(--gold);border-color:rgba(251,191,36,0.4);">⏸ Suspended</span>' : ''}
           ${u.is_admin ? '<span class="pill pill-admin">Admin</span>' : ''}
           ${roleNames.slice(0,3).map(n => `<span class="pill pill-blue">${escapeHtml(n)}</span>`).join('')}
           ${roleNames.length > 3 ? `<span class="pill">+${roleNames.length - 3}</span>` : ''}
@@ -489,6 +490,7 @@ function openUserEditor(uid) {
       <button class="btn-ghost"  id="u-view-as" title="See the app as this user (read-only impersonation)">👁 View as</button>
       <button class="btn-ghost"  id="u-reset-pw">📧 Send password reset</button>
       <button class="btn-ghost"  id="u-revoke">↻ Refresh access</button>
+      <button class="btn-ghost"  style="color:${u.suspended ? 'var(--green)' : 'var(--gold)'};" id="u-suspend">${u.suspended ? '✓ Reactivate user' : '⏸ Suspend user'}</button>
       <button class="btn-ghost"  style="color:var(--red);" id="u-delete">Delete user</button>
       <span class="ax-msg" id="u-msg"></span>
     </div>
@@ -534,6 +536,7 @@ function openUserEditor(uid) {
 
   document.getElementById('u-save').addEventListener('click', () => saveUser(uid));
   document.getElementById('u-revoke').addEventListener('click', () => revokeUserSession(uid));
+  document.getElementById('u-suspend').addEventListener('click', () => toggleSuspend(uid, !!u.suspended));
   document.getElementById('u-delete').addEventListener('click', () => deleteUser(uid));
   document.getElementById('u-activity').addEventListener('click', () => openUserActivityModal(uid));
   document.getElementById('u-view-as').addEventListener('click', () => {
@@ -929,6 +932,28 @@ async function revokeUserSession(uid) {
     await api('?api=user-recompute', { method: 'POST', body: { user_id: uid } });
     toast('Access refreshed — they\'ll pick up the new permissions on their next sign-in or token refresh.', 'ok', 3600);
   } catch (e) { toast(e.message, 'err'); }
+}
+
+async function toggleSuspend(uid, isSuspended) {
+  const u = usersData.find(x => x.id === uid);
+  const email = u?.email || 'this user';
+  if (!isSuspended && uid && session?.user?.id && uid === session.user.id) {
+    alert('You cannot suspend your own account.');
+    return;
+  }
+  if (isSuspended) {
+    if (!confirm(`Reactivate ${email}? They'll be able to log in again with their existing roles.`)) return;
+  } else {
+    if (!confirm(`Suspend ${email}?\n\nThey lose access to every board (including Home) and cannot log in. Their roles are kept, so you can reactivate them anytime.`)) return;
+  }
+  try {
+    await api(isSuspended ? '?api=reactivate-user' : '?api=suspend-user', { method: 'POST', body: { user_id: uid } });
+    toast(isSuspended ? `${email} reactivated.` : `${email} suspended — access revoked & login blocked.`, 'ok');
+    await loadUsersTab();
+    openUserEditor(uid);
+  } catch (e) {
+    toast((isSuspended ? 'Reactivate' : 'Suspend') + ' failed: ' + (e.message || e), 'err');
+  }
 }
 
 async function deleteUser(uid) {

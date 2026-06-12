@@ -933,8 +933,23 @@ async function revokeUserSession(uid) {
 
 async function deleteUser(uid) {
   const u = usersData.find(x => x.id === uid);
-  if (!confirm(`Delete ${u?.email}? This permanently removes the account.`)) return;
-  alert('Delete user is not wired up in this MVP — use the Supabase dashboard for now.');
+  const email = u?.email || 'this user';
+  if (uid && session?.user?.id && uid === session.user.id) {
+    alert('You cannot delete your own account.');
+    return;
+  }
+  if (!confirm(`Delete ${email}?\n\nThis permanently removes the account and clears all their roles, posts, and permission grants. It cannot be undone.`)) return;
+  const typed = prompt(`To confirm, type DELETE to permanently remove ${email}:`);
+  if ((typed || '').trim().toUpperCase() !== 'DELETE') { toast('Cancelled — nothing deleted.', 'ok'); return; }
+  try {
+    await api('?api=delete-user', { method: 'POST', body: { user_id: uid } });
+    toast(`${email} deleted.`, 'ok');
+    selectedId = null;
+    document.getElementById('axEditor').innerHTML = '<div class="ax-editor-empty">Select a user on the left.</div>';
+    await loadUsersTab();
+  } catch (e) {
+    toast('Delete failed: ' + (e.message || e), 'err');
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════

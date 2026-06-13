@@ -870,14 +870,14 @@ const PRODUCT_GROUPS = [
   { id: 'piano',       label: 'Piano Masterclass',    color: '#34d399', glow: 'rgba(52,211,153,0.2)',   matches: ['The Complete Piano Masterclass Bundle'] },
   { id: 'mentorship',  label: 'Private Mentorship',   color: '#a78bfa', glow: 'rgba(167,139,250,0.2)',  matches: ['Private Mentorship'] },
   { id: 'christmas',   label: 'Christmas Course',     color: '#fbbf24', glow: 'rgba(251,191,36,0.2)',   matches: ['Christmas Course'] },
-  { id: 'nashville',   label: 'Experience', color: '#f472b6', glow: 'rgba(244,114,182,0.2)',  matches: null, ilike: 'Nashville' },
+  { id: 'nashville',   label: 'Experience', color: '#f472b6', glow: 'rgba(244,114,182,0.2)',  matches: null, ilike: 'nashville,cw experience,clearwater' },
 ];
 
 // Display helper — rename "Nashville" product to "Experience" in the UI
 // while keeping the underlying value untouched in the database.
 function displayProduct(p) {
   if (!p) return '';
-  return /nashville/i.test(p) ? 'Experience' : p;
+  return /nashville|cw experience|clearwater/i.test(p) ? 'Experience' : p;
 }
 
 // ── State ───────────────────────────────────────────────────────

@@ -2220,14 +2220,33 @@ async function loadUpcomingMeetings() {
   if (!currentSession) return;
   try {
     if (isPrivilegedViewer) {
-      // Privileged users see ALL upcoming meetings on the Zoom account
-      // (including ones scheduled directly in zoom.us, not just via this system).
-      const j = await _zoomFetch('list-all');
-      upcomingMeetings = (j.meetings || [])
+      // Privileged users see ALL upcoming meetings. We pull our own dashboard
+      // rows from ?api=list (which lists EVERY meeting row — so several class
+      // sessions that share ONE Zoom room/link each show as their own card,
+      // instead of being collapsed to one), then fold in any meetings created
+      // directly on zoom.us (the zoom-only entries from ?api=list-all that we
+      // don't already have a row for).
+      const fromIso = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      const [dbJ, allJ] = await Promise.all([
+        _zoomFetch('list&from=' + encodeURIComponent(fromIso)),
+        _zoomFetch('list-all').catch(() => ({ meetings: [] })),
+      ]);
+      const dbRows = (dbJ.meetings || []).filter(m => m.status === 'scheduled');
+      const dbZoomIds = new Set(dbRows.map(m => String(m.zoom_meeting_id || '')).filter(Boolean));
+      const zoomOnly = (allJ.meetings || []).filter(m =>
+        (m.source === 'zoom' || (typeof m.id === 'string' && m.id.startsWith('zoom-'))) &&
+        !dbZoomIds.has(String(m.zoom_meeting_id || ''))
+      );
+      upcomingMeetings = [...dbRows, ...zoomOnly]
         .filter(m => m.status !== 'cancelled')
         .filter(m => {
           const t = m.scheduled_start_time ? Date.parse(m.scheduled_start_time) : 0;
           return !t || t > Date.now() - 60 * 60 * 1000;
+        })
+        .sort((a, b) => {
+          const ta = a.scheduled_start_time ? Date.parse(a.scheduled_start_time) : Infinity;
+          const tb = b.scheduled_start_time ? Date.parse(b.scheduled_start_time) : Infinity;
+          return ta - tb;
         });
     } else {
       const fromIso = new Date(Date.now() - 60 * 60 * 1000).toISOString();

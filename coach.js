@@ -2226,12 +2226,34 @@ async function loadUpcomingMeetings() {
       // instead of being collapsed to one), then fold in any meetings created
       // directly on zoom.us (the zoom-only entries from ?api=list-all that we
       // don't already have a row for).
-      const fromIso = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      // NOTE: don't pass &from here — recurring meetings store their ORIGINAL
+      // (often past) start in scheduled_start_time, so a date filter would drop
+      // them. We fetch every row and compute each one's next upcoming occurrence.
       const [dbJ, allJ] = await Promise.all([
-        _zoomFetch('list&from=' + encodeURIComponent(fromIso)),
+        _zoomFetch('list'),
         _zoomFetch('list-all').catch(() => ({ meetings: [] })),
       ]);
-      const dbRows = (dbJ.meetings || []).filter(m => m.status === 'scheduled');
+      const cutoff = Date.now() - 60 * 60 * 1000;
+      // For recurring rows the real "next" time lives in occurrences[]; the
+      // top-level scheduled_start_time is the series' original (past) start.
+      const nextStart = (m) => {
+        const occ = Array.isArray(m.occurrences) ? m.occurrences : [];
+        const futures = occ
+          .map(o => (o && o.start_time) ? Date.parse(o.start_time) : NaN)
+          .filter(t => !isNaN(t) && t > cutoff)
+          .sort((a, b) => a - b);
+        if (futures.length) return new Date(futures[0]).toISOString();
+        return m.scheduled_start_time || null;
+      };
+      const dbRows = (dbJ.meetings || [])
+        .filter(m => m.status === 'scheduled')
+        .map(m => ({ ...m, scheduled_start_time: nextStart(m) }))
+        // Keep recurring meetings always (they're ongoing); only date-gate one-offs.
+        .filter(m => {
+          if (m.is_recurring) return true;
+          const t = m.scheduled_start_time ? Date.parse(m.scheduled_start_time) : 0;
+          return !t || t > cutoff;
+        });
       const dbZoomIds = new Set(dbRows.map(m => String(m.zoom_meeting_id || '')).filter(Boolean));
       const zoomOnly = (allJ.meetings || []).filter(m =>
         (m.source === 'zoom' || (typeof m.id === 'string' && m.id.startsWith('zoom-'))) &&
@@ -2239,10 +2261,6 @@ async function loadUpcomingMeetings() {
       );
       upcomingMeetings = [...dbRows, ...zoomOnly]
         .filter(m => m.status !== 'cancelled')
-        .filter(m => {
-          const t = m.scheduled_start_time ? Date.parse(m.scheduled_start_time) : 0;
-          return !t || t > Date.now() - 60 * 60 * 1000;
-        })
         .sort((a, b) => {
           const ta = a.scheduled_start_time ? Date.parse(a.scheduled_start_time) : Infinity;
           const tb = b.scheduled_start_time ? Date.parse(b.scheduled_start_time) : Infinity;

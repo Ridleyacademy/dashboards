@@ -3463,6 +3463,10 @@ function openAddAlertModal() {
         <div class="field-label">Details</div>
         <textarea class="field-textarea" id="alertModalDesc" placeholder="Context, history, what needs to happen…" style="min-height:110px;"></textarea>
       </div>
+      <label style="display:flex;align-items:flex-start;gap:9px;margin-bottom:16px;font-size:0.82rem;color:#cdd2ec;cursor:pointer;user-select:none;line-height:1.35;">
+        <input type="checkbox" id="alertModalTagCoach" style="width:16px;height:16px;margin-top:1px;cursor:pointer;flex-shrink:0;">
+        <span>Tag coach<br><span style="font-size:0.72rem;color:#7880a8;">Also send this alert to the student's coach. Off by default — MS-IC / Delivery-IC are always notified.</span></span>
+      </label>
       <div id="alertAddErr" style="color:var(--red);font-size:0.78rem;min-height:1em;margin-bottom:8px;"></div>
       <div style="display:flex;gap:10px;justify-content:flex-end;">
         <button id="alertAddCancel" style="background:transparent;border:1px solid #1f2438;color:#7880a8;border-radius:9px;padding:8px 16px;font-weight:700;cursor:pointer;">Cancel</button>
@@ -3489,7 +3493,7 @@ function openAddAlertModal() {
       const r = await fetch(STUDENTS_BASE + '?api=add-alert', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
-        body: JSON.stringify({ studentId: currentStudent.id, title, description: descEl.value.trim() || null }),
+        body: JSON.stringify({ studentId: currentStudent.id, title, description: descEl.value.trim() || null, tag_coach: document.getElementById('alertModalTagCoach')?.checked === true }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || 'Failed');

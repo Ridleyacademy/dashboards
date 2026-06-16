@@ -517,6 +517,7 @@
             <tr>
               <th data-col="record_type">Type</th>
               <th data-col="date_closed">Date</th>
+              <th data-col="original_purchase_date">Original purchase</th>
               <th data-col="name">Name</th>
               <th data-col="email">Email</th>
               <th data-col="product">Product</th>
@@ -554,6 +555,10 @@
       <div class="modal-field">
         <label class="modal-label">Date</label>
         <input class="modal-input" type="date" id="fDate">
+      </div>
+      <div class="modal-field">
+        <label class="modal-label">Original purchase date</label>
+        <input class="modal-input" type="date" id="fOrigDate">
       </div>
       <div class="modal-field">
         <label class="modal-label">Amount ($)</label>
@@ -965,6 +970,7 @@ function renderTable() {
   tbody.innerHTML = rows.map(r => `<tr data-row-id="${r.id}" style="cursor:pointer;">
     <td data-label="Type" style="white-space:nowrap;">${recordTypeBadge(r.record_type)}</td>
     <td data-label="Date" style="white-space:nowrap;color:var(--text-muted);">${fmtDate(r.date_closed)}</td>
+    <td data-label="Original purchase" style="white-space:nowrap;color:var(--text-muted);">${r.original_purchase_date ? fmtDate(r.original_purchase_date) : '—'}</td>
     <td class="td-main" data-label="Name" style="${wrap}">${r.name||'—'}</td>
     <td class="muted" data-label="Email" style="${wrap}">${r.email||'—'}</td>
     <td class="muted" data-label="Product" style="${wrap}" title="${r.product||''}">${displayProduct(r.product)||'—'}</td>
@@ -1039,6 +1045,7 @@ function openModal(row) {
   document.getElementById('fId').value           = row?.id ?? '';
   document.getElementById('fType').value          = rtCanon(row?.record_type) || 'request';
   document.getElementById('fDate').value         = (row?.date_closed || new Date().toISOString()).slice(0,10);
+  document.getElementById('fOrigDate').value     = (row?.original_purchase_date || '').slice(0,10);
   document.getElementById('fName').value         = row?.name || '';
   document.getElementById('fEmail').value        = row?.email || '';
   document.getElementById('fProduct').value      = row?.product || '';
@@ -1123,6 +1130,7 @@ document.getElementById('modalSaveBtn').addEventListener('click', async () => {
     id:           id || undefined,
     record_type:  rt,
     date_closed:  document.getElementById('fDate').value        || null,
+    original_purchase_date: document.getElementById('fOrigDate').value || null,
     name:         document.getElementById('fName').value.trim() || null,
     email:        document.getElementById('fEmail').value.trim()|| null,
     product:      document.getElementById('fProduct').value     || null,

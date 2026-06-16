@@ -1920,6 +1920,7 @@ function renderCharts(scoped) {
     ['Active',        CHART_COLORS.green],
     ['Paused',        CHART_COLORS.dim],
     ['Not onboarded', CHART_COLORS.blue],
+    ['Not onboarded & expired', '#fb923c'],
     ['Delayed start', CHART_COLORS.purple],
     ['Graduated',     CHART_COLORS.cyan],
     ['Refunded',      CHART_COLORS.dim],
@@ -1936,6 +1937,8 @@ function renderCharts(scoped) {
     let k = s.derived_status || '(unknown)';
     // Re-bucket live coaching roster by engagement so slices match the KPIs.
     if (LIVE_COACHING_DONUT.has(k)) k = _donutEngaged(s) ? 'Active' : 'Inactive';
+    // Split never-onboarded whose term has lapsed into its own slice (matches the KPI tiles).
+    if (k === 'Not onboarded' && _isNotOnbExpired(s)) k = 'Not onboarded & expired';
     // Hide Expired / Refunded slices unless their toggles are on (matches table behavior).
     if (k === 'Expired'  && !showExpired)  continue;
     if (k === 'Refunded' && !showRefunded) continue;

@@ -2579,7 +2579,7 @@ function openInviteesModal(meeting) {
     <div class="modal-card" style="max-width:620px;">
       <div class="modal-head">
         <h2>Invitees · ${escapeHtml(meeting.topic||'Meeting')}${isRecurring ? ' <span style="font-size:0.65rem;font-weight:700;color:#a78bfa;background:rgba(167,139,250,0.12);padding:3px 7px;border-radius:6px;margin-left:6px;vertical-align:middle;">RECURRING</span>' : ''}</h2>
-        ${failedCount > 0 ? `<button id="inv-resend-btn" class="btn-ghost" style="padding:7px 12px;font-size:0.78rem;background:rgba(251,191,36,0.10);border-color:rgba(251,191,36,0.4);color:#fbbf24;" title="Re-send the invite email + reminders for invitees whose email failed (typically rate-limit). Zoom registrations stay intact.">↻ Resend ${failedCount} failed</button>` : ''}
+        ${(!isRecurring && failedCount > 0) ? `<button id="inv-resend-btn" class="btn-ghost" style="padding:7px 12px;font-size:0.78rem;background:rgba(251,191,36,0.10);border-color:rgba(251,191,36,0.4);color:#fbbf24;" title="Re-send the invite email + reminders for invitees whose email failed (typically rate-limit). Zoom registrations stay intact.">↻ Resend ${failedCount} failed</button>` : ''}
         ${isSystemMeeting ? `<button id="inv-edit-btn" class="btn-ghost" style="padding:7px 12px;font-size:0.78rem;" title="Edit topic, date/time, duration, recurrence, advanced settings">✎ Edit</button>` : ''}
         ${isSystemMeeting ? `<button id="inv-add-btn" class="btn-primary" style="padding:7px 14px;font-size:0.78rem;">+ Add students</button>` : ''}
         <button class="close" data-x>×</button>

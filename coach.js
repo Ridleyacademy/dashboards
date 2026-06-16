@@ -2465,6 +2465,21 @@ function openInviteesModal(meeting) {
     const endMs = Date.parse(o.start_time) + (Number(o.duration_minutes || 60) * 60_000);
     return endMs > nowMs;
   });
+  // Per-student status reflects the NEXT upcoming class (the soonest future
+  // occurrence). For recurring rooms each class's real delivery lives in the
+  // occurrence's <kind>_delivered[] arrays (the registrant-level email_sent is
+  // only meaningful for one-off meetings), so resolve status against nextOcc.
+  const _lc = s => String(s || '').toLowerCase().trim();
+  const nextOcc = futureOccs[0] || null;
+  const occInvited = new Set((nextOcc?.invite_delivered || []).map(_lc));
+  const occ24 = new Set((nextOcc?.reminder_24h_delivered || []).map(_lc));
+  const occ1h = new Set((nextOcc?.reminder_1h_delivered || []).map(_lc));
+  const occLive = new Set((nextOcc?.reminder_live_delivered || []).map(_lc));
+  const nextOccStarted = !!(nextOcc && nextOcc.invite_sent_at);
+  let nextOccLabel = '';
+  if (nextOcc?.start_time) {
+    try { nextOccLabel = new Date(nextOcc.start_time).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'America/New_York' }); } catch (_) {}
+  }
   const m = document.createElement('div');
   m.id = 'inviteesModal'; m.className = 'modal-bg';
   // Build the recurring-occurrences pane if applicable. Each row shows the
@@ -2570,7 +2585,7 @@ function openInviteesModal(meeting) {
         <button class="close" data-x>×</button>
       </div>
       <div class="modal-body" style="grid-template-columns:1fr;">
-        <div style="font-size:0.82rem;color:var(--text-dim);margin-bottom:10px;">${escapeHtml(t.date)} · ${escapeHtml(t.time)} · ${meeting.scheduled_duration_minutes||60} min · ${regs.length} invitee${regs.length===1?'':'s'}${isRecurring && futureOccs.length ? ` · ${futureOccs.length} upcoming classes` : ''}</div>
+        <div style="font-size:0.82rem;color:var(--text-dim);margin-bottom:10px;">${escapeHtml(t.date)} · ${escapeHtml(t.time)} · ${meeting.scheduled_duration_minutes||60} min · ${regs.length} invitee${regs.length===1?'':'s'}${isRecurring && futureOccs.length ? ` · ${futureOccs.length} upcoming classes` : ''}${isRecurring && nextOccLabel ? `<br><span style="font-size:0.74rem;color:var(--text-dim);">Statuses below reflect the next class · <strong>${escapeHtml(nextOccLabel)}</strong></span>` : ''}</div>
         <div style="border:1px solid var(--border);border-radius:10px;max-height:380px;overflow-y:auto;background:var(--bg);">
           ${regs.length ? regs.map(r => {
             const stu = allStudents.find(s => s.id === r.student_id);
@@ -2584,7 +2599,24 @@ function openInviteesModal(meeting) {
             // suppressed, quota wall) render red.
             const isTransient = errText && /rate.?limit|\b429\b|retry after/i.test(errText);
             let status;
-            if (ok) {
+            if (isRecurring && nextOcc) {
+              // Status for the NEXT upcoming class — escalating: invited → 24h → 1h → live.
+              const e = _lc(r.email);
+              const when = nextOccLabel ? ` (${nextOccLabel})` : '';
+              if (occLive.has(e)) {
+                status = `<span title="Went-live ping sent for the next class${when}" style="color:var(--accent2);font-size:0.72rem;font-weight:700;">✓ Live ping sent</span>`;
+              } else if (occ1h.has(e)) {
+                status = `<span title="1-hour reminder sent for the next class${when}" style="color:var(--accent2);font-size:0.72rem;font-weight:700;">✓ 1h reminder sent</span>`;
+              } else if (occ24.has(e)) {
+                status = `<span title="24-hour reminder sent for the next class${when}" style="color:var(--accent2);font-size:0.72rem;font-weight:700;">✓ 24h reminder sent</span>`;
+              } else if (occInvited.has(e)) {
+                status = `<span title="Invite sent for the next class${when}" style="color:var(--accent2);font-size:0.72rem;font-weight:700;">✓ Invited</span>`;
+              } else if (nextOccStarted) {
+                status = `<span title="Sending the invite for the next class${when} — automatically retrying." style="color:#fbbf24;font-size:0.72rem;font-weight:700;">⟳ Sending…</span>`;
+              } else {
+                status = `<span title="The next class${when} hasn't entered its send window yet (invites go out ~4 days before). Registered & ready." style="color:var(--text-dim);font-size:0.72rem;">◷ Scheduled</span>`;
+              }
+            } else if (ok) {
               status = `<span style="color:var(--accent2);font-size:0.72rem;font-weight:700;">✓ Email sent</span>`;
             } else if (isTransient) {
               status = `<span title="Hit Resend's per-second limit — automatically retrying. No action needed." style="color:#fbbf24;font-size:0.72rem;font-weight:700;">⟳ Sending…</span>`;

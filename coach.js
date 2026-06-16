@@ -1941,6 +1941,7 @@ function renderCharts(scoped) {
     if (k === 'Not onboarded' && _isNotOnbExpired(s)) k = 'Not onboarded & expired';
     // Hide Expired / Refunded slices unless their toggles are on (matches table behavior).
     if (k === 'Expired'  && !showExpired)  continue;
+    if (k === 'Not onboarded & expired' && !showExpired) continue;
     if (k === 'Refunded' && !showRefunded) continue;
     tally.set(k, (tally.get(k) || 0) + 1);
   }

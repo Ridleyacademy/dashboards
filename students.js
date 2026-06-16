@@ -766,6 +766,19 @@ function _updateChipCounts() {
   document.getElementById('cnt-duplicates').textContent = String(_dupCache.size);
 }
 
+// A "Not onboarded" student whose purchased term has already lapsed is shown as
+// "Not onboarded & Expired" (the server flags it via a negative days_left).
+function statusLabel(s) {
+  const ds = s.derived_status || s.status || '';
+  if (ds === 'Not onboarded' && s.days_left != null && s.days_left < 0) return 'Not onboarded & Expired';
+  return ds;
+}
+// Status-dot colour key: expired-not-onboarded reuses the red Expired dot.
+function statusDotKey(s) {
+  if (s.derived_status === 'Not onboarded' && s.days_left != null && s.days_left < 0) return 'Expired';
+  return s.derived_status || 'Notonboarded';
+}
+
 function renderStudentList() {
   const list = document.getElementById('studentList');
   const q = (document.getElementById('studentSearch').value || '').toLowerCase().trim();
@@ -822,7 +835,7 @@ function renderStudentList() {
       <div class="student-av">${initials}</div>
       <div class="student-row-info">
         <div class="student-row-name"></div>
-        <div class="student-row-meta"><span class="status-dot status-derived-${(s.derived_status||'Notonboarded').replace(/\s/g,'')}"></span><span class="meta-text"></span></div>
+        <div class="student-row-meta"><span class="status-dot status-derived-${statusDotKey(s).replace(/\s/g,'')}"></span><span class="meta-text"></span></div>
       </div>`;
     // Use textContent for user-supplied data
     const nameEl = div.querySelector('.student-row-name');
@@ -841,8 +854,7 @@ function renderStudentList() {
     if (tinyBadges.length) nameEl.insertAdjacentHTML('beforeend', tinyBadges.join(''));
     const metaParts = [];
     // Use computed status (Active/Expired/etc.) instead of free-text status
-    if (s.derived_status)          metaParts.push(s.derived_status);
-    else if (s.status)             metaParts.push(s.status);
+    { const _sl = statusLabel(s); if (_sl) metaParts.push(_sl); }
     const coach = s.coach || s.mentor;
     if (coach)                     metaParts.push('· ' + coach);
     if (s.derived_status === 'Delayed start' && s.days_until_start != null) {
@@ -867,7 +879,7 @@ function _updateStudentRowInPlace(s) {
   if (!row) return;
   // Status dot
   const dot = row.querySelector('.status-dot');
-  if (dot) dot.className = 'status-dot status-derived-' + (s.derived_status || 'Notonboarded').replace(/\s/g, '');
+  if (dot) dot.className = 'status-dot status-derived-' + statusDotKey(s).replace(/\s/g, '');
   // Name + tiny badges
   const nameEl = row.querySelector('.student-row-name');
   if (nameEl) {
@@ -885,8 +897,7 @@ function _updateStudentRowInPlace(s) {
   const metaEl = row.querySelector('.meta-text');
   if (metaEl) {
     const metaParts = [];
-    if (s.derived_status)          metaParts.push(s.derived_status);
-    else if (s.status)             metaParts.push(s.status);
+    { const _sl = statusLabel(s); if (_sl) metaParts.push(_sl); }
     const coach = s.coach || s.mentor;
     if (coach)                     metaParts.push('· ' + coach);
     if (s.derived_status === 'Delayed start' && s.days_until_start != null) {
@@ -1008,7 +1019,7 @@ function renderOverviewPane() {
     tr.dataset.id = s.id;
     tr.innerHTML = `
       <td><span class="ov-name"></span>${_dupCache.has(s.id) ? ' <span class="badge exp" style="font-size:0.55rem;padding:1px 6px;background:rgba(167,139,250,0.18);color:#a78bfa;" title="Possible duplicate">⎘</span>' : ''}</td>
-      <td><span class="status-dot status-derived-${(s.derived_status||'Notonboarded').replace(/\s/g,'')}"></span> <span class="ov-status"></span></td>
+      <td><span class="status-dot status-derived-${statusDotKey(s).replace(/\s/g,'')}"></span> <span class="ov-status"></span></td>
       <td><span class="ov-coach"></span></td>
       <td><span class="ov-level"></span></td>
       <td><span class="ov-module"></span></td>
@@ -1017,7 +1028,7 @@ function renderOverviewPane() {
       <td><span class="ov-zoom"></span></td>
       <td>${s.open_alerts_count ? `<span class="ov-pill ov-recency-stale">⚠ ${s.open_alerts_count}</span>` : ''}</td>`;
     tr.querySelector('.ov-name').textContent        = s.name || '(unnamed)';
-    tr.querySelector('.ov-status').textContent      = s.derived_status || s.status || '';
+    tr.querySelector('.ov-status').textContent      = statusLabel(s) || '';
     tr.querySelector('.ov-coach').textContent       = s.coach || '—';
     tr.querySelector('.ov-level').textContent       = s.level || '—';
     tr.querySelector('.ov-module').textContent      = s.masterclass_level || '—';
@@ -1946,6 +1957,7 @@ function renderProfile() {
     : ds === 'Refunded'      ? `↩ Refunded${s.refunded_date ? ' ' + s.refunded_date : ''}${s.refunded_amount != null ? ' — $' + Number(s.refunded_amount).toLocaleString() : ''}`
     : ds === 'Graduated'     ? `🎓 Graduated${s.graduated_at ? ' ' + String(s.graduated_at).slice(0,10) : ''}`
     : ds === 'Cancelled'     ? '✕ Cancelled'
+    : (ds === 'Not onboarded' && s.days_left != null && s.days_left < 0) ? `⚠ Not onboarded & Expired (${Math.abs(s.days_left || 0)}d ago)`
     : 'Not onboarded';
   // Visually distinguish a few statuses that share the default colour class.
   const dsStyle =
@@ -2053,7 +2065,7 @@ function renderProfile() {
     const subParts = [];
     // Show the derived (lifecycle) status to match the badge chip — raw
     // status is no longer user-editable since v310 and can lag the data.
-    if (s.derived_status)    subParts.push(s.derived_status);
+    { const _sl = statusLabel(s); if (_sl) subParts.push(_sl); }
     if (s.coach || s.mentor) subParts.push('Coach: ' + (s.coach || s.mentor));
     if (s.months_count != null) subParts.push(s.months_count + ' months');
     if (s.email)             subParts.push(s.email);

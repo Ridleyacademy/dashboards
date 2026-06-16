@@ -3522,7 +3522,7 @@ function openAlertsHistoryModal() {
           <div style="font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;display:flex;align-items:center;gap:8px;">${ICONS.bell(16)} Alerts for ${currentStudent.name || ''}</div>
           <div style="font-size:0.74rem;color:#7880a8;margin-top:3px;">${openCount} open · ${resolvedCount} resolved</div>
         </div>
-        <button class="alert-btn-add" id="alertListAdd" style="padding:7px 14px;font-size:0.78rem;">+ Open alert</button>
+        <button class="alert-btn-add" id="alertListAdd" style="padding:7px 14px;font-size:0.78rem;">+ Submit alert</button>
         <button id="alertListClose" style="background:transparent;border:none;color:#7880a8;font-size:1.5rem;cursor:pointer;padding:0 8px;">×</button>
       </div>
       <div id="alertListBody" style="flex:1;overflow-y:auto;padding:14px 22px;"></div>

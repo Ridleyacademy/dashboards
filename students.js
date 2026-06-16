@@ -3453,7 +3453,7 @@ function openAddAlertModal() {
   m.style.cssText = 'position:fixed;inset:0;background:rgba(8,9,18,0.78);backdrop-filter:blur(8px);z-index:10005;display:flex;align-items:center;justify-content:center;padding:20px;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;';
   m.innerHTML = `
     <div style="background:#13141f;border:1px solid #1f2438;border-radius:18px;padding:24px 26px;max-width:460px;width:100%;color:#eaecf8;box-shadow:0 24px 60px rgba(0,0,0,0.55);">
-      <div style="font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;margin-bottom:4px;display:flex;align-items:center;gap:8px;">${ICONS.alertTri(16)} Open a service alert</div>
+      <div style="font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;margin-bottom:4px;display:flex;align-items:center;gap:8px;">${ICONS.alertTri(16)} Submit a service</div>
       <div style="font-size:0.78rem;color:#7880a8;margin-bottom:18px;">Track an unresolved issue for this student. Resolve it later with a note explaining what was done.</div>
       <div class="field" style="margin-bottom:12px;">
         <div class="field-label">Title *</div>
@@ -3470,7 +3470,7 @@ function openAddAlertModal() {
       <div id="alertAddErr" style="color:var(--red);font-size:0.78rem;min-height:1em;margin-bottom:8px;"></div>
       <div style="display:flex;gap:10px;justify-content:flex-end;">
         <button id="alertAddCancel" style="background:transparent;border:1px solid #1f2438;color:#7880a8;border-radius:9px;padding:8px 16px;font-weight:700;cursor:pointer;">Cancel</button>
-        <button id="alertAddSave" class="alert-btn-add" style="padding:8px 18px;">Open alert</button>
+        <button id="alertAddSave" class="alert-btn-add" style="padding:8px 18px;">Submit alert</button>
       </div>
     </div>`;
   document.body.appendChild(m);
@@ -3488,7 +3488,7 @@ function openAddAlertModal() {
     errEl.textContent = '';
     const title = titleEl.value.trim();
     if (!title) { errEl.textContent = 'Title is required.'; return; }
-    saveBtn.disabled = true; saveBtn.textContent = 'Opening…';
+    saveBtn.disabled = true; saveBtn.textContent = 'Submitting…';
     try {
       const r = await fetch(STUDENTS_BASE + '?api=add-alert', {
         method: 'POST',
@@ -3502,7 +3502,7 @@ function openAddAlertModal() {
       await loadStudents();
     } catch (e) {
       errEl.textContent = e.message || 'Failed';
-      saveBtn.disabled = false; saveBtn.textContent = 'Open alert';
+      saveBtn.disabled = false; saveBtn.textContent = 'Submit alert';
     }
   });
 }

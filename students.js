@@ -856,6 +856,7 @@ function renderStudentList() {
     if (s.open_alerts_count) tinyBadges.push(`<span class="badge exp" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;" title="${s.open_alerts_count} unresolved alert${s.open_alerts_count !== 1 ? 's' : ''}">⚠ ${s.open_alerts_count}</span>`);
     if (s.derived_status === 'Paused') tinyBadges.push('<span class="badge win" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;" title="Paused">⏸</span>');
     if (s.refunded_date) tinyBadges.push(`<span class="badge exp" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;background:rgba(244,114,182,0.18);color:#f472b6;" title="Refunded on ${s.refunded_date}${s.refunded_amount != null ? ' — $' + s.refunded_amount : ''}">↩ Refunded</span>`);
+    if (s.dead_file) tinyBadges.push('<span class="badge exp" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;background:rgba(248,113,113,0.22);color:#f87171;font-weight:800;" title="Dead file">☠ Dead file</span>');
     if (_dupCache.has(s.id)) tinyBadges.push('<span class="badge exp" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;background:rgba(167,139,250,0.18);color:#a78bfa;" title="Possible duplicate of another student (same email or name)">⎘ dup</span>');
     if (tinyBadges.length) nameEl.insertAdjacentHTML('beforeend', tinyBadges.join(''));
     const metaParts = [];
@@ -896,6 +897,7 @@ function _updateStudentRowInPlace(s) {
     if (s.open_alerts_count) tinyBadges.push(`<span class="badge exp" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;" title="${s.open_alerts_count} unresolved alert${s.open_alerts_count !== 1 ? 's' : ''}">⚠ ${s.open_alerts_count}</span>`);
     if (s.derived_status === 'Paused') tinyBadges.push('<span class="badge win" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;" title="Paused">⏸</span>');
     if (s.refunded_date) tinyBadges.push(`<span class="badge exp" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;background:rgba(244,114,182,0.18);color:#f472b6;" title="Refunded on ${s.refunded_date}${s.refunded_amount != null ? ' — $' + s.refunded_amount : ''}">↩ Refunded</span>`);
+    if (s.dead_file) tinyBadges.push('<span class="badge exp" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;background:rgba(248,113,113,0.22);color:#f87171;font-weight:800;" title="Dead file">☠ Dead file</span>');
     if (_dupCache.has(s.id)) tinyBadges.push('<span class="badge exp" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;background:rgba(167,139,250,0.18);color:#a78bfa;" title="Possible duplicate of another student (same email or name)">⎘ dup</span>');
     if (tinyBadges.length) nameEl.insertAdjacentHTML('beforeend', tinyBadges.join(''));
   }
@@ -1355,6 +1357,7 @@ const SECTIONS = [
     { k: 'survey_9month_submitted',  label: '9-month survey submitted',   type: 'checkbox' },
     { k: 'refunded_date',            label: 'Refunded — date',            type: 'date' },
     { k: 'refunded_amount',          label: 'Refunded — amount ($)',      type: 'number', placeholder: 'e.g. 4990' },
+    { k: 'dead_file',                label: 'Dead file',                  type: 'checkbox' },
     { k: 'last_activity_date',       label: 'Last activity date',         type: 'date' },
     { k: 'verified',                 label: 'Verified',                   type: 'checkbox' },
   ]],
@@ -1973,6 +1976,8 @@ function renderProfile() {
     : ds === 'Graduated'     ? ' style="background:rgba(52,211,153,0.18);color:#34d399;"'
     : '';
   badges.push(`<span class="badge ${dsClass}"${dsStyle}>${dsLabel}</span>`);
+  // Dead file — orthogonal to lifecycle; render a loud red badge so it's unmissable.
+  if (s.dead_file) badges.push('<span class="badge exp" style="background:rgba(248,113,113,0.22);color:#f87171;font-weight:800;border:1px solid rgba(248,113,113,0.6);letter-spacing:0.02em;">☠ DEAD FILE</span>');
   if (s.effective_end_date) {
     badges.push(`<span class="badge ver" style="background:rgba(120,128,168,0.18);color:#7880a8;">Ends ${s.effective_end_date}</span>`);
   }

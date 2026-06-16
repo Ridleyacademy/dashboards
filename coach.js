@@ -539,6 +539,10 @@ function _filterRows(rows) {
 
 function _isExpired(s) { return s.derived_status === 'Expired'; }
 function _isPaused(s)  { return s.derived_status === 'Paused'; }
+// "Not onboarded & expired": never started AND their purchased term has lapsed
+// (server flags this as derived_status 'Not onboarded' with a negative days_left).
+// Reported as a bare count and, like Expired, kept OUT of the % denominator.
+function _isNotOnbExpired(s) { return s.derived_status === 'Not onboarded' && s.days_left != null && s.days_left < 0; }
 // "Active" for stats means: not Expired and not Paused. Other statuses
 // (Active, Expiring soon, Not onboarded, Delayed start) all count as live roster.
 function _isActiveForStats(s) { return !_isExpired(s) && !_isPaused(s); }
@@ -581,7 +585,7 @@ function renderAll() {
   // are reported as bare counts (no %) since they sit outside the active
   // book. Active / Inactive / Paused / Not onboarded / Delayed start then
   // partition this denominator cleanly.
-  const denomRows  = preToggleRows.filter(s => !_isExpired(s) && statusOf(s) !== 'Refunded');
+  const denomRows  = preToggleRows.filter(s => !_isExpired(s) && !_isNotOnbExpired(s) && statusOf(s) !== 'Refunded');
   const ptLive     = denomRows.filter(s => LIVE_COACHING.has(statusOf(s)));
   const rEngaged   = ptLive.filter(_engaged);
   const rInactive  = ptLive.filter(s => !_engaged(s));
@@ -593,6 +597,9 @@ function renderAll() {
   // book entirely. Both still show real counts regardless of toggle.
   const rExpiring  = preToggleRows.filter(_isExpiring).filter(_isActiveForStats);
   const rExpired   = preToggleRows.filter(_isExpired);
+  // Never-started students whose term already lapsed — counted on their own
+  // tile, excluded from the denominator above (so they don't move the %s).
+  const rNotOnbExp = preToggleRows.filter(_isNotOnbExpired);
   const filteredDenom = denomRows.length;
   const pct = (n, d) => d ? Math.round(100 * n / d) + '%' : '0%';
   const setKPI = (id, count, denom, hidePct) => {
@@ -608,6 +615,7 @@ function renderAll() {
   setKPI('expired',      rExpired.length,  0, true);  // count only — always shown, no %
   setKPI('paused',       rPaused.length,   filteredDenom);
   setKPI('notonboarded', rNotOnb.length,   filteredDenom);
+  setKPI('notonb-expired', rNotOnbExp.length, 0, true); // count only — never started + term lapsed, no %
   setKPI('delayed',      rDelayed.length,  filteredDenom);
 
   // Chip counts — preview of what each chip would show. Computed against

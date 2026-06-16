@@ -421,8 +421,14 @@ function _setTriFilter(key, value) {
 function _matchesDaysLeftBucket(s, b) {
   if (b === 'paused')  return s.derived_status === 'Paused';
   if (b === 'delayed') return s.derived_status === 'Delayed start';
-  if (b === 'unknown') return s.days_left == null && s.derived_status !== 'Paused' && s.derived_status !== 'Delayed start';
-  if (b === 'expired') return s.days_left != null && s.days_left < 0;
+  // "Not onboarded" = never-started students whose term has NOT lapsed (matches the
+  // coach dashboard's Not-onboarded tile). The lapsed ones live under the
+  // "expired & never onboarded" advanced filter. Keyed on derived_status now that
+  // not-onboarded students carry a real days_left (from their purchase term).
+  if (b === 'unknown') return s.derived_status === 'Not onboarded' && !(s.days_left != null && s.days_left < 0);
+  // "Expired" = onboarded students past term only (not the never-onboarded-expired,
+  // which the server also reports with a negative days_left).
+  if (b === 'expired') return s.derived_status === 'Expired';
   if (s.days_left == null || s.days_left < 0) return false;
   if (b === 'lt7')   return s.days_left <= 7;
   if (b === 'lt14')  return s.days_left <= 14;

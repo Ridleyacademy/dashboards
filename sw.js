@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v256-coach-notonb-expired-kpi';
+const CACHE_NAME = 'ridley-v257-coach-kpi-exclude-refunded';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [

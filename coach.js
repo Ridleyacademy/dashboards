@@ -543,6 +543,9 @@ function _isPaused(s)  { return s.derived_status === 'Paused'; }
 // (server flags this as derived_status 'Not onboarded' with a negative days_left).
 // Reported as a bare count and, like Expired, kept OUT of the % denominator.
 function _isNotOnbExpired(s) { return s.derived_status === 'Not onboarded' && s.days_left != null && s.days_left < 0; }
+// Refunded students must not be counted in ANY KPI tile or %. Catch both the
+// derived 'Refunded' status and a set refunded_date (belt + suspenders).
+function _isRefunded(s) { return s.derived_status === 'Refunded' || s.refunded_date != null; }
 // "Active" for stats means: not Expired and not Paused. Other statuses
 // (Active, Expiring soon, Not onboarded, Delayed start) all count as live roster.
 function _isActiveForStats(s) { return !_isExpired(s) && !_isPaused(s); }
@@ -580,7 +583,7 @@ function renderAll() {
   // KPIs describe the filtered table view BEFORE the Show-expired toggle —
   // so the Expired tile always shows the real count even when expired rows
   // are hidden from the table.
-  const preToggleRows = _filterRows(scoped);
+  const preToggleRows = _filterRows(scoped).filter(s => !_isRefunded(s));
   // Denominator for %-bearing tiles EXCLUDES Expired and Refunded — those
   // are reported as bare counts (no %) since they sit outside the active
   // book. Active / Inactive / Paused / Not onboarded / Delayed start then

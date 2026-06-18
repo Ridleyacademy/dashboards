@@ -3525,7 +3525,7 @@ function openAlertsHistoryModal() {
       <div style="padding:18px 22px;border-bottom:1px solid #1f2438;display:flex;align-items:center;gap:10px;">
         <div style="flex:1;">
           <div style="font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;display:flex;align-items:center;gap:8px;">${ICONS.bell(16)} Alerts for ${currentStudent.name || ''}</div>
-          <div style="font-size:0.74rem;color:#7880a8;margin-top:3px;">${openCount} open · ${resolvedCount} resolved</div>
+          <div style="font-size:0.74rem;color:#7880a8;margin-top:3px;">${openCount} submitted · ${resolvedCount} resolved</div>
         </div>
         <button class="alert-btn-add" id="alertListAdd" style="padding:7px 14px;font-size:0.78rem;">+ Submit alert</button>
         <button id="alertListClose" style="background:transparent;border:none;color:#7880a8;font-size:1.5rem;cursor:pointer;padding:0 8px;">×</button>
@@ -3565,7 +3565,7 @@ function renderAlertList() {
       ? `<span class="badge ver" style="font-size:0.6rem;">✓ RESOLVED</span>`
       : inProgress
         ? `<span class="badge" style="font-size:0.6rem;background:rgba(251,146,60,0.18);color:#fb923c;">◐ IN PROGRESS</span>`
-        : `<span class="badge exp" style="font-size:0.6rem;">⚠ OPEN</span>`;
+        : `<span class="badge exp" style="font-size:0.6rem;">⚠ SUBMITTED</span>`;
     const borderCol = !isOpen ? '#1f2438' : inProgress ? 'rgba(251,146,60,0.4)' : 'rgba(248,113,113,0.35)';
     const bgCol = !isOpen ? 'transparent' : inProgress ? 'rgba(251,146,60,0.04)' : 'rgba(248,113,113,0.04)';
     const threadHtml = comments.length ? `
@@ -3573,7 +3573,7 @@ function renderAlertList() {
           <div style="font-size:0.66rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:#7880a8;margin-bottom:8px;">Responses (${comments.length})</div>
           ${comments.map(c => `
             <div class="alert-cmt" style="margin-bottom:10px;padding:8px 10px;background:rgba(255,255,255,0.02);border-radius:8px;border-left:2px solid #3b4368;">
-              <div style="font-size:0.68rem;color:#7880a8;margin-bottom:3px;">${c.created_by_email ? String(c.created_by_email).replace(/[<>]/g,'') : 'someone'} · ${c.created_at ? new Date(c.created_at).toLocaleString() : ''}</div>
+              <div style="font-size:0.68rem;color:#7880a8;margin-bottom:3px;">${String(c.created_by_name || c.created_by_email || 'someone').replace(/[<>]/g,'')} · ${c.created_at ? new Date(c.created_at).toLocaleString() : ''}</div>
               <div class="alert-cmt-body" data-cid="${c.id}" style="color:#cbd1ee;font-size:0.83rem;line-height:1.5;white-space:pre-wrap;"></div>
             </div>`).join('')}
         </div>` : '';
@@ -3584,13 +3584,13 @@ function renderAlertList() {
           ${badgeHtml}
         </div>
         ${a.description ? `<div class="alert-desc-cell" style="color:#cbd1ee;font-size:0.84rem;line-height:1.5;margin-bottom:8px;white-space:pre-wrap;"></div>` : ''}
-        <div style="font-size:0.7rem;color:#7880a8;">Opened ${created}${a.created_by_email ? ' by ' + a.created_by_email : ''}</div>
+        <div style="font-size:0.7rem;color:#7880a8;">Submitted ${created}${(a.created_by_name || a.created_by_email) ? ' by ' + String(a.created_by_name || a.created_by_email).replace(/[<>]/g,'') : ''}</div>
         ${threadHtml}
         ${!isOpen ? `
           <div style="margin-top:10px;padding-top:10px;border-top:1px solid #1f2438;">
             <div style="font-size:0.66rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:#34d399;margin-bottom:4px;">Resolution</div>
             <div class="alert-resnote-cell" style="color:#cbd1ee;font-size:0.84rem;line-height:1.5;white-space:pre-wrap;"></div>
-            <div style="font-size:0.7rem;color:#7880a8;margin-top:6px;">Resolved ${resolved}${a.resolved_by_email ? ' by ' + a.resolved_by_email : ''}</div>
+            <div style="font-size:0.7rem;color:#7880a8;margin-top:6px;">Resolved ${resolved}${(a.resolved_by_name || a.resolved_by_email) ? ' by ' + String(a.resolved_by_name || a.resolved_by_email).replace(/[<>]/g,'') : ''}</div>
           </div>` : ''}
         ${isOpen ? `
           <div style="margin-top:12px;padding-top:10px;border-top:1px solid #1f2438;">
@@ -3602,7 +3602,7 @@ function renderAlertList() {
                 <input type="radio" name="alertmode-${a.id}" value="resolve" style="cursor:pointer;"> Resolution
               </label>
             </div>
-            <textarea class="field-textarea alert-entry-note" data-aid="${a.id}" placeholder="Post an update (keeps the alert open)…" style="min-height:60px;width:100%;"></textarea>
+            <textarea class="field-textarea alert-entry-note" data-aid="${a.id}" placeholder="Post an update without resolving…" style="min-height:60px;width:100%;"></textarea>
             <label class="alert-tagcoach-row" data-aid="${a.id}" style="display:flex;align-items:center;gap:6px;margin:7px 0;font-size:0.74rem;color:#cbd1ee;cursor:pointer;">
               <input type="checkbox" class="alert-cmt-tagcoach" data-aid="${a.id}" style="width:15px;height:15px;cursor:pointer;"> Tag coach (also notify the coach)
             </label>
@@ -3640,7 +3640,7 @@ function renderAlertList() {
         if (sub) sub.textContent = '✓ Resolve';
         if (tc)  tc.style.display = 'none';
       } else {
-        if (ta)  ta.placeholder = 'Post an update (keeps the alert open)…';
+        if (ta)  ta.placeholder = 'Post an update without resolving…';
         if (sub) sub.textContent = '↩ Post response';
         if (tc)  tc.style.display = 'flex';
       }

@@ -3594,18 +3594,19 @@ function renderAlertList() {
           </div>` : ''}
         ${isOpen ? `
           <div style="margin-top:12px;padding-top:10px;border-top:1px solid #1f2438;">
-            <div style="font-size:0.66rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:#7880a8;margin-bottom:6px;">Add a response</div>
-            <textarea class="field-textarea alert-cmt-note" data-aid="${a.id}" placeholder="Post an update without closing the alert…" style="min-height:54px;width:100%;"></textarea>
-            <label style="display:flex;align-items:center;gap:6px;margin:7px 0;font-size:0.74rem;color:#cbd1ee;cursor:pointer;">
-              <input type="checkbox" class="alert-cmt-tagcoach" data-aid="${a.id}" style="width:15px;height:15px;cursor:pointer;"> Tag coach (also notify the coach of this response)
-            </label>
-            <button class="btn-ghost alert-cmt-btn" data-aid="${a.id}" style="padding:6px 12px;font-size:0.76rem;">↩ Post response</button>
-          </div>
-          <div style="margin-top:12px;display:flex;gap:8px;align-items:flex-start;flex-direction:column;">
-            <textarea class="field-textarea alert-resolve-note" data-aid="${a.id}" placeholder="Explain how this was resolved (required)…" style="min-height:60px;width:100%;"></textarea>
-            <div style="display:flex;gap:8px;width:100%;">
-              <button class="profile-save alert-resolve-btn" data-aid="${a.id}" style="padding:7px 14px;font-size:0.78rem;">✓ Resolve</button>
+            <div style="display:flex;gap:6px;margin-bottom:8px;" class="alert-mode-tabs" data-aid="${a.id}">
+              <label class="alert-mode-opt" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:7px;border:1px solid #2a3050;border-radius:8px;font-size:0.76rem;cursor:pointer;color:#cbd1ee;">
+                <input type="radio" name="alertmode-${a.id}" value="response" checked style="cursor:pointer;"> Response
+              </label>
+              <label class="alert-mode-opt" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:7px;border:1px solid #2a3050;border-radius:8px;font-size:0.76rem;cursor:pointer;color:#cbd1ee;">
+                <input type="radio" name="alertmode-${a.id}" value="resolve" style="cursor:pointer;"> Resolution
+              </label>
             </div>
+            <textarea class="field-textarea alert-entry-note" data-aid="${a.id}" placeholder="Post an update (keeps the alert open)…" style="min-height:60px;width:100%;"></textarea>
+            <label class="alert-tagcoach-row" data-aid="${a.id}" style="display:flex;align-items:center;gap:6px;margin:7px 0;font-size:0.74rem;color:#cbd1ee;cursor:pointer;">
+              <input type="checkbox" class="alert-cmt-tagcoach" data-aid="${a.id}" style="width:15px;height:15px;cursor:pointer;"> Tag coach (also notify the coach)
+            </label>
+            <button class="profile-save alert-submit-btn" data-aid="${a.id}" style="padding:7px 14px;font-size:0.78rem;">↩ Post response</button>
           </div>` : ''}
       </div>`;
   }).join('');
@@ -3622,56 +3623,57 @@ function renderAlertList() {
       if (cb) cb.textContent = c.body || '';
     }
   }
-  body.querySelectorAll('.alert-resolve-btn').forEach(btn => {
-    btn.addEventListener('click', () => resolveAlert(Number(btn.dataset.aid)));
+  body.querySelectorAll('.alert-submit-btn').forEach(btn => {
+    btn.addEventListener('click', () => submitAlertEntry(Number(btn.dataset.aid)));
   });
-  body.querySelectorAll('.alert-cmt-btn').forEach(btn => {
-    btn.addEventListener('click', () => postAlertComment(Number(btn.dataset.aid)));
+  // Response / Resolution picker: swap placeholder, button label, and hide the
+  // Tag-coach option for resolutions (which always notify everyone on the alert).
+  body.querySelectorAll('input[type="radio"][name^="alertmode-"]').forEach(radio => {
+    radio.addEventListener('change', () => {
+      const id = radio.name.slice('alertmode-'.length);
+      const mode = body.querySelector(`input[name="alertmode-${id}"]:checked`)?.value || 'response';
+      const ta  = body.querySelector(`.alert-entry-note[data-aid="${id}"]`);
+      const sub = body.querySelector(`.alert-submit-btn[data-aid="${id}"]`);
+      const tc  = body.querySelector(`.alert-tagcoach-row[data-aid="${id}"]`);
+      if (mode === 'resolve') {
+        if (ta)  ta.placeholder = 'Explain how this was resolved (required)…';
+        if (sub) sub.textContent = '✓ Resolve';
+        if (tc)  tc.style.display = 'none';
+      } else {
+        if (ta)  ta.placeholder = 'Post an update (keeps the alert open)…';
+        if (sub) sub.textContent = '↩ Post response';
+        if (tc)  tc.style.display = 'flex';
+      }
+    });
   });
 }
 
-async function postAlertComment(id) {
-  const ta = document.querySelector(`.alert-cmt-note[data-aid="${id}"]`);
-  const text = (ta?.value || '').trim();
-  if (!text) { alert('Write a response first.'); return; }
+// Single submit for the Response/Resolution picker. 'resolve' closes the alert
+// (resolution note required); 'response' posts an in-progress update and keeps
+// it open (Tag coach optional).
+async function submitAlertEntry(id) {
+  const mode = document.querySelector(`input[name="alertmode-${id}"]:checked`)?.value || 'response';
+  const text = (document.querySelector(`.alert-entry-note[data-aid="${id}"]`)?.value || '').trim();
+  if (!text) { alert(mode === 'resolve' ? 'A resolution note is required.' : 'Write a response first.'); return; }
   const tag = document.querySelector(`.alert-cmt-tagcoach[data-aid="${id}"]`)?.checked === true;
-  const btn = document.querySelector(`.alert-cmt-btn[data-aid="${id}"]`);
-  if (btn) { btn.disabled = true; btn.textContent = 'Posting…'; }
+  const btn = document.querySelector(`.alert-submit-btn[data-aid="${id}"]`);
+  if (btn) { btn.disabled = true; btn.textContent = mode === 'resolve' ? 'Resolving…' : 'Posting…'; }
   try {
-    const r = await fetch(STUDENTS_BASE + '?api=add-alert-comment', {
+    const endpoint = mode === 'resolve' ? '?api=resolve-alert' : '?api=add-alert-comment';
+    const payload  = mode === 'resolve' ? { id, resolution_note: text } : { alertId: id, body: text, tag_coach: tag };
+    const r = await fetch(STUDENTS_BASE + endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
-      body: JSON.stringify({ alertId: id, body: text, tag_coach: tag }),
+      body: JSON.stringify(payload),
     });
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || 'Failed');
-    // Reload student so currentAlerts (with the new comment) refreshes, then re-render.
     await openStudent(currentStudent.id);
     await loadStudents();
     if (document.getElementById('alertListModal')) renderAlertList();
   } catch (e) {
-    if (btn) { btn.disabled = false; btn.textContent = '↩ Post response'; }
-    alert('Failed to post response: ' + (e.message || e));
-  }
-}
-
-async function resolveAlert(id) {
-  const note = (document.querySelector(`.alert-resolve-note[data-aid="${id}"]`)?.value || '').trim();
-  if (!note) { alert('A resolution note is required.'); return; }
-  try {
-    const r = await fetch(STUDENTS_BASE + '?api=resolve-alert', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
-      body: JSON.stringify({ id, resolution_note: note }),
-    });
-    const j = await r.json();
-    if (!r.ok) throw new Error(j.error || 'Failed');
-    // Reload student so currentAlerts refreshes, then re-render the modal contents
-    await openStudent(currentStudent.id);
-    await loadStudents();
-    if (document.getElementById('alertListModal')) renderAlertList();
-  } catch (e) {
-    alert('Failed to resolve: ' + (e.message || e));
+    if (btn) { btn.disabled = false; btn.textContent = mode === 'resolve' ? '✓ Resolve' : '↩ Post response'; }
+    alert('Failed: ' + (e.message || e));
   }
 }
 

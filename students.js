@@ -3556,16 +3556,36 @@ function renderAlertList() {
   });
   body.innerHTML = sorted.map(a => {
     const isOpen = a.status === 'open';
+    const comments = Array.isArray(a.comments) ? a.comments : [];
+    const inProgress = isOpen && comments.length > 0;
     const created = a.created_at ? new Date(a.created_at).toLocaleString() : '';
     const resolved = a.resolved_at ? new Date(a.resolved_at).toLocaleString() : '';
+    // Badge: Resolved (green) / In progress (amber, has responses) / Open (red)
+    const badgeHtml = !isOpen
+      ? `<span class="badge ver" style="font-size:0.6rem;">✓ RESOLVED</span>`
+      : inProgress
+        ? `<span class="badge" style="font-size:0.6rem;background:rgba(251,146,60,0.18);color:#fb923c;">◐ IN PROGRESS</span>`
+        : `<span class="badge exp" style="font-size:0.6rem;">⚠ OPEN</span>`;
+    const borderCol = !isOpen ? '#1f2438' : inProgress ? 'rgba(251,146,60,0.4)' : 'rgba(248,113,113,0.35)';
+    const bgCol = !isOpen ? 'transparent' : inProgress ? 'rgba(251,146,60,0.04)' : 'rgba(248,113,113,0.04)';
+    const threadHtml = comments.length ? `
+        <div style="margin-top:10px;padding-top:10px;border-top:1px solid #1f2438;">
+          <div style="font-size:0.66rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:#7880a8;margin-bottom:8px;">Responses (${comments.length})</div>
+          ${comments.map(c => `
+            <div class="alert-cmt" style="margin-bottom:10px;padding:8px 10px;background:rgba(255,255,255,0.02);border-radius:8px;border-left:2px solid #3b4368;">
+              <div style="font-size:0.68rem;color:#7880a8;margin-bottom:3px;">${c.created_by_email ? String(c.created_by_email).replace(/[<>]/g,'') : 'someone'} · ${c.created_at ? new Date(c.created_at).toLocaleString() : ''}</div>
+              <div class="alert-cmt-body" data-cid="${c.id}" style="color:#cbd1ee;font-size:0.83rem;line-height:1.5;white-space:pre-wrap;"></div>
+            </div>`).join('')}
+        </div>` : '';
     return `
-      <div class="alert-row" data-aid="${a.id}" style="border:1px solid ${isOpen ? 'rgba(248,113,113,0.35)' : '#1f2438'};border-radius:12px;padding:14px;margin-bottom:12px;background:${isOpen ? 'rgba(248,113,113,0.04)' : 'transparent'};">
+      <div class="alert-row" data-aid="${a.id}" style="border:1px solid ${borderCol};border-radius:12px;padding:14px;margin-bottom:12px;background:${bgCol};">
         <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:8px;">
           <div style="font-weight:800;font-size:0.92rem;flex:1;" class="alert-title-cell"></div>
-          <span class="badge ${isOpen ? 'exp' : 'ver'}" style="font-size:0.6rem;">${isOpen ? '⚠ OPEN' : '✓ RESOLVED'}</span>
+          ${badgeHtml}
         </div>
         ${a.description ? `<div class="alert-desc-cell" style="color:#cbd1ee;font-size:0.84rem;line-height:1.5;margin-bottom:8px;white-space:pre-wrap;"></div>` : ''}
         <div style="font-size:0.7rem;color:#7880a8;">Opened ${created}${a.created_by_email ? ' by ' + a.created_by_email : ''}</div>
+        ${threadHtml}
         ${!isOpen ? `
           <div style="margin-top:10px;padding-top:10px;border-top:1px solid #1f2438;">
             <div style="font-size:0.66rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:#34d399;margin-bottom:4px;">Resolution</div>
@@ -3573,6 +3593,14 @@ function renderAlertList() {
             <div style="font-size:0.7rem;color:#7880a8;margin-top:6px;">Resolved ${resolved}${a.resolved_by_email ? ' by ' + a.resolved_by_email : ''}</div>
           </div>` : ''}
         ${isOpen ? `
+          <div style="margin-top:12px;padding-top:10px;border-top:1px solid #1f2438;">
+            <div style="font-size:0.66rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:#7880a8;margin-bottom:6px;">Add a response</div>
+            <textarea class="field-textarea alert-cmt-note" data-aid="${a.id}" placeholder="Post an update without closing the alert…" style="min-height:54px;width:100%;"></textarea>
+            <label style="display:flex;align-items:center;gap:6px;margin:7px 0;font-size:0.74rem;color:#cbd1ee;cursor:pointer;">
+              <input type="checkbox" class="alert-cmt-tagcoach" data-aid="${a.id}" style="width:15px;height:15px;cursor:pointer;"> Tag coach (also notify the coach of this response)
+            </label>
+            <button class="btn-ghost alert-cmt-btn" data-aid="${a.id}" style="padding:6px 12px;font-size:0.76rem;">↩ Post response</button>
+          </div>
           <div style="margin-top:12px;display:flex;gap:8px;align-items:flex-start;flex-direction:column;">
             <textarea class="field-textarea alert-resolve-note" data-aid="${a.id}" placeholder="Explain how this was resolved (required)…" style="min-height:60px;width:100%;"></textarea>
             <div style="display:flex;gap:8px;width:100%;">
@@ -3581,7 +3609,7 @@ function renderAlertList() {
           </div>` : ''}
       </div>`;
   }).join('');
-  // Fill user-supplied content via textContent to dodge any HTML in title/desc/note
+  // Fill user-supplied content via textContent to dodge any HTML in title/desc/note/comments
   for (const a of sorted) {
     const row = body.querySelector(`.alert-row[data-aid="${a.id}"]`); if (!row) continue;
     row.querySelector('.alert-title-cell').textContent = a.title || '';
@@ -3589,10 +3617,42 @@ function renderAlertList() {
     if (dc) dc.textContent = a.description || '';
     const rc = row.querySelector('.alert-resnote-cell');
     if (rc) rc.textContent = a.resolution_note || '';
+    for (const c of (Array.isArray(a.comments) ? a.comments : [])) {
+      const cb = row.querySelector(`.alert-cmt-body[data-cid="${c.id}"]`);
+      if (cb) cb.textContent = c.body || '';
+    }
   }
   body.querySelectorAll('.alert-resolve-btn').forEach(btn => {
     btn.addEventListener('click', () => resolveAlert(Number(btn.dataset.aid)));
   });
+  body.querySelectorAll('.alert-cmt-btn').forEach(btn => {
+    btn.addEventListener('click', () => postAlertComment(Number(btn.dataset.aid)));
+  });
+}
+
+async function postAlertComment(id) {
+  const ta = document.querySelector(`.alert-cmt-note[data-aid="${id}"]`);
+  const text = (ta?.value || '').trim();
+  if (!text) { alert('Write a response first.'); return; }
+  const tag = document.querySelector(`.alert-cmt-tagcoach[data-aid="${id}"]`)?.checked === true;
+  const btn = document.querySelector(`.alert-cmt-btn[data-aid="${id}"]`);
+  if (btn) { btn.disabled = true; btn.textContent = 'Posting…'; }
+  try {
+    const r = await fetch(STUDENTS_BASE + '?api=add-alert-comment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
+      body: JSON.stringify({ alertId: id, body: text, tag_coach: tag }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Failed');
+    // Reload student so currentAlerts (with the new comment) refreshes, then re-render.
+    await openStudent(currentStudent.id);
+    await loadStudents();
+    if (document.getElementById('alertListModal')) renderAlertList();
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = '↩ Post response'; }
+    alert('Failed to post response: ' + (e.message || e));
+  }
 }
 
 async function resolveAlert(id) {

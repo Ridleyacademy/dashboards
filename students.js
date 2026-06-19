@@ -3321,8 +3321,7 @@ function renderTurnoverList() {
     const bd = b.turnover_date || b.created_at || '';
     return bd.localeCompare(ad);
   });
-  const repOpts = (mentors || []).map(m => `<option value="${String(m).replace(/"/g,'&quot;')}"></option>`).join('');
-  body.innerHTML = `<datalist id="turnAnsRepList">${repOpts}</datalist>` + sorted.map(t => {
+  body.innerHTML = sorted.map(t => {
     const created = t.created_at ? new Date(t.created_at).toLocaleString() : '';
     const comments = Array.isArray(t.comments) ? t.comments : [];
     const hasResult = !!(t.result && String(t.result).trim());
@@ -3361,10 +3360,6 @@ function renderTurnoverList() {
           <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:7px;border:1px solid #2a3050;border-radius:8px;font-size:0.76rem;cursor:pointer;color:#cbd1ee;"><input type="radio" name="turnmode-${t.id}" value="resolve" style="cursor:pointer;"> Resolution</label>
         </div>
         <textarea class="field-textarea turn-ans-note" data-tid="${t.id}" placeholder="Post an update without resolving…" style="min-height:56px;width:100%;"></textarea>
-        <div style="margin-top:8px;">
-          <div style="font-size:0.66rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#7880a8;margin-bottom:3px;">Notify rep</div>
-          <input class="field-input turn-ans-rep" data-tid="${t.id}" list="turnAnsRepList" value="${String(t.rep_name||'').replace(/"/g,'&quot;')}" placeholder="Rep to notify" style="width:100%;">
-        </div>
         <label style="display:flex;align-items:center;gap:6px;margin:8px 0;font-size:0.74rem;color:#cbd1ee;cursor:pointer;"><input type="checkbox" class="turn-ans-tagcoach" data-tid="${t.id}" style="width:15px;height:15px;cursor:pointer;"> Tag coach (also notify the coach)</label>
         <button class="profile-save turn-ans-btn" data-tid="${t.id}" style="padding:7px 14px;font-size:0.78rem;">↩ Post response</button>
       </div>` : '';
@@ -3427,15 +3422,16 @@ async function submitTurnoverEntry(id) {
   const mode = document.querySelector(`input[name="turnmode-${id}"]:checked`)?.value || 'response';
   const text = (document.querySelector(`.turn-ans-note[data-tid="${id}"]`)?.value || '').trim();
   if (!text) { alert(mode === 'resolve' ? 'A result is required.' : 'Write a response first.'); return; }
-  const rep = (document.querySelector(`.turn-ans-rep[data-tid="${id}"]`)?.value || '').trim();
   const tag = document.querySelector(`.turn-ans-tagcoach[data-tid="${id}"]`)?.checked === true;
   const btn = document.querySelector(`.turn-ans-btn[data-tid="${id}"]`);
   if (btn) { btn.disabled = true; btn.textContent = mode === 'resolve' ? 'Resolving…' : 'Posting…'; }
   try {
+    // Notifies the turnover's originally-assigned rep (server default), the rest
+    // of the people already on it, and the coach only if Tag coach is checked.
     const endpoint = mode === 'resolve' ? '?api=set-turnover-result' : '?api=add-turnover-comment';
     const payload  = mode === 'resolve'
-      ? { id, result: text, tag_coach: tag, rep_name: rep || undefined }
-      : { turnoverId: id, body: text, tag_coach: tag, rep_name: rep || undefined };
+      ? { id, result: text, tag_coach: tag }
+      : { turnoverId: id, body: text, tag_coach: tag };
     const r = await fetch(STUDENTS_BASE + endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },

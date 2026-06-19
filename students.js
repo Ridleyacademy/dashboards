@@ -3878,7 +3878,7 @@ function _qModal(id, title) {
   m.id = id;
   m.style.cssText = 'position:fixed;inset:0;background:rgba(8,9,18,0.78);backdrop-filter:blur(8px);z-index:10005;display:flex;align-items:center;justify-content:center;padding:20px;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;';
   m.innerHTML = '<div style="background:#13141f;border:1px solid #1f2438;border-radius:18px;max-width:720px;width:100%;max-height:86vh;display:flex;flex-direction:column;color:#eaecf8;box-shadow:0 24px 60px rgba(0,0,0,0.55);overflow:hidden;">'
-    + '<div style="padding:18px 22px;border-bottom:1px solid #1f2438;display:flex;align-items:center;gap:10px;"><div style="flex:1;font-size:1.05rem;font-weight:800;letter-spacing:-0.02em;">' + title + '</div><button data-close style="background:transparent;border:none;color:#7880a8;font-size:1.5rem;cursor:pointer;padding:0 8px;">×</button></div>'
+    + '<div style="padding:14px 18px;border-bottom:1px solid #1f2438;display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><div style="font-size:1.05rem;font-weight:800;letter-spacing:-0.02em;margin-right:auto;">' + title + '</div><div data-actions style="display:flex;gap:8px;align-items:center;"></div><button data-close style="background:transparent;border:none;color:#7880a8;font-size:1.5rem;cursor:pointer;padding:0 8px;">×</button></div>'
     + '<div data-body style="flex:1;overflow-y:auto;padding:14px 22px;"><div style="padding:32px;text-align:center;color:#7880a8;">Loading…</div></div></div>';
   document.body.appendChild(m);
   const close = () => { document.removeEventListener('keydown', onKey); m.remove(); };
@@ -3886,7 +3886,7 @@ function _qModal(id, title) {
   document.addEventListener('keydown', onKey);
   m.querySelector('[data-close]').addEventListener('click', close);
   m.addEventListener('click', e => { if (e.target === m) close(); });
-  return { modal: m, body: m.querySelector('[data-body]'), close };
+  return { modal: m, body: m.querySelector('[data-body]'), actions: m.querySelector('[data-actions]'), close };
 }
 
 function _qThread(cs) {
@@ -3898,14 +3898,111 @@ function _qThread(cs) {
 
 let _qAlertsClose = null, _qTurnsClose = null;
 
-function _qToggleBar(count, done, seeAll, cls, openLabel, doneLabel) {
-  return '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;">'
-    + '<div style="font-size:0.72rem;color:#7880a8;">' + count + ' ' + (done ? doneLabel : openLabel) + ' · ' + (seeAll ? 'showing all' : 'the ones you’re involved with') + '</div>'
-    + '<button class="' + cls + '" style="background:transparent;border:1px solid #2a3050;color:#cbd1ee;border-radius:8px;padding:5px 12px;font-size:0.74rem;font-weight:700;cursor:pointer;font-family:inherit;">' + (done ? '← Show open' : 'Show resolved/completed →') + '</button></div>';
+function _qCountBar(count, done, seeAll, openLabel, doneLabel) {
+  return '<div style="font-size:0.72rem;color:#7880a8;margin-bottom:12px;">' + count + ' ' + (done ? doneLabel : openLabel) + ' · ' + (seeAll ? 'showing all' : 'the ones you’re involved with') + '</div>';
+}
+function _qHdrBtn(label, accent) {
+  const b = document.createElement('button');
+  b.textContent = label;
+  b.style.cssText = 'background:transparent;border:1px solid ' + (accent || '#2a3050') + ';color:' + (accent || '#cbd1ee') + ';border-radius:8px;padding:5px 12px;font-size:0.74rem;font-weight:700;cursor:pointer;font-family:inherit;';
+  return b;
+}
+
+// Searchable student picker used by the global "+ New" create forms.
+function _qStudentPickerHTML(pfx) {
+  return '<div class="field" style="margin-bottom:6px;position:relative;"><div class="field-label">Student *</div>'
+    + '<input class="field-input qc-stud-' + pfx + '" placeholder="Type a name or email…" autocomplete="off">'
+    + '<input type="hidden" class="qc-stud-id-' + pfx + '">'
+    + '<div class="qc-stud-drop-' + pfx + '" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:20;background:#0f1019;border:1px solid #2a3050;border-radius:8px;max-height:240px;overflow-y:auto;box-shadow:0 12px 30px rgba(0,0,0,0.5);"></div></div>';
+}
+function _qWireStudentPicker(root, pfx, onPick) {
+  const inp = root.querySelector('.qc-stud-' + pfx);
+  const hid = root.querySelector('.qc-stud-id-' + pfx);
+  const drop = root.querySelector('.qc-stud-drop-' + pfx);
+  const hide = () => { drop.style.display = 'none'; };
+  inp.addEventListener('input', function(){
+    hid.value = '';
+    const q = inp.value.trim().toLowerCase();
+    if (!q) { hide(); return; }
+    const matches = (students || []).filter(function(s){ return ((s.name || '').toLowerCase().indexOf(q) !== -1) || ((s.email || '').toLowerCase().indexOf(q) !== -1); }).slice(0, 25);
+    if (!matches.length) { drop.innerHTML = '<div style="padding:8px 10px;color:#7880a8;font-size:0.8rem;">No match</div>'; drop.style.display = 'block'; return; }
+    drop.innerHTML = matches.map(function(s){ return '<div class="qc-stud-opt" data-id="' + s.id + '" style="padding:7px 10px;cursor:pointer;font-size:0.82rem;border-bottom:1px solid #1a1f33;"><span class="qc-opt-name" style="font-weight:700;"></span><span style="color:#7880a8;"> · ' + _qx(s.email || '') + '</span></div>'; }).join('');
+    const opts = drop.querySelectorAll('.qc-stud-opt');
+    matches.forEach(function(s, idx){ const nm = opts[idx].querySelector('.qc-opt-name'); if (nm) nm.textContent = s.name || ('Student #' + s.id); });
+    drop.style.display = 'block';
+  });
+  drop.addEventListener('mousedown', function(e){
+    const opt = e.target.closest('.qc-stud-opt'); if (!opt) return;
+    e.preventDefault();
+    const sid = Number(opt.dataset.id);
+    const s = (students || []).find(function(x){ return x.id === sid; });
+    inp.value = s ? (s.name || ('Student #' + sid)) : ('Student #' + sid);
+    hid.value = String(sid); hide();
+    if (onPick) onPick(s);
+  });
+  inp.addEventListener('blur', function(){ setTimeout(hide, 200); });
+}
+
+function openCreateAlertForm(body, reload) {
+  body.innerHTML = '<button class="qc-back" style="background:transparent;border:1px solid #2a3050;color:#7880a8;border-radius:8px;padding:4px 12px;font-size:0.74rem;font-weight:700;cursor:pointer;font-family:inherit;">← Back</button>'
+    + '<div style="font-weight:800;font-size:0.95rem;margin:10px 0 14px;">New alert</div>'
+    + _qStudentPickerHTML('a')
+    + '<div class="field" style="margin:12px 0;"><div class="field-label">Title *</div><input class="field-input qc-a-title" placeholder="e.g. Refund pending, missed welcome call…"></div>'
+    + '<div class="field" style="margin-bottom:12px;"><div class="field-label">Details</div><textarea class="field-textarea qc-a-desc" placeholder="Context, what needs to happen…" style="min-height:90px;"></textarea></div>'
+    + '<label style="display:flex;align-items:center;gap:6px;margin-bottom:12px;font-size:0.8rem;color:#cbd1ee;cursor:pointer;"><input type="checkbox" class="qc-a-tagcoach"> Tag coach (also notify the coach)</label>'
+    + '<div class="qc-err" style="color:#f87171;font-size:0.78rem;min-height:1em;margin-bottom:8px;"></div>'
+    + '<button class="profile-save qc-a-create" style="padding:8px 18px;">Submit alert</button>';
+  _qWireStudentPicker(body, 'a', null);
+  body.querySelector('.qc-back').addEventListener('click', reload);
+  body.querySelector('.qc-a-create').addEventListener('click', async function(){
+    const sid = Number(body.querySelector('.qc-stud-id-a').value || 0);
+    const title = body.querySelector('.qc-a-title').value.trim();
+    const err = body.querySelector('.qc-err'); err.textContent = '';
+    if (!sid) { err.textContent = 'Pick a student first.'; return; }
+    if (!title) { err.textContent = 'A title is required.'; return; }
+    const btn = body.querySelector('.qc-a-create'); btn.disabled = true; btn.textContent = 'Submitting…';
+    try {
+      const r = await fetch(STUDENTS_BASE + '?api=add-alert', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token }, body: JSON.stringify({ studentId: sid, title, description: body.querySelector('.qc-a-desc').value.trim() || null, tag_coach: body.querySelector('.qc-a-tagcoach').checked === true }) });
+      const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Failed');
+      reload();
+    } catch (e) { btn.disabled = false; btn.textContent = 'Submit alert'; err.textContent = e.message || e; }
+  });
+}
+function openCreateTurnoverForm(body, reload) {
+  const today = new Date().toISOString().slice(0, 10);
+  body.innerHTML = '<button class="qc-back" style="background:transparent;border:1px solid #2a3050;color:#7880a8;border-radius:8px;padding:4px 12px;font-size:0.74rem;font-weight:700;cursor:pointer;font-family:inherit;">← Back</button>'
+    + '<div style="font-weight:800;font-size:0.95rem;margin:10px 0 14px;">New turnover</div>'
+    + _qStudentPickerHTML('t')
+    + '<div class="field" style="margin:12px 0;"><div class="field-label">Rep *</div><input class="field-input qc-t-rep" placeholder="Assigned rep (auto-fills when you pick a student)"></div>'
+    + '<div class="field" style="margin-bottom:12px;"><div class="field-label">Note</div><textarea class="field-textarea qc-t-note" placeholder="Why is this being turned over?" style="min-height:80px;"></textarea></div>'
+    + '<div class="field" style="margin-bottom:12px;"><div class="field-label">Date</div><input type="date" class="field-input qc-t-date" value="' + today + '"></div>'
+    + '<div class="qc-err" style="color:#f87171;font-size:0.78rem;min-height:1em;margin-bottom:8px;"></div>'
+    + '<button class="profile-save qc-t-create" style="padding:8px 18px;">Log turnover</button>';
+  _qWireStudentPicker(body, 't', function(s){ const rep = body.querySelector('.qc-t-rep'); if (rep && s && s.rep && !rep.value.trim()) rep.value = s.rep; });
+  body.querySelector('.qc-back').addEventListener('click', reload);
+  body.querySelector('.qc-t-create').addEventListener('click', async function(){
+    const sid = Number(body.querySelector('.qc-stud-id-t').value || 0);
+    const rep = body.querySelector('.qc-t-rep').value.trim();
+    const err = body.querySelector('.qc-err'); err.textContent = '';
+    if (!sid) { err.textContent = 'Pick a student first.'; return; }
+    if (!rep) { err.textContent = 'A rep is required.'; return; }
+    const btn = body.querySelector('.qc-t-create'); btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      const r = await fetch(STUDENTS_BASE + '?api=add-turnover', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token }, body: JSON.stringify({ studentId: sid, rep_name: rep, note: body.querySelector('.qc-t-note').value || '', turnover_date: body.querySelector('.qc-t-date').value || null }) });
+      const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Failed');
+      reload();
+    } catch (e) { btn.disabled = false; btn.textContent = 'Log turnover'; err.textContent = e.message || e; }
+  });
 }
 
 async function openGlobalAlertsModal() {
   const r = _qModal('globalAlertsModal', '🔔 Alerts'); _qAlertsClose = r.close;
+  let done = false;
+  const newBtn = _qHdrBtn('+ New', 'rgba(248,113,113,0.5)'); newBtn.style.color = '#f87171';
+  const tg = _qHdrBtn('Show resolved');
+  newBtn.addEventListener('click', function(){ done = false; tg.textContent = 'Show resolved'; openCreateAlertForm(r.body, function(){ _loadGlobalAlerts(r.body, false); }); });
+  tg.addEventListener('click', async function(){ done = !done; tg.textContent = done ? '← Show open' : 'Show resolved'; await _loadGlobalAlerts(r.body, done); });
+  r.actions.appendChild(newBtn); r.actions.appendChild(tg);
   await _loadGlobalAlerts(r.body, false);
 }
 async function _loadGlobalAlerts(body, done) {
@@ -3918,8 +4015,8 @@ async function _loadGlobalAlerts(body, done) {
   } catch (e) { body.innerHTML = '<div style="padding:24px;color:#f87171;">' + _qx(e.message || e) + '</div>'; }
 }
 function renderGlobalAlerts(body, rows, seeAll, done) {
-  const bar = _qToggleBar(rows.length, done, seeAll, 'q-toggle-alerts', 'open', 'resolved');
-  if (!rows.length) { body.innerHTML = bar + '<div style="padding:28px;text-align:center;color:#7880a8;font-size:0.86rem;">' + (done ? 'No resolved alerts.' : 'No open alerts you’re concerned with.') + '</div>'; body.querySelector('.q-toggle-alerts').addEventListener('click', function(){ _loadGlobalAlerts(body, !done); }); return; }
+  const bar = _qCountBar(rows.length, done, seeAll, 'open', 'resolved');
+  if (!rows.length) { body.innerHTML = bar + '<div style="padding:28px;text-align:center;color:#7880a8;font-size:0.86rem;">' + (done ? 'No resolved alerts.' : 'No open alerts you’re concerned with.') + '</div>'; return; }
   body.innerHTML = bar + rows.map(function(a){
     const ip = a.in_progress;
     const badge = done ? '<span class="badge ver" style="font-size:0.6rem;">✓ RESOLVED</span>' : (ip ? '<span class="badge" style="font-size:0.6rem;background:rgba(251,146,60,0.18);color:#fb923c;">◐ IN PROGRESS</span>' : '<span class="badge exp" style="font-size:0.6rem;">⚠ SUBMITTED</span>');
@@ -3942,7 +4039,6 @@ function renderGlobalAlerts(body, rows, seeAll, done) {
     const rn = row.querySelector('.qa-resnote'); if (rn) rn.textContent = a.resolution_note || '';
     for (const c of (a.comments || [])) { const cb = row.querySelector('.qc-body[data-cid="' + c.id + '"]'); if (cb) cb.textContent = c.body || ''; }
   }
-  body.querySelector('.q-toggle-alerts').addEventListener('click', function(){ _loadGlobalAlerts(body, !done); });
   body.querySelectorAll('.q-student-link').forEach(function(b){ b.addEventListener('click', function(){ const sid = Number(b.dataset.sid); if (_qAlertsClose) _qAlertsClose(); openStudent(sid); }); });
   if (!done) {
     body.querySelectorAll('.qa-submit').forEach(function(b){ b.addEventListener('click', function(){ submitGlobalAlert(Number(b.dataset.id)); }); });
@@ -3975,6 +4071,12 @@ async function submitGlobalAlert(id) {
 
 async function openGlobalTurnoversModal() {
   const r = _qModal('globalTurnoversModal', '↪ Turn Over'); _qTurnsClose = r.close;
+  let done = false;
+  const newBtn = _qHdrBtn('+ New', 'rgba(52,211,153,0.5)'); newBtn.style.color = '#34d399';
+  const tg = _qHdrBtn('Show completed');
+  newBtn.addEventListener('click', function(){ done = false; tg.textContent = 'Show completed'; openCreateTurnoverForm(r.body, function(){ _loadGlobalTurnovers(r.body, false); }); });
+  tg.addEventListener('click', async function(){ done = !done; tg.textContent = done ? '← Show open' : 'Show completed'; await _loadGlobalTurnovers(r.body, done); });
+  r.actions.appendChild(newBtn); r.actions.appendChild(tg);
   await _loadGlobalTurnovers(r.body, false);
 }
 async function _loadGlobalTurnovers(body, done) {
@@ -3987,8 +4089,8 @@ async function _loadGlobalTurnovers(body, done) {
   } catch (e) { body.innerHTML = '<div style="padding:24px;color:#f87171;">' + _qx(e.message || e) + '</div>'; }
 }
 function renderGlobalTurnovers(body, rows, seeAll, done) {
-  const bar = _qToggleBar(rows.length, done, seeAll, 'q-toggle-turns', 'open', 'completed');
-  if (!rows.length) { body.innerHTML = bar + '<div style="padding:28px;text-align:center;color:#7880a8;font-size:0.86rem;">' + (done ? 'No completed turnovers.' : 'No open turnovers you’re concerned with.') + '</div>'; body.querySelector('.q-toggle-turns').addEventListener('click', function(){ _loadGlobalTurnovers(body, !done); }); return; }
+  const bar = _qCountBar(rows.length, done, seeAll, 'open', 'completed');
+  if (!rows.length) { body.innerHTML = bar + '<div style="padding:28px;text-align:center;color:#7880a8;font-size:0.86rem;">' + (done ? 'No completed turnovers.' : 'No open turnovers you’re concerned with.') + '</div>'; return; }
   body.innerHTML = bar + rows.map(function(t){
     const ip = t.in_progress;
     const badge = done ? '<span class="badge ver" style="font-size:0.6rem;">✓ COMPLETED</span>' : (ip ? '<span class="badge" style="font-size:0.6rem;background:rgba(251,146,60,0.18);color:#fb923c;">◐ IN PROGRESS</span>' : '<span class="badge" style="font-size:0.6rem;background:rgba(52,211,153,0.18);color:#34d399;">↪ OPEN</span>');
@@ -4011,7 +4113,6 @@ function renderGlobalTurnovers(body, rows, seeAll, done) {
     const rr = row.querySelector('.qt-result'); if (rr) rr.textContent = t.result || '';
     for (const c of (t.comments || [])) { const cb = row.querySelector('.qc-body[data-cid="' + c.id + '"]'); if (cb) cb.textContent = c.body || ''; }
   }
-  body.querySelector('.q-toggle-turns').addEventListener('click', function(){ _loadGlobalTurnovers(body, !done); });
   body.querySelectorAll('.q-student-link').forEach(function(b){ b.addEventListener('click', function(){ const sid = Number(b.dataset.sid); if (_qTurnsClose) _qTurnsClose(); openStudent(sid); }); });
   if (!done) {
     body.querySelectorAll('.qt-submit').forEach(function(b){ b.addEventListener('click', function(){ submitGlobalTurnover(Number(b.dataset.id)); }); });

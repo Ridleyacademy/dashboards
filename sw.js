@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v275-queue-honors-view-as';
+const CACHE_NAME = 'ridley-v276-queue-show-resolved-toggle';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [

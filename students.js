@@ -3898,55 +3898,67 @@ function _qThread(cs) {
 
 let _qAlertsClose = null, _qTurnsClose = null;
 
-async function openGlobalAlertsModal() {
-  const { body, close } = _qModal('globalAlertsModal', '🔔 Alerts'); _qAlertsClose = close;
-  await _loadGlobalAlerts(body);
+function _qToggleBar(count, done, seeAll, cls, openLabel, doneLabel) {
+  return '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;">'
+    + '<div style="font-size:0.72rem;color:#7880a8;">' + count + ' ' + (done ? doneLabel : openLabel) + ' · ' + (seeAll ? 'showing all' : 'the ones you’re involved with') + '</div>'
+    + '<button class="' + cls + '" style="background:transparent;border:1px solid #2a3050;color:#cbd1ee;border-radius:8px;padding:5px 12px;font-size:0.74rem;font-weight:700;cursor:pointer;font-family:inherit;">' + (done ? '← Show open' : 'Show resolved/completed →') + '</button></div>';
 }
-async function _loadGlobalAlerts(body) {
+
+async function openGlobalAlertsModal() {
+  const r = _qModal('globalAlertsModal', '🔔 Alerts'); _qAlertsClose = r.close;
+  await _loadGlobalAlerts(r.body, false);
+}
+async function _loadGlobalAlerts(body, done) {
+  body.innerHTML = '<div style="padding:32px;text-align:center;color:#7880a8;">Loading…</div>';
   try {
-    const r = await fetch(MS_QUEUE_BASE + '?api=alerts' + _qImpersonateParams(), { headers: { Authorization: 'Bearer ' + currentSession.access_token } });
+    const r = await fetch(MS_QUEUE_BASE + '?api=alerts' + (done ? '&done=1' : '') + _qImpersonateParams(), { headers: { Authorization: 'Bearer ' + currentSession.access_token } });
     const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Failed');
-    renderGlobalAlerts(body, j.rows || [], j.see_all);
-    const e = document.getElementById('globalAlertsCount'); if (e) e.textContent = (j.rows || []).length;
+    renderGlobalAlerts(body, j.rows || [], j.see_all, done);
+    if (!done) { const e = document.getElementById('globalAlertsCount'); if (e) e.textContent = (j.rows || []).length; }
   } catch (e) { body.innerHTML = '<div style="padding:24px;color:#f87171;">' + _qx(e.message || e) + '</div>'; }
 }
-function renderGlobalAlerts(body, rows, seeAll) {
-  if (!rows.length) { body.innerHTML = '<div style="padding:32px;text-align:center;color:#7880a8;font-size:0.86rem;">No open alerts you’re concerned with.</div>'; return; }
-  body.innerHTML = '<div style="font-size:0.72rem;color:#7880a8;margin-bottom:12px;">' + rows.length + ' open · ' + (seeAll ? 'showing all' : 'showing the ones you’re involved with') + '</div>' + rows.map(a => {
+function renderGlobalAlerts(body, rows, seeAll, done) {
+  const bar = _qToggleBar(rows.length, done, seeAll, 'q-toggle-alerts', 'open', 'resolved');
+  if (!rows.length) { body.innerHTML = bar + '<div style="padding:28px;text-align:center;color:#7880a8;font-size:0.86rem;">' + (done ? 'No resolved alerts.' : 'No open alerts you’re concerned with.') + '</div>'; body.querySelector('.q-toggle-alerts').addEventListener('click', function(){ _loadGlobalAlerts(body, !done); }); return; }
+  body.innerHTML = bar + rows.map(function(a){
     const ip = a.in_progress;
-    const badge = ip ? '<span class="badge" style="font-size:0.6rem;background:rgba(251,146,60,0.18);color:#fb923c;">◐ IN PROGRESS</span>' : '<span class="badge exp" style="font-size:0.6rem;">⚠ SUBMITTED</span>';
-    return '<div class="qa-row" data-id="' + a.id + '" style="border:1px solid ' + (ip ? 'rgba(251,146,60,0.4)' : 'rgba(248,113,113,0.35)') + ';border-radius:12px;padding:14px;margin-bottom:12px;background:' + (ip ? 'rgba(251,146,60,0.04)' : 'rgba(248,113,113,0.04)') + ';">'
+    const badge = done ? '<span class="badge ver" style="font-size:0.6rem;">✓ RESOLVED</span>' : (ip ? '<span class="badge" style="font-size:0.6rem;background:rgba(251,146,60,0.18);color:#fb923c;">◐ IN PROGRESS</span>' : '<span class="badge exp" style="font-size:0.6rem;">⚠ SUBMITTED</span>');
+    const border = done ? '#1f2438' : (ip ? 'rgba(251,146,60,0.4)' : 'rgba(248,113,113,0.35)');
+    const bg = done ? 'transparent' : (ip ? 'rgba(251,146,60,0.04)' : 'rgba(248,113,113,0.04)');
+    const resBlock = done ? ('<div style="margin-top:10px;padding-top:10px;border-top:1px solid #1f2438;"><div style="font-size:0.66rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:#34d399;margin-bottom:4px;">Resolution</div><div class="qa-resnote" style="color:#cbd1ee;font-size:0.84rem;line-height:1.5;white-space:pre-wrap;"></div><div style="font-size:0.68rem;color:#7880a8;margin-top:6px;">Resolved ' + (a.resolved_at ? new Date(a.resolved_at).toLocaleString() : '') + ((a.resolved_by_name || a.resolved_by_email) ? ' by ' + _qx(a.resolved_by_name || a.resolved_by_email) : '') + '</div></div>') : '';
+    const form = done ? '' : ('<div style="margin-top:10px;padding-top:10px;border-top:1px solid #1f2438;"><div style="display:flex;gap:6px;margin-bottom:8px;"><label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:7px;border:1px solid #2a3050;border-radius:8px;font-size:0.74rem;cursor:pointer;color:#cbd1ee;"><input type="radio" name="qamode-' + a.id + '" value="response" checked> Response</label><label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:7px;border:1px solid #2a3050;border-radius:8px;font-size:0.74rem;cursor:pointer;color:#cbd1ee;"><input type="radio" name="qamode-' + a.id + '" value="resolve"> Resolution</label></div><textarea class="field-textarea qa-note" data-id="' + a.id + '" placeholder="Post an update without resolving…" style="min-height:52px;width:100%;"></textarea><label style="display:flex;align-items:center;gap:6px;margin:7px 0;font-size:0.73rem;color:#cbd1ee;cursor:pointer;"><input type="checkbox" class="qa-tagcoach" data-id="' + a.id + '"> Tag coach (also notify the coach)</label><button class="profile-save qa-submit" data-id="' + a.id + '" style="padding:6px 13px;font-size:0.76rem;">↩ Post response</button></div>');
+    return '<div class="qa-row" data-id="' + a.id + '" style="border:1px solid ' + border + ';border-radius:12px;padding:14px;margin-bottom:12px;background:' + bg + ';">'
       + '<div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:6px;"><div style="flex:1;"><button class="q-student-link" data-sid="' + a.student_id + '" style="background:none;border:none;color:#8fd6ff;font-weight:800;font-size:0.9rem;cursor:pointer;padding:0;text-decoration:underline;text-underline-offset:2px;font-family:inherit;"></button>' + (a.student_coach ? '<span style="font-size:0.7rem;color:#7880a8;margin-left:8px;">Coach: ' + _qx(a.student_coach) + '</span>' : '') + '</div>' + badge + '</div>'
       + '<div class="qa-title" style="font-weight:800;font-size:0.9rem;margin-bottom:4px;"></div>'
       + '<div class="qa-desc" style="color:#cbd1ee;font-size:0.84rem;line-height:1.5;white-space:pre-wrap;"></div>'
       + '<div style="font-size:0.68rem;color:#7880a8;margin-top:5px;">Submitted ' + (a.created_at ? new Date(a.created_at).toLocaleString() : '') + ((a.created_by_name || a.created_by_email) ? ' by ' + _qx(a.created_by_name || a.created_by_email) : '') + '</div>'
-      + _qThread(a.comments)
-      + '<div style="margin-top:10px;padding-top:10px;border-top:1px solid #1f2438;"><div style="display:flex;gap:6px;margin-bottom:8px;">'
-      + '<label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:7px;border:1px solid #2a3050;border-radius:8px;font-size:0.74rem;cursor:pointer;color:#cbd1ee;"><input type="radio" name="qamode-' + a.id + '" value="response" checked> Response</label>'
-      + '<label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:7px;border:1px solid #2a3050;border-radius:8px;font-size:0.74rem;cursor:pointer;color:#cbd1ee;"><input type="radio" name="qamode-' + a.id + '" value="resolve"> Resolution</label></div>'
-      + '<textarea class="field-textarea qa-note" data-id="' + a.id + '" placeholder="Post an update without resolving…" style="min-height:52px;width:100%;"></textarea>'
-      + '<label style="display:flex;align-items:center;gap:6px;margin:7px 0;font-size:0.73rem;color:#cbd1ee;cursor:pointer;"><input type="checkbox" class="qa-tagcoach" data-id="' + a.id + '"> Tag coach (also notify the coach)</label>'
-      + '<button class="profile-save qa-submit" data-id="' + a.id + '" style="padding:6px 13px;font-size:0.76rem;">↩ Post response</button></div></div>';
+      + _qThread(a.comments) + resBlock + form + '</div>';
   }).join('');
   for (const a of rows) {
     const row = body.querySelector('.qa-row[data-id="' + a.id + '"]'); if (!row) continue;
     row.querySelector('.q-student-link').textContent = a.student_name || ('Student #' + a.student_id);
     row.querySelector('.qa-title').textContent = a.title || '';
     const d = row.querySelector('.qa-desc'); if (d) d.textContent = a.description || '';
+    const rn = row.querySelector('.qa-resnote'); if (rn) rn.textContent = a.resolution_note || '';
     for (const c of (a.comments || [])) { const cb = row.querySelector('.qc-body[data-cid="' + c.id + '"]'); if (cb) cb.textContent = c.body || ''; }
   }
-  body.querySelectorAll('.q-student-link').forEach(b => b.addEventListener('click', () => { const sid = Number(b.dataset.sid); if (_qAlertsClose) _qAlertsClose(); openStudent(sid); }));
-  body.querySelectorAll('.qa-submit').forEach(b => b.addEventListener('click', () => submitGlobalAlert(Number(b.dataset.id))));
-  body.querySelectorAll('input[type="radio"][name^="qamode-"]').forEach(radio => radio.addEventListener('change', () => {
-    const id = radio.name.slice('qamode-'.length);
-    const mode = body.querySelector('input[name="qamode-' + id + '"]:checked')?.value || 'response';
-    const ta = body.querySelector('.qa-note[data-id="' + id + '"]'); const sub = body.querySelector('.qa-submit[data-id="' + id + '"]');
-    if (mode === 'resolve') { if (ta) ta.placeholder = 'Explain how this was resolved (required)…'; if (sub) sub.textContent = '✓ Resolve'; }
-    else { if (ta) ta.placeholder = 'Post an update without resolving…'; if (sub) sub.textContent = '↩ Post response'; }
-  }));
+  body.querySelector('.q-toggle-alerts').addEventListener('click', function(){ _loadGlobalAlerts(body, !done); });
+  body.querySelectorAll('.q-student-link').forEach(function(b){ b.addEventListener('click', function(){ const sid = Number(b.dataset.sid); if (_qAlertsClose) _qAlertsClose(); openStudent(sid); }); });
+  if (!done) {
+    body.querySelectorAll('.qa-submit').forEach(function(b){ b.addEventListener('click', function(){ submitGlobalAlert(Number(b.dataset.id)); }); });
+    body.querySelectorAll('input[type="radio"][name^="qamode-"]').forEach(function(radio){ radio.addEventListener('change', function(){
+      const id = radio.name.slice('qamode-'.length);
+      const sel = body.querySelector('input[name="qamode-' + id + '"]:checked');
+      const mode = sel ? sel.value : 'response';
+      const ta = body.querySelector('.qa-note[data-id="' + id + '"]'); const sub = body.querySelector('.qa-submit[data-id="' + id + '"]');
+      if (mode === 'resolve') { if (ta) ta.placeholder = 'Explain how this was resolved (required)…'; if (sub) sub.textContent = '✓ Resolve'; }
+      else { if (ta) ta.placeholder = 'Post an update without resolving…'; if (sub) sub.textContent = '↩ Post response'; }
+    }); });
+  }
 }
 async function submitGlobalAlert(id) {
-  const mode = document.querySelector('input[name="qamode-' + id + '"]:checked')?.value || 'response';
+  const sel = document.querySelector('input[name="qamode-' + id + '"]:checked');
+  const mode = sel ? sel.value : 'response';
   const text = (document.querySelector('.qa-note[data-id="' + id + '"]')?.value || '').trim();
   if (!text) { alert(mode === 'resolve' ? 'A resolution note is required.' : 'Write a response first.'); return; }
   const tag = document.querySelector('.qa-tagcoach[data-id="' + id + '"]')?.checked === true;
@@ -3956,60 +3968,66 @@ async function submitGlobalAlert(id) {
     const payload = mode === 'resolve' ? { id, resolution_note: text } : { alertId: id, body: text, tag_coach: tag };
     const r = await fetch(STUDENTS_BASE + endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token }, body: JSON.stringify(payload) });
     const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Failed');
-    const bodyEl = document.querySelector('#globalAlertsModal [data-body]'); if (bodyEl) await _loadGlobalAlerts(bodyEl);
+    const bodyEl = document.querySelector('#globalAlertsModal [data-body]'); if (bodyEl) await _loadGlobalAlerts(bodyEl, false);
     if (currentStudent && currentStudent.id) { try { await openStudent(currentStudent.id); } catch (_) {} }
   } catch (e) { if (btn) { btn.disabled = false; btn.textContent = mode === 'resolve' ? '✓ Resolve' : '↩ Post response'; } alert('Failed: ' + (e.message || e)); }
 }
 
 async function openGlobalTurnoversModal() {
-  const { body, close } = _qModal('globalTurnoversModal', '↪ Turn Over'); _qTurnsClose = close;
-  await _loadGlobalTurnovers(body);
+  const r = _qModal('globalTurnoversModal', '↪ Turn Over'); _qTurnsClose = r.close;
+  await _loadGlobalTurnovers(r.body, false);
 }
-async function _loadGlobalTurnovers(body) {
+async function _loadGlobalTurnovers(body, done) {
+  body.innerHTML = '<div style="padding:32px;text-align:center;color:#7880a8;">Loading…</div>';
   try {
-    const r = await fetch(MS_QUEUE_BASE + '?api=turnovers' + _qImpersonateParams(), { headers: { Authorization: 'Bearer ' + currentSession.access_token } });
+    const r = await fetch(MS_QUEUE_BASE + '?api=turnovers' + (done ? '&done=1' : '') + _qImpersonateParams(), { headers: { Authorization: 'Bearer ' + currentSession.access_token } });
     const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Failed');
-    renderGlobalTurnovers(body, j.rows || [], j.see_all);
-    const e = document.getElementById('globalTurnoversCount'); if (e) e.textContent = (j.rows || []).length;
+    renderGlobalTurnovers(body, j.rows || [], j.see_all, done);
+    if (!done) { const e = document.getElementById('globalTurnoversCount'); if (e) e.textContent = (j.rows || []).length; }
   } catch (e) { body.innerHTML = '<div style="padding:24px;color:#f87171;">' + _qx(e.message || e) + '</div>'; }
 }
-function renderGlobalTurnovers(body, rows, seeAll) {
-  if (!rows.length) { body.innerHTML = '<div style="padding:32px;text-align:center;color:#7880a8;font-size:0.86rem;">No open turnovers you’re concerned with.</div>'; return; }
-  body.innerHTML = '<div style="font-size:0.72rem;color:#7880a8;margin-bottom:12px;">' + rows.length + ' open · ' + (seeAll ? 'showing all' : 'showing the ones you’re involved with') + '</div>' + rows.map(t => {
+function renderGlobalTurnovers(body, rows, seeAll, done) {
+  const bar = _qToggleBar(rows.length, done, seeAll, 'q-toggle-turns', 'open', 'completed');
+  if (!rows.length) { body.innerHTML = bar + '<div style="padding:28px;text-align:center;color:#7880a8;font-size:0.86rem;">' + (done ? 'No completed turnovers.' : 'No open turnovers you’re concerned with.') + '</div>'; body.querySelector('.q-toggle-turns').addEventListener('click', function(){ _loadGlobalTurnovers(body, !done); }); return; }
+  body.innerHTML = bar + rows.map(function(t){
     const ip = t.in_progress;
-    const badge = ip ? '<span class="badge" style="font-size:0.6rem;background:rgba(251,146,60,0.18);color:#fb923c;">◐ IN PROGRESS</span>' : '<span class="badge" style="font-size:0.6rem;background:rgba(52,211,153,0.18);color:#34d399;">↪ OPEN</span>';
-    return '<div class="qt-row" data-id="' + t.id + '" style="border:1px solid ' + (ip ? 'rgba(251,146,60,0.4)' : 'rgba(52,211,153,0.35)') + ';border-radius:12px;padding:14px;margin-bottom:12px;background:' + (ip ? 'rgba(251,146,60,0.04)' : 'rgba(52,211,153,0.05)') + ';">'
+    const badge = done ? '<span class="badge ver" style="font-size:0.6rem;">✓ COMPLETED</span>' : (ip ? '<span class="badge" style="font-size:0.6rem;background:rgba(251,146,60,0.18);color:#fb923c;">◐ IN PROGRESS</span>' : '<span class="badge" style="font-size:0.6rem;background:rgba(52,211,153,0.18);color:#34d399;">↪ OPEN</span>');
+    const border = done ? '#1f2438' : (ip ? 'rgba(251,146,60,0.4)' : 'rgba(52,211,153,0.35)');
+    const bg = done ? 'transparent' : (ip ? 'rgba(251,146,60,0.04)' : 'rgba(52,211,153,0.05)');
+    const resBlock = done ? ('<div style="margin-top:10px;padding:10px 12px;border-left:3px solid #34d399;background:rgba(52,211,153,0.08);border-radius:6px;"><div style="font-size:0.66rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:#34d399;margin-bottom:4px;">Result</div><div class="qt-result" style="font-size:0.86rem;color:#eaecf8;line-height:1.5;white-space:pre-wrap;"></div><div style="font-size:0.68rem;color:#7880a8;margin-top:6px;">' + (t.result_at ? new Date(t.result_at).toLocaleString() : '') + ((t.result_by_name || t.result_by_email) ? ' by ' + _qx(t.result_by_name || t.result_by_email) : '') + '</div></div>') : '';
+    const form = done ? '' : ('<div style="margin-top:10px;padding-top:10px;border-top:1px solid #1f2438;"><div style="display:flex;gap:6px;margin-bottom:8px;"><label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:7px;border:1px solid #2a3050;border-radius:8px;font-size:0.74rem;cursor:pointer;color:#cbd1ee;"><input type="radio" name="qtmode-' + t.id + '" value="response" checked> Response</label><label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:7px;border:1px solid #2a3050;border-radius:8px;font-size:0.74rem;cursor:pointer;color:#cbd1ee;"><input type="radio" name="qtmode-' + t.id + '" value="resolve"> Resolution</label></div><textarea class="field-textarea qt-note-in" data-id="' + t.id + '" placeholder="Post an update without resolving…" style="min-height:52px;width:100%;"></textarea><label style="display:flex;align-items:center;gap:6px;margin:7px 0;font-size:0.73rem;color:#cbd1ee;cursor:pointer;"><input type="checkbox" class="qt-tagcoach" data-id="' + t.id + '"> Tag coach (also notify the coach)</label><button class="profile-save qt-submit" data-id="' + t.id + '" style="padding:6px 13px;font-size:0.76rem;">↩ Post response</button></div>');
+    return '<div class="qt-row" data-id="' + t.id + '" style="border:1px solid ' + border + ';border-radius:12px;padding:14px;margin-bottom:12px;background:' + bg + ';">'
       + '<div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:6px;"><div style="flex:1;"><button class="q-student-link" data-sid="' + t.student_id + '" style="background:none;border:none;color:#8fd6ff;font-weight:800;font-size:0.9rem;cursor:pointer;padding:0;text-decoration:underline;text-underline-offset:2px;font-family:inherit;"></button>' + (t.student_coach ? '<span style="font-size:0.7rem;color:#7880a8;margin-left:8px;">Coach: ' + _qx(t.student_coach) + '</span>' : '') + '</div>' + badge + '</div>'
       + '<div style="font-weight:700;font-size:0.9rem;margin-bottom:4px;">→ <span class="qt-rep"></span></div>'
       + '<div class="qt-note" style="color:#cbd1ee;font-size:0.84rem;line-height:1.5;white-space:pre-wrap;"></div>'
       + '<div style="font-size:0.68rem;color:#7880a8;margin-top:5px;">' + (t.turnover_date ? '📅 ' + t.turnover_date + ' · ' : '') + 'Logged ' + (t.created_at ? new Date(t.created_at).toLocaleString() : '') + ((t.created_by_name || t.created_by_email) ? ' by ' + _qx(t.created_by_name || t.created_by_email) : '') + '</div>'
-      + _qThread(t.comments)
-      + '<div style="margin-top:10px;padding-top:10px;border-top:1px solid #1f2438;"><div style="display:flex;gap:6px;margin-bottom:8px;">'
-      + '<label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:7px;border:1px solid #2a3050;border-radius:8px;font-size:0.74rem;cursor:pointer;color:#cbd1ee;"><input type="radio" name="qtmode-' + t.id + '" value="response" checked> Response</label>'
-      + '<label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:7px;border:1px solid #2a3050;border-radius:8px;font-size:0.74rem;cursor:pointer;color:#cbd1ee;"><input type="radio" name="qtmode-' + t.id + '" value="resolve"> Resolution</label></div>'
-      + '<textarea class="field-textarea qt-note-in" data-id="' + t.id + '" placeholder="Post an update without resolving…" style="min-height:52px;width:100%;"></textarea>'
-      + '<label style="display:flex;align-items:center;gap:6px;margin:7px 0;font-size:0.73rem;color:#cbd1ee;cursor:pointer;"><input type="checkbox" class="qt-tagcoach" data-id="' + t.id + '"> Tag coach (also notify the coach)</label>'
-      + '<button class="profile-save qt-submit" data-id="' + t.id + '" style="padding:6px 13px;font-size:0.76rem;">↩ Post response</button></div></div>';
+      + _qThread(t.comments) + resBlock + form + '</div>';
   }).join('');
   for (const t of rows) {
     const row = body.querySelector('.qt-row[data-id="' + t.id + '"]'); if (!row) continue;
     row.querySelector('.q-student-link').textContent = t.student_name || ('Student #' + t.student_id);
     row.querySelector('.qt-rep').textContent = t.rep_name || '';
     const n = row.querySelector('.qt-note'); if (n) n.textContent = t.note || '';
+    const rr = row.querySelector('.qt-result'); if (rr) rr.textContent = t.result || '';
     for (const c of (t.comments || [])) { const cb = row.querySelector('.qc-body[data-cid="' + c.id + '"]'); if (cb) cb.textContent = c.body || ''; }
   }
-  body.querySelectorAll('.q-student-link').forEach(b => b.addEventListener('click', () => { const sid = Number(b.dataset.sid); if (_qTurnsClose) _qTurnsClose(); openStudent(sid); }));
-  body.querySelectorAll('.qt-submit').forEach(b => b.addEventListener('click', () => submitGlobalTurnover(Number(b.dataset.id))));
-  body.querySelectorAll('input[type="radio"][name^="qtmode-"]').forEach(radio => radio.addEventListener('change', () => {
-    const id = radio.name.slice('qtmode-'.length);
-    const mode = body.querySelector('input[name="qtmode-' + id + '"]:checked')?.value || 'response';
-    const ta = body.querySelector('.qt-note-in[data-id="' + id + '"]'); const sub = body.querySelector('.qt-submit[data-id="' + id + '"]');
-    if (mode === 'resolve') { if (ta) ta.placeholder = 'Describe the outcome / result (required)…'; if (sub) sub.textContent = '✓ Resolve'; }
-    else { if (ta) ta.placeholder = 'Post an update without resolving…'; if (sub) sub.textContent = '↩ Post response'; }
-  }));
+  body.querySelector('.q-toggle-turns').addEventListener('click', function(){ _loadGlobalTurnovers(body, !done); });
+  body.querySelectorAll('.q-student-link').forEach(function(b){ b.addEventListener('click', function(){ const sid = Number(b.dataset.sid); if (_qTurnsClose) _qTurnsClose(); openStudent(sid); }); });
+  if (!done) {
+    body.querySelectorAll('.qt-submit').forEach(function(b){ b.addEventListener('click', function(){ submitGlobalTurnover(Number(b.dataset.id)); }); });
+    body.querySelectorAll('input[type="radio"][name^="qtmode-"]').forEach(function(radio){ radio.addEventListener('change', function(){
+      const id = radio.name.slice('qtmode-'.length);
+      const sel = body.querySelector('input[name="qtmode-' + id + '"]:checked');
+      const mode = sel ? sel.value : 'response';
+      const ta = body.querySelector('.qt-note-in[data-id="' + id + '"]'); const sub = body.querySelector('.qt-submit[data-id="' + id + '"]');
+      if (mode === 'resolve') { if (ta) ta.placeholder = 'Describe the outcome / result (required)…'; if (sub) sub.textContent = '✓ Resolve'; }
+      else { if (ta) ta.placeholder = 'Post an update without resolving…'; if (sub) sub.textContent = '↩ Post response'; }
+    }); });
+  }
 }
 async function submitGlobalTurnover(id) {
-  const mode = document.querySelector('input[name="qtmode-' + id + '"]:checked')?.value || 'response';
+  const sel = document.querySelector('input[name="qtmode-' + id + '"]:checked');
+  const mode = sel ? sel.value : 'response';
   const text = (document.querySelector('.qt-note-in[data-id="' + id + '"]')?.value || '').trim();
   if (!text) { alert(mode === 'resolve' ? 'A result is required.' : 'Write a response first.'); return; }
   const tag = document.querySelector('.qt-tagcoach[data-id="' + id + '"]')?.checked === true;
@@ -4019,7 +4037,7 @@ async function submitGlobalTurnover(id) {
     const payload = mode === 'resolve' ? { id, result: text, tag_coach: tag } : { turnoverId: id, body: text, tag_coach: tag };
     const r = await fetch(STUDENTS_BASE + endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token }, body: JSON.stringify(payload) });
     const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Failed');
-    const bodyEl = document.querySelector('#globalTurnoversModal [data-body]'); if (bodyEl) await _loadGlobalTurnovers(bodyEl);
+    const bodyEl = document.querySelector('#globalTurnoversModal [data-body]'); if (bodyEl) await _loadGlobalTurnovers(bodyEl, false);
     if (currentStudent && currentStudent.id) { try { await openStudent(currentStudent.id); } catch (_) {} }
   } catch (e) { if (btn) { btn.disabled = false; btn.textContent = mode === 'resolve' ? '✓ Resolve' : '↩ Post response'; } alert('Failed: ' + (e.message || e)); }
 }

@@ -2775,6 +2775,8 @@ const ACT_LABELS = {
   // Mentorship — turnovers
   'mentorship.turnover_add':    { icon: '↪️', label: 'opened a turnover for',           target: id => 'student #' + id },
   'mentorship.turnover_result': { icon: '☑️', label: 'logged turnover result',          target: id => '#' + id },
+  'mentorship.turnover_comment':        { icon: '💬', label: 'responded to a turnover',        target: id => '#' + id },
+  'mentorship.turnover_comment_delete': { icon: '🗑️', label: 'deleted a turnover response',    target: id => '#' + id },
   'mentorship.turnover_delete': { icon: '🗑️', label: 'deleted a turnover',              target: id => '#' + id },
 
   // Mentorship — wins
@@ -2901,6 +2903,7 @@ function _formatActivity(r) {
   // ─ Turnover add / result — rep, note, result
   if (r.action === 'mentorship.turnover_add')    { pushKV('Handed to', d.rep_name); pushKV('Note', d.note); pushKV('Date', d.turnover_date); if (d.recipients_count) pushKV('Notified', d.recipients_count + ' user' + (d.recipients_count === 1 ? '' : 's')); }
   if (r.action === 'mentorship.turnover_result') { pushKV('Rep', d.rep_name); pushKV('Result', d.result || '(cleared)'); if (d.previous_result) pushKV('Previous result', d.previous_result); }
+  if (r.action === 'mentorship.turnover_comment') { if (d.name) pushKV('Student', d.name); pushKV('Rep', d.rep_name); pushKV('Response', d.body); if (d.recipients_count) pushKV('Notified', d.recipients_count + ' user' + (d.recipients_count === 1 ? '' : 's')); }
   // ─ Activity log add — kind, date, notes
   if (r.action === 'mentorship.activity_add') { pushKV('Kind', d.kind); pushKV('Date', d.activity_date); pushKV('Notes', d.notes); }
   // ─ Survey link add — url + title

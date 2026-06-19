@@ -3321,34 +3321,66 @@ function renderTurnoverList() {
     const bd = b.turnover_date || b.created_at || '';
     return bd.localeCompare(ad);
   });
-  body.innerHTML = sorted.map(t => {
+  const repOpts = (mentors || []).map(m => `<option value="${String(m).replace(/"/g,'&quot;')}"></option>`).join('');
+  body.innerHTML = `<datalist id="turnAnsRepList">${repOpts}</datalist>` + sorted.map(t => {
     const created = t.created_at ? new Date(t.created_at).toLocaleString() : '';
+    const comments = Array.isArray(t.comments) ? t.comments : [];
     const hasResult = !!(t.result && String(t.result).trim());
+    const inProgress = !hasResult && comments.length > 0;
+    const loggedBy = t.created_by_name || t.created_by_email;
+    const badge = hasResult
+      ? `<span class="badge ver" style="font-size:0.6rem;">✓ RESOLVED</span>`
+      : inProgress
+        ? `<span class="badge" style="font-size:0.6rem;background:rgba(251,146,60,0.18);color:#fb923c;">◐ IN PROGRESS</span>`
+        : `<span class="badge" style="font-size:0.6rem;background:rgba(52,211,153,0.18);color:#34d399;">↪ OPEN</span>`;
+    const threadHtml = comments.length ? `
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid #1f2438;">
+        <div style="font-size:0.66rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:#7880a8;margin-bottom:8px;">Responses (${comments.length})</div>
+        ${comments.map(c => `
+          <div style="margin-bottom:10px;padding:8px 10px;background:rgba(255,255,255,0.02);border-radius:8px;border-left:2px solid #3b4368;">
+            <div style="font-size:0.68rem;color:#7880a8;margin-bottom:3px;">${String(c.created_by_name || c.created_by_email || 'someone').replace(/[<>]/g,'')} · ${c.created_at ? new Date(c.created_at).toLocaleString() : ''}</div>
+            <div class="turn-cmt-body" data-cid="${c.id}" style="color:#cbd1ee;font-size:0.83rem;line-height:1.5;white-space:pre-wrap;"></div>
+          </div>`).join('')}
+      </div>` : '';
     const resultMeta = hasResult && t.result_at
-      ? `<div style="font-size:0.68rem;color:#7880a8;margin-top:4px;">Result added ${new Date(t.result_at).toLocaleString()}${t.result_by_email ? ' by ' + t.result_by_email : ''}</div>`
+      ? `<div style="font-size:0.68rem;color:#7880a8;margin-top:4px;">Result added ${new Date(t.result_at).toLocaleString()}${(t.result_by_name || t.result_by_email) ? ' by ' + String(t.result_by_name || t.result_by_email).replace(/[<>]/g,'') : ''}</div>`
       : '';
-    const resultBlock = hasResult
-      ? `<div style="margin-top:10px;padding:10px 12px;border-left:3px solid #34d399;background:rgba(52,211,153,0.08);border-radius:6px;">
-           <div style="font-size:0.68rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:#34d399;margin-bottom:4px;">Result</div>
-           <div class="turn-result-cell" style="font-size:0.86rem;color:#eaecf8;line-height:1.5;white-space:pre-wrap;"></div>
-           ${resultMeta}
-           <div style="margin-top:8px;display:flex;gap:8px;">
-             <button class="turn-result-edit" data-tid="${t.id}" style="background:transparent;border:1px solid #1f2438;color:#7880a8;border-radius:7px;padding:3px 10px;font-weight:600;font-size:0.72rem;cursor:pointer;">Edit result</button>
-           </div>
-         </div>`
-      : `<div style="margin-top:10px;">
-           <button class="turn-result-add" data-tid="${t.id}" style="background:rgba(52,211,153,0.12);border:1px solid rgba(52,211,153,0.4);color:#34d399;border-radius:8px;padding:5px 12px;font-weight:700;font-size:0.74rem;cursor:pointer;">+ Add result</button>
-         </div>`;
-    return `<div class="turn-row" data-tid="${t.id}" style="border:1px solid rgba(52,211,153,0.35);border-radius:12px;padding:14px;margin-bottom:12px;background:rgba(52,211,153,0.05);">
+    const resolvedBlock = hasResult ? `
+      <div style="margin-top:10px;padding:10px 12px;border-left:3px solid #34d399;background:rgba(52,211,153,0.08);border-radius:6px;">
+        <div style="font-size:0.68rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:#34d399;margin-bottom:4px;">Result</div>
+        <div class="turn-result-cell" style="font-size:0.86rem;color:#eaecf8;line-height:1.5;white-space:pre-wrap;"></div>
+        ${resultMeta}
+        <div style="margin-top:8px;display:flex;gap:8px;">
+          <button class="turn-result-edit" data-tid="${t.id}" style="background:transparent;border:1px solid #1f2438;color:#7880a8;border-radius:7px;padding:3px 10px;font-weight:600;font-size:0.72rem;cursor:pointer;">Edit result</button>
+        </div>
+      </div>` : '';
+    const answerForm = !hasResult ? `
+      <div style="margin-top:12px;padding-top:10px;border-top:1px solid #1f2438;">
+        <div style="display:flex;gap:6px;margin-bottom:8px;">
+          <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:7px;border:1px solid #2a3050;border-radius:8px;font-size:0.76rem;cursor:pointer;color:#cbd1ee;"><input type="radio" name="turnmode-${t.id}" value="response" checked style="cursor:pointer;"> Response</label>
+          <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:7px;border:1px solid #2a3050;border-radius:8px;font-size:0.76rem;cursor:pointer;color:#cbd1ee;"><input type="radio" name="turnmode-${t.id}" value="resolve" style="cursor:pointer;"> Resolution</label>
+        </div>
+        <textarea class="field-textarea turn-ans-note" data-tid="${t.id}" placeholder="Post an update without resolving…" style="min-height:56px;width:100%;"></textarea>
+        <div style="margin-top:8px;">
+          <div style="font-size:0.66rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#7880a8;margin-bottom:3px;">Notify rep</div>
+          <input class="field-input turn-ans-rep" data-tid="${t.id}" list="turnAnsRepList" value="${String(t.rep_name||'').replace(/"/g,'&quot;')}" placeholder="Rep to notify" style="width:100%;">
+        </div>
+        <label style="display:flex;align-items:center;gap:6px;margin:8px 0;font-size:0.74rem;color:#cbd1ee;cursor:pointer;"><input type="checkbox" class="turn-ans-tagcoach" data-tid="${t.id}" style="width:15px;height:15px;cursor:pointer;"> Tag coach (also notify the coach)</label>
+        <button class="profile-save turn-ans-btn" data-tid="${t.id}" style="padding:7px 14px;font-size:0.78rem;">↩ Post response</button>
+      </div>` : '';
+    return `<div class="turn-row" data-tid="${t.id}" style="border:1px solid ${hasResult ? '#1f2438' : inProgress ? 'rgba(251,146,60,0.4)' : 'rgba(52,211,153,0.35)'};border-radius:12px;padding:14px;margin-bottom:12px;background:${hasResult ? 'transparent' : inProgress ? 'rgba(251,146,60,0.04)' : 'rgba(52,211,153,0.05)'};">
       <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:6px;">
         <div style="flex:1;">
           <div style="font-weight:700;font-size:0.92rem;">→ <span class="turn-rep-cell"></span></div>
           <div class="turn-note-cell" style="margin-top:4px;font-size:0.86rem;color:#c2c8e0;line-height:1.5;white-space:pre-wrap;"></div>
         </div>
+        ${badge}
         <button class="profile-delete turn-del" data-tid="${t.id}" style="padding:4px 10px;font-size:0.72rem;flex-shrink:0;">✕</button>
       </div>
-      <div style="font-size:0.7rem;color:#7880a8;">${t.turnover_date ? '📅 ' + t.turnover_date + ' · ' : ''}Logged ${created}${t.created_by_email ? ' by ' + t.created_by_email : ''}</div>
-      ${resultBlock}
+      <div style="font-size:0.7rem;color:#7880a8;">${t.turnover_date ? '📅 ' + t.turnover_date + ' · ' : ''}Logged ${created}${loggedBy ? ' by ' + String(loggedBy).replace(/[<>]/g,'') : ''}</div>
+      ${threadHtml}
+      ${resolvedBlock}
+      ${answerForm}
     </div>`;
   }).join('');
   for (const t of sorted) {
@@ -3360,13 +3392,64 @@ function renderTurnoverList() {
     if (noteCell) noteCell.textContent = t.note || '';
     const resultCell = row.querySelector('.turn-result-cell');
     if (resultCell) resultCell.textContent = t.result || '';
+    for (const c of (Array.isArray(t.comments) ? t.comments : [])) {
+      const cb = row.querySelector(`.turn-cmt-body[data-cid="${c.id}"]`);
+      if (cb) cb.textContent = c.body || '';
+    }
   }
   body.querySelectorAll('.turn-del').forEach(btn => {
     btn.addEventListener('click', () => deleteTurnover(Number(btn.dataset.tid)));
   });
-  body.querySelectorAll('.turn-result-add, .turn-result-edit').forEach(btn => {
+  body.querySelectorAll('.turn-result-edit').forEach(btn => {
     btn.addEventListener('click', () => openTurnoverResultModal(Number(btn.dataset.tid)));
   });
+  body.querySelectorAll('.turn-ans-btn').forEach(btn => {
+    btn.addEventListener('click', () => submitTurnoverEntry(Number(btn.dataset.tid)));
+  });
+  // Response / Resolution picker: swap placeholder + button label.
+  body.querySelectorAll('input[type="radio"][name^="turnmode-"]').forEach(radio => {
+    radio.addEventListener('change', () => {
+      const id = radio.name.slice('turnmode-'.length);
+      const mode = body.querySelector(`input[name="turnmode-${id}"]:checked`)?.value || 'response';
+      const ta  = body.querySelector(`.turn-ans-note[data-tid="${id}"]`);
+      const sub = body.querySelector(`.turn-ans-btn[data-tid="${id}"]`);
+      if (mode === 'resolve') { if (ta) ta.placeholder = 'Describe the outcome / result (required)…'; if (sub) sub.textContent = '✓ Resolve'; }
+      else { if (ta) ta.placeholder = 'Post an update without resolving…'; if (sub) sub.textContent = '↩ Post response'; }
+    });
+  });
+}
+
+// Single submit for the turnover Response/Resolution picker. 'resolve' closes
+// the turnover (result required) via set-turnover-result; 'response' posts an
+// in-progress update via add-turnover-comment. Both notify the selected rep
+// (default = assigned rep) and, if Tag coach is checked, the coach.
+async function submitTurnoverEntry(id) {
+  const mode = document.querySelector(`input[name="turnmode-${id}"]:checked`)?.value || 'response';
+  const text = (document.querySelector(`.turn-ans-note[data-tid="${id}"]`)?.value || '').trim();
+  if (!text) { alert(mode === 'resolve' ? 'A result is required.' : 'Write a response first.'); return; }
+  const rep = (document.querySelector(`.turn-ans-rep[data-tid="${id}"]`)?.value || '').trim();
+  const tag = document.querySelector(`.turn-ans-tagcoach[data-tid="${id}"]`)?.checked === true;
+  const btn = document.querySelector(`.turn-ans-btn[data-tid="${id}"]`);
+  if (btn) { btn.disabled = true; btn.textContent = mode === 'resolve' ? 'Resolving…' : 'Posting…'; }
+  try {
+    const endpoint = mode === 'resolve' ? '?api=set-turnover-result' : '?api=add-turnover-comment';
+    const payload  = mode === 'resolve'
+      ? { id, result: text, tag_coach: tag, rep_name: rep || undefined }
+      : { turnoverId: id, body: text, tag_coach: tag, rep_name: rep || undefined };
+    const r = await fetch(STUDENTS_BASE + endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
+      body: JSON.stringify(payload),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Failed');
+    await openStudent(currentStudent.id);
+    await loadStudents();
+    if (document.getElementById('turnListModal')) renderTurnoverList();
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = mode === 'resolve' ? '✓ Resolve' : '↩ Post response'; }
+    alert('Failed: ' + (e.message || e));
+  }
 }
 
 function openTurnoverResultModal(turnoverId) {

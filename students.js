@@ -3847,12 +3847,25 @@ initAuth().catch(e => { console.error('Unhandled auth error:', e); setState('log
 // only what they're involved with.
 const MS_QUEUE_BASE = SUPABASE_URL + '/functions/v1/ms-queue';
 function _qx(s){ return String(s == null ? '' : s).replace(/[<>]/g, ''); }
+// When an admin is "Viewing as" someone, tell ms-queue so it scopes the queue
+// AS THAT USER (server only honors this for privileged real callers).
+function _qImpersonateParams(){
+  try {
+    const raw = localStorage.getItem('impersonate-user'); if (!raw) return '';
+    const imp = JSON.parse(raw); const p = new URLSearchParams();
+    if (imp.id) p.set('as_uid', imp.id);
+    if (imp.email) p.set('as_email', imp.email);
+    if (Array.isArray(imp.permissions)) p.set('as_perms', imp.permissions.join(','));
+    p.set('as_admin', imp.is_admin === true ? '1' : '0');
+    const s = p.toString(); return s ? '&' + s : '';
+  } catch (_) { return ''; }
+}
 
 async function loadGlobalQueueCounts() {
   if (!currentSession) return;
   for (const [api, elId] of [['alerts','globalAlertsCount'], ['turnovers','globalTurnoversCount']]) {
     try {
-      const r = await fetch(MS_QUEUE_BASE + '?api=' + api, { headers: { Authorization: 'Bearer ' + currentSession.access_token } });
+      const r = await fetch(MS_QUEUE_BASE + '?api=' + api + _qImpersonateParams(), { headers: { Authorization: 'Bearer ' + currentSession.access_token } });
       const j = await r.json();
       if (r.ok) { const el = document.getElementById(elId); if (el) el.textContent = (j.rows || []).length; }
     } catch (_) {}
@@ -3891,7 +3904,7 @@ async function openGlobalAlertsModal() {
 }
 async function _loadGlobalAlerts(body) {
   try {
-    const r = await fetch(MS_QUEUE_BASE + '?api=alerts', { headers: { Authorization: 'Bearer ' + currentSession.access_token } });
+    const r = await fetch(MS_QUEUE_BASE + '?api=alerts' + _qImpersonateParams(), { headers: { Authorization: 'Bearer ' + currentSession.access_token } });
     const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Failed');
     renderGlobalAlerts(body, j.rows || [], j.see_all);
     const e = document.getElementById('globalAlertsCount'); if (e) e.textContent = (j.rows || []).length;
@@ -3954,7 +3967,7 @@ async function openGlobalTurnoversModal() {
 }
 async function _loadGlobalTurnovers(body) {
   try {
-    const r = await fetch(MS_QUEUE_BASE + '?api=turnovers', { headers: { Authorization: 'Bearer ' + currentSession.access_token } });
+    const r = await fetch(MS_QUEUE_BASE + '?api=turnovers' + _qImpersonateParams(), { headers: { Authorization: 'Bearer ' + currentSession.access_token } });
     const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Failed');
     renderGlobalTurnovers(body, j.rows || [], j.see_all);
     const e = document.getElementById('globalTurnoversCount'); if (e) e.textContent = (j.rows || []).length;

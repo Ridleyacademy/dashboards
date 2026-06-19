@@ -2011,8 +2011,11 @@ function renderProfile() {
           <button class="alert-btn-list" id="prof-list-alerts" title="Service alerts for this student (open + resolved history)">
             ${ICONS.bell()} Alerts <span class="alert-badge${(currentAlerts.filter(a=>a.status==='open').length>0)?' has-open':''}">${currentAlerts.filter(a=>a.status==='open').length}</span>
           </button>
-          <button class="win-btn-list" id="prof-list-logs" title="Wins, notes, and turnovers for this student">
-            ${ICONS.clipboard()} Logs <span class="win-badge${(currentWins.length+currentCoachNotes.length+currentTurnovers.length+currentRepNotes.length+currentIcNotes.length)>0?' has-any':''}">${currentWins.length+currentCoachNotes.length+currentTurnovers.length+currentRepNotes.length+currentIcNotes.length}</span>
+          <button class="win-btn-list" id="prof-list-turnovers" title="Turnovers for this student (open + resolved history)">
+            ${ICONS.refresh()} Turnovers <span class="win-badge${currentTurnovers.length>0?' has-any':''}">${currentTurnovers.length}</span>
+          </button>
+          <button class="win-btn-list" id="prof-list-logs" title="Wins and notes for this student">
+            ${ICONS.clipboard()} Logs <span class="win-badge${(currentWins.length+currentCoachNotes.length+currentRepNotes.length+currentIcNotes.length)>0?' has-any':''}">${currentWins.length+currentCoachNotes.length+currentRepNotes.length+currentIcNotes.length}</span>
           </button>
           <button class="win-btn-list" id="prof-list-videos" title="Open this student's videos from Dropbox">
             ${ICONS.film()} Videos
@@ -2205,6 +2208,7 @@ function renderProfile() {
     _wireResigns();
     _wireActivityHistory();
     document.getElementById('prof-list-alerts')?.addEventListener('click', openAlertsHistoryModal);
+    document.getElementById('prof-list-turnovers')?.addEventListener('click', openTurnoversHistoryModal);
     document.getElementById('prof-list-logs')?.addEventListener('click', openLogsChooserModal);
     document.getElementById('prof-list-videos')?.addEventListener('click', openDropboxVideosModal);
     document.getElementById('prof-list-surveys')?.addEventListener('click', openSurveysHistoryModal);
@@ -3178,10 +3182,6 @@ function openLogsChooserModal() {
         <button data-act="icnotes" style="${cardCss}">
           <div style="font-size:1.0rem;font-weight:700;display:flex;align-items:center;gap:10px;">${ICONS.target()} I/C notes <span style="background:${currentIcNotes.length?'#f472b6':'#1f2438'};color:${currentIcNotes.length?'#0b0c14':'#7880a8'};border-radius:999px;padding:1px 8px;font-size:0.7rem;font-weight:800;">${currentIcNotes.length}</span></div>
           <div style="font-size:0.78rem;color:#7880a8;">Initial-call notes — onboarding, intent, fit.</div>
-        </button>
-        <button data-act="turnovers" style="${cardCss}">
-          <div style="font-size:1.0rem;font-weight:700;display:flex;align-items:center;gap:10px;">${ICONS.refresh()} Turnovers <span style="background:${currentTurnovers.length?'#34d399':'#1f2438'};color:${currentTurnovers.length?'#0b0c14':'#7880a8'};border-radius:999px;padding:1px 8px;font-size:0.7rem;font-weight:800;">${currentTurnovers.length}</span></div>
-          <div style="font-size:0.78rem;color:#7880a8;">Hand-offs to a rep — log the rep, note, and outcome.</div>
         </button>
       </div>
     </div>`;

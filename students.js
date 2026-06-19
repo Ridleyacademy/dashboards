@@ -3223,10 +3223,10 @@ function openAddTurnoverModal() {
   m.innerHTML = `
     <div style="background:#13141f;border:1px solid #1f2438;border-radius:18px;padding:24px 26px;max-width:460px;width:100%;color:#eaecf8;box-shadow:0 24px 60px rgba(0,0,0,0.55);">
       <div style="font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;margin-bottom:4px;display:flex;align-items:center;gap:8px;">${ICONS.refresh(16)} Turnover sale to a rep</div>
-      <div style="font-size:0.78rem;color:#7880a8;margin-bottom:18px;">Hand this student off to a rep. Pick from the list or type a new name.</div>
+      <div style="font-size:0.78rem;color:#7880a8;margin-bottom:18px;">Hand this student off to a rep. Defaults to the assigned rep — change it if handing to someone else.</div>
       <div class="field" style="margin-bottom:12px;">
         <div class="field-label">Rep *</div>
-        <input class="field-input" id="turnModalRep" list="${datalistId}" placeholder="Pick or type a rep name" required>
+        <input class="field-input" id="turnModalRep" list="${datalistId}" value="${String(currentStudent.rep || '').replace(/"/g,'&quot;')}" placeholder="Pick or type a rep name" required>
         <datalist id="${datalistId}">${optsHtml}</datalist>
       </div>
       <div class="field" style="margin-bottom:12px;">

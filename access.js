@@ -2768,6 +2768,8 @@ const ACT_LABELS = {
   // Mentorship — alerts
   'mentorship.alert_add':       { icon: '⚠️', label: 'opened an alert on',              target: id => 'student #' + id },
   'mentorship.alert_resolve':   { icon: '✅', label: 'resolved an alert',               target: id => '#' + id },
+  'mentorship.alert_comment':        { icon: '💬', label: 'responded to an alert',           target: id => '#' + id },
+  'mentorship.alert_comment_delete': { icon: '🗑️', label: 'deleted an alert response',       target: id => '#' + id },
   'mentorship.alert_delete':    { icon: '🗑️', label: 'deleted an alert',                target: id => '#' + id },
 
   // Mentorship — turnovers
@@ -2882,6 +2884,7 @@ function _formatActivity(r) {
   // ─ Alert add / resolve — title + description + resolution note
   if (r.action === 'mentorship.alert_add')      { pushKV('Title', d.title); pushKV('Details', d.description); if (d.recipients_count) pushKV('Notified', d.recipients_count + ' user' + (d.recipients_count === 1 ? '' : 's')); }
   if (r.action === 'mentorship.alert_resolve')  { pushKV('Title', d.alert_title); pushKV('Resolution', d.resolution_note); if (d.recipients_count) pushKV('Notified', d.recipients_count + ' user' + (d.recipients_count === 1 ? '' : 's')); }
+  if (r.action === 'mentorship.alert_comment')  { if (d.name) pushKV('Student', d.name); pushKV('Response', d.body); if (d.recipients_count) pushKV('Notified', d.recipients_count + ' user' + (d.recipients_count === 1 ? '' : 's')); }
   // ─ Generic *_delete — show snapshot of the deleted row (already captured server-side)
   if (/_delete$/.test(r.action) && d.deleted && typeof d.deleted === 'object') {
     for (const [k, v] of Object.entries(d.deleted)) {

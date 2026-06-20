@@ -507,7 +507,7 @@ function renderChartGrid(visible) {
           <span class="chart-card-delta ${cls}">${arrow} ${pct}</span>
         </div>
         <div class="chart-card-wrap"><canvas id="c-${cssId(m.key)}"></canvas></div>
-        <div class="chart-card-foot">${pts.length} ${activePeriod === 'weekly' ? 'weeks' : 'months'} · ${m.division} · click to expand</div>
+        <div class="chart-card-foot">${pts.length} ${activePeriod === 'weekly' ? 'weeks' : 'months'} · ${m.division === 'D5' ? 'D4B' : m.division} · click to expand</div>
       </div>`;
   }).join('');
 

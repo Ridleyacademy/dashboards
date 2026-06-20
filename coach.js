@@ -193,7 +193,6 @@ async function loadStudents(opts) {
     const sigNew = rows.length + ':' + (rows[0]?.id || '');
     allStudents = rows;
     _writeStudentsCache(rows);
-    _maybeWriteActiveSnapshot();   // exact-parity feed for Weekly Stats (privileged, global view only)
     if (sigPrev !== sigNew || force || !cache) {
       populateCoachPicker();
       renderAll();
@@ -206,39 +205,6 @@ async function loadStudents(opts) {
   }
 }
 document.getElementById('refreshBtn').addEventListener('click', () => { loadStudents(); loadUpcomingMeetings(); });
-
-// ── Weekly Stats exact-parity feed ────────────────────────────
-// When a company-wide-capable viewer (admin / ms_ic / delivery_ic / mentorship)
-// loads the full roster — and is NOT viewing-as a single coach — push the
-// company-wide "Active Mentorship Students" count + live roster to Weekly
-// Stats, computed from the SAME server-provided derived_status this dashboard
-// displays. Weekly Stats overlays this snapshot so its number matches the
-// coach dashboard exactly. Coaches and impersonated/scoped views never write.
-let _activeSnapWritten = false;
-function _engagedForSnapshot(s) { const d = _daysSinceActivity(s); return d != null && d <= 7; }
-function _computeGlobalActive() {
-  const LIVE = new Set(['Active', 'Inactive', 'Expiring soon']);
-  // Mirror renderAll's denominator: drop refunded + Expired + Not-onboarded-&-expired.
-  const denomRows = allStudents.filter(s =>
-    !_isRefunded(s) && !_isExpired(s) && !_isNotOnbExpired(s) && (s.derived_status || '') !== 'Refunded');
-  const active = denomRows.filter(s => LIVE.has(s.derived_status || '')).filter(_engagedForSnapshot);
-  return { active: active.length, roster: denomRows.length };
-}
-async function _maybeWriteActiveSnapshot() {
-  try {
-    if (_activeSnapWritten || !isPrivilegedViewer || !allStudents.length) return;
-    const eff = window.RidleyPerms.effective(currentSession.user);
-    if (eff && eff.impersonated) return;   // viewing-as → not the company-wide picture
-    const { active, roster } = _computeGlobalActive();
-    if (!roster) return;
-    _activeSnapWritten = true;
-    await fetch(SUPABASE_URL + '/functions/v1/weekly-stats?api=active-snapshot', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
-      body: JSON.stringify({ active, roster }),
-    });
-  } catch (e) { /* non-fatal — never block the dashboard */ }
-}
 
 function escapeHtml(s) {
   return String(s == null ? '' : s)

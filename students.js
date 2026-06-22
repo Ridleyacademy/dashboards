@@ -1115,15 +1115,11 @@ function drApplyPreset(preset, reload) {
   document.getElementById('daterangePopup').classList.remove('open');
   if (reload) renderStudentList();
 }
-// Self-init: read saved preset (filters.js persists across dashboards).
-(function(){
-  let p = 'all';
-  try {
-    const s = JSON.parse(localStorage.getItem('ridley:dateRange:v2') || 'null');
-    if (s && s.preset && ['all','this-week','last-week','mtd','last-30'].indexOf(s.preset) >= 0) p = s.preset;
-  } catch (_) {}
-  drApplyPreset(p, false);
-})();
+// The CRM is a full roster — its date range is an OPT-IN filter, so it always
+// starts at "All Time". (We intentionally do NOT inherit the cross-dashboard
+// saved preset from filters.js; that would silently hide most students, e.g.
+// "Joined: This Week" → 0 matches on first load.)
+drApplyPreset('all', false);
 document.getElementById('daterangeBtn').addEventListener('click', e => {
   e.stopPropagation();
   document.getElementById('daterangePopup').classList.toggle('open');

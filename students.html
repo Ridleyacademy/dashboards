@@ -449,6 +449,16 @@
         <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
       </button>
       <div class="daterange-popup" id="daterangePopup">
+        <div class="dr-custom-label" style="margin-top:0;">Filter on which date</div>
+        <select id="drField" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 9px;color:var(--text);font-size:0.83rem;margin-bottom:8px;outline:none;">
+          <option value="joined_at">Joined date</option>
+          <option value="student_onboarded_date">Onboarded date</option>
+          <option value="first_purchase_date">First purchase date</option>
+          <option value="end_date">Term end date</option>
+          <option value="refunded_date">Refunded date</option>
+          <option value="last_activity_date">Last activity date</option>
+        </select>
+        <div class="dr-divider"></div>
         <div class="dr-presets">
           <button class="dr-preset active" data-preset="all">All Time</button>
           <button class="dr-preset" data-preset="last-30">Last 30 Days</button>
@@ -457,7 +467,7 @@
           <button class="dr-preset" data-preset="mtd">Month to Date</button>
         </div>
         <div class="dr-divider"></div>
-        <div class="dr-custom-label">Custom Range (joined date)</div>
+        <div class="dr-custom-label">Custom range</div>
         <div class="dr-custom-row">
           <input type="date" class="dr-date-input" id="dateFrom">
           <span class="dr-sep">→</span>

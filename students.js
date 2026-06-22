@@ -354,11 +354,13 @@ async function loadReps() {
 // ── Filter state ─────────────────────────────────────────────
 let listFilter   = 'all';            // 'all' | 'mine' | 'stale' | 'duplicates'
 let overviewMode = false;
+let advMoreOpen  = false;            // collapsible "More filters" section in the filter panel
 const STALE_DAYS = 30;
 
 // Advanced filter state. Multi-value fields are arrays; tri-state booleans
 // use null = any, true = yes, false = no.
 const advFilters = {
+  rep:             [],
   coach:           [],
   mentor:          [],
   product:         [],
@@ -467,6 +469,7 @@ function _applyAdvFilters(rows) {
     return !!value === f;
   }
   return rows.filter(s => {
+    if (!matchArr('rep',            s.rep || '(unassigned)')) return false;
     if (!matchArr('coach',          s.coach || '(unassigned)')) return false;
     if (!matchArr('mentor',         s.mentor || '(unassigned)')) return false;
     if (!matchArr('product',        s.product || '(none)')) return false;
@@ -536,13 +539,26 @@ function renderAdvFilterPanel() {
     </div>`;
   };
 
+  const customDays = advFilters.days_left_bucket.includes('custom') ? `
+      <div class="adv-filter-section" style="margin-top:-0.2rem;">
+        <div class="adv-filter-options">
+          <input type="number" min="1" step="1" id="advExpiringCustomDays"
+            value="${escapeHtml(advFilters.expiring_custom_days || '')}"
+            placeholder="e.g. 45"
+            style="padding:0.35rem 0.55rem;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:0.8rem;width:110px;" />
+          <span style="font-size:0.7rem;color:var(--text-dim);align-self:center;">≤ N days until end</span>
+        </div>
+      </div>` : '';
+
   panel.innerHTML = `
     <div class="adv-filter-grid">
+      ${sectionMulti('rep', ICONS.target() + ' Rep', _uniqueValues('rep', '(unassigned)'))}
       ${sectionMulti('coach', ICONS.user() + ' Coach', _uniqueValues('coach', '(unassigned)'))}
-      ${sectionMulti('mentor', ICONS.target() + ' Rep / Mentor', _uniqueValues('mentor', '(unassigned)'))}
     </div>
-    ${sectionMulti('product', '📦 Product', _uniqueValues('product', '(none)'))}
-    ${sectionMulti('derived_status', '🚦 Lifecycle status', _uniqueValues('derived_status', '(none)'))}
+    <div class="adv-filter-grid">
+      ${sectionMulti('derived_status', '🚦 Status', _uniqueValues('derived_status', '(none)'))}
+      ${sectionMulti('level', '🎚 Level', _uniqueValues('level', '(none)'))}
+    </div>
     ${sectionBucket('days_left_bucket', '⏱ Expiring within', [
       { val: 'expired', label: 'Expired' },
       { val: 'lt7',  label: '≤ 1 week' },
@@ -555,48 +571,46 @@ function renderAdvFilterPanel() {
       { val: 'delayed', label: 'Delayed start' },
       { val: 'unknown', label: 'Not onboarded' },
     ])}
-    ${advFilters.days_left_bucket.includes('custom') ? `
-      <div class="adv-filter-section" style="margin-top:-0.4rem;">
-        <div class="adv-filter-label">Custom threshold (days)</div>
-        <div class="adv-filter-options">
-          <input type="number" min="1" step="1" id="advExpiringCustomDays"
-            value="${escapeHtml(advFilters.expiring_custom_days || '')}"
-            placeholder="e.g. 45"
-            style="padding:0.35rem 0.55rem;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:0.8rem;width:120px;" />
-          <span style="font-size:0.7rem;color:var(--text-dim);align-self:center;">≤ N days until end</span>
-        </div>
-      </div>` : ''}
-    ${sectionBucket('inactive_days_bucket', ICONS.calendar() + ' Days since last activity', [
-      { val: '0-30', label: '≤ 30d' },
-      { val: '30-60', label: '30–60d' },
-      { val: '60+', label: '60d+' },
-      { val: 'never', label: 'No activity ever' },
-    ])}
-    ${sectionTri('expired_never_onboarded', '⚠ Expired &amp; never onboarded')}
-    <div class="adv-filter-grid">
-      ${sectionMulti('coach_status', ICONS.pulse() + ' Coach status', _uniqueValues('coach_status', '(none)'))}
-      ${sectionMulti('level', '🎚 Level', _uniqueValues('level', '(none)'))}
-    </div>
-    <div class="adv-filter-grid">
-      ${sectionMulti('masterclass_level', ICONS.music() + ' Masterclass level', _uniqueValues('masterclass_level', '(none)'))}
-    </div>
-    ${sectionMulti('months_count', '📆 Term length (months)', _uniqueValues('months_count', '12'))}
-    <div class="adv-filter-grid">
-      ${sectionTri('verified', '✓ Verified')}
-      ${sectionTri('has_open_alerts', ICONS.alertTri() + ' Has open alerts')}
-    </div>
-    <div class="adv-filter-grid">
-      ${sectionTri('has_wins', '★ Has wins')}
-      ${sectionTri('has_video', ICONS.film() + ' Has video')}
-    </div>
-    <div class="adv-filter-grid">
-      ${sectionTri('has_survey', ICONS.fileText() + ' Has survey')}
-      ${sectionTri('has_gdrive', ICONS.folder() + ' Has Google Drive')}
-    </div>
+    ${customDays}
+    <button type="button" id="advMoreToggle" style="align-self:flex-start;background:none;border:none;color:var(--accent,#34d399);font-size:0.74rem;font-weight:800;cursor:pointer;padding:4px 0;font-family:inherit;display:inline-flex;align-items:center;gap:5px;">
+      ${advMoreOpen ? '▾ Fewer filters' : '▸ More filters'}
+    </button>
+    ${advMoreOpen ? `
+      <div class="adv-filter-grid">
+        ${sectionMulti('coach_status', ICONS.pulse() + ' Coach status', _uniqueValues('coach_status', '(none)'))}
+        ${sectionMulti('mentor', '🎯 Mentor', _uniqueValues('mentor', '(unassigned)'))}
+      </div>
+      <div class="adv-filter-grid">
+        ${sectionMulti('product', '📦 Product', _uniqueValues('product', '(none)'))}
+        ${sectionMulti('masterclass_level', ICONS.music() + ' Masterclass level', _uniqueValues('masterclass_level', '(none)'))}
+      </div>
+      ${sectionMulti('months_count', '📆 Term length (months)', _uniqueValues('months_count', '12'))}
+      ${sectionBucket('inactive_days_bucket', ICONS.calendar() + ' Days since last activity', [
+        { val: '0-30', label: '≤ 30d' },
+        { val: '30-60', label: '30–60d' },
+        { val: '60+', label: '60d+' },
+        { val: 'never', label: 'No activity ever' },
+      ])}
+      ${sectionTri('expired_never_onboarded', '⚠ Expired &amp; never onboarded')}
+      <div class="adv-filter-grid">
+        ${sectionTri('verified', '✓ Verified')}
+        ${sectionTri('has_open_alerts', ICONS.alertTri() + ' Has open alerts')}
+      </div>
+      <div class="adv-filter-grid">
+        ${sectionTri('has_wins', '★ Has wins')}
+        ${sectionTri('has_video', ICONS.film() + ' Has video')}
+      </div>
+      <div class="adv-filter-grid">
+        ${sectionTri('has_survey', ICONS.fileText() + ' Has survey')}
+        ${sectionTri('has_gdrive', ICONS.folder() + ' Has Google Drive')}
+      </div>
+    ` : ''}
     <div class="adv-filter-actions">
       <span style="font-size:0.7rem;color:var(--text-dim);">${_advFilterCount()} filter${_advFilterCount()===1?'':'s'} applied</span>
       <button class="adv-filter-clearall" id="advFilterClearAll">Clear all</button>
     </div>`;
+
+  document.getElementById('advMoreToggle')?.addEventListener('click', () => { advMoreOpen = !advMoreOpen; renderAdvFilterPanel(); });
 
   panel.querySelectorAll('[data-multi]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -628,7 +642,7 @@ function renderAdvFilterPanel() {
 
 function _activeFilterChipLabel(key, val) {
   const labelMap = {
-    coach: 'Coach', mentor: 'Rep', product: 'Product',
+    rep: 'Rep', coach: 'Coach', mentor: 'Mentor', product: 'Product',
     derived_status: 'Status', level: 'Level',
     masterclass_level: 'Masterclass',
     coach_status: 'Coach status', months_count: 'Term',
@@ -803,8 +817,9 @@ function renderStudentList() {
   const wideRange = drFrom === '0001-01-01' && drTo === '9999-12-31';
   if (!wideRange) {
     rows = rows.filter(s => {
-      if (!s.joined_at) return true;
-      const d = String(s.joined_at).slice(0, 10);
+      const raw = s[drField];
+      if (!raw) return false;                 // no date in this field → not in the range
+      const d = String(raw).slice(0, 10);
       return d >= drFrom && d <= drTo;
     });
   }
@@ -965,7 +980,7 @@ function renderOverviewPane() {
   const q = (document.getElementById('studentSearch').value || '').toLowerCase().trim();
   let rows = students.slice();
   const wideRange = drFrom === '0001-01-01' && drTo === '9999-12-31';
-  if (!wideRange) rows = rows.filter(s => !s.joined_at || (String(s.joined_at).slice(0,10) >= drFrom && String(s.joined_at).slice(0,10) <= drTo));
+  if (!wideRange) rows = rows.filter(s => { const raw = s[drField]; if (!raw) return false; const d = String(raw).slice(0,10); return d >= drFrom && d <= drTo; });
   const mineSet = _myCoachIdentities();
   if (listFilter === 'mine')            rows = rows.filter(s => _isMine(s, mineSet));
   else if (listFilter === 'stale')      rows = rows.filter(_isStale);
@@ -1081,13 +1096,22 @@ function getPresetRange(preset) {
 const DR_LABELS = { 'all': 'All Time', 'last-30': 'Last 30 Days', 'this-week': 'This Week', 'last-week': 'Last Week', 'mtd': 'Month to Date' };
 let drActivePreset = 'all';
 let drFrom = '0001-01-01', drTo = '9999-12-31';
+// Which student date field the range applies to (rebuilt filter system).
+let drField = 'joined_at';
+const DR_FIELD_LABELS = { joined_at: 'Joined', student_onboarded_date: 'Onboarded', first_purchase_date: 'First purchase', end_date: 'Term end', refunded_date: 'Refunded', last_activity_date: 'Last activity' };
+function _drFieldLabel() { return DR_FIELD_LABELS[drField] || 'Joined'; }
+function _drSetLabel() {
+  const rangeText = drActivePreset ? (DR_LABELS[drActivePreset] || drActivePreset) : `${drFrom} → ${drTo}`;
+  const isAllJoined = drActivePreset === 'all' && drField === 'joined_at';
+  document.getElementById('drLabel').textContent = isAllJoined ? 'All Time' : `${_drFieldLabel()}: ${rangeText}`;
+}
 function drApplyPreset(preset, reload) {
   const r = getPresetRange(preset);
   drActivePreset = preset; drFrom = r.from; drTo = r.to;
   document.getElementById('dateFrom').value = preset === 'all' ? '' : r.from;
   document.getElementById('dateTo').value   = preset === 'all' ? '' : r.to;
   document.querySelectorAll('.dr-preset').forEach(b => b.classList.toggle('active', b.dataset.preset === preset));
-  document.getElementById('drLabel').textContent = DR_LABELS[preset] || preset;
+  _drSetLabel();
   document.getElementById('daterangePopup').classList.remove('open');
   if (reload) renderStudentList();
 }
@@ -1115,8 +1139,14 @@ document.getElementById('drApply').addEventListener('click', () => {
   if (!f || !t) return;
   drActivePreset = null; drFrom = f; drTo = t;
   document.querySelectorAll('.dr-preset').forEach(b => b.classList.remove('active'));
-  document.getElementById('drLabel').textContent = `${f} → ${t}`;
+  _drSetLabel();
   document.getElementById('daterangePopup').classList.remove('open');
+  renderStudentList();
+});
+// Changing the date FIELD re-applies the current range to the new field (no popup close).
+document.getElementById('drField')?.addEventListener('change', (e) => {
+  drField = e.target.value;
+  _drSetLabel();
   renderStudentList();
 });
 

@@ -3763,23 +3763,41 @@ async function submitAlertEntry(id) {
   const tag = document.querySelector(`.alert-cmt-tagcoach[data-aid="${id}"]`)?.checked === true;
   const btn = document.querySelector(`.alert-submit-btn[data-aid="${id}"]`);
   if (btn) { btn.disabled = true; btn.textContent = mode === 'resolve' ? 'Resolving…' : 'Posting…'; }
+  const endpoint = mode === 'resolve' ? '?api=resolve-alert' : '?api=add-alert-comment';
+  const payload  = mode === 'resolve' ? { id, resolution_note: text } : { alertId: id, body: text, tag_coach: tag };
+  let ok = false, hardErr = null, networkErr = false;
   try {
-    const endpoint = mode === 'resolve' ? '?api=resolve-alert' : '?api=add-alert-comment';
-    const payload  = mode === 'resolve' ? { id, resolution_note: text } : { alertId: id, body: text, tag_coach: tag };
     const r = await fetch(STUDENTS_BASE + endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
       body: JSON.stringify(payload),
     });
-    const j = await r.json();
-    if (!r.ok) throw new Error(j.error || 'Failed');
-    await openStudent(currentStudent.id);
-    await loadStudents();
-    if (document.getElementById('alertListModal')) renderAlertList();
+    let j = {}; try { j = await r.json(); } catch (_) {}
+    if (r.ok) ok = true; else hardErr = j.error || ('Failed (HTTP ' + r.status + ')');
   } catch (e) {
-    if (btn) { btn.disabled = false; btn.textContent = mode === 'resolve' ? '✓ Resolve' : '↩ Post response'; }
-    alert('Failed: ' + (e.message || e));
+    // "Load failed" / network drop: the server may still have committed — the
+    // resolve fan-out (emails + push) can run long enough to drop the browser
+    // connection AFTER the DB write. We confirm by refetching below instead of
+    // crying failure on something that actually worked.
+    networkErr = true;
   }
+  if (ok || networkErr) {
+    try { await openStudent(currentStudent.id); } catch (_) {}
+    try { await loadStudents(); } catch (_) {}
+    if (document.getElementById('alertListModal')) renderAlertList();
+  }
+  if (!ok && networkErr) {
+    const a = (currentAlerts || []).find(x => Number(x.id) === Number(id));
+    ok = mode === 'resolve'
+      ? (!a || (a.status && a.status !== 'open'))                                  // gone or no longer open → it resolved
+      : (!!a && (a.comments || []).some(c => (c.body || '').trim() === text));      // the response is now present
+  }
+  if (ok) return;
+  // Genuine failure — restore the user's text (if the form was rebuilt) and surface it.
+  if (networkErr) { const noteEl = document.querySelector(`.alert-entry-note[data-aid="${id}"]`); if (noteEl) noteEl.value = text; }
+  const b2 = document.querySelector(`.alert-submit-btn[data-aid="${id}"]`);
+  if (b2) { b2.disabled = false; b2.textContent = mode === 'resolve' ? '✓ Resolve' : '↩ Post response'; }
+  alert('Failed: ' + (hardErr || 'network error — please try again'));
 }
 
 async function saveStudent() {
@@ -4085,14 +4103,25 @@ async function submitGlobalAlert(id) {
   if (!text) { alert(mode === 'resolve' ? 'A resolution note is required.' : 'Write a response first.'); return; }
   const tag = document.querySelector('.qa-tagcoach[data-id="' + id + '"]')?.checked === true;
   const btn = document.querySelector('.qa-submit[data-id="' + id + '"]'); if (btn) { btn.disabled = true; btn.textContent = mode === 'resolve' ? 'Resolving…' : 'Posting…'; }
+  const endpoint = mode === 'resolve' ? '?api=resolve-alert' : '?api=add-alert-comment';
+  const payload = mode === 'resolve' ? { id, resolution_note: text } : { alertId: id, body: text, tag_coach: tag };
+  let ok = false, hardErr = null, networkErr = false;
   try {
-    const endpoint = mode === 'resolve' ? '?api=resolve-alert' : '?api=add-alert-comment';
-    const payload = mode === 'resolve' ? { id, resolution_note: text } : { alertId: id, body: text, tag_coach: tag };
     const r = await fetch(STUDENTS_BASE + endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token }, body: JSON.stringify(payload) });
-    const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Failed');
-    const bodyEl = document.querySelector('#globalAlertsModal [data-body]'); if (bodyEl) await _loadGlobalAlerts(bodyEl, false);
+    let j = {}; try { j = await r.json(); } catch (_) {}
+    if (r.ok) ok = true; else hardErr = j.error || ('Failed (HTTP ' + r.status + ')');
+  } catch (e) {
+    // Network drop after a likely-committed write (slow fan-out) — reload the
+    // queue to show the true state rather than reporting a false failure.
+    networkErr = true;
+  }
+  if (ok || networkErr) {
+    const bodyEl = document.querySelector('#globalAlertsModal [data-body]'); if (bodyEl) { try { await _loadGlobalAlerts(bodyEl, false); } catch (_) {} }
     if (currentStudent && currentStudent.id) { try { await openStudent(currentStudent.id); } catch (_) {} }
-  } catch (e) { if (btn) { btn.disabled = false; btn.textContent = mode === 'resolve' ? '✓ Resolve' : '↩ Post response'; } alert('Failed: ' + (e.message || e)); }
+  }
+  if (ok || networkErr) return;   // committed, or reloaded to truth (item stays visible if it really failed)
+  if (btn) { btn.disabled = false; btn.textContent = mode === 'resolve' ? '✓ Resolve' : '↩ Post response'; }
+  alert('Failed: ' + hardErr);
 }
 
 async function openGlobalTurnoversModal() {

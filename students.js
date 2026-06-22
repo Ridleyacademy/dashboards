@@ -3729,7 +3729,7 @@ function renderAlertList() {
     }
   }
   body.querySelectorAll('.alert-submit-btn').forEach(btn => {
-    btn.addEventListener('click', () => submitAlertEntry(Number(btn.dataset.aid)));
+    btn.addEventListener('click', () => submitAlertEntry(Number(btn.dataset.aid), btn));
   });
   // Response / Resolution picker: swap placeholder, button label, and hide the
   // Tag-coach option for resolutions (which always notify everyone on the alert).
@@ -3756,12 +3756,17 @@ function renderAlertList() {
 // Single submit for the Response/Resolution picker. 'resolve' closes the alert
 // (resolution note required); 'response' posts an in-progress update and keeps
 // it open (Tag coach optional).
-async function submitAlertEntry(id) {
-  const mode = document.querySelector(`input[name="alertmode-${id}"]:checked`)?.value || 'response';
-  const text = (document.querySelector(`.alert-entry-note[data-aid="${id}"]`)?.value || '').trim();
+async function submitAlertEntry(id, btnEl) {
+  // Read inputs from the SAME card as the clicked button. A document-wide
+  // querySelector can match a duplicate/stale card elsewhere in the DOM (e.g.
+  // the alert open in both the profile and the global queue), reading an empty
+  // textarea and silently bailing on the "note required" guard.
+  const scope = (btnEl && btnEl.closest('.alert-row')) || (btnEl && btnEl.parentElement) || document;
+  const mode = scope.querySelector(`input[name="alertmode-${id}"]:checked`)?.value || 'response';
+  const text = (scope.querySelector(`.alert-entry-note[data-aid="${id}"]`)?.value || '').trim();
   if (!text) { alert(mode === 'resolve' ? 'A resolution note is required.' : 'Write a response first.'); return; }
-  const tag = document.querySelector(`.alert-cmt-tagcoach[data-aid="${id}"]`)?.checked === true;
-  const btn = document.querySelector(`.alert-submit-btn[data-aid="${id}"]`);
+  const tag = scope.querySelector(`.alert-cmt-tagcoach[data-aid="${id}"]`)?.checked === true;
+  const btn = btnEl || scope.querySelector(`.alert-submit-btn[data-aid="${id}"]`);
   if (btn) { btn.disabled = true; btn.textContent = mode === 'resolve' ? 'Resolving…' : 'Posting…'; }
   const endpoint = mode === 'resolve' ? '?api=resolve-alert' : '?api=add-alert-comment';
   const payload  = mode === 'resolve' ? { id, resolution_note: text } : { alertId: id, body: text, tag_coach: tag };
@@ -3773,7 +3778,9 @@ async function submitAlertEntry(id) {
       body: JSON.stringify(payload),
     });
     let j = {}; try { j = await r.json(); } catch (_) {}
-    if (r.ok) ok = true; else hardErr = j.error || ('Failed (HTTP ' + r.status + ')');
+    if (r.ok) ok = true;
+    else if (/already resolved/i.test(j.error || '')) ok = true; // it's resolved — just refresh the view
+    else hardErr = j.error || ('Failed (HTTP ' + r.status + ')');
   } catch (e) {
     // "Load failed" / network drop: the server may still have committed — the
     // resolve fan-out (emails + push) can run long enough to drop the browser
@@ -4085,7 +4092,7 @@ function renderGlobalAlerts(body, rows, seeAll, done) {
   }
   body.querySelectorAll('.q-student-link').forEach(function(b){ b.addEventListener('click', function(){ const sid = Number(b.dataset.sid); if (_qAlertsClose) _qAlertsClose(); openStudent(sid); }); });
   if (!done) {
-    body.querySelectorAll('.qa-submit').forEach(function(b){ b.addEventListener('click', function(){ submitGlobalAlert(Number(b.dataset.id)); }); });
+    body.querySelectorAll('.qa-submit').forEach(function(b){ b.addEventListener('click', function(){ submitGlobalAlert(Number(b.dataset.id), b); }); });
     body.querySelectorAll('input[type="radio"][name^="qamode-"]').forEach(function(radio){ radio.addEventListener('change', function(){
       const id = radio.name.slice('qamode-'.length);
       const sel = body.querySelector('input[name="qamode-' + id + '"]:checked');
@@ -4096,20 +4103,25 @@ function renderGlobalAlerts(body, rows, seeAll, done) {
     }); });
   }
 }
-async function submitGlobalAlert(id) {
-  const sel = document.querySelector('input[name="qamode-' + id + '"]:checked');
+async function submitGlobalAlert(id, btnEl) {
+  // Read inputs from the clicked button's card (not a document-wide match that
+  // could hit a duplicate/stale card and read an empty note → silent bail).
+  const scope = (btnEl && btnEl.parentElement) || document;
+  const sel = scope.querySelector('input[name="qamode-' + id + '"]:checked');
   const mode = sel ? sel.value : 'response';
-  const text = (document.querySelector('.qa-note[data-id="' + id + '"]')?.value || '').trim();
+  const text = (scope.querySelector('.qa-note[data-id="' + id + '"]')?.value || '').trim();
   if (!text) { alert(mode === 'resolve' ? 'A resolution note is required.' : 'Write a response first.'); return; }
-  const tag = document.querySelector('.qa-tagcoach[data-id="' + id + '"]')?.checked === true;
-  const btn = document.querySelector('.qa-submit[data-id="' + id + '"]'); if (btn) { btn.disabled = true; btn.textContent = mode === 'resolve' ? 'Resolving…' : 'Posting…'; }
+  const tag = scope.querySelector('.qa-tagcoach[data-id="' + id + '"]')?.checked === true;
+  const btn = btnEl || scope.querySelector('.qa-submit[data-id="' + id + '"]'); if (btn) { btn.disabled = true; btn.textContent = mode === 'resolve' ? 'Resolving…' : 'Posting…'; }
   const endpoint = mode === 'resolve' ? '?api=resolve-alert' : '?api=add-alert-comment';
   const payload = mode === 'resolve' ? { id, resolution_note: text } : { alertId: id, body: text, tag_coach: tag };
   let ok = false, hardErr = null, networkErr = false;
   try {
     const r = await fetch(STUDENTS_BASE + endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token }, body: JSON.stringify(payload) });
     let j = {}; try { j = await r.json(); } catch (_) {}
-    if (r.ok) ok = true; else hardErr = j.error || ('Failed (HTTP ' + r.status + ')');
+    if (r.ok) ok = true;
+    else if (/already resolved/i.test(j.error || '')) ok = true; // it's resolved — just refresh
+    else hardErr = j.error || ('Failed (HTTP ' + r.status + ')');
   } catch (e) {
     // Network drop after a likely-committed write (slow fan-out) — reload the
     // queue to show the true state rather than reporting a false failure.

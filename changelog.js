@@ -16,6 +16,12 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v380', title: 'Weekly Stats — assign stats to people & filter by person',
+      items: [
+      'Each weekly-stats metric can now be assigned to one or more people — open a stat, hit Edit, and tick the people under "Assigned to".',
+      'New "Assigned to" filter at the top of the dashboard narrows the grid to one person\'s stats (or "Unassigned"). It is an optional lens — everyone still sees every stat, and the value itself stays shared.',
+      'Assignees appear as small initials chips on each stat card.',
+    ]},
     { version: 'v159', title: 'Email Automations — every email now editable',
       adminOnly: true, items: [
       'Phase 1: new admin-only "Email Automations" dashboard — list of every transactional email the system sends, with a Quill rich-text editor, variable-insertion chips, Save / Send-test / Duplicate / Broadcast / Send-history.',

@@ -13,6 +13,11 @@ the structural map lives in the knowledge graph (`/graphify`). Format:
 
 ---
 
+## 2026-06-23 — Weekly Stats: assign metrics to users + filter by user
+**What:** Added `weekly_stats_metrics.assigned_user_ids uuid[]` (+ GIN index). `weekly-stats` v36 adds `assignees` (GET, view — lists weekly-stats users) and `assign` (POST, edit — set a metric's assignees); `catalog` now returns `assigned_user_ids`. Dashboard (weekly-stats.js/.html) adds an "Assigned to" filter beside the division tabs, initials chips on cards, and an assignee checklist in the drilldown editor.
+**Why:** User wanted to tag who owns each stat and filter the board to one person's stats. Chosen model: ownership tag only (shared value), optional filter for everyone (not an access restriction), assignable to anyone with weekly-stats access.
+**Touched:** migration `weekly_stats_metric_assignees`; edge fn weekly-stats v36 (deploy byte-verified, sha b906f999); weekly-stats.js, weekly-stats.html; version.txt v380; changelog.js v380. Frontend goes live on git push.
+
 ## 2026-06-23 — Full backend documentation + whole-stack knowledge graph
 **What:** Added Part II (Backend & Operations) to AGENTS.md documenting all 56 edge functions, cron jobs, tables, secrets, deploy/verify procedure. Built a graphify graph of the whole stack (frontend + edge functions + data-flow + cross-links) at `graphify-out/` and `~/Documents/ridley-graph-vault`. Seeded this file.
 **Why:** Backend was undocumented; wanted a single referable source so future work is faster, cheaper, and lower-risk.

@@ -22,6 +22,9 @@ let dateFrom       = '';
 let dateTo         = '';
 let chartInstances = new Map();  // metric_key → Chart.js instance
 let drillChartInst = null;
+let assignees      = [];   // [{id,name,email}] users a metric can be assigned to
+let assigneeById   = {};   // id → {name,email}
+let activeAssignee = 'all';// 'all' | 'unassigned' | <user id>
 
 // Top KPI metric keys per division — the ones that get the prominent strip.
 const HIGHLIGHT_KEYS = {
@@ -97,6 +100,7 @@ async function onAuthed(session) {
   // Restore saved range, default to last 13 weeks if nothing saved.
   loadStoredRange();
   await fetchCatalog();
+  await fetchAssignees();
   applyEditCapabilityToButtons();
   await loadData();
   setupRealtime();
@@ -184,6 +188,35 @@ async function fetchCatalog() {
   populateAddMetricSelect();
 }
 
+// ── Stat → user assignment (ownership tag + filter) ─────────────────
+async function fetchAssignees() {
+  try { const j = await apiFetch('?api=assignees'); assignees = j.assignees || []; }
+  catch (_) { assignees = []; }
+  assigneeById = {};
+  for (const a of assignees) assigneeById[a.id] = a;
+  renderAssigneeFilter();
+}
+function renderAssigneeFilter() {
+  const wrap = document.getElementById('assigneeFilterWrap');
+  const sel  = document.getElementById('assigneeFilter');
+  if (!wrap || !sel) return;
+  if (!assignees.length) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'flex';
+  sel.innerHTML = ['<option value="all">All people</option>', '<option value="unassigned">— Unassigned —</option>']
+    .concat(assignees.map(a => `<option value="${escapeHtml(a.id)}">${escapeHtml(a.name)}</option>`)).join('');
+  sel.value = activeAssignee;
+}
+// True if metric m should show under the current "Assigned to" filter.
+function matchesAssignee(m) {
+  if (activeAssignee === 'all') return true;
+  const ids = Array.isArray(m.assigned_user_ids) ? m.assigned_user_ids : [];
+  if (activeAssignee === 'unassigned') return ids.length === 0;
+  return ids.includes(activeAssignee);
+}
+function assigneeInitials(name) {
+  return String(name || '?').trim().split(/\s+/).map(w => w[0] || '').slice(0, 2).join('').toUpperCase() || '?';
+}
+
 // Cache key: any series payload is fully determined by (period, from, to).
 // We always fetch ALL metrics — division filtering happens client-side so
 // switching tabs is free (no network call).
@@ -226,6 +259,7 @@ function _invalidateSeriesCache() { _seriesCache.clear(); }
 // Render shimmering placeholder cards while we wait for the API.
 function renderSkeleton() {
   const visible = catalog.filter(m => {
+    if (!matchesAssignee(m)) return false;
     if (activeDivision === 'staff_meeting') return !!m.in_staff_meeting;
     if (activePeriod === 'weekly' && m.division === 'monthly') return false;
     if (activeDivision === 'all') return true;
@@ -275,6 +309,7 @@ function renderAll() {
     // data is rolled up on the server. Exception: the Staff Meeting tab
     // explicitly INCLUDES monthly-flagged metrics (active rosters are
     // part of the standing report) so we don't apply that filter there.
+    if (!matchesAssignee(m)) return false;
     if (activeDivision === 'staff_meeting') return !!m.in_staff_meeting;
     if (activePeriod === 'weekly' && m.division === 'monthly') return false;
     if (activeDivision === 'all') return true;
@@ -508,6 +543,7 @@ function renderChartGrid(visible) {
         </div>
         <div class="chart-card-wrap"><canvas id="c-${cssId(m.key)}"></canvas></div>
         <div class="chart-card-foot">${pts.length} ${activePeriod === 'weekly' ? 'weeks' : 'months'} · ${m.division === 'D5' ? 'D4B' : m.division} · click to expand</div>
+        ${(Array.isArray(m.assigned_user_ids) && m.assigned_user_ids.length) ? `<div class="chart-card-assignees" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;">${m.assigned_user_ids.map(id => { const a = assigneeById[id]; if (!a) return ''; return `<span title="${escapeHtml(a.name)}" style="display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 5px;border-radius:10px;background:var(--surface2);border:1px solid var(--border);font-size:0.6rem;font-weight:700;color:var(--text-muted);">${escapeHtml(assigneeInitials(a.name))}</span>`; }).join('')}</div>` : ''}
       </div>`;
   }).join('');
 
@@ -800,6 +836,14 @@ function openDrilldown(metricKey) {
     cb.parentElement.style.opacity = (t === m.division) ? '0.5' : '1';
     cb.parentElement.title = (t === m.division) ? 'This metric\'s home tab' : '';
   });
+  // Assignee picker — one checkbox per assignable user (edit-gated form).
+  const assignWrap = document.getElementById('drillEditAssignees');
+  if (assignWrap) {
+    const assigned = new Set(Array.isArray(m.assigned_user_ids) ? m.assigned_user_ids : []);
+    assignWrap.innerHTML = assignees.length
+      ? assignees.map(a => `<label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" data-uid="${escapeHtml(a.id)}" ${assigned.has(a.id) ? 'checked' : ''}> ${escapeHtml(a.name)}</label>`).join('')
+      : '<span style="color:var(--text-dim);">No assignable users found.</span>';
+  }
   document.getElementById('drillEditMsg').textContent = '';
 
   // Big chart — respects the Current-period toggle (hide the in-progress
@@ -974,6 +1018,11 @@ document.getElementById('drillEditSave')?.addEventListener('click', async () => 
     .map(cb => cb.dataset.tab);
   const curExtraTabs = Array.isArray(m.extra_tabs) ? [...m.extra_tabs].sort().join(',') : '';
   const newExtraJoin = [...newExtraTabs].sort().join(',');
+  // Assignment (separate ?api=assign call — independent of update-metric).
+  const newAssignees = Array.from(document.querySelectorAll('#drillEditAssignees input[data-uid]'))
+    .filter(cb => cb.checked).map(cb => cb.dataset.uid);
+  const curAssignJoin = (Array.isArray(m.assigned_user_ids) ? [...m.assigned_user_ids].sort() : []).join(',');
+  const assignChanged = [...newAssignees].sort().join(',') !== curAssignJoin;
   if (!newLabel) { msg.textContent = 'Label is required.'; return; }
   // Build patch with only fields the user actually changed.
   const patch = { key };
@@ -982,20 +1031,26 @@ document.getElementById('drillEditSave')?.addEventListener('click', async () => 
   if (newPointLabels !== !!m.show_point_labels)    patch.show_point_labels = newPointLabels;
   if (newStaff       !== !!m.in_staff_meeting)     patch.in_staff_meeting  = newStaff;
   if (newExtraJoin   !== curExtraTabs)             patch.extra_tabs        = newExtraTabs;
-  if (Object.keys(patch).length === 1) {
+  if (Object.keys(patch).length === 1 && !assignChanged) {
     msg.textContent = 'No changes to save.';
     return;
   }
   btn.disabled = true; btn.textContent = 'Saving…';
   msg.textContent = '';
   try {
-    await apiFetch('?api=update-metric', { method:'POST', body: JSON.stringify(patch) });
-    // Reflect in the in-memory catalog so the dashboard updates without a refetch.
-    if (patch.label != null) m.label = patch.label;
-    if (patch.invert_chart != null) m.invert_chart = patch.invert_chart;
-    if (patch.show_point_labels != null) m.show_point_labels = patch.show_point_labels;
-    if (patch.in_staff_meeting != null) m.in_staff_meeting = patch.in_staff_meeting;
-    if (patch.extra_tabs != null) m.extra_tabs = patch.extra_tabs;
+    if (Object.keys(patch).length > 1) {
+      await apiFetch('?api=update-metric', { method:'POST', body: JSON.stringify(patch) });
+      // Reflect in the in-memory catalog so the dashboard updates without a refetch.
+      if (patch.label != null) m.label = patch.label;
+      if (patch.invert_chart != null) m.invert_chart = patch.invert_chart;
+      if (patch.show_point_labels != null) m.show_point_labels = patch.show_point_labels;
+      if (patch.in_staff_meeting != null) m.in_staff_meeting = patch.in_staff_meeting;
+      if (patch.extra_tabs != null) m.extra_tabs = patch.extra_tabs;
+    }
+    if (assignChanged) {
+      await apiFetch('?api=assign', { method:'POST', body: JSON.stringify({ key, user_ids: newAssignees }) });
+      m.assigned_user_ids = newAssignees;
+    }
     msg.textContent = '✓ Saved';
     // Re-render the drilldown (chart + title) AND the grid card behind it.
     setTimeout(() => {
@@ -1031,6 +1086,10 @@ document.addEventListener('keydown', (e) => {
 });
 
 // ── Period / division tabs ──────────────────────────────────────────
+document.getElementById('assigneeFilter')?.addEventListener('change', e => {
+  activeAssignee = e.target.value || 'all';
+  renderAll();
+});
 document.getElementById('periodTabs').addEventListener('click', e => {
   const btn = e.target.closest('.pill-tab'); if (!btn) return;
   document.querySelectorAll('#periodTabs .pill-tab').forEach(b => b.classList.toggle('active', b === btn));

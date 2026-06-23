@@ -426,6 +426,12 @@
         <button class="pill-tab" data-div="D4">D4 · Mentorship</button>
         <button class="pill-tab" data-div="D5">D4B · Masterclass</button>
       </div>
+      <label id="assigneeFilterWrap" style="display:none;align-items:center;gap:6px;font-size:0.78rem;color:var(--text-dim);">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <select id="assigneeFilter" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:0.78rem;cursor:pointer;max-width:220px;">
+          <option value="all">All people</option>
+        </select>
+      </label>
       <div style="flex:1;"></div>
       <a href="weekly-stats-entry.html" class="tbtn tbtn-success" id="entryLinkBtn" title="Fill in this period's numbers" style="text-decoration:none;padding:8px 14px;font-size:0.78rem;">📝 Enter stats</a>
       <button class="tbtn tbtn-ghost" id="addEntryBtn" title="Log a single metric value (quick correction)" style="padding:8px 14px;font-size:0.78rem;">+ Quick add</button>
@@ -497,6 +503,11 @@
             <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" id="drillEditStaff"> <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> Staff Meeting</label>
           </div>
           <div style="font-size:0.7rem;color:var(--text-dim);margin-top:4px;">The metric's <em>home</em> tab (where you enter data) stays the same — these are additional places it'll appear.</div>
+        </div>
+        <div>
+          <label style="font-size:0.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:4px;">Assigned to</label>
+          <div id="drillEditAssignees" style="display:flex;flex-wrap:wrap;gap:8px;font-size:0.82rem;max-height:140px;overflow:auto;"></div>
+          <div style="font-size:0.7rem;color:var(--text-dim);margin-top:4px;">Tag the people responsible for this stat. Use the <strong>Assigned to</strong> filter at the top to view one person's stats. The value itself is shared.</div>
         </div>
         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px;">
           <button class="btn-ghost" id="drillEditCancel" style="padding:7px 14px;font-size:0.78rem;">Cancel</button>

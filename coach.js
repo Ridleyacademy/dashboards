@@ -2491,6 +2491,11 @@ function openInviteesModal(meeting) {
   const occ1h = new Set((nextOcc?.reminder_1h_delivered || []).map(_lc));
   const occLive = new Set((nextOcc?.reminder_live_delivered || []).map(_lc));
   const nextOccStarted = !!(nextOcc && nextOcc.invite_sent_at);
+  // The invite phase is finished once invite_done_at is stamped. Some occurrences
+  // (legacy / transition-guard stamps) get marked done with an empty
+  // invite_delivered[] — without this, every invitee would read as "Sending…"
+  // forever even though the invite already went out.
+  const nextOccInviteDone = !!(nextOcc && nextOcc.invite_done_at);
   let nextOccLabel = '';
   if (nextOcc?.start_time) {
     try { nextOccLabel = new Date(nextOcc.start_time).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'America/New_York' }); } catch (_) {}
@@ -2624,7 +2629,7 @@ function openInviteesModal(meeting) {
                 status = `<span title="1-hour reminder sent for the next class${when}" style="color:var(--accent2);font-size:0.72rem;font-weight:700;">✓ 1h reminder sent</span>`;
               } else if (occ24.has(e)) {
                 status = `<span title="24-hour reminder sent for the next class${when}" style="color:var(--accent2);font-size:0.72rem;font-weight:700;">✓ 24h reminder sent</span>`;
-              } else if (occInvited.has(e)) {
+              } else if (occInvited.has(e) || nextOccInviteDone) {
                 status = `<span title="Invite sent for the next class${when}" style="color:var(--accent2);font-size:0.72rem;font-weight:700;">✓ Invited</span>`;
               } else if (nextOccStarted) {
                 status = `<span title="Sending the invite for the next class${when} — automatically retrying." style="color:#fbbf24;font-size:0.72rem;font-weight:700;">⟳ Sending…</span>`;

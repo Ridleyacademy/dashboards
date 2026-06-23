@@ -1,14 +1,17 @@
 # Claude / Agent Instructions
 
 **Before making any changes, read `AGENTS.md` in this folder.** It is the
-source of truth for:
-- The permission system (single source: `permissions.js`)
-- Page / role matrix
-- Shared script load order (`permissions.js` MUST load in `<head>`)
-- The 4-step release process (code → bump `version.txt` → add `changelog.js`
-  entry → commit + push)
-- Common pitfalls (transformed ancestors break `position: fixed` —
-  portal popovers to `body`; iOS Safari has no haptics; etc.)
+source of truth, in two parts:
+- **Part I — Frontend:** permission system (single source: `permissions.js`),
+  page/role matrix, shared script load order (`permissions.js` MUST load in
+  `<head>`), release process, common pitfalls.
+- **Part II — Backend & Operations:** all 56 Supabase edge functions grouped by
+  system (Zoom, Email pipeline, Backend RBAC/`permissions_v2`, Finance/Support,
+  CRM/sales, Analytics, Ingest/Notify), plus the cron jobs, database tables,
+  secrets, the **deploy + byte-verify procedure**, and the knowledge graph.
+
+Also see **`DECISIONS.md`** — the append-only dev log of what changed, when, and
+why (one entry per meaningful change; this is the project's narrative history).
 
 ## After every code change
 
@@ -22,13 +25,26 @@ source of truth for:
    new shared script, a new localStorage key, or a new gotcha worth
    warning future agents about. The doc is only useful if it stays
    honest.
-4. **Commit + push.** Cloudflare deploys in ~30s. The `post-commit` git
+4. **Add a `DECISIONS.md` entry** — date, what changed, why, files/fns touched,
+   version. This is the "every step documented" log; keep it append-only.
+5. **Commit + push.** Cloudflare deploys in ~30s. The `post-commit` git
    hook (installed via `graphify hook install`) re-runs AST extraction
    on changed code files and rebuilds `graphify-out/graph.json` +
-   `GRAPH_REPORT.md` automatically. For doc/image changes, manually run:
+   `GRAPH_REPORT.md` automatically. For doc/image changes, or after editing
+   edge functions, manually refresh the graph from this folder:
    ```
-   /graphify /tmp/dashboards --update
+   /graphify . --update
    ```
+
+## Editing edge functions
+
+Edge-function source is NOT shipped from this repo — it's deployed to Supabase
+via the MCP `deploy_edge_function` tool (full source inlined). A byte-exact
+mirror is kept at `edge-functions/<slug>.ts` for reference + the graph. After
+any deploy, **verify byte-fidelity** (`get_edge_function` → `diff`/`shasum`) —
+large files can silently truncate into a broken stub. See AGENTS.md →
+*Operations reference → Deploying an edge function*. Do NOT commit the
+`edge-functions/` mirror (`typeform-help.ts` contains a hardcoded secret).
 
 ## Things that are easy to forget
 

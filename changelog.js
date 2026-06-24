@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v389', title: 'Coach dashboard — "Start as host" on the next-session card',
+      roles: ['coach', 'mentorship', 'ms_ic', 'delivery_ic'], items: [
+      'The highlighted "Next session" card now shows the "Start as host →" button whenever you can host that meeting (it was being hidden on the account-wide next session).',
+    ]},
     { version: 'v388', title: 'Rep Area — view a student’s full contact log',
       roles: ['ms_rep', 'rep', 'sales_manager', 'ms_ic', 'delivery_ic'], items: [
       'The Rep Area now has a "Contacts log" button that shows every contact logged on that student (date · who · notes) — reps can log a new one from there too.',

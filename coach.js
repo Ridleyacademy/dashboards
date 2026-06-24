@@ -2410,7 +2410,7 @@ function renderUpcomingMeetings() {
           ${hostLine}
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          ${next.start_url && _isMyMeeting(next) ? `<button data-zm-start="${next.id}" class="btn-primary" style="padding:9px 16px;font-size:0.85rem;">Start as host →</button>` : ''}
+          ${next.start_url ? `<button data-zm-start="${next.id}" class="btn-primary" style="padding:9px 16px;font-size:0.85rem;">Start as host →</button>` : ''}
           ${next.join_url ? `<button data-zm-open="${next.id}" class="btn-ghost" style="padding:9px 16px;font-size:0.85rem;">Open Zoom</button>` : ''}
           <button data-zm-invitees="${next.id}" class="btn-ghost" style="padding:9px 16px;font-size:0.85rem;">Invitees (${invited})</button>
           ${next.join_url ? `<button data-zm-copy="${next.id}" class="btn-ghost" style="padding:9px 16px;font-size:0.85rem;" title="Copy host join link">Copy link</button>` : ''}

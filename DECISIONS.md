@@ -13,6 +13,10 @@ the structural map lives in the knowledge graph (`/graphify`). Format:
 
 ---
 
+## 2026-06-24 — Rep Area: per-student contacts log + SVG phone icon
+**What:** Added a "Contacts log" button in the Rep Area → `openStudentContacts(s)` modal (fetches `rep-contacts ?api=contacts&student_id=…`, lists date/who/notes; rep can log from there). Added `ICONS.phone` (lucide style) and replaced the 📞 emoji on the Log-contact button, the recently-contacted tag, the row "7d" badge, and the global contacts list. (The recently_contacted *filter* label keeps its emoji, matching the other emoji filter labels.)
+**Touched:** students.js; version v388, changelog v388.
+
 ## 2026-06-24 — Rep Area → collapsible section under Identity (+ rep field moved in)
 **What:** Moved the `rep` field out of the Identity `SECTIONS` block into a new `['Rep Area', [...]]` section placed right after Identity — so the profile populate/save loops (which iterate `SECTIONS`) keep handling rep automatically. The sections map special-cases 'Rep Area': renders only for `canRepView` (not on a new student) as a collapsible `_section` containing the rep field + a `#prof-rep-widgets` container that `renderRepArea()` fills with status/last-contact/log-contact. Removed the old standalone `#prof-rep-area` injection.
 **Touched:** students.js; version v385, changelog v385.

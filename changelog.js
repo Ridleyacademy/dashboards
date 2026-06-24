@@ -16,6 +16,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v388', title: 'Rep Area — view a student’s full contact log',
+      roles: ['ms_rep', 'rep', 'sales_manager', 'ms_ic', 'delivery_ic'], items: [
+      'The Rep Area now has a "Contacts log" button that shows every contact logged on that student (date · who · notes) — reps can log a new one from there too.',
+      'The phone icon now matches the rest of the dashboard’s icon style.',
+    ]},
     { version: 'v385', title: 'Rep Area is now a collapsible section under Identity',
       roles: ['ms_rep', 'rep', 'sales_manager', 'ms_ic', 'delivery_ic'], items: [
       'The Rep Area is now its own collapsible "Rep Area" section right under Identity (matches the other profile sections — click to collapse/expand).',

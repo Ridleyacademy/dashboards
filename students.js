@@ -19,6 +19,7 @@ const ICONS = {
   users:   (s=14)=>_svg('<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>', s),
   user:    (s=14)=>_svg('<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>', s),
   pulse:   (s=14)=>_svg('<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>', s),
+  phone:   (s=14)=>_svg('<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/>', s),
   music:   (s=14)=>_svg('<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>', s),
   search:  (s=14)=>_svg('<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>', s),
   barChart:(s=14)=>_svg('<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>', s),
@@ -840,7 +841,7 @@ function _repBadges(s) {
   const rd = repDataMap[s.id]; if (!rd) return '';
   let out = '';
   if (rd.status) { const c = REP_STATUS_COLORS[rd.status] || { bg: 'rgba(255,255,255,0.08)', fg: '#cbd1ee' }; out += '<span class="badge" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;background:' + c.bg + ';color:' + c.fg + ';" title="Rep status' + (rd.status_at ? ' — set ' + new Date(rd.status_at).toLocaleDateString() : '') + '">' + rd.status + '</span>'; }
-  if (rd.recently_contacted) out += '<span class="badge" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;background:rgba(96,165,250,0.18);color:#60a5fa;" title="Contacted in the last 7 days' + (rd.last_contact_date ? ' (' + rd.last_contact_date + ')' : '') + '">📞 7d</span>';
+  if (rd.recently_contacted) out += '<span class="badge" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;background:rgba(96,165,250,0.18);color:#60a5fa;display:inline-flex;align-items:center;gap:3px;" title="Contacted in the last 7 days' + (rd.last_contact_date ? ' (' + rd.last_contact_date + ')' : '') + '">' + ICONS.phone(10) + ' 7d</span>';
   return out;
 }
 function renderStudentList() {
@@ -4374,7 +4375,7 @@ function renderGlobalContacts(body, rows, seeAll) {
       + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap;"><button class="q-student-link" data-sid="' + c.student_id + '" style="background:none;border:none;color:#8fd6ff;font-weight:800;font-size:0.88rem;cursor:pointer;padding:0;text-decoration:underline;text-underline-offset:2px;font-family:inherit;"></button>'
       + (c.student_rep ? '<span style="font-size:0.7rem;color:#7880a8;">Rep: ' + _qx(c.student_rep) + '</span>' : '')
       + (c.student_coach ? '<span style="font-size:0.7rem;color:#7880a8;">· Coach: ' + _qx(c.student_coach) + '</span>' : '') + '</div>'
-      + '<div style="font-size:0.78rem;color:#cbd1ee;">📞 ' + _qx(c.contact_date) + (c.created_by_name ? ' · by ' + _qx(c.created_by_name) : '') + '</div>'
+      + '<div style="font-size:0.78rem;color:#cbd1ee;display:flex;align-items:center;gap:5px;">' + ICONS.phone(13) + ' ' + _qx(c.contact_date) + (c.created_by_name ? ' · by ' + _qx(c.created_by_name) : '') + '</div>'
       + '<div class="qcn" style="margin-top:5px;font-size:0.83rem;color:#cbd1ee;white-space:pre-wrap;line-height:1.5;"></div>'
       + '</div>';
   }).join('');
@@ -4418,7 +4419,7 @@ function renderRepArea(s) {
   const statusPill = rd.status
     ? '<span class="badge" style="background:' + c.bg + ';color:' + c.fg + ';">' + rd.status + '</span>' + (rd.status_at ? '<span style="font-size:0.68rem;color:#7880a8;margin-left:6px;">since ' + new Date(rd.status_at).toLocaleDateString() + '</span>' : '')
     : '<span style="font-size:0.8rem;color:#7880a8;">No status set</span>';
-  const recent = rd.recently_contacted ? '<span class="badge" style="background:rgba(96,165,250,0.18);color:#60a5fa;">📞 Contacted ≤7d</span>' : '';
+  const recent = rd.recently_contacted ? '<span class="badge" style="background:rgba(96,165,250,0.18);color:#60a5fa;display:inline-flex;align-items:center;gap:4px;">' + ICONS.phone(11) + ' Contacted ≤7d</span>' : '';
   const opts = canRepEdit
     ? '<select id="rep-status-select" style="background:#0f1019;color:#eaecf8;border:1px solid #2a3050;border-radius:8px;padding:7px 10px;font-size:0.82rem;cursor:pointer;"><option value="">— set status —</option>' + repStatusOptions.map(function(o){ return '<option value="' + o + '"' + (o === rd.status ? ' selected' : '') + '>' + o + '</option>'; }).join('') + '</select>'
     : '';
@@ -4427,13 +4428,43 @@ function renderRepArea(s) {
     + '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><span style="font-size:0.74rem;color:#7880a8;">Rep status:</span> ' + statusPill + ' ' + recent + '</div>'
     + '<div style="font-size:0.78rem;color:#cbd1ee;">Last contact: <strong>' + (rd.last_contact_date || '—') + '</strong></div></div>'
     + '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">' + opts
-    + (canRepEdit ? '<button class="profile-save" id="rep-log-contact" style="padding:7px 14px;font-size:0.78rem;background:rgba(96,165,250,0.18);color:#60a5fa;">📞 Log contact</button>' : '')
+    + (canRepEdit ? '<button class="profile-save" id="rep-log-contact" style="padding:7px 14px;font-size:0.78rem;background:rgba(96,165,250,0.18);color:#60a5fa;display:inline-flex;align-items:center;gap:5px;">' + ICONS.phone(13) + ' Log contact</button>' : '')
+    + '<button id="rep-view-contacts" style="padding:7px 14px;font-size:0.78rem;background:transparent;border:1px solid #2a3050;color:#7880a8;border-radius:8px;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:5px;">' + ICONS.phone(13) + ' Contacts log</button>'
     + '<button id="rep-status-history" style="padding:7px 14px;font-size:0.78rem;background:transparent;border:1px solid #2a3050;color:#7880a8;border-radius:8px;cursor:pointer;font-family:inherit;">Status history</button></div>'
     + '<div id="rep-area-msg" style="font-size:0.74rem;color:#7880a8;min-height:1em;margin-top:6px;"></div></div>';
   const sel = document.getElementById('rep-status-select');
   if (sel) sel.addEventListener('change', function(){ if (sel.value) setRepStatus(s.id, sel.value); });
   document.getElementById('rep-log-contact')?.addEventListener('click', function(){ openRepContactModal(s); });
+  document.getElementById('rep-view-contacts')?.addEventListener('click', function(){ openStudentContacts(s); });
   document.getElementById('rep-status-history')?.addEventListener('click', function(){ openRepStatusHistory(s); });
+}
+async function openStudentContacts(s) {
+  document.getElementById('studentContactsModal')?.remove();
+  const m = document.createElement('div');
+  m.id = 'studentContactsModal';
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(8,9,18,0.78);backdrop-filter:blur(8px);z-index:10008;display:flex;align-items:center;justify-content:center;padding:20px;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;';
+  m.innerHTML = '<div style="background:#13141f;border:1px solid #1f2438;border-radius:18px;padding:22px 24px;max-width:480px;width:100%;max-height:82vh;overflow:auto;color:#eaecf8;box-shadow:0 24px 60px rgba(0,0,0,0.55);">'
+    + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;"><div style="font-size:1.0rem;font-weight:800;margin-right:auto;">Contacts — ' + _qx(s.name || '') + '</div>'
+    + (canRepEdit ? '<button id="sc-add" style="background:rgba(96,165,250,0.18);border:1px solid rgba(96,165,250,0.5);color:#60a5fa;border-radius:8px;padding:5px 12px;font-size:0.74rem;font-weight:700;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:5px;">' + ICONS.phone(12) + ' Log</button>' : '')
+    + '<button id="sc-close" style="background:transparent;border:none;color:#7880a8;font-size:1.4rem;cursor:pointer;">×</button></div>'
+    + '<div id="sc-body"><div style="padding:20px;text-align:center;color:#7880a8;">Loading…</div></div></div>';
+  document.body.appendChild(m);
+  const close = function(){ m.remove(); };
+  m.querySelector('#sc-close').addEventListener('click', close);
+  m.addEventListener('click', function(e){ if (e.target === m) close(); });
+  m.querySelector('#sc-add')?.addEventListener('click', function(){ close(); openRepContactModal(s); });
+  try {
+    const r = await fetch(REPC_BASE + '?api=contacts&student_id=' + s.id, { headers: { Authorization: 'Bearer ' + currentSession.access_token } });
+    const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Failed');
+    const rows = j.rows || []; const body = m.querySelector('#sc-body');
+    if (!rows.length) { body.innerHTML = '<div style="padding:16px;text-align:center;color:#7880a8;font-size:0.85rem;">No contacts logged for this student yet.</div>'; return; }
+    body.innerHTML = rows.map(function(c){
+      return '<div class="sc-row" data-id="' + c.id + '" style="border:1px solid #1f2438;border-radius:10px;padding:10px 12px;margin-bottom:8px;">'
+        + '<div style="font-size:0.8rem;color:#cbd1ee;display:flex;align-items:center;gap:6px;">' + ICONS.phone(13) + ' <strong>' + _qx(c.contact_date) + '</strong>' + (c.created_by_name ? '<span style="font-size:0.7rem;color:#7880a8;">· by ' + _qx(c.created_by_name) + '</span>' : '') + '</div>'
+        + '<div class="sc-note" style="margin-top:5px;font-size:0.82rem;color:#cbd1ee;white-space:pre-wrap;line-height:1.5;"></div></div>';
+    }).join('');
+    for (const c of rows) { const row = body.querySelector('.sc-row[data-id="' + c.id + '"]'); if (row) { const n = row.querySelector('.sc-note'); if (n) n.textContent = c.notes || ''; } }
+  } catch (e) { m.querySelector('#sc-body').innerHTML = '<div style="padding:16px;color:#f87171;">' + _qx(e.message || e) + '</div>'; }
 }
 async function setRepStatus(studentId, status) {
   const msg = document.getElementById('rep-area-msg'); if (msg) msg.textContent = 'Saving…';

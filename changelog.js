@@ -16,6 +16,12 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v384', title: 'Rep Area — status, last contact & filters per student',
+      roles: ['ms_rep', 'rep', 'sales_manager', 'ms_ic', 'delivery_ic'], items: [
+      'Open any student → new "Rep Area": the assigned rep, last-contact date, and a rep-status dropdown (Hot / Warm / Cold / Qualified / Not qualified / Needs help / Do not contact). Every change is kept in a "Status history" log.',
+      'Reps / Admins / MS-IC / Delivery-IC can set the status and log a contact right from the profile; Sales Managers can view.',
+      'Student rows now show the rep-status badge + a "📞 7d" tag when contacted in the last week (rep-view roles only), plus new rep-status and "contacted in last 7 days" filters.',
+    ]},
     { version: 'v383', title: 'Rep Contacts log (new Contacts button)',
       roles: ['ms_rep', 'rep', 'sales_manager', 'ms_ic', 'delivery_ic', 'coach'], items: [
       'New "Contacts" button at the top of the Mentorship CRM (next to Turn Over) — the running log of rep↔student contacts.',

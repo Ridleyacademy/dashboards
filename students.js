@@ -381,6 +381,8 @@ const advFilters = {
   masterclass_level:[],
   coach_status:    [],
   months_count:    [],
+  rep_status:      [],     // rep-only: Hot/Warm/Cold/... (from repDataMap)
+  recently_contacted: null,// rep-only tri: contacted in last 7 days
   verified:        null,
   has_open_alerts: null,
   has_wins:        null,
@@ -481,6 +483,11 @@ function _applyAdvFilters(rows) {
     return !!value === f;
   }
   return rows.filter(s => {
+    if (advFilters.rep_status.length || advFilters.recently_contacted !== null) {
+      const rd = repDataMap[s.id] || {};
+      if (advFilters.rep_status.length && !advFilters.rep_status.includes(rd.status || '(none)')) return false;
+      if (!matchTri('recently_contacted', !!rd.recently_contacted)) return false;
+    }
     if (!matchArr('rep',            s.rep || '(unassigned)')) return false;
     if (!matchArr('coach',          s.coach || '(unassigned)')) return false;
     if (!matchArr('mentor',         s.mentor || '(unassigned)')) return false;
@@ -571,6 +578,10 @@ function renderAdvFilterPanel() {
       ${sectionMulti('derived_status', '🚦 Status', _uniqueValues('derived_status', '(none)'))}
       ${sectionMulti('level', '🎚 Level', _uniqueValues('level', '(none)'))}
     </div>
+    ${canRepView ? `<div class="adv-filter-grid">
+      ${sectionMulti('rep_status', '📇 Rep status', repStatusOptions.concat(['(none)']), '(none)')}
+      ${sectionTri('recently_contacted', '📞 Contacted in last 7 days')}
+    </div>` : ''}
     ${sectionBucket('days_left_bucket', '⏱ Expiring within', [
       { val: 'expired', label: 'Expired' },
       { val: 'lt7',  label: '≤ 1 week' },
@@ -658,6 +669,7 @@ function _activeFilterChipLabel(key, val) {
     derived_status: 'Status', level: 'Level',
     masterclass_level: 'Masterclass',
     coach_status: 'Coach status', months_count: 'Term',
+    rep_status: 'Rep status', recently_contacted: 'Recently contacted',
     days_left_bucket: 'Time left', inactive_days_bucket: 'Inactive',
     verified: 'Verified', has_open_alerts: 'Alerts',
     has_wins: 'Wins', has_video: 'Video', has_survey: 'Survey', has_gdrive: 'Drive',
@@ -811,6 +823,26 @@ function statusDotKey(s) {
   return s.derived_status || 'Notonboarded';
 }
 
+const REP_STATUS_COLORS = {
+  'Hot': { bg: 'rgba(248,113,113,0.18)', fg: '#f87171' },
+  'Warm': { bg: 'rgba(251,146,60,0.18)', fg: '#fb923c' },
+  'Cold': { bg: 'rgba(96,165,250,0.18)', fg: '#60a5fa' },
+  'Qualified': { bg: 'rgba(52,211,153,0.18)', fg: '#34d399' },
+  'Not qualified': { bg: 'rgba(148,163,184,0.18)', fg: '#94a3b8' },
+  'Needs help': { bg: 'rgba(167,139,250,0.20)', fg: '#a78bfa' },
+  'Do not contact': { bg: 'rgba(248,113,113,0.28)', fg: '#fca5a5' },
+};
+// Rep-only badges (status + recently-contacted) for the student rows. Empty for
+// non-rep-view roles or students with no rep data. Status text is from a fixed
+// dropdown set, so it's safe to inline.
+function _repBadges(s) {
+  if (!canRepView) return '';
+  const rd = repDataMap[s.id]; if (!rd) return '';
+  let out = '';
+  if (rd.status) { const c = REP_STATUS_COLORS[rd.status] || { bg: 'rgba(255,255,255,0.08)', fg: '#cbd1ee' }; out += '<span class="badge" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;background:' + c.bg + ';color:' + c.fg + ';" title="Rep status' + (rd.status_at ? ' — set ' + new Date(rd.status_at).toLocaleDateString() : '') + '">' + rd.status + '</span>'; }
+  if (rd.recently_contacted) out += '<span class="badge" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;background:rgba(96,165,250,0.18);color:#60a5fa;" title="Contacted in the last 7 days' + (rd.last_contact_date ? ' (' + rd.last_contact_date + ')' : '') + '">📞 7d</span>';
+  return out;
+}
 function renderStudentList() {
   const list = document.getElementById('studentList');
   const q = (document.getElementById('studentSearch').value || '').toLowerCase().trim();
@@ -885,6 +917,7 @@ function renderStudentList() {
     if (s.refunded_date) tinyBadges.push(`<span class="badge exp" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;background:rgba(244,114,182,0.18);color:#f472b6;" title="Refunded on ${s.refunded_date}${s.refunded_amount != null ? ' — $' + s.refunded_amount : ''}">↩ Refunded</span>`);
     if (s.dead_file) tinyBadges.push('<span class="badge exp" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;background:rgba(248,113,113,0.22);color:#f87171;font-weight:800;" title="Dead file">☠ Dead file</span>');
     if (_dupCache.has(s.id)) tinyBadges.push('<span class="badge exp" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;background:rgba(167,139,250,0.18);color:#a78bfa;" title="Possible duplicate of another student (same email or name)">⎘ dup</span>');
+    { const _rb = _repBadges(s); if (_rb) tinyBadges.push(_rb); }
     if (tinyBadges.length) nameEl.insertAdjacentHTML('beforeend', tinyBadges.join(''));
     const metaParts = [];
     // Use computed status (Active/Expired/etc.) instead of free-text status
@@ -926,6 +959,7 @@ function _updateStudentRowInPlace(s) {
     if (s.refunded_date) tinyBadges.push(`<span class="badge exp" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;background:rgba(244,114,182,0.18);color:#f472b6;" title="Refunded on ${s.refunded_date}${s.refunded_amount != null ? ' — $' + s.refunded_amount : ''}">↩ Refunded</span>`);
     if (s.dead_file) tinyBadges.push('<span class="badge exp" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;background:rgba(248,113,113,0.22);color:#f87171;font-weight:800;" title="Dead file">☠ Dead file</span>');
     if (_dupCache.has(s.id)) tinyBadges.push('<span class="badge exp" style="font-size:0.55rem;padding:1px 6px;margin-left:4px;vertical-align:middle;background:rgba(167,139,250,0.18);color:#a78bfa;" title="Possible duplicate of another student (same email or name)">⎘ dup</span>');
+    { const _rb = _repBadges(s); if (_rb) tinyBadges.push(_rb); }
     if (tinyBadges.length) nameEl.insertAdjacentHTML('beforeend', tinyBadges.join(''));
   }
   // Meta text (status · coach · daysLeft)
@@ -2069,6 +2103,7 @@ function renderProfile() {
         <span class="profile-msg" id="prof-msg"></span>
       </div>
     </div>
+    ${(canRepView && !isNew) ? '<div id="prof-rep-area"></div>' : ''}
     ${sectionsHtml}
   `;
 
@@ -2247,6 +2282,7 @@ function renderProfile() {
     _wireActivityHistory();
     document.getElementById('prof-list-alerts')?.addEventListener('click', openAlertsHistoryModal);
     document.getElementById('prof-list-turnovers')?.addEventListener('click', openTurnoversHistoryModal);
+    if (canRepView && !isNew) renderRepArea(s);
     document.getElementById('prof-list-logs')?.addEventListener('click', openLogsChooserModal);
     document.getElementById('prof-list-videos')?.addEventListener('click', openDropboxVideosModal);
     document.getElementById('prof-list-surveys')?.addEventListener('click', openSurveysHistoryModal);
@@ -4363,6 +4399,95 @@ function openCreateContactForm(body, reload) {
       reload();
     } catch (e) { btn.disabled = false; btn.textContent = 'Log contact'; err.textContent = e.message || e; }
   });
+}
+// ── Profile Rep Area: status (dropdown + history) + last contact + log-contact ──
+function renderRepArea(s) {
+  const box = document.getElementById('prof-rep-area');
+  if (!box || !canRepView) return;
+  const rd = repDataMap[s.id] || {};
+  const c = rd.status ? (REP_STATUS_COLORS[rd.status] || { bg: 'rgba(255,255,255,0.08)', fg: '#cbd1ee' }) : null;
+  const statusPill = rd.status
+    ? '<span class="badge" style="background:' + c.bg + ';color:' + c.fg + ';">' + rd.status + '</span>' + (rd.status_at ? '<span style="font-size:0.68rem;color:#7880a8;margin-left:6px;">since ' + new Date(rd.status_at).toLocaleDateString() + '</span>' : '')
+    : '<span style="font-size:0.8rem;color:#7880a8;">No status set</span>';
+  const recent = rd.recently_contacted ? '<span class="badge" style="background:rgba(96,165,250,0.18);color:#60a5fa;">📞 Contacted ≤7d</span>' : '';
+  const opts = canRepEdit
+    ? '<select id="rep-status-select" style="background:#0f1019;color:#eaecf8;border:1px solid #2a3050;border-radius:8px;padding:7px 10px;font-size:0.82rem;cursor:pointer;"><option value="">— set status —</option>' + repStatusOptions.map(function(o){ return '<option value="' + o + '"' + (o === rd.status ? ' selected' : '') + '>' + o + '</option>'; }).join('') + '</select>'
+    : '';
+  box.innerHTML = '<div style="border:1px solid rgba(96,165,250,0.35);background:rgba(96,165,250,0.05);border-radius:12px;padding:14px 16px;margin:0 0 14px;">'
+    + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;"><span style="font-size:0.72rem;font-weight:800;text-transform:uppercase;letter-spacing:0.06em;color:#60a5fa;">Rep Area</span>'
+    + '<span style="font-size:0.72rem;color:#7880a8;">Assigned rep: <strong style="color:#cbd1ee;">' + (s.rep ? _qx(s.rep) : 'unassigned') + '</strong></span></div>'
+    + '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;">'
+    + '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><span style="font-size:0.74rem;color:#7880a8;">Status:</span> ' + statusPill + ' ' + recent + '</div>'
+    + '<div style="font-size:0.78rem;color:#cbd1ee;">Last contact: <strong>' + (rd.last_contact_date || '—') + '</strong></div></div>'
+    + '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">' + opts
+    + (canRepEdit ? '<button class="profile-save" id="rep-log-contact" style="padding:7px 14px;font-size:0.78rem;background:rgba(96,165,250,0.18);color:#60a5fa;">📞 Log contact</button>' : '')
+    + '<button id="rep-status-history" style="padding:7px 14px;font-size:0.78rem;background:transparent;border:1px solid #2a3050;color:#7880a8;border-radius:8px;cursor:pointer;font-family:inherit;">Status history</button></div>'
+    + '<div id="rep-area-msg" style="font-size:0.74rem;color:#7880a8;min-height:1em;margin-top:6px;"></div></div>';
+  const sel = document.getElementById('rep-status-select');
+  if (sel) sel.addEventListener('change', function(){ if (sel.value) setRepStatus(s.id, sel.value); });
+  document.getElementById('rep-log-contact')?.addEventListener('click', function(){ openRepContactModal(s); });
+  document.getElementById('rep-status-history')?.addEventListener('click', function(){ openRepStatusHistory(s); });
+}
+async function setRepStatus(studentId, status) {
+  const msg = document.getElementById('rep-area-msg'); if (msg) msg.textContent = 'Saving…';
+  try {
+    const r = await fetch(REPC_BASE + '?api=set-status', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token }, body: JSON.stringify({ studentId: studentId, status: status }) });
+    const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Failed');
+    await loadRepData();
+    if (currentStudent && currentStudent.id === studentId) renderRepArea(currentStudent);
+    if (msg) msg.textContent = '✓ Status set to ' + status;
+  } catch (e) { if (msg) msg.textContent = 'Failed: ' + (e.message || e); }
+}
+function openRepContactModal(s) {
+  const today = new Date().toISOString().slice(0, 10);
+  document.getElementById('repContactModal')?.remove();
+  const m = document.createElement('div');
+  m.id = 'repContactModal';
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(8,9,18,0.78);backdrop-filter:blur(8px);z-index:10008;display:flex;align-items:center;justify-content:center;padding:20px;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;';
+  m.innerHTML = '<div style="background:#13141f;border:1px solid #1f2438;border-radius:18px;padding:24px 26px;max-width:420px;width:100%;color:#eaecf8;box-shadow:0 24px 60px rgba(0,0,0,0.55);">'
+    + '<div style="font-size:1.0rem;font-weight:800;margin-bottom:4px;">Log contact</div>'
+    + '<div style="font-size:0.78rem;color:#7880a8;margin-bottom:14px;">' + _qx(s.name || '') + '</div>'
+    + '<div class="field" style="margin-bottom:12px;"><div class="field-label">Contact date</div><input type="date" class="field-input" id="rep-c-date" value="' + today + '"></div>'
+    + '<div class="field" style="margin-bottom:12px;"><div class="field-label">Notes (optional)</div><textarea class="field-textarea" id="rep-c-note" placeholder="What happened on this contact?" style="min-height:80px;"></textarea></div>'
+    + '<div id="rep-c-err" style="color:#f87171;font-size:0.78rem;min-height:1em;margin-bottom:8px;"></div>'
+    + '<div style="display:flex;gap:10px;justify-content:flex-end;"><button id="rep-c-cancel" style="background:transparent;border:1px solid #1f2438;color:#7880a8;border-radius:9px;padding:8px 16px;font-weight:700;cursor:pointer;">Cancel</button>'
+    + '<button class="profile-save" id="rep-c-save" style="padding:8px 18px;background:linear-gradient(135deg,#60a5fa,#3b82f6);color:#08111f;">Log contact</button></div></div>';
+  document.body.appendChild(m);
+  const close = function(){ document.removeEventListener('keydown', onKey); m.remove(); };
+  function onKey(e){ if (e.key === 'Escape') close(); }
+  document.addEventListener('keydown', onKey);
+  m.addEventListener('click', function(e){ if (e.target === m) close(); });
+  document.getElementById('rep-c-cancel').addEventListener('click', close);
+  document.getElementById('rep-c-save').addEventListener('click', async function(){
+    const err = document.getElementById('rep-c-err'); err.textContent = '';
+    const btn = document.getElementById('rep-c-save'); btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      const r = await fetch(REPC_BASE + '?api=add-contact', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token }, body: JSON.stringify({ studentId: s.id, contact_date: document.getElementById('rep-c-date').value || null, notes: document.getElementById('rep-c-note').value || '' }) });
+      const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Failed');
+      close(); await loadRepData();
+      if (currentStudent && currentStudent.id === s.id) renderRepArea(currentStudent);
+    } catch (e) { btn.disabled = false; btn.textContent = 'Log contact'; err.textContent = e.message || e; }
+  });
+}
+async function openRepStatusHistory(s) {
+  document.getElementById('repStatusHistModal')?.remove();
+  const m = document.createElement('div');
+  m.id = 'repStatusHistModal';
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(8,9,18,0.78);backdrop-filter:blur(8px);z-index:10008;display:flex;align-items:center;justify-content:center;padding:20px;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;';
+  m.innerHTML = '<div style="background:#13141f;border:1px solid #1f2438;border-radius:18px;padding:22px 24px;max-width:460px;width:100%;max-height:80vh;overflow:auto;color:#eaecf8;box-shadow:0 24px 60px rgba(0,0,0,0.55);">'
+    + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;"><div style="font-size:1.0rem;font-weight:800;margin-right:auto;">Rep status history — ' + _qx(s.name || '') + '</div><button id="rsh-close" style="background:transparent;border:none;color:#7880a8;font-size:1.4rem;cursor:pointer;">×</button></div>'
+    + '<div id="rsh-body"><div style="padding:20px;text-align:center;color:#7880a8;">Loading…</div></div></div>';
+  document.body.appendChild(m);
+  const close = function(){ m.remove(); };
+  m.querySelector('#rsh-close').addEventListener('click', close);
+  m.addEventListener('click', function(e){ if (e.target === m) close(); });
+  try {
+    const r = await fetch(REPC_BASE + '?api=status-log&student_id=' + s.id, { headers: { Authorization: 'Bearer ' + currentSession.access_token } });
+    const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Failed');
+    const rows = j.rows || []; const body = m.querySelector('#rsh-body');
+    if (!rows.length) { body.innerHTML = '<div style="padding:16px;text-align:center;color:#7880a8;font-size:0.85rem;">No status changes logged yet.</div>'; return; }
+    body.innerHTML = rows.map(function(row){ const c = REP_STATUS_COLORS[row.status] || { bg: 'rgba(255,255,255,0.08)', fg: '#cbd1ee' }; return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #1f2438;"><span class="badge" style="background:' + c.bg + ';color:' + c.fg + ';">' + row.status + '</span><span style="font-size:0.78rem;color:#cbd1ee;">' + (row.set_at ? new Date(row.set_at).toLocaleString() : '') + '</span>' + (row.set_by_name ? '<span style="font-size:0.72rem;color:#7880a8;margin-left:auto;">' + _qx(row.set_by_name) + '</span>' : '') + '</div>'; }).join('');
+  } catch (e) { m.querySelector('#rsh-body').innerHTML = '<div style="padding:16px;color:#f87171;">' + _qx(e.message || e) + '</div>'; }
 }
 document.getElementById('globalContactsBtn')?.addEventListener('click', openGlobalContactsModal);
 document.getElementById('globalAlertsBtn')?.addEventListener('click', openGlobalAlertsModal);

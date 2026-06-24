@@ -13,6 +13,10 @@ the structural map lives in the knowledge graph (`/graphify`). Format:
 
 ---
 
+## 2026-06-24 — Rep Area part 2: status + last-contact + badges + filters (UI)
+**What:** students.js — profile **Rep Area** panel (assigned rep + last-contact date + rep-status dropdown → `mentorship_rep_status_log` + "Status history" modal + "Log contact" modal); student-row **rep-status badge + "📞 7d" recently-contacted tag** (rep-view roles, from the `repDataMap` loaded once per session); advanced-filter additions **rep_status** (multi) + **recently_contacted** (tri), rep-view only. Status text comes from a fixed dropdown set (safe to inline). `mentorship_students` still never written.
+**Touched:** students.js; version v384, changelog v384. (Backend = rep-contacts v1 / the two tables from part 1.)
+
 ## 2026-06-24 — Rep Area part 1: contact log + Contacts queue
 **What:** New, fully-additive rep CRM layer. Tables `mentorship_rep_contacts` (contact log → last-contact + recently-contacted) and `mentorship_rep_status_log` (append-only status history). `mentorship_students` is NEVER written — snapshot backup `mentorship_students_backup_20260624` (670 rows) taken first as a revert point. New edge fn `rep-contacts` v1 (verify_jwt, sha b51d8872): `rep-data` / `status-log` / `contacts` / `add-contact` / `set-status`. students.js/.html: a "Contacts" top button + modal (log a contact via student-picker; scoped list view), rep-data map loaded for view roles, recently-contacted count badge.
 **Roles:** view (rep status, filters, full contacts) = admin/rep/sales_mgr/ms_ic/delivery_ic; edit (log contact, set status) = admin/rep/ms_ic/delivery_ic; coaches = their own students' contacts only.

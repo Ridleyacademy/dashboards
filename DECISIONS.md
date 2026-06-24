@@ -13,6 +13,12 @@ the structural map lives in the knowledge graph (`/graphify`). Format:
 
 ---
 
+## 2026-06-24 — Rep Area part 1: contact log + Contacts queue
+**What:** New, fully-additive rep CRM layer. Tables `mentorship_rep_contacts` (contact log → last-contact + recently-contacted) and `mentorship_rep_status_log` (append-only status history). `mentorship_students` is NEVER written — snapshot backup `mentorship_students_backup_20260624` (670 rows) taken first as a revert point. New edge fn `rep-contacts` v1 (verify_jwt, sha b51d8872): `rep-data` / `status-log` / `contacts` / `add-contact` / `set-status`. students.js/.html: a "Contacts" top button + modal (log a contact via student-picker; scoped list view), rep-data map loaded for view roles, recently-contacted count badge.
+**Roles:** view (rep status, filters, full contacts) = admin/rep/sales_mgr/ms_ic/delivery_ic; edit (log contact, set status) = admin/rep/ms_ic/delivery_ic; coaches = their own students' contacts only.
+**Part 2 (next):** per-student Rep Area in the profile (status dropdown + history + last-contact), row status badge + recently-contacted tag, and the list filters.
+**Touched:** migration `rep_contacts_and_status_log`; rep-contacts.ts v1; students.js, students.html; version v383, changelog v383.
+
 ## 2026-06-24 — Turnover reassign: in the global queue + student-rep default
 **What:** The "⇄ reassign" button now also appears on each card in the global "↪ Turn Over" queue (`renderGlobalTurnovers`), not just the per-student history. The rep picker now defaults to the **student's assigned rep** when it differs from the turnover's current rep. `ms-queue` v9 adds `student_rep` to turnover rows so the queue can supply that default. `openReassignTurnoverModal` was generalized to `(t, onDone, studentRep)` so both call sites (per-student modal + global queue) share it.
 **Touched:** ms-queue.ts v9 (deploy byte-verified sha 743e9dd4); students.js; version.txt v382; changelog.js v382.

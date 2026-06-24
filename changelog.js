@@ -16,6 +16,13 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v383', title: 'Rep Contacts log (new Contacts button)',
+      roles: ['ms_rep', 'rep', 'sales_manager', 'ms_ic', 'delivery_ic', 'coach'], items: [
+      'New "Contacts" button at the top of the Mentorship CRM (next to Turn Over) — the running log of rep↔student contacts.',
+      'Reps / Admins / MS-IC / Delivery-IC can log a contact straight from there: just pick the student (+ date + optional note). The count badge shows how many students were contacted in the last 7 days.',
+      'Reps / Admins / Sales Managers / MS-IC / Delivery-IC see all contacts; coaches see only their own students\'.',
+      'Coming next in this Rep Area: a per-student rep status (Hot / Needs help / Not qualified…) with full history, a last-contact date, a "recently contacted" tag, and matching filters.',
+    ]},
     { version: 'v382', title: 'Turnover reassign — now in the queue + smarter default',
       roles: ['ms_ic', 'delivery_ic'], items: [
       'The "⇄ reassign" button is now also on every turnover in the global "↪ Turn Over" queue (top-left), not just inside a student profile.',

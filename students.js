@@ -43,6 +43,11 @@ let coaches = [];
 let reps = [];          // assignable rep display names — driven by ?api=reps
 let canReassignTurnover = false;   // admin / ms_ic / delivery_ic — may reassign turnovers
 const REASSIGN_BASE = SUPABASE_URL + '/functions/v1/reassign-turnover';
+let canRepView = false, canRepEdit = false;   // Rep Area: view = admin/rep/sales_mgr/ms_ic/delivery_ic, edit = admin/rep/ms_ic/delivery_ic
+const REPC_BASE = SUPABASE_URL + '/functions/v1/rep-contacts';
+let repDataMap = {};   // student_id -> { status, status_at, last_contact_date, recently_contacted }
+let repStatusOptions = ['Hot', 'Warm', 'Cold', 'Qualified', 'Not qualified', 'Needs help', 'Do not contact'];
+let _qContactsClose = null;
 // True when the user can ONLY edit the `rep` field on the profile (sales
 // manager who also holds ms_rep). isProfileReadOnly is still true in that
 // case; this is an exception layered on top.
@@ -105,6 +110,9 @@ async function onAuthed(session) {
   const isAdmin = eff.is_admin === true;
   const ps = Array.isArray(eff.permissions) ? eff.permissions : [];
   canReassignTurnover = isAdmin || ps.includes('ms_ic') || ps.includes('delivery_ic');
+  canRepView = isAdmin || ps.includes('rep') || ps.includes('ms_rep') || ps.includes('sales_manager') || ps.includes('ms_ic') || ps.includes('delivery_ic');
+  canRepEdit = isAdmin || ps.includes('rep') || ps.includes('ms_rep') || ps.includes('ms_ic') || ps.includes('delivery_ic');
+  const _cbtn = document.getElementById('globalContactsBtn'); if (_cbtn) _cbtn.style.display = (canRepView || ps.includes('coach')) ? 'inline-flex' : 'none';
   const isCoachOnly = !isAdmin && ps.includes('coach') && !ps.includes('mentorship') && !ps.includes('sales_manager');
   isMsRepOnly = !isAdmin && ps.includes('ms_rep')
     && !ps.includes('mentorship') && !ps.includes('sales_manager')
@@ -155,6 +163,7 @@ async function onAuthed(session) {
   loadMentors();
   loadCoaches();
   loadReps();
+  loadRepData();
   await loadStudents();
   // URL params honored on first load:
   //   ?student=N&openAlert=K     open student then jump to a specific alert
@@ -4279,6 +4288,83 @@ async function submitGlobalTurnover(id) {
   } catch (e) { if (btn) { btn.disabled = false; btn.textContent = mode === 'resolve' ? '✓ Resolve' : '↩ Post response'; } alert('Failed: ' + (e.message || e)); }
 }
 
+// ── Rep Area: per-student status / last-contact map + the Contacts queue ──
+async function loadRepData() {
+  if (!canRepView) return;
+  try {
+    const r = await fetch(REPC_BASE + '?api=rep-data', { headers: { Authorization: 'Bearer ' + currentSession.access_token } });
+    const j = await r.json();
+    if (!r.ok) return;
+    repDataMap = {};
+    let recent = 0;
+    for (const row of (j.rows || [])) { repDataMap[row.student_id] = row; if (row.recently_contacted) recent++; }
+    if (Array.isArray(j.status_options) && j.status_options.length) repStatusOptions = j.status_options;
+    const cc = document.getElementById('globalContactsCount'); if (cc) cc.textContent = recent;
+    if (typeof renderStudentList === 'function' && students && students.length) renderStudentList();
+  } catch (_) {}
+}
+async function openGlobalContactsModal() {
+  const r = _qModal('globalContactsModal', '📇 Contacts'); _qContactsClose = r.close;
+  if (canRepEdit) {
+    const newBtn = _qHdrBtn('+ Log contact', 'rgba(96,165,250,0.5)'); newBtn.style.color = '#60a5fa';
+    newBtn.addEventListener('click', function(){ openCreateContactForm(r.body, function(){ _loadGlobalContacts(r.body); }); });
+    r.actions.appendChild(newBtn);
+  }
+  await _loadGlobalContacts(r.body);
+}
+async function _loadGlobalContacts(body) {
+  body.innerHTML = '<div style="padding:32px;text-align:center;color:#7880a8;">Loading…</div>';
+  try {
+    const r = await fetch(REPC_BASE + '?api=contacts', { headers: { Authorization: 'Bearer ' + currentSession.access_token } });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Failed');
+    renderGlobalContacts(body, j.rows || [], j.see_all);
+  } catch (e) { body.innerHTML = '<div style="padding:24px;color:#f87171;">' + _qx(e.message || e) + '</div>'; }
+}
+function renderGlobalContacts(body, rows, seeAll) {
+  const head = '<div style="font-size:0.72rem;color:#7880a8;margin-bottom:12px;">' + rows.length + ' contact' + (rows.length === 1 ? '' : 's') + ' · ' + (seeAll ? 'all reps' : 'your students') + '</div>';
+  if (!rows.length) { body.innerHTML = head + '<div style="padding:24px;text-align:center;color:#7880a8;font-size:0.86rem;">No contacts logged yet.</div>'; return; }
+  body.innerHTML = head + rows.map(function(c){
+    return '<div class="qcontact-row" data-id="' + c.id + '" style="border:1px solid #1f2438;border-radius:12px;padding:12px 14px;margin-bottom:10px;">'
+      + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap;"><button class="q-student-link" data-sid="' + c.student_id + '" style="background:none;border:none;color:#8fd6ff;font-weight:800;font-size:0.88rem;cursor:pointer;padding:0;text-decoration:underline;text-underline-offset:2px;font-family:inherit;"></button>'
+      + (c.student_rep ? '<span style="font-size:0.7rem;color:#7880a8;">Rep: ' + _qx(c.student_rep) + '</span>' : '')
+      + (c.student_coach ? '<span style="font-size:0.7rem;color:#7880a8;">· Coach: ' + _qx(c.student_coach) + '</span>' : '') + '</div>'
+      + '<div style="font-size:0.78rem;color:#cbd1ee;">📞 ' + _qx(c.contact_date) + (c.created_by_name ? ' · by ' + _qx(c.created_by_name) : '') + '</div>'
+      + '<div class="qcn" style="margin-top:5px;font-size:0.83rem;color:#cbd1ee;white-space:pre-wrap;line-height:1.5;"></div>'
+      + '</div>';
+  }).join('');
+  for (const c of rows) {
+    const row = body.querySelector('.qcontact-row[data-id="' + c.id + '"]'); if (!row) continue;
+    const link = row.querySelector('.q-student-link'); if (link) link.textContent = c.student_name || ('Student #' + c.student_id);
+    const n = row.querySelector('.qcn'); if (n) n.textContent = c.notes || '';
+  }
+  body.querySelectorAll('.q-student-link').forEach(function(b){ b.addEventListener('click', function(){ const sid = Number(b.dataset.sid); if (_qContactsClose) _qContactsClose(); openStudent(sid); }); });
+}
+function openCreateContactForm(body, reload) {
+  const today = new Date().toISOString().slice(0, 10);
+  body.innerHTML = '<button class="qc-back" style="background:transparent;border:1px solid #2a3050;color:#7880a8;border-radius:8px;padding:4px 12px;font-size:0.74rem;font-weight:700;cursor:pointer;font-family:inherit;">← Back</button>'
+    + '<div style="font-weight:800;font-size:0.95rem;margin:10px 0 14px;">Log a contact</div>'
+    + _qStudentPickerHTML('c')
+    + '<div class="field" style="margin:12px 0;"><div class="field-label">Contact date</div><input type="date" class="field-input qc-c-date" value="' + today + '"></div>'
+    + '<div class="field" style="margin-bottom:12px;"><div class="field-label">Notes (optional)</div><textarea class="field-textarea qc-c-note" placeholder="What happened on this contact?" style="min-height:80px;"></textarea></div>'
+    + '<div class="qc-err" style="color:#f87171;font-size:0.78rem;min-height:1em;margin-bottom:8px;"></div>'
+    + '<button class="profile-save qc-c-create" style="padding:8px 18px;">Log contact</button>';
+  _qWireStudentPicker(body, 'c', function(){});
+  body.querySelector('.qc-back').addEventListener('click', reload);
+  body.querySelector('.qc-c-create').addEventListener('click', async function(){
+    const sid = Number(body.querySelector('.qc-stud-id-c').value || 0);
+    const err = body.querySelector('.qc-err'); err.textContent = '';
+    if (!sid) { err.textContent = 'Pick a student first.'; return; }
+    const btn = body.querySelector('.qc-c-create'); btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      const r = await fetch(REPC_BASE + '?api=add-contact', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token }, body: JSON.stringify({ studentId: sid, contact_date: body.querySelector('.qc-c-date').value || null, notes: body.querySelector('.qc-c-note').value || '' }) });
+      const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Failed');
+      await loadRepData();
+      reload();
+    } catch (e) { btn.disabled = false; btn.textContent = 'Log contact'; err.textContent = e.message || e; }
+  });
+}
+document.getElementById('globalContactsBtn')?.addEventListener('click', openGlobalContactsModal);
 document.getElementById('globalAlertsBtn')?.addEventListener('click', openGlobalAlertsModal);
 document.getElementById('globalTurnoversBtn')?.addEventListener('click', openGlobalTurnoversModal);
 document.getElementById('refreshBtn')?.addEventListener('click', () => { if (currentSession) loadGlobalQueueCounts(); });

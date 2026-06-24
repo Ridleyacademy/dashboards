@@ -2011,7 +2011,7 @@ function renderProfile() {
     if (title === 'Rep Area') {
       if (!canRepView || isNew) return '';   // rep-view roles only; not on a brand-new student
       const repGrid = `<div class="profile-grid">${fields.map(f => _buildField(f, s[f.k])).join('')}</div>`;
-      return _section('Rep Area', repGrid + '<div id="prof-rep-widgets"></div>', '📇 Rep Area');
+      return _section('Rep Area', repGrid + '<div id="prof-rep-widgets"></div>');
     }
     const grid = `<div class="profile-grid">${fields.map(f => _buildField(f, s[f.k])).join('')}</div>`;
     let html = _section(title, grid);

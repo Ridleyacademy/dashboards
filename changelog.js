@@ -18,7 +18,7 @@
   const ENTRIES = [
     { version: 'v385', title: 'Rep Area is now a collapsible section under Identity',
       roles: ['ms_rep', 'rep', 'sales_manager', 'ms_ic', 'delivery_ic'], items: [
-      'The Rep Area is now its own collapsible "📇 Rep Area" section right under Identity (matches the other profile sections — click to collapse/expand).',
+      'The Rep Area is now its own collapsible "Rep Area" section right under Identity (matches the other profile sections — click to collapse/expand).',
       'The "Assigned rep" field moved out of Identity and now lives inside the Rep Area.',
     ]},
     { version: 'v384', title: 'Rep Area — status, last contact & filters per student',

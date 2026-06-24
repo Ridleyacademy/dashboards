@@ -1388,10 +1388,15 @@ const SECTIONS = [
     { k: 'name',    label: 'Name *',          type: 'text',  full: true },
     { k: 'email',   label: 'Email',           type: 'email' },
     { k: 'phone',   label: 'Phone',           type: 'tel'   },
-    { k: 'rep',     label: 'Rep',             type: 'datalist', opts: 'reps', placeholder: 'Type or pick a rep…' },
     // Status is now fully auto-derived in computeLifecycle (Active / Inactive
     // / Expiring / Expired / Paused / Delayed / Refunded / Graduated etc.)
     // and surfaced via the header chip — no manual override field needed.
+  ]],
+  // Rep Area — rep-facing, rendered only for rep-view roles (see renderProfile's
+  // sections map, which also injects the status / last-contact / log-contact
+  // widgets into #prof-rep-widgets via renderRepArea). The `rep` field lives here.
+  ['Rep Area', [
+    { k: 'rep',     label: 'Assigned rep',    type: 'datalist', opts: 'reps', placeholder: 'Type or pick a rep…' },
   ]],
   ['Purchase', [
     { k: 'first_purchase_date', label: '1st purchase date',          type: 'date' },
@@ -2003,6 +2008,11 @@ function renderProfile() {
       ${innerHTML}
     </details>`;
   const sectionsHtml = SECTIONS.map(([title, fields]) => {
+    if (title === 'Rep Area') {
+      if (!canRepView || isNew) return '';   // rep-view roles only; not on a brand-new student
+      const repGrid = `<div class="profile-grid">${fields.map(f => _buildField(f, s[f.k])).join('')}</div>`;
+      return _section('Rep Area', repGrid + '<div id="prof-rep-widgets"></div>', '📇 Rep Area');
+    }
     const grid = `<div class="profile-grid">${fields.map(f => _buildField(f, s[f.k])).join('')}</div>`;
     let html = _section(title, grid);
     if (title === 'Purchase' && !isNew) html += _buildResignsPanel(_section, _openAttr);
@@ -2103,7 +2113,6 @@ function renderProfile() {
         <span class="profile-msg" id="prof-msg"></span>
       </div>
     </div>
-    ${(canRepView && !isNew) ? '<div id="prof-rep-area"></div>' : ''}
     ${sectionsHtml}
   `;
 
@@ -4402,7 +4411,7 @@ function openCreateContactForm(body, reload) {
 }
 // ── Profile Rep Area: status (dropdown + history) + last contact + log-contact ──
 function renderRepArea(s) {
-  const box = document.getElementById('prof-rep-area');
+  const box = document.getElementById('prof-rep-widgets');
   if (!box || !canRepView) return;
   const rd = repDataMap[s.id] || {};
   const c = rd.status ? (REP_STATUS_COLORS[rd.status] || { bg: 'rgba(255,255,255,0.08)', fg: '#cbd1ee' }) : null;
@@ -4413,11 +4422,9 @@ function renderRepArea(s) {
   const opts = canRepEdit
     ? '<select id="rep-status-select" style="background:#0f1019;color:#eaecf8;border:1px solid #2a3050;border-radius:8px;padding:7px 10px;font-size:0.82rem;cursor:pointer;"><option value="">— set status —</option>' + repStatusOptions.map(function(o){ return '<option value="' + o + '"' + (o === rd.status ? ' selected' : '') + '>' + o + '</option>'; }).join('') + '</select>'
     : '';
-  box.innerHTML = '<div style="border:1px solid rgba(96,165,250,0.35);background:rgba(96,165,250,0.05);border-radius:12px;padding:14px 16px;margin:0 0 14px;">'
-    + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;"><span style="font-size:0.72rem;font-weight:800;text-transform:uppercase;letter-spacing:0.06em;color:#60a5fa;">Rep Area</span>'
-    + '<span style="font-size:0.72rem;color:#7880a8;">Assigned rep: <strong style="color:#cbd1ee;">' + (s.rep ? _qx(s.rep) : 'unassigned') + '</strong></span></div>'
+  box.innerHTML = '<div style="margin-top:10px;padding-top:10px;border-top:1px solid #1f2438;">'
     + '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;">'
-    + '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><span style="font-size:0.74rem;color:#7880a8;">Status:</span> ' + statusPill + ' ' + recent + '</div>'
+    + '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><span style="font-size:0.74rem;color:#7880a8;">Rep status:</span> ' + statusPill + ' ' + recent + '</div>'
     + '<div style="font-size:0.78rem;color:#cbd1ee;">Last contact: <strong>' + (rd.last_contact_date || '—') + '</strong></div></div>'
     + '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">' + opts
     + (canRepEdit ? '<button class="profile-save" id="rep-log-contact" style="padding:7px 14px;font-size:0.78rem;background:rgba(96,165,250,0.18);color:#60a5fa;">📞 Log contact</button>' : '')

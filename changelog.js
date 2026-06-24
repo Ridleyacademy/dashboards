@@ -16,6 +16,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v385', title: 'Rep Area is now a collapsible section under Identity',
+      roles: ['ms_rep', 'rep', 'sales_manager', 'ms_ic', 'delivery_ic'], items: [
+      'The Rep Area is now its own collapsible "📇 Rep Area" section right under Identity (matches the other profile sections — click to collapse/expand).',
+      'The "Assigned rep" field moved out of Identity and now lives inside the Rep Area.',
+    ]},
     { version: 'v384', title: 'Rep Area — status, last contact & filters per student',
       roles: ['ms_rep', 'rep', 'sales_manager', 'ms_ic', 'delivery_ic'], items: [
       'Open any student → new "Rep Area": the assigned rep, last-contact date, and a rep-status dropdown (Hot / Warm / Cold / Qualified / Not qualified / Needs help / Do not contact). Every change is kept in a "Status history" log.',

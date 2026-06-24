@@ -13,6 +13,10 @@ the structural map lives in the knowledge graph (`/graphify`). Format:
 
 ---
 
+## 2026-06-24 — Rep Area → collapsible section under Identity (+ rep field moved in)
+**What:** Moved the `rep` field out of the Identity `SECTIONS` block into a new `['Rep Area', [...]]` section placed right after Identity — so the profile populate/save loops (which iterate `SECTIONS`) keep handling rep automatically. The sections map special-cases 'Rep Area': renders only for `canRepView` (not on a new student) as a collapsible `_section` containing the rep field + a `#prof-rep-widgets` container that `renderRepArea()` fills with status/last-contact/log-contact. Removed the old standalone `#prof-rep-area` injection.
+**Touched:** students.js; version v385, changelog v385.
+
 ## 2026-06-24 — Rep Area part 2: status + last-contact + badges + filters (UI)
 **What:** students.js — profile **Rep Area** panel (assigned rep + last-contact date + rep-status dropdown → `mentorship_rep_status_log` + "Status history" modal + "Log contact" modal); student-row **rep-status badge + "📞 7d" recently-contacted tag** (rep-view roles, from the `repDataMap` loaded once per session); advanced-filter additions **rep_status** (multi) + **recently_contacted** (tri), rep-view only. Status text comes from a fixed dropdown set (safe to inline). `mentorship_students` still never written.
 **Touched:** students.js; version v384, changelog v384. (Backend = rep-contacts v1 / the two tables from part 1.)

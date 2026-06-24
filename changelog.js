@@ -16,6 +16,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v381', title: 'Turnovers — reassign to another rep',
+      roles: ['ms_ic', 'delivery_ic'], items: [
+      'Admins, MS-IC and Delivery-IC now get a small "⇄ reassign" button next to the rep name on any turnover (in the student\'s Turnovers history).',
+      'Pick a new rep — the turnover moves to their queue, they\'re notified (in-app + email), and the previous rep is dropped from the thread. Out of the way of the response/resolution controls.',
+    ]},
     { version: 'v380', title: 'Weekly Stats — assign stats to people & filter by person',
       items: [
       'Each weekly-stats metric can now be assigned to one or more people — open a stat, hit Edit, and tick the people under "Assigned to".',

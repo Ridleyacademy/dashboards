@@ -41,6 +41,8 @@ let currentStudent = null;     // full row when one is selected
 let mentors = [];
 let coaches = [];
 let reps = [];          // assignable rep display names — driven by ?api=reps
+let canReassignTurnover = false;   // admin / ms_ic / delivery_ic — may reassign turnovers
+const REASSIGN_BASE = SUPABASE_URL + '/functions/v1/reassign-turnover';
 // True when the user can ONLY edit the `rep` field on the profile (sales
 // manager who also holds ms_rep). isProfileReadOnly is still true in that
 // case; this is an exception layered on top.
@@ -102,6 +104,7 @@ async function onAuthed(session) {
   const eff = window.RidleyPerms.effective(session.user);
   const isAdmin = eff.is_admin === true;
   const ps = Array.isArray(eff.permissions) ? eff.permissions : [];
+  canReassignTurnover = isAdmin || ps.includes('ms_ic') || ps.includes('delivery_ic');
   const isCoachOnly = !isAdmin && ps.includes('coach') && !ps.includes('mentorship') && !ps.includes('sales_manager');
   isMsRepOnly = !isAdmin && ps.includes('ms_rep')
     && !ps.includes('mentorship') && !ps.includes('sales_manager')
@@ -3392,7 +3395,7 @@ function renderTurnoverList() {
     return `<div class="turn-row" data-tid="${t.id}" style="border:1px solid ${hasResult ? '#1f2438' : inProgress ? 'rgba(251,146,60,0.4)' : 'rgba(52,211,153,0.35)'};border-radius:12px;padding:14px;margin-bottom:12px;background:${hasResult ? 'transparent' : inProgress ? 'rgba(251,146,60,0.04)' : 'rgba(52,211,153,0.05)'};">
       <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:6px;">
         <div style="flex:1;">
-          <div style="font-weight:700;font-size:0.92rem;">→ <span class="turn-rep-cell"></span></div>
+          <div style="font-weight:700;font-size:0.92rem;">→ <span class="turn-rep-cell"></span>${canReassignTurnover ? ` <button class="turn-reassign" data-tid="${t.id}" title="Reassign this turnover to another rep" style="margin-left:6px;padding:1px 8px;font-size:0.64rem;font-weight:700;background:transparent;border:1px solid #2a3050;color:#7880a8;border-radius:6px;cursor:pointer;vertical-align:1px;">⇄ reassign</button>` : ''}</div>
           <div class="turn-note-cell" style="margin-top:4px;font-size:0.86rem;color:#c2c8e0;line-height:1.5;white-space:pre-wrap;"></div>
         </div>
         ${badge}
@@ -3426,6 +3429,9 @@ function renderTurnoverList() {
   });
   body.querySelectorAll('.turn-ans-btn').forEach(btn => {
     btn.addEventListener('click', () => submitTurnoverEntry(Number(btn.dataset.tid)));
+  });
+  body.querySelectorAll('.turn-reassign').forEach(btn => {
+    btn.addEventListener('click', (e) => { e.stopPropagation(); openReassignTurnoverModal(Number(btn.dataset.tid)); });
   });
   // Response / Resolution picker: swap placeholder + button label.
   body.querySelectorAll('input[type="radio"][name^="turnmode-"]').forEach(radio => {
@@ -3472,6 +3478,62 @@ async function submitTurnoverEntry(id) {
     if (btn) { btn.disabled = false; btn.textContent = mode === 'resolve' ? '✓ Resolve' : '↩ Post response'; }
     alert('Failed: ' + (e.message || e));
   }
+}
+
+// Reassign a turnover to another rep (admin / MS-IC / Delivery-IC only). Hits the
+// standalone reassign-turnover edge fn: updates rep_name, swaps notify list, and
+// notifies the new rep (in-app + email).
+function openReassignTurnoverModal(turnoverId) {
+  const t = currentTurnovers.find(x => Number(x.id) === Number(turnoverId));
+  if (!t || !canReassignTurnover) return;
+  document.getElementById('turnReassignModal')?.remove();
+  const dlId = 'reassignRepList';
+  const optsHtml = (reps || []).map(r => `<option value="${String(r).replace(/"/g,'&quot;')}">`).join('');
+  const m = document.createElement('div');
+  m.id = 'turnReassignModal';
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(8,9,18,0.78);backdrop-filter:blur(8px);z-index:10007;display:flex;align-items:center;justify-content:center;padding:20px;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;';
+  m.innerHTML = `
+    <div style="background:#13141f;border:1px solid #1f2438;border-radius:18px;padding:24px 26px;max-width:440px;width:100%;color:#eaecf8;box-shadow:0 24px 60px rgba(0,0,0,0.55);">
+      <div style="font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;margin-bottom:4px;">Reassign turnover</div>
+      <div style="font-size:0.78rem;color:#7880a8;margin-bottom:14px;">Currently with <strong style="color:#eaecf8;" id="raCurRep"></strong>. Hand it to another rep — they'll be notified and it moves to their queue.</div>
+      <div class="field" style="margin-bottom:16px;">
+        <div class="field-label">New rep *</div>
+        <input class="field-input" id="raRepInput" list="${dlId}" placeholder="Pick or type a rep name" autocomplete="off">
+        <datalist id="${dlId}">${optsHtml}</datalist>
+      </div>
+      <div id="raErr" style="color:var(--red);font-size:0.78rem;min-height:1em;margin-bottom:8px;"></div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button id="raCancel" style="background:transparent;border:1px solid #1f2438;color:#7880a8;border-radius:9px;padding:8px 16px;font-weight:700;cursor:pointer;">Cancel</button>
+        <button id="raSave" class="profile-save" style="padding:8px 18px;background:linear-gradient(135deg,#34d399,#10b981);color:#0b0c14;">Reassign</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  document.getElementById('raCurRep').textContent = t.rep_name || '(unassigned)';
+  const input = document.getElementById('raRepInput'); input.focus();
+  function close() { document.removeEventListener('keydown', onKey); m.remove(); }
+  function onKey(e) { if (e.key === 'Escape') close(); }
+  document.addEventListener('keydown', onKey);
+  m.addEventListener('click', e => { if (e.target === m) close(); });
+  document.getElementById('raCancel').addEventListener('click', close);
+  document.getElementById('raSave').addEventListener('click', async () => {
+    const errEl = document.getElementById('raErr'); errEl.textContent = '';
+    const rep = input.value.trim();
+    if (!rep) { errEl.textContent = 'Pick a rep.'; return; }
+    if (rep.toLowerCase() === String(t.rep_name || '').trim().toLowerCase()) { errEl.textContent = 'Already assigned to ' + rep + '.'; return; }
+    const btn = document.getElementById('raSave'); btn.disabled = true; btn.textContent = 'Reassigning…';
+    try {
+      const r = await fetch(REASSIGN_BASE, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token }, body: JSON.stringify({ turnoverId, rep_name: rep }) });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'Failed');
+      close();
+      await openStudent(currentStudent.id);
+      await loadStudents();
+      if (document.getElementById('turnListModal')) renderTurnoverList();
+    } catch (e) {
+      btn.disabled = false; btn.textContent = 'Reassign';
+      errEl.textContent = e.message || 'Failed';
+    }
+  });
 }
 
 function openTurnoverResultModal(turnoverId) {

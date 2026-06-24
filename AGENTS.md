@@ -1547,6 +1547,9 @@ No version header.
 
 Five edge functions back the Mentorship CRM and the Sales/Calls/Declarations/Income dashboards: `students` (Mentorship CRM), `declarations` (rep self-reported sales + sales-check), `calls` (Calls dashboard with rep sales joins), `income` (Sales Log finance view), and `dashboard` (top-of-funnel sales-dashboard RPC proxy). All run on `Deno.serve`, return CORS headers, route on a `?api=…` query param, and use the service-role key to bypass RLS — so authorization is entirely in-function. Every fn gates on the **legacy `permissions` role array** plus, additively, **granular `permissions_v2` keys** (admin via `app_metadata.is_admin` always passes). For the underlying business rules (calls attribution, declarations Maybe-checks, income/auto-declaration semantics, `get_daily_stats`, the students CRM lifecycle and table model) see the existing "Business rules" section — this section documents only the edge-function mechanics.
 
+### `reassign-turnover` (v1)
+Standalone fn (NOT in `students`) that hands a `mentorship_turnovers` row to a different rep. `verify_jwt`, gated to **admin / `ms_ic` / `delivery_ic` only**. POST `{ turnoverId, rep_name }` → updates `rep_name`, swaps the old rep for the new in `notified_user_ids` (keeps leads/coach), and notifies the new rep (in-app `notifications` row + `turnover_opened` email via dispatch-event). Old/new reps resolved by matching `rep_name` to a user's first_name/email. Frontend: a small "⇄ reassign" button next to the rep name in the student's Turnovers history (students.js, gated by `canReassignTurnover`). Kept standalone because re-emitting the ~82KB `students` fn for an MCP inline deploy is too risky.
+
 ### `students` (v80)
 Mentorship CRM: student profiles, lifecycle derivation, and all sub-entities (pauses, resigns, alerts, wins, notes, turnovers, surveys, activity log, notifications).
 

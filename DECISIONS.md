@@ -13,6 +13,12 @@ the structural map lives in the knowledge graph (`/graphify`). Format:
 
 ---
 
+## 2026-06-24 — Turnover reassignment (standalone reassign-turnover fn)
+**What:** New small edge fn `reassign-turnover` (v1, verify_jwt) gated to admin/MS-IC/Delivery-IC: updates `mentorship_turnovers.rep_name`, swaps the old rep for the new in `notified_user_ids` (keeps leads/coach), and notifies the new rep (in-app notification + `turnover_opened` email via dispatch-event). students.js: a small "⇄ reassign" button next to the rep name in the Turnovers history (gated by `canReassignTurnover`), opening a rep-picker modal that calls the fn.
+**Why:** Ops wanted a quick way to hand a turnover to another rep from the turnover itself — same effect as the manual reassign done earlier for Katarina, now self-serve.
+**Decision:** Built as a STANDALONE function rather than a new action in students.ts — students.ts is ~82KB and re-emitting it byte-perfect for an MCP inline deploy is too risky for the critical CRM. The standalone fn (~7KB) deploys/verifies cleanly. Trade-off: minor logic duplication (notify/email) vs. deploy safety. (students.ts mirror was reverted to the deployed v80 to avoid drift.)
+**Touched:** edge fn reassign-turnover.ts (v1, byte-verified sha c7bd9b50); students.js; version.txt v381; changelog.js v381. Frontend live on push.
+
 ## 2026-06-23 — Weekly Stats: assign metrics to users + filter by user
 **What:** Added `weekly_stats_metrics.assigned_user_ids uuid[]` (+ GIN index). `weekly-stats` v36 adds `assignees` (GET, view — lists weekly-stats users) and `assign` (POST, edit — set a metric's assignees); `catalog` now returns `assigned_user_ids`. Dashboard (weekly-stats.js/.html) adds an "Assigned to" filter beside the division tabs, initials chips on cards, and an assignee checklist in the drilldown editor.
 **Why:** User wanted to tag who owns each stat and filter the board to one person's stats. Chosen model: ownership tag only (shared value), optional filter for everyone (not an access restriction), assignable to anyone with weekly-stats access.

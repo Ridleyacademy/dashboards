@@ -16,6 +16,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v382', title: 'Turnover reassign — now in the queue + smarter default',
+      roles: ['ms_ic', 'delivery_ic'], items: [
+      'The "⇄ reassign" button is now also on every turnover in the global "↪ Turn Over" queue (top-left), not just inside a student profile.',
+      'The rep picker now pre-fills with the student\'s currently-assigned rep when it differs from the turnover\'s rep — usually one click to hand it to the right person.',
+    ]},
     { version: 'v381', title: 'Turnovers — reassign to another rep',
       roles: ['ms_ic', 'delivery_ic'], items: [
       'Admins, MS-IC and Delivery-IC now get a small "⇄ reassign" button next to the rep name on any turnover (in the student\'s Turnovers history).',

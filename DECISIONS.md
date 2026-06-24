@@ -13,6 +13,10 @@ the structural map lives in the knowledge graph (`/graphify`). Format:
 
 ---
 
+## 2026-06-24 — Turnover reassign: in the global queue + student-rep default
+**What:** The "⇄ reassign" button now also appears on each card in the global "↪ Turn Over" queue (`renderGlobalTurnovers`), not just the per-student history. The rep picker now defaults to the **student's assigned rep** when it differs from the turnover's current rep. `ms-queue` v9 adds `student_rep` to turnover rows so the queue can supply that default. `openReassignTurnoverModal` was generalized to `(t, onDone, studentRep)` so both call sites (per-student modal + global queue) share it.
+**Touched:** ms-queue.ts v9 (deploy byte-verified sha 743e9dd4); students.js; version.txt v382; changelog.js v382.
+
 ## 2026-06-24 — Turnover reassignment (standalone reassign-turnover fn)
 **What:** New small edge fn `reassign-turnover` (v1, verify_jwt) gated to admin/MS-IC/Delivery-IC: updates `mentorship_turnovers.rep_name`, swaps the old rep for the new in `notified_user_ids` (keeps leads/coach), and notifies the new rep (in-app notification + `turnover_opened` email via dispatch-event). students.js: a small "⇄ reassign" button next to the rep name in the Turnovers history (gated by `canReassignTurnover`), opening a rep-picker modal that calls the fn.
 **Why:** Ops wanted a quick way to hand a turnover to another rep from the turnover itself — same effect as the manual reassign done earlier for Katarina, now self-serve.

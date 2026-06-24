@@ -3431,7 +3431,11 @@ function renderTurnoverList() {
     btn.addEventListener('click', () => submitTurnoverEntry(Number(btn.dataset.tid)));
   });
   body.querySelectorAll('.turn-reassign').forEach(btn => {
-    btn.addEventListener('click', (e) => { e.stopPropagation(); openReassignTurnoverModal(Number(btn.dataset.tid)); });
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const t = currentTurnovers.find(x => Number(x.id) === Number(btn.dataset.tid));
+      if (t) openReassignTurnoverModal(t, async () => { await openStudent(currentStudent.id); await loadStudents(); if (document.getElementById('turnListModal')) renderTurnoverList(); }, currentStudent && currentStudent.rep);
+    });
   });
   // Response / Resolution picker: swap placeholder + button label.
   body.querySelectorAll('input[type="radio"][name^="turnmode-"]').forEach(radio => {
@@ -3483,9 +3487,9 @@ async function submitTurnoverEntry(id) {
 // Reassign a turnover to another rep (admin / MS-IC / Delivery-IC only). Hits the
 // standalone reassign-turnover edge fn: updates rep_name, swaps notify list, and
 // notifies the new rep (in-app + email).
-function openReassignTurnoverModal(turnoverId) {
-  const t = currentTurnovers.find(x => Number(x.id) === Number(turnoverId));
+function openReassignTurnoverModal(t, onDone, studentRep) {
   if (!t || !canReassignTurnover) return;
+  const turnoverId = Number(t.id);
   document.getElementById('turnReassignModal')?.remove();
   const dlId = 'reassignRepList';
   const optsHtml = (reps || []).map(r => `<option value="${String(r).replace(/"/g,'&quot;')}">`).join('');
@@ -3509,7 +3513,11 @@ function openReassignTurnoverModal(turnoverId) {
     </div>`;
   document.body.appendChild(m);
   document.getElementById('raCurRep').textContent = t.rep_name || '(unassigned)';
-  const input = document.getElementById('raRepInput'); input.focus();
+  const input = document.getElementById('raRepInput');
+  // Default to the student's assigned rep when it differs from the turnover's current rep.
+  const sRep = (studentRep || '').toString().trim();
+  if (sRep && sRep.toLowerCase() !== String(t.rep_name || '').trim().toLowerCase()) input.value = sRep;
+  input.focus();
   function close() { document.removeEventListener('keydown', onKey); m.remove(); }
   function onKey(e) { if (e.key === 'Escape') close(); }
   document.addEventListener('keydown', onKey);
@@ -3526,9 +3534,7 @@ function openReassignTurnoverModal(turnoverId) {
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || 'Failed');
       close();
-      await openStudent(currentStudent.id);
-      await loadStudents();
-      if (document.getElementById('turnListModal')) renderTurnoverList();
+      if (typeof onDone === 'function') await onDone();
     } catch (e) {
       btn.disabled = false; btn.textContent = 'Reassign';
       errEl.textContent = e.message || 'Failed';
@@ -4229,7 +4235,7 @@ function renderGlobalTurnovers(body, rows, seeAll, done) {
     const form = done ? '' : ('<div style="margin-top:10px;padding-top:10px;border-top:1px solid #1f2438;"><div style="display:flex;gap:6px;margin-bottom:8px;"><label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:7px;border:1px solid #2a3050;border-radius:8px;font-size:0.74rem;cursor:pointer;color:#cbd1ee;"><input type="radio" name="qtmode-' + t.id + '" value="response" checked> Response</label><label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:7px;border:1px solid #2a3050;border-radius:8px;font-size:0.74rem;cursor:pointer;color:#cbd1ee;"><input type="radio" name="qtmode-' + t.id + '" value="resolve"> Resolution</label></div><textarea class="field-textarea qt-note-in" data-id="' + t.id + '" placeholder="Post an update without resolving…" style="min-height:52px;width:100%;"></textarea><label style="display:flex;align-items:center;gap:6px;margin:7px 0;font-size:0.73rem;color:#cbd1ee;cursor:pointer;"><input type="checkbox" class="qt-tagcoach" data-id="' + t.id + '"> Tag coach (also notify the coach)</label><button class="profile-save qt-submit" data-id="' + t.id + '" style="padding:6px 13px;font-size:0.76rem;">↩ Post response</button></div>');
     return '<div class="qt-row" data-id="' + t.id + '" style="border:1px solid ' + border + ';border-radius:12px;padding:14px;margin-bottom:12px;background:' + bg + ';">'
       + '<div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:6px;"><div style="flex:1;"><button class="q-student-link" data-sid="' + t.student_id + '" style="background:none;border:none;color:#8fd6ff;font-weight:800;font-size:0.9rem;cursor:pointer;padding:0;text-decoration:underline;text-underline-offset:2px;font-family:inherit;"></button>' + (t.student_coach ? '<span style="font-size:0.7rem;color:#7880a8;margin-left:8px;">Coach: ' + _qx(t.student_coach) + '</span>' : '') + '</div>' + badge + '</div>'
-      + '<div style="font-weight:700;font-size:0.9rem;margin-bottom:4px;">→ <span class="qt-rep"></span></div>'
+      + '<div style="font-weight:700;font-size:0.9rem;margin-bottom:4px;">→ <span class="qt-rep"></span>' + (canReassignTurnover && !done ? ' <button class="qt-reassign" data-id="' + t.id + '" title="Reassign this turnover to another rep" style="margin-left:6px;padding:1px 8px;font-size:0.64rem;font-weight:700;background:transparent;border:1px solid #2a3050;color:#7880a8;border-radius:6px;cursor:pointer;vertical-align:1px;">⇄ reassign</button>' : '') + '</div>'
       + '<div class="qt-note" style="color:#cbd1ee;font-size:0.84rem;line-height:1.5;white-space:pre-wrap;"></div>'
       + '<div style="font-size:0.68rem;color:#7880a8;margin-top:5px;">' + (t.turnover_date ? '📅 ' + t.turnover_date + ' · ' : '') + 'Logged ' + (t.created_at ? new Date(t.created_at).toLocaleString() : '') + ((t.created_by_name || t.created_by_email) ? ' by ' + _qx(t.created_by_name || t.created_by_email) : '') + '</div>'
       + _qThread(t.comments) + resBlock + form + '</div>';
@@ -4245,6 +4251,7 @@ function renderGlobalTurnovers(body, rows, seeAll, done) {
   body.querySelectorAll('.q-student-link').forEach(function(b){ b.addEventListener('click', function(){ const sid = Number(b.dataset.sid); if (_qTurnsClose) _qTurnsClose(); openStudent(sid); }); });
   if (!done) {
     body.querySelectorAll('.qt-submit').forEach(function(b){ b.addEventListener('click', function(){ submitGlobalTurnover(Number(b.dataset.id)); }); });
+    body.querySelectorAll('.qt-reassign').forEach(function(b){ b.addEventListener('click', function(e){ e.stopPropagation(); const t = rows.find(function(x){ return Number(x.id) === Number(b.dataset.id); }); if (t) openReassignTurnoverModal(t, function(){ return _loadGlobalTurnovers(body, done); }, t.student_rep); }); });
     body.querySelectorAll('input[type="radio"][name^="qtmode-"]').forEach(function(radio){ radio.addEventListener('change', function(){
       const id = radio.name.slice('qtmode-'.length);
       const sel = body.querySelector('input[name="qtmode-' + id + '"]:checked');

@@ -16,6 +16,12 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v391', title: 'Student videos — clearer player + Download for unplayable formats',
+      roles: ['coach', 'mentorship', 'ms_ic', 'delivery_ic'], items: [
+      'Videos in formats browsers can’t play (e.g. .3gpp phone clips) no longer show a black screen — you now get a clear message plus Download and Open-in-Dropbox buttons.',
+      'Download grabs a fresh link, so you can play the file in QuickTime or VLC.',
+      'Video lookup now searches Dropbox subfolders too, so a student’s video is found (and gets a fresh link) even when it isn’t in the top-level folder.',
+    ]},
     { version: 'v390', title: 'Zoom — cancel a single class date (not the whole series)',
       roles: ['coach', 'mentorship', 'ms_ic', 'delivery_ic'], items: [
       'Open a recurring meeting’s Invitees → "Recurring schedule" pane now has a "Cancel date" button on each upcoming class.',

@@ -3140,19 +3140,66 @@ function openInlineVideoPlayer(title, src, path, sessionTok) {
   m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:10010;display:flex;align-items:center;justify-content:center;padding:0;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;';
   m.innerHTML = `
     <div style="position:relative;width:100%;height:100%;display:flex;flex-direction:column;color:#eaecf8;">
-      <div style="padding:14px 18px;display:flex;align-items:center;gap:12px;background:rgba(0,0,0,0.6);">
+      <div style="padding:14px 18px;display:flex;align-items:center;gap:10px;background:rgba(0,0,0,0.6);">
         <div class="vp-title" style="flex:1;min-width:0;font-weight:700;font-size:0.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
-        <button id="vpShareBtn" style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:#eaecf8;border-radius:8px;padding:6px 12px;font-weight:700;font-size:0.74rem;cursor:pointer;white-space:nowrap;">↗ Share link</button>
+        <button id="vpDownloadBtn" style="background:rgba(52,211,153,0.16);border:1px solid #34d399;color:#34d399;border-radius:8px;padding:6px 12px;font-weight:700;font-size:0.74rem;cursor:pointer;white-space:nowrap;">⬇ Download</button>
+        <button id="vpShareBtn" style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:#eaecf8;border-radius:8px;padding:6px 12px;font-weight:700;font-size:0.74rem;cursor:pointer;white-space:nowrap;">↗ Open in Dropbox</button>
         <button id="vpClose" style="background:transparent;border:none;color:#eaecf8;font-size:1.6rem;cursor:pointer;padding:0 8px;line-height:1;">×</button>
       </div>
-      <div style="flex:1;display:flex;align-items:center;justify-content:center;background:#000;">
+      <div style="flex:1;display:flex;align-items:center;justify-content:center;background:#000;position:relative;">
         <video id="vpVideo" controls autoplay playsinline preload="metadata" style="max-width:100%;max-height:100%;outline:none;background:#000;"></video>
+        <div id="vpFallback" style="display:none;position:absolute;inset:0;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:28px;background:#000;">
+          <div style="font-size:2.4rem;">🎬</div>
+          <div style="font-weight:800;font-size:1.05rem;">This video can’t play in the browser</div>
+          <div id="vpFallbackMsg" style="font-size:0.86rem;color:#b9c0e0;max-width:540px;line-height:1.55;"></div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:6px;">
+            <button id="vpDlBig" style="background:rgba(52,211,153,0.16);border:1px solid #34d399;color:#34d399;border-radius:9px;padding:10px 18px;font-weight:700;font-size:0.84rem;cursor:pointer;">⬇ Download video</button>
+            <button id="vpOpenBig" style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.25);color:#eaecf8;border-radius:9px;padding:10px 18px;font-weight:700;font-size:0.84rem;cursor:pointer;">↗ Open in Dropbox</button>
+          </div>
+        </div>
       </div>
     </div>`;
   document.body.appendChild(m);
   m.querySelector('.vp-title').textContent = title || 'Video';
   const v = document.getElementById('vpVideo');
+  const isHttpPath = typeof path === 'string' && /^https?:\/\//i.test(path);
+  const ext = ((title || '').split('.').pop() || '').toLowerCase();
+  // Containers/codecs browsers generally can't decode natively.
+  const UNPLAYABLE = ['3gp','3gpp','avi','wmv','flv','mkv','mpg','mpeg','m2ts','ts'];
+  // A direct download URL: for a Dropbox PATH the streaming temp-link (src) is
+  // already a direct file URL; for a stored share URL, force the dl=1 variant.
+  function dlUrl() {
+    if (isHttpPath) {
+      let d = path;
+      if (/dropbox\.com\//i.test(d)) { d = d.replace(/([?&])(dl=0|raw=1)\b/, '$1dl=1'); if (!/[?&]dl=1\b/.test(d)) d += (d.includes('?') ? '&' : '?') + 'dl=1'; }
+      return d;
+    }
+    return src;
+  }
+  async function openDropbox() {
+    if (isHttpPath) { window.open(path, '_blank', 'noopener,noreferrer'); return; }
+    try {
+      const r = await fetch(DROPBOX_PROXY_BASE + '?api=share&path=' + encodeURIComponent(path), { headers: { Authorization: 'Bearer ' + sessionTok } });
+      const j = await r.json();
+      if (!r.ok || !j.link) throw new Error(j.error || 'No link returned');
+      window.open(j.link, '_blank', 'noopener,noreferrer');
+    } catch (e) { window.open(dlUrl(), '_blank', 'noopener,noreferrer'); }
+  }
+  function showFallback(msg) {
+    const fb = document.getElementById('vpFallback'); if (!fb) return;
+    const el = document.getElementById('vpFallbackMsg'); if (el) el.textContent = msg;
+    try { v.pause(); } catch (_) {}
+    v.style.display = 'none'; fb.style.display = 'flex';
+  }
   v.src = src;
+  // The browser couldn't decode the media (e.g. .3gpp / odd codec) → don't sit
+  // on a black screen; show how to actually watch it.
+  v.addEventListener('error', () => showFallback(`The format “.${ext || 'video'}” isn’t supported by web video players. Use Download and open it in QuickTime or VLC, or Open in Dropbox.`));
+  // Known-unplayable container: if it hasn't started after a moment, surface the
+  // fallback proactively (the error event is enough on most browsers, this is a backstop).
+  if (UNPLAYABLE.includes(ext)) {
+    setTimeout(() => { if (v.error || v.readyState < 2) showFallback(`“.${ext}” files usually can’t play in a web browser. Use Download and open it in QuickTime or VLC.`); }, 3000);
+  }
   function close() {
     try { v.pause(); v.removeAttribute('src'); v.load(); } catch (_) {}
     document.removeEventListener('keydown', onKey);
@@ -3163,21 +3210,10 @@ function openInlineVideoPlayer(title, src, path, sessionTok) {
   document.getElementById('vpClose').addEventListener('click', close);
   // Backdrop click closes (but ignore clicks on the video element).
   m.addEventListener('click', (e) => { if (e.target === m || e.target === m.firstElementChild) close(); });
-
-  // Share-link fallback: for Dropbox paths, request a public share URL.
-  // For stored URLs (already a public URL), just open it directly.
-  document.getElementById('vpShareBtn').addEventListener('click', async () => {
-    if (typeof path === 'string' && /^https?:\/\//i.test(path)) {
-      window.open(path, '_blank', 'noopener,noreferrer');
-      return;
-    }
-    try {
-      const r = await fetch(DROPBOX_PROXY_BASE + '?api=share&path=' + encodeURIComponent(path), { headers: { Authorization: 'Bearer ' + sessionTok } });
-      const j = await r.json();
-      if (!r.ok || !j.link) throw new Error(j.error || 'No link returned');
-      window.open(j.link, '_blank', 'noopener,noreferrer');
-    } catch (e) { alert('Share failed: ' + (e.message || e)); }
-  });
+  document.getElementById('vpDownloadBtn').addEventListener('click', () => window.open(dlUrl(), '_blank', 'noopener,noreferrer'));
+  document.getElementById('vpDlBig').addEventListener('click', () => window.open(dlUrl(), '_blank', 'noopener,noreferrer'));
+  document.getElementById('vpShareBtn').addEventListener('click', openDropbox);
+  document.getElementById('vpOpenBig').addEventListener('click', openDropbox);
 }
 
 // ── Zoom history (auto-recorded from meeting.ended webhook) ─────

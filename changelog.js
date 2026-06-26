@@ -16,6 +16,12 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v390', title: 'Zoom — cancel a single class date (not the whole series)',
+      roles: ['coach', 'mentorship', 'ms_ic', 'delivery_ic'], items: [
+      'Open a recurring meeting’s Invitees → "Recurring schedule" pane now has a "Cancel date" button on each upcoming class.',
+      'Cancelling one date emails just that date’s invitees a cancellation notice and removes it from Zoom — the rest of the recurring schedule keeps running untouched.',
+      'Cancelled dates show a "✗ Cancelled" tag in the schedule so you can see what was called off.',
+    ]},
     { version: 'v389', title: 'Coach dashboard — "Start as host" on the next-session card',
       roles: ['coach', 'mentorship', 'ms_ic', 'delivery_ic'], items: [
       'The highlighted "Next session" card now shows the "Start as host →" button whenever you can host that meeting (it was being hidden on the account-wide next session).',

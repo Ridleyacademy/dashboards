@@ -2578,17 +2578,21 @@ function openInviteesModal(meeting) {
             }
             return `<span title="${tip}" style="display:inline-flex;align-items:center;gap:3px;padding:2px 6px;border-radius:4px;background:rgba(148,163,184,0.08);color:var(--text-dim);font-size:0.68rem;font-weight:600;">${label}</span>`;
           };
-          return `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--border);">
+          const isCancelled = occ.status === 'cancelled';
+          const occId = occ.occurrence_id != null ? String(occ.occurrence_id) : '';
+          return `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--border);${isCancelled ? 'opacity:0.55;' : ''}">
             <div style="flex:1;min-width:0;">
-              <div style="font-size:0.82rem;font-weight:600;">${escapeHtml(dateStr)}</div>
+              <div style="font-size:0.82rem;font-weight:600;${isCancelled ? 'text-decoration:line-through;' : ''}">${escapeHtml(dateStr)}</div>
               <div style="font-size:0.7rem;color:var(--text-dim);">${escapeHtml(timeStr)}</div>
             </div>
-            <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;">
+            ${isCancelled ? `<span title="This date was cancelled — invitees were emailed; the rest of the schedule is unaffected." style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:4px;background:rgba(248,113,113,0.15);color:#f87171;font-size:0.68rem;font-weight:700;">✗ Cancelled</span>` : `
+            <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;align-items:center;">
               ${pill(occ.invite_sent_at,        'invite', 'invite')}
               ${pill(occ.reminder_24h_sent_at,  '24h',    'reminder_24h')}
               ${pill(occ.reminder_1h_sent_at,   '1h',     'reminder_1h')}
               ${pill(occ.reminder_live_sent_at, 'live',   'reminder_live')}
-            </div>
+              <button data-cancel-occ="${escapeHtml(occId)}" data-cancel-start="${escapeHtml(occ.start_time||'')}" title="Cancel just this date — invitees get a cancellation email; the rest of the recurring schedule is untouched." style="margin-left:6px;background:transparent;border:1px solid rgba(248,113,113,0.4);color:#f87171;cursor:pointer;font-size:0.66rem;font-weight:700;padding:3px 8px;border-radius:5px;line-height:1;white-space:nowrap;">Cancel date</button>
+            </div>`}
           </div>`;
         }).join('')}
         ${futureOccs.length > 20 ? `<div style="padding:8px 12px;text-align:center;font-size:0.72rem;color:var(--text-dim);">+${futureOccs.length - 20} more occurrences…</div>` : ''}
@@ -2740,6 +2744,32 @@ function openInviteesModal(meeting) {
       alert('Sync failed: ' + (e2.message || e2));
     }
   });
+  // Cancel a SINGLE occurrence (one date) of a recurring meeting — sends that
+  // date's invitees a cancellation email, leaves the rest of the series intact.
+  m.querySelectorAll('[data-cancel-occ]').forEach(b => b.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    if (btn.disabled) return;
+    const occId = btn.dataset.cancelOcc || '';
+    const occStart = btn.dataset.cancelStart || '';
+    const when = occStart ? new Date(occStart).toLocaleString('en-US', { weekday:'short', month:'short', day:'numeric', hour:'numeric', minute:'2-digit', timeZone:MEETING_TZ }) : 'this date';
+    if (!confirm(`Cancel just the ${when} session?\n\nInvitees for that date will get a cancellation email. The rest of the recurring schedule stays exactly as it is.`)) return;
+    const orig = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Cancelling…';
+    try {
+      const base = (typeof meeting.id === 'string' && meeting.id.startsWith('zoom-'))
+        ? { zoom_meeting_id: meeting.id.slice(5) }
+        : { id: Number(meeting.id) };
+      const body = { ...base, ...(occId ? { occurrence_id: occId } : {}), ...(occStart ? { start_time: occStart } : {}) };
+      const j = await _zoomFetch('cancel-occurrence', { method:'POST', body });
+      btn.textContent = `✓ cancelled · ${j.notified || 0} notified`;
+      await loadUpcomingMeetings();
+      const refreshed = (upcomingMeetings || []).find(x => String(x.id) === String(meeting.id));
+      if (refreshed) setTimeout(() => { close(); openInviteesModal(refreshed); }, 1200);
+    } catch (e2) {
+      btn.disabled = false; btn.textContent = orig;
+      alert('Cancel failed: ' + (e2.message || e2));
+    }
+  }));
   document.getElementById('inv-cancel-btn')?.addEventListener('click', async () => {
     if (!confirm(`Cancel "${meeting.topic || 'this meeting'}"? Registered students will be notified.`)) return;
     try {

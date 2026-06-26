@@ -3105,13 +3105,19 @@ async function openDropboxVideosModal() {
       // Stored-URL fallback path: convert Dropbox share links to direct
       // streaming URLs (?dl=0 → ?raw=1) so the inline <video> can play them.
       if (f._stored_url) {
-        let playable = f._stored_url;
-        if (/dropbox\.com\//i.test(playable)) {
-          if (/[?&]dl=0\b/.test(playable))      playable = playable.replace(/([?&])dl=0\b/, '$1raw=1');
-          else if (/[?&]dl=1\b/.test(playable)) playable = playable.replace(/([?&])dl=1\b/, '$1raw=1');
-          else                                  playable += (playable.includes('?') ? '&' : '?') + 'raw=1';
+        // Stored share links (esp. modern Dropbox scl/fi) go stale and serve an
+        // HTML page instead of bytes — so resolve to a FRESH direct streaming
+        // link via the API. Falls back to the raw URL (player shows a clear
+        // download/open-in-Dropbox panel if even that can't play).
+        let playSrc = f._stored_url;
+        if (/dropbox\.com\//i.test(f._stored_url)) {
+          try {
+            const r = await fetch(DROPBOX_PROXY_BASE + '?api=resolve&url=' + encodeURIComponent(f._stored_url), { headers: { Authorization: 'Bearer ' + tok } });
+            const j = await r.json();
+            if (r.ok && j.link) playSrc = j.link;
+          } catch (_) {}
         }
-        openInlineVideoPlayer(name, playable, f._stored_url, tok);
+        openInlineVideoPlayer(name, playSrc, f._stored_url, tok);
         btn.disabled = false; btn.textContent = '▶ Open';
         return;
       }
@@ -3194,7 +3200,11 @@ function openInlineVideoPlayer(title, src, path, sessionTok) {
   v.src = src;
   // The browser couldn't decode the media (e.g. .3gpp / odd codec) → don't sit
   // on a black screen; show how to actually watch it.
-  v.addEventListener('error', () => showFallback(`The format “.${ext || 'video'}” isn’t supported by web video players. Use Download and open it in QuickTime or VLC, or Open in Dropbox.`));
+  const WEB_PLAYABLE = ['mp4','m4v','webm','ogg','ogv','mov'];
+  v.addEventListener('error', () => showFallback(
+    WEB_PLAYABLE.includes(ext)
+      ? `Couldn’t load this video — the saved Dropbox link looks expired. Use Open in Dropbox, or Download and play it in QuickTime / VLC.`
+      : `The format “.${ext || 'video'}” isn’t supported by web video players. Use Download and open it in QuickTime or VLC, or Open in Dropbox.`));
   // Known-unplayable container: if it hasn't started after a moment, surface the
   // fallback proactively (the error event is enough on most browsers, this is a backstop).
   if (UNPLAYABLE.includes(ext)) {

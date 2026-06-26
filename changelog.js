@@ -16,6 +16,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v392', title: 'Student videos — stale Dropbox links now play again',
+      roles: ['coach', 'mentorship', 'ms_ic', 'delivery_ic'], items: [
+      'Saved Dropbox links go stale over time and stopped playing (a normal .mp4 would even show a false “format not supported”). The player now resolves the saved link to a fresh streaming link, so these videos play inline again.',
+      'When a video genuinely can’t play, the message no longer blames the format for normal types — it points you to Open in Dropbox / Download.',
+    ]},
     { version: 'v391', title: 'Student videos — clearer player + Download for unplayable formats',
       roles: ['coach', 'mentorship', 'ms_ic', 'delivery_ic'], items: [
       'Videos in formats browsers can’t play (e.g. .3gpp phone clips) no longer show a black screen — you now get a clear message plus Download and Open-in-Dropbox buttons.',

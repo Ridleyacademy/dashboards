@@ -2374,7 +2374,10 @@ function _isMyMeeting(m) {
 }
 function _meetingCardHtml(m, opts) {
   const t = _fmtMeetingTime(m.scheduled_start_time);
-  const invited = (m.invited_student_ids || []).length;
+  // Count actual registrants (the real roster shown in the Invitees modal); fall back to
+  // invited_student_ids only if registrants is empty. invited_student_ids is stale/partial on
+  // some rooms (e.g. Ricardo had 1 id but 18 registrants), which made the count read wrong.
+  const invited = (m.registrants || []).length || (m.invited_student_ids || []).length;
   const accent = opts?.highlight ? 'background:rgba(34,211,238,0.08);border-color:rgba(34,211,238,0.4);' : '';
   const isZoomOnly = m.source === 'zoom';
   const sourceTag = isZoomOnly ? `<span style="display:inline-block;background:rgba(96,165,250,0.15);color:#60a5fa;border-radius:6px;padding:1px 7px;font-size:0.65rem;font-weight:700;margin-left:6px;vertical-align:middle;">From Zoom</span>` : '';
@@ -2420,7 +2423,7 @@ function renderUpcomingMeetings() {
   let html = '';
   if (next) {
     const t = _fmtMeetingTime(next.scheduled_start_time);
-    const invited = (next.invited_student_ids || []).length;
+    const invited = (next.registrants || []).length || (next.invited_student_ids || []).length;
     const hostLine = next.host_email ? `<div style="font-size:0.74rem;color:var(--text-dim);margin-top:4px;">Hosted by ${escapeHtml(next.host_email)}</div>` : '';
     html += `<div style="background:linear-gradient(135deg,rgba(34,211,238,0.10),rgba(167,139,250,0.10));border:1px solid rgba(34,211,238,0.45);border-radius:14px;padding:18px 20px;margin-bottom:14px;">
       <div style="font-size:0.72rem;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:var(--accent2);margin-bottom:8px;">${highlightLabel}</div>

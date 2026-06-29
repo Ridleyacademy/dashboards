@@ -1,0 +1,2264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg?v=303">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=303">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=303">
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Home</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="permissions.js"></script>
+<style>
+  :root {
+    --bg: #080a14;
+    --surface: #0f1120; --surface2: #141728; --surface3: #191e30;
+    --border: #1f2438; --border-light: #272d45;
+    --text: #eaecf8; --text-muted: #7880a8; --text-dim: #3e4668;
+    --blue: #6b9eff; --blue-glow: rgba(107,158,255,0.3); --blue-bg: rgba(107,158,255,0.1);
+    --green: #34d399; --green-glow: rgba(52,211,153,0.3); --green-bg: rgba(52,211,153,0.1);
+    --pink: #f472b6; --pink-glow: rgba(244,114,182,0.3); --pink-bg: rgba(244,114,182,0.1);
+    --purple: #a78bfa; --purple-bg: rgba(167,139,250,0.1);
+    --gold: #fbbf24; --gold-bg: rgba(251,191,36,0.1);
+    --red: #f87171; --cyan: #22d3ee;
+  }
+  body.light {
+    --bg: #f0f2fa; --surface: #ffffff; --surface2: #f5f6fc; --surface3: #eceef8;
+    --border: #dde1f2; --border-light: #ccd1e8;
+    --text: #0f1220; --text-muted: #525b82; --text-dim: #9099be;
+    --blue-glow: rgba(107,158,255,0.15); --green-glow: rgba(52,211,153,0.15); --pink-glow: rgba(244,114,182,0.15);
+    --blue-bg: rgba(107,158,255,0.1); --green-bg: rgba(52,211,153,0.1); --pink-bg: rgba(244,114,182,0.1);
+  }
+  body.light .topbar  { background: rgba(255,255,255,0.9); }
+  body.light .board-card { background: #fff; }
+  body.light .hero-greeting { -webkit-text-fill-color: var(--text); }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+    background: var(--bg); color: var(--text); min-height: 100vh;
+    -webkit-font-smoothing: antialiased; overflow-x: hidden;
+  }
+
+  /* ── Animated ambient background ─────────────── */
+  body::before {
+    content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background:
+      radial-gradient(ellipse at 15% 15%, rgba(107,158,255,0.07) 0%, transparent 55%),
+      radial-gradient(ellipse at 85% 85%, rgba(167,139,250,0.05) 0%, transparent 55%),
+      radial-gradient(ellipse at 80% 10%, rgba(244,114,182,0.05) 0%, transparent 50%);
+    animation: ambientShift 18s ease-in-out infinite;
+  }
+  @keyframes ambientShift {
+    0%,100% { opacity: 1; } 50% { opacity: 0.6; }
+  }
+
+  /* ── Auth ─────────────────────────────────────── */
+  .full-center { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; position: relative; z-index: 1; }
+
+  .login-wrap { width: 100%; max-width: 420px; }
+  .login-logo { width: 56px; height: 56px; border-radius: 16px; margin: 0 auto 24px;
+    background: linear-gradient(135deg,var(--blue),var(--purple));
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 8px 32px rgba(107,158,255,0.4); }
+  .login-card { background: var(--surface); border: 1px solid var(--border); border-radius: 24px; padding: 40px 36px; box-shadow: 0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.03) inset; }
+  .login-card h1 { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.03em; text-align: center; margin-bottom: 4px; }
+  .login-card .sub { color: var(--text-muted); font-size: 0.84rem; text-align: center; margin-bottom: 28px; }
+  .input-group { margin-bottom: 12px; }
+  .input-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-muted); margin-bottom: 6px; display: block; }
+  .auth-input { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 13px 16px; color: var(--text); font-size: 0.92rem; outline: none; transition: border-color 0.15s, box-shadow 0.15s; }
+  .auth-input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-bg); }
+  .auth-btn { width: 100%; margin-top: 8px; background: linear-gradient(135deg, #6b9eff, #4a7de0); border: none; border-radius: 12px; padding: 14px; color: #fff; font-size: 0.92rem; font-weight: 700; cursor: pointer; transition: transform 0.12s, box-shadow 0.12s; box-shadow: 0 4px 16px rgba(107,158,255,0.35); }
+  .auth-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(107,158,255,0.45); }
+  .auth-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+  .auth-error { color: var(--red); font-size: 0.78rem; margin-top: 10px; min-height: 1em; text-align: center; }
+
+  /* ── Spinner ──────────────────────────────────── */
+  .spinner { width: 40px; height: 40px; border: 3px solid var(--border); border-top-color: var(--blue); border-radius: 50%; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── State machine ────────────────────────────── */
+  body[data-state="loading"] #app, body[data-state="loading"] #login, body[data-state="loading"] #setPassword,
+  body[data-state="dashboard"] #login, body[data-state="dashboard"] #boot, body[data-state="dashboard"] #setPassword,
+  body[data-state="login"] #app, body[data-state="login"] #boot, body[data-state="login"] #setPassword,
+  body[data-state="set-password"] #app, body[data-state="set-password"] #login, body[data-state="set-password"] #boot { display: none; }
+  body[data-state="loading"] #boot { display: flex; }
+  body[data-state="login"]   #login { display: flex; }
+  body[data-state="set-password"] #setPassword { display: flex; }
+  body[data-state="dashboard"] #app { display: block; }
+
+  /* ── Topbar ───────────────────────────────────── */
+  .topbar {
+    display: flex; align-items: center; gap: 10px; padding: 12px 32px;
+    background: rgba(8,10,20,0.85); backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100;
+  }
+  .topbar-logo {
+    width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0;
+    background: linear-gradient(135deg, var(--blue), var(--purple));
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 14px rgba(107,158,255,0.35);
+  }
+  .topbar-brand { font-size: 0.9rem; font-weight: 700; letter-spacing: -0.02em; }
+  .topbar-spacer { flex: 1; }
+  .tbtn { border: none; border-radius: 8px; padding: 6px 12px; font-size: 0.74rem; font-weight: 600; cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 5px; }
+  .tbtn-ghost { background: var(--surface2); color: var(--text-muted); border: 1px solid var(--border); }
+  .tbtn-ghost:hover { color: var(--text); border-color: var(--border-light); }
+  .user-pill {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 999px; padding: 4px 14px 4px 4px; cursor: default;
+  }
+  .user-pill-av {
+    width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;
+    background: linear-gradient(135deg, var(--blue), var(--purple));
+    color: #fff; font-size: 0.62rem; font-weight: 800;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .user-pill-email { font-size: 0.73rem; color: var(--text-muted); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* ── Page wrapper ─────────────────────────────── */
+  #app { position: relative; z-index: 1; }
+  .page { max-width: 1120px; margin: 0 auto; padding: 52px 32px 100px; }
+  @media(max-width:700px) { .page { padding: 36px 20px 80px; } .topbar { padding: 10px 20px; } }
+
+  /* ── Hero greeting ────────────────────────────── */
+  .hero { margin-bottom: 56px; }
+  .hero-eyebrow { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-dim); margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  .hero-eyebrow::before { content: ''; display: inline-block; width: 20px; height: 2px; background: var(--blue); border-radius: 2px; }
+  .hero-greeting {
+    font-size: clamp(2.4rem, 5vw, 3.8rem); font-weight: 900; letter-spacing: -0.04em; line-height: 1.05;
+    background: linear-gradient(120deg, var(--text) 0%, var(--text-muted) 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    margin-bottom: 14px;
+  }
+  .hero-greeting strong {
+    background: linear-gradient(120deg, var(--blue) 0%, var(--purple) 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+  .hero-meta { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .hero-date { font-size: 0.82rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
+  .hero-date-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--text-dim); }
+  .hero-status { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--green); font-weight: 600; }
+  .hero-status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px var(--green-glow); animation: pulse 2.5s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.6;transform:scale(0.85)} }
+
+  /* ── Section label ────────────────────────────── */
+  .sec-label {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 20px;
+  }
+  .sec-label-text { font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-dim); white-space: nowrap; }
+  .sec-label-line { flex: 1; height: 1px; background: var(--border); }
+
+  /* ── Board cards grid ─────────────────────────── */
+  .boards-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 18px; margin-bottom: 60px; }
+  @media(max-width:860px) { .boards-grid { grid-template-columns: repeat(2,1fr); } }
+  @media(max-width:540px) { .boards-grid { grid-template-columns: 1fr; } }
+
+  .board-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 22px;
+    padding: 28px 26px 24px; text-decoration: none; color: inherit; display: flex;
+    flex-direction: column; position: relative; overflow: hidden;
+    transition: transform 0.22s cubic-bezier(.4,0,.2,1), box-shadow 0.22s, border-color 0.22s;
+  }
+  /* Animated gradient overlay on hover */
+  .board-card::before {
+    content: ''; position: absolute; inset: 0; opacity: 0; transition: opacity 0.3s;
+    background: radial-gradient(ellipse at top right, var(--c-glow, rgba(107,158,255,0.14)), transparent 65%);
+    pointer-events: none;
+  }
+  /* Top accent line */
+  .board-card::after {
+    content: ''; position: absolute; top: 0; left: 0; right: 100%; height: 2px;
+    background: var(--c-color, var(--blue)); border-radius: 22px 22px 0 0;
+    transition: right 0.35s cubic-bezier(.4,0,.2,1);
+  }
+  .board-card:hover { transform: translateY(-5px); box-shadow: 0 20px 50px rgba(0,0,0,0.35), 0 0 0 1px var(--c-color, var(--blue)) inset; border-color: var(--c-color, var(--blue)); }
+  .board-card:hover::before { opacity: 1; }
+  .board-card:hover::after { right: 0; }
+  .board-card.locked { opacity: 0.38; cursor: not-allowed; pointer-events: none; filter: grayscale(0.4); }
+
+  .card-toprow { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 22px; }
+  .card-icon-wrap { width: 48px; height: 48px; border-radius: 14px; display: flex; align-items: center; justify-content: center; background: var(--c-bg, var(--blue-bg)); }
+  .card-status { display: flex; align-items: center; gap: 5px; font-size: 0.67rem; font-weight: 700; padding: 4px 9px; border-radius: 20px; }
+  .card-status.open { background: var(--green-bg); color: var(--green); }
+  .card-status.locked-badge { background: rgba(255,255,255,0.05); color: var(--text-dim); }
+  .card-status-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+  .card-title { font-size: 1.05rem; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 8px; }
+  .card-desc { font-size: 0.78rem; color: var(--text-muted); line-height: 1.65; margin-bottom: 20px; flex: 1; }
+  .card-footer { display: flex; align-items: center; justify-content: space-between; }
+  .card-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+  .card-tag { font-size: 0.65rem; font-weight: 700; padding: 3px 9px; border-radius: 20px; letter-spacing: 0.03em; }
+  .card-cta { display: flex; align-items: center; gap: 5px; font-size: 0.76rem; font-weight: 700; color: var(--text-dim); transition: color 0.15s, gap 0.15s; }
+  .board-card:hover .card-cta { color: var(--c-color, var(--blue)); gap: 8px; }
+
+  /* ── Admin section ────────────────────────────── */
+  .admin-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 22px;
+    overflow: hidden;
+  }
+  .admin-tabs { display: flex; border-bottom: 1px solid var(--border); }
+  .admin-tab {
+    flex: 1; padding: 16px 20px; font-size: 0.8rem; font-weight: 700; color: var(--text-muted);
+    background: none; border: none; cursor: pointer; transition: all 0.15s;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    border-bottom: 2px solid transparent; margin-bottom: -1px; letter-spacing: -0.01em;
+  }
+  .admin-tab:hover { color: var(--text); background: var(--surface2); }
+  .admin-tab.active { color: var(--blue); border-bottom-color: var(--blue); background: rgba(107,158,255,0.04); }
+  .admin-tab-icon { width: 18px; height: 18px; opacity: 0.7; }
+  .admin-tab.active .admin-tab-icon { opacity: 1; }
+
+  .admin-pane { display: none; padding: 28px 28px 32px; }
+  .admin-pane.active { display: block; }
+
+  /* Invite pane */
+  .invite-layout { max-width: 480px; }
+  .invite-desc { font-size: 0.82rem; color: var(--text-muted); line-height: 1.6; margin-bottom: 22px; }
+  .invite-row { display: flex; gap: 10px; }
+  .invite-row .auth-input { flex: 1; }
+  .invite-btn { background: linear-gradient(135deg, var(--blue), #4a7de0); border: none; border-radius: 12px; padding: 13px 20px; color: #fff; font-size: 0.82rem; font-weight: 700; cursor: pointer; white-space: nowrap; transition: all 0.15s; }
+  .invite-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(107,158,255,0.35); }
+  .invite-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+  .invite-mode-btn { background: var(--surface2, #141728); border: 1px solid var(--border, #1f2438); border-radius: 10px; padding: 8px 16px; color: var(--text-muted, #7880a8); font-size: 0.78rem; font-weight: 700; cursor: pointer; transition: all 0.15s; }
+  .invite-mode-btn:hover { color: var(--text); border-color: var(--blue); }
+  .invite-mode-btn.active { background: var(--blue-bg, rgba(107,158,255,0.12)); color: var(--blue); border-color: var(--blue); }
+  .feedback { font-size: 0.78rem; margin-top: 10px; min-height: 1.2em; }
+
+  /* Users pane */
+  .users-head { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px; margin-bottom: 16px; }
+  .users-count { font-size: 0.75rem; color: var(--text-dim); }
+
+  .user-row {
+    display: flex; align-items: center; gap: 12px; padding: 14px 16px;
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 14px;
+    margin-bottom: 8px; flex-wrap: wrap; transition: border-color 0.15s;
+  }
+  .user-row:hover { border-color: var(--border-light); }
+  .user-av {
+    width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+    background: linear-gradient(135deg, var(--surface3), var(--border-light));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.75rem; font-weight: 800; color: var(--text-muted);
+    border: 1px solid var(--border);
+  }
+  .user-info { flex: 1; min-width: 140px; }
+  .user-email { font-size: 0.81rem; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
+  .user-role { font-size: 0.68rem; color: var(--text-dim); margin-top: 2px; }
+  .user-perms { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  /* ── Multi-select permission picker ─────────────────────────── */
+  .perm-select { position: relative; min-width: 180px; }
+  .perm-select-btn {
+    width: 100%; min-height: 34px;
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 9px;
+    color: var(--text); padding: 6px 10px; font-size: 0.76rem; font-weight: 600;
+    cursor: pointer; transition: border-color 0.14s, background 0.14s; text-align: left;
+  }
+  .perm-select-btn:hover { border-color: var(--border-light); }
+  .perm-select.open .perm-select-btn { border-color: var(--blue); }
+  .perm-select-summary { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-muted); }
+  .perm-select-summary.has-value { color: var(--text); }
+  .perm-select-summary.is-admin { color: var(--purple); font-weight: 700; }
+  .perm-select-caret { font-size: 0.7rem; color: var(--text-muted); transition: transform 0.14s; }
+  .perm-select.open .perm-select-caret { transform: rotate(180deg); }
+  .perm-select-menu {
+    position: fixed; min-width: 200px; max-width: calc(100vw - 24px);
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.5); z-index: 1000; padding: 6px;
+    max-height: 280px; overflow-y: auto;
+  }
+  .perm-select-opt {
+    display: flex; align-items: center; gap: 9px;
+    padding: 8px 10px; border-radius: 7px; cursor: pointer;
+    font-size: 0.78rem; color: var(--text); transition: background 0.1s;
+  }
+  .perm-select-opt:hover { background: var(--surface2); }
+  .perm-select-opt input[type="checkbox"] { width: 14px; height: 14px; cursor: pointer; accent-color: var(--blue); flex-shrink: 0; }
+  .perm-select-opt.admin-opt { color: var(--purple); font-weight: 700; }
+  .perm-select-opt.admin-opt input { accent-color: var(--purple); }
+  .perm-select-divider { height: 1px; background: var(--border); margin: 5px 4px; }
+  .perm-chip {
+    display: flex; align-items: center; gap: 5px; padding: 5px 10px;
+    background: var(--surface3); border: 1px solid var(--border); border-radius: 8px;
+    font-size: 0.71rem; font-weight: 600; color: var(--text-muted); cursor: pointer;
+    transition: all 0.14s; user-select: none;
+  }
+  .perm-chip:hover { border-color: var(--border-light); color: var(--text); }
+  .perm-chip input[type="checkbox"] { width: 13px; height: 13px; cursor: pointer; accent-color: var(--blue); flex-shrink: 0; }
+  .perm-chip.admin-chip { border-color: rgba(167,139,250,0.3); color: var(--purple); }
+  .perm-chip.admin-chip input { accent-color: var(--purple); }
+  .save-btn { background: var(--surface3); border: 1px solid var(--border); border-radius: 9px; color: var(--text-muted); font-size: 0.72rem; font-weight: 700; padding: 6px 14px; cursor: pointer; transition: all 0.14s; white-space: nowrap; flex-shrink: 0; }
+  .save-btn:hover { color: var(--text); border-color: var(--border-light); background: var(--border); }
+  .save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .save-msg { font-size: 0.7rem; min-width: 40px; text-align: center; }
+  .delete-btn { background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.25); border-radius: 9px; color: #f87171; font-size: 0.72rem; font-weight: 700; padding: 6px 12px; cursor: pointer; transition: all 0.14s; white-space: nowrap; flex-shrink: 0; }
+  .delete-btn:hover { background: rgba(248,113,113,0.16); border-color: rgba(248,113,113,0.5); }
+  .impersonate-btn { background: rgba(251,191,36,0.10); border: 1px solid rgba(251,191,36,0.3); border-radius: 9px; color: #fbbf24; font-size: 0.72rem; font-weight: 700; padding: 6px 12px; cursor: pointer; transition: all 0.14s; white-space: nowrap; flex-shrink: 0; }
+  .impersonate-btn:hover { background: rgba(251,191,36,0.18); border-color: rgba(251,191,36,0.55); }
+  .reset-btn { background: rgba(107,158,255,0.10); border: 1px solid rgba(107,158,255,0.3); border-radius: 9px; color: #6b9eff; font-size: 0.72rem; font-weight: 700; padding: 6px 12px; cursor: pointer; transition: all 0.14s; white-space: nowrap; flex-shrink: 0; }
+  .reset-btn:hover { background: rgba(107,158,255,0.18); border-color: rgba(107,158,255,0.55); }
+  .reset-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .delete-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .user-meta { font-size: 0.66rem; color: var(--text-dim); margin-top: 3px; line-height: 1.4; }
+  .user-meta-stale { color: #fbbf24; }
+  .user-meta-never { color: #f87171; }
+
+  /* Loading users skeleton */
+  .skeleton { height: 62px; background: linear-gradient(90deg, var(--surface2) 0%, var(--surface3) 50%, var(--surface2) 100%); background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 14px; margin-bottom: 8px; }
+  @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+  /* Fade in animation for page content */
+  @keyframes fadeUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+  .hero     { animation: fadeUp 0.5s ease both; }
+  .boards-section { animation: fadeUp 0.5s 0.08s ease both; }
+  .admin-section  { animation: fadeUp 0.5s 0.16s ease both; }
+
+  /* Admin gating — section is fully hidden unless body has is-admin class. !important so nothing can override it. */
+  .admin-section { display: none !important; }
+  body.is-admin .admin-section { display: block !important; }
+
+  /* Rep mapping pane */
+  .rep-map-row {
+    padding: 16px; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 14px; margin-bottom: 10px; transition: border-color 0.15s;
+  }
+  .rep-map-row:hover { border-color: var(--border-light); }
+  .rep-map-top { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+  .rep-map-email { font-size: 0.81rem; font-weight: 600; flex: 1; min-width: 140px; }
+  .rep-map-role { font-size: 0.68rem; color: var(--text-dim); }
+  .rep-map-fields { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-start; }
+  .rep-map-field { display: flex; flex-direction: column; gap: 5px; }
+  .rep-map-field label { font-size: 0.64rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); }
+  .rep-map-select {
+    background: var(--surface3); border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text); padding: 6px 28px 6px 10px; font-size: 0.75rem; outline: none;
+    appearance: none; cursor: pointer; font-family: inherit; min-width: 140px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%237880a8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 8px center;
+    transition: border-color 0.15s;
+  }
+  .rep-map-select:hover { border-color: var(--border-light); }
+  .rep-map-select option { background: var(--surface); }
+  .aff-input-wrap {
+    display: flex; flex-direction: column; gap: 5px; min-width: 280px;
+  }
+  .aff-input {
+    background: var(--surface3); border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text); padding: 6px 10px; font-size: 0.75rem; outline: none;
+    font-family: inherit; transition: border-color 0.15s; width: 100%;
+  }
+  .aff-input:focus { border-color: var(--blue); }
+  .aff-hint { font-size: 0.62rem; color: var(--text-dim); }
+  .unassigned-chip {
+    display: inline-block; padding: 2px 8px; background: rgba(251,191,36,0.1);
+    border: 1px solid rgba(251,191,36,0.25); border-radius: 20px;
+    font-size: 0.65rem; font-weight: 700; color: var(--gold); cursor: pointer;
+    transition: all 0.12s;
+  }
+  .unassigned-chip:hover { background: rgba(251,191,36,0.2); }
+  .rep-map-actions { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+</style>
+<link rel="stylesheet" href="skeletons.css">
+<link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#000000">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Ridleyacademy">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=303">
+  <link rel="stylesheet" href="mobile.css">
+</head>
+<body data-state="loading">
+
+<!-- Boot -->
+<div id="boot" class="full-center">
+  <div style="text-align:center;">
+    <div class="spinner" style="margin:0 auto 16px;"></div>
+    <div style="color:var(--text-muted);font-size:0.84rem;letter-spacing:0.02em;">Loading your workspace…</div>
+  </div>
+</div>
+
+<!-- Login -->
+<div id="login" class="full-center">
+  <div class="login-wrap">
+    <div class="login-logo">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+    </div>
+    <div class="login-card">
+      <h1>Welcome back</h1>
+      <p class="sub">Sign in to access your analytics workspace</p>
+      <form id="loginForm">
+        <div class="input-group">
+          <label class="input-label" for="email">Email address</label>
+          <input class="auth-input" type="email" id="email" placeholder="you@company.com" required autocomplete="email">
+        </div>
+        <div class="input-group">
+          <label class="input-label" for="password">Password</label>
+          <input class="auth-input" type="password" id="password" placeholder="••••••••" required autocomplete="current-password">
+        </div>
+        <button type="submit" class="auth-btn" id="sendBtn">Sign In</button>
+        <div class="auth-error" id="loginError"></div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Set password (invite / recovery) -->
+<div id="setPassword" class="full-center">
+  <div class="login-wrap">
+    <div class="login-logo" style="background:linear-gradient(135deg,#34d399,#10b981);">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+    </div>
+    <div class="login-card">
+      <h1>Set Your Password</h1>
+      <p class="sub">Choose a password to activate your account</p>
+      <form id="setPasswordForm">
+        <div class="input-group">
+          <label class="input-label" for="newFirstName">First name</label>
+          <input class="auth-input" type="text" id="newFirstName" placeholder="Your first name" required autocomplete="given-name">
+        </div>
+        <div class="input-group">
+          <label class="input-label" for="newPassword">New password</label>
+          <input class="auth-input" type="password" id="newPassword" placeholder="Min 8 characters" required minlength="8" autocomplete="new-password">
+        </div>
+        <div class="input-group">
+          <label class="input-label" for="confirmPassword">Confirm password</label>
+          <input class="auth-input" type="password" id="confirmPassword" placeholder="Repeat it" required minlength="8" autocomplete="new-password">
+        </div>
+        <button type="submit" class="auth-btn" id="setPasswordBtn" style="background:linear-gradient(135deg,#34d399,#10b981);box-shadow:0 4px 16px rgba(52,211,153,0.35);">Activate Account</button>
+        <div class="auth-error" id="setPasswordError"></div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- App -->
+<div id="app">
+
+  <!-- Topbar -->
+  <header class="topbar">
+    <div class="topbar-logo">
+      <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+    </div>
+    <span class="topbar-brand">Workspace</span>
+    <div class="topbar-spacer"></div>
+    <button class="tbtn tbtn-ghost" data-pwa-install style="display:none;background:rgba(172,24,24,0.12);border-color:rgba(172,24,24,0.3);color:#ff7a7a;" title="Install Ridley to your home screen">
+      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Install app
+    </button>
+    <button class="tbtn tbtn-ghost" id="themeBtn" style="font-size:1rem;padding:5px 10px;" title="Toggle theme"></button>
+    <div class="user-pill">
+      <div class="user-pill-av" id="userAvatar">U</div>
+      <span class="user-pill-email" id="userEmail"></span>
+    </div>
+    <button class="tbtn tbtn-ghost" id="signOutBtn">
+      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      Sign Out
+    </button>
+  </header>
+
+  <div class="page">
+
+    <!-- Hero -->
+    <div class="hero">
+      <div class="hero-eyebrow">Analytics Workspace</div>
+      <div class="hero-greeting">Good <span id="greetTime"></span>,<br><strong id="firstName">there</strong></div>
+      <div class="hero-meta">
+        <div class="hero-date">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          <span id="fullDate"></span>
+        </div>
+        <div class="hero-date-dot"></div>
+        <div class="hero-status">
+          <div class="hero-status-dot"></div>
+          All systems live
+        </div>
+      </div>
+    </div>
+
+    <!-- Boards -->
+    <div class="boards-section">
+      <div class="sec-label">
+        <span class="sec-label-text">Your Boards</span>
+        <div class="sec-label-line"></div>
+      </div>
+      <div class="boards-grid" id="boardsGrid"></div>
+    </div>
+
+    <!-- Recent activity widget (admin only) -->
+    <div class="admin-section" style="margin-top:32px;">
+      <div class="sec-label">
+        <span class="sec-label-text">Recent Activity</span>
+        <div class="sec-label-line"></div>
+        <a href="#" id="recentActivityViewAll" style="font-size:0.72rem;color:var(--text-muted);text-decoration:none;font-weight:600;margin-left:auto;">View all →</a>
+      </div>
+      <div id="recentActivityList" style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;">
+        <div class="skeleton" style="height:50px;"></div>
+        <div class="skeleton" style="height:50px;"></div>
+        <div class="skeleton" style="height:50px;"></div>
+      </div>
+    </div>
+
+    <!-- Admin -->
+    <div class="admin-section" id="adminSection" style="display:none;">
+      <div class="sec-label">
+        <span class="sec-label-text">Team Management</span>
+        <div class="sec-label-line"></div>
+      </div>
+      <div class="admin-card">
+
+        <!-- Tabs -->
+        <div class="admin-tabs">
+          <button class="admin-tab active" data-tab="invite">
+            <svg class="admin-tab-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            Invite User
+          </button>
+          <button class="admin-tab" data-tab="users">
+            <svg class="admin-tab-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            Manage Access
+          </button>
+          <button class="admin-tab" data-tab="rep-map">
+            <svg class="admin-tab-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+            Rep Mapping
+          </button>
+          <button class="admin-tab" data-tab="activity">
+            <svg class="admin-tab-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            Activity
+          </button>
+          <button class="admin-tab" data-tab="sessions">
+            <svg class="admin-tab-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><path d="M8 11l4 4 4-4"/></svg>
+            Sessions
+          </button>
+        </div>
+
+        <!-- Invite pane -->
+        <div class="admin-pane active" id="pane-invite">
+          <div class="invite-layout">
+            <p class="invite-desc">Send a secure invitation email. The recipient will receive a link to set their password and access the workspace with the permissions you choose below.</p>
+            <div style="display:flex;gap:8px;margin-bottom:12px;">
+              <button type="button" class="invite-mode-btn active" data-mode="single" id="inviteModeSingle">Single</button>
+              <button type="button" class="invite-mode-btn" data-mode="bulk" id="inviteModeBulk">Bulk</button>
+            </div>
+            <div class="invite-row" id="inviteSingleRow">
+              <input class="auth-input" type="text" id="inviteFirstName" placeholder="First name (optional)" autocomplete="off" style="max-width:180px;">
+              <input class="auth-input" type="email" id="inviteEmail" placeholder="teammate@company.com" autocomplete="off">
+              <button class="invite-btn" id="sendInviteBtn">Send Invite</button>
+            </div>
+            <div id="inviteBulkRow" style="display:none;">
+              <textarea class="auth-input" id="inviteBulkEmails" rows="5" placeholder="one@company.com&#10;two@company.com&#10;three@company.com" style="resize:vertical;min-height:110px;font-family:inherit;"></textarea>
+              <div style="font-size:0.72rem;color:var(--text-muted);margin-top:6px;">Separate emails with new lines, commas, or spaces. All invitees share the same permissions selected below.</div>
+              <button class="invite-btn" id="sendBulkInviteBtn" style="margin-top:10px;width:100%;">Send Bulk Invites</button>
+            </div>
+            <div style="margin-top:18px;">
+              <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:10px;">Permissions for these users</div>
+              <div id="invitePerms" class="user-perms" style="gap:6px;"></div>
+            </div>
+            <div class="feedback" id="inviteFeedback"></div>
+          </div>
+        </div>
+
+        <!-- Users pane -->
+        <div class="admin-pane" id="pane-users">
+          <div class="users-head">
+            <div class="users-count" id="usersCount">Loading team…</div>
+            <button class="save-btn" id="refreshUsersBtn" style="font-size:0.7rem;">↻ Refresh</button>
+          </div>
+          <div id="pendingInvitesWrap" style="display:none;margin:16px 0 24px;border:1px solid rgba(251,191,36,0.4);background:rgba(251,191,36,0.06);border-radius:14px;padding:14px 18px;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+              <span style="font-size:0.78rem;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:#fbbf24;">⌛ Pending invites</span>
+              <span id="pendingInvitesCount" style="background:rgba(251,191,36,0.2);color:#fbbf24;border-radius:999px;padding:2px 9px;font-size:0.7rem;font-weight:700;">0</span>
+            </div>
+            <div id="pendingInvitesList" style="display:flex;flex-direction:column;gap:8px;"></div>
+          </div>
+          <div id="adminUserList">
+            <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
+          </div>
+        </div>
+
+        <!-- Rep Mapping pane -->
+        <div class="admin-pane" id="pane-rep-map">
+          <div class="users-head">
+            <div class="users-count" id="repMapCount">Loading…</div>
+            <div style="display:flex;gap:8px;">
+              <button class="save-btn" id="addRepBtn" style="font-size:0.7rem;background:rgba(34,211,238,0.1);border-color:rgba(34,211,238,0.25);color:var(--cyan);">+ Add Rep</button>
+              <button class="save-btn" id="refreshRepMapBtn" style="font-size:0.7rem;">↻ Refresh</button>
+            </div>
+          </div>
+          <!-- Add new rep form (hidden by default) -->
+          <div id="addRepForm" style="display:none;margin-bottom:16px;padding:16px;background:rgba(34,211,238,0.05);border:1px solid rgba(34,211,238,0.2);border-radius:14px;">
+            <div style="font-size:0.68rem;font-weight:800;text-transform:uppercase;letter-spacing:0.1em;color:var(--cyan);margin-bottom:12px;">New Rep Profile</div>
+            <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+              <div class="rep-map-field" style="flex:1;min-width:160px;">
+                <label>Calls Log Name <span style="font-weight:400;text-transform:none;">(exact match)</span></label>
+                <input class="aff-input" id="newRepCallsName" list="callsRepsList" placeholder="e.g. Jordin" autocomplete="off">
+                <datalist id="callsRepsList"></datalist>
+              </div>
+              <div class="rep-map-field aff-input-wrap" style="flex:2;min-width:200px;">
+                <label>Sales Affiliates <span style="font-weight:400;text-transform:none;">(comma-separated)</span></label>
+                <input class="aff-input" id="newRepAffiliates" placeholder="e.g. Jordin Pedlar, jordin pedlar">
+              </div>
+              <div style="display:flex;gap:6px;padding-bottom:1px;">
+                <button class="invite-btn" id="createRepBtn" style="padding:8px 16px;font-size:0.78rem;">Create</button>
+                <button class="save-btn" id="cancelAddRepBtn">Cancel</button>
+              </div>
+            </div>
+            <div class="feedback" id="addRepFeedback" style="margin-top:8px;"></div>
+          </div>
+          <!-- Unassigned callout (collapsed by default) -->
+          <details id="unassignedCallout" style="display:none;margin-bottom:18px;background:rgba(251,191,36,0.07);border:1px solid rgba(251,191,36,0.2);border-radius:14px;overflow:hidden;">
+            <summary style="cursor:pointer;list-style:none;padding:12px 16px;display:flex;align-items:center;gap:10px;user-select:none;">
+              <span style="font-size:0.68rem;font-weight:800;text-transform:uppercase;letter-spacing:0.1em;color:var(--gold);flex:1;">Unassigned Names <span id="unassignedCount" style="background:rgba(251,191,36,0.18);color:var(--gold);padding:2px 8px;border-radius:999px;font-size:0.65rem;margin-left:4px;">0</span></span>
+              <span class="unassigned-caret" style="color:var(--gold);font-size:0.7rem;transition:transform 0.15s;">▾</span>
+            </summary>
+            <div style="padding:0 16px 14px;display:flex;gap:16px;flex-wrap:wrap;">
+              <div>
+                <div style="font-size:0.65rem;color:var(--text-dim);margin-bottom:6px;font-weight:700;">Calls Log Reps not yet mapped</div>
+                <div id="unassignedCallsReps" style="display:flex;gap:4px;flex-wrap:wrap;"></div>
+              </div>
+              <div>
+                <div style="font-size:0.65rem;color:var(--text-dim);margin-bottom:6px;font-weight:700;">Sales Log Affiliates not yet mapped</div>
+                <div id="unassignedAffiliates" style="display:flex;gap:4px;flex-wrap:wrap;"></div>
+              </div>
+            </div>
+          </details>
+          <style>
+            #unassignedCallout summary::-webkit-details-marker { display: none; }
+            #unassignedCallout[open] .unassigned-caret { transform: rotate(180deg); }
+          </style>
+          <div id="repMapList">
+            <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Activity pane -->
+      <div class="admin-pane" id="pane-activity" style="padding:0;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:24px 28px 14px;">
+          <div>
+            <div style="font-size:0.78rem;font-weight:700;color:var(--text);">Recent activity</div>
+            <div style="font-size:0.7rem;color:var(--text-dim);margin-top:3px;">Audit trail of every change made by users (and the system).</div>
+          </div>
+          <button class="save-btn" id="refreshActivityBtn" style="font-size:0.7rem;">↻ Refresh</button>
+        </div>
+        <div id="activityFilters" style="display:flex;gap:8px;flex-wrap:wrap;padding:0 28px 16px;">
+          <select id="activityActionFilter" class="auth-input" style="max-width:220px;font-size:0.78rem;">
+            <option value="">All actions</option>
+            <option value="declaration.create">Declarations · created</option>
+            <option value="declaration.update">Declarations · edited</option>
+            <option value="declaration.delete">Declarations · deleted</option>
+            <option value="declaration.auto_assign">Declarations · auto-assigned (batch)</option>
+            <option value="declaration.auto_import">Declarations · auto-imported</option>
+            <option value="user.invite">Users · invited</option>
+            <option value="user.delete">Users · deleted</option>
+            <option value="user.permissions_change">Users · permissions changed</option>
+            <option value="user.force_logout">Users · force-logged-out</option>
+            <option value="dashboard.archive">Dashboard archived</option>
+            <option value="dashboard.unarchive">Dashboard unarchived</option>
+            <option value="rep_mapping.set">Rep mapping changed</option>
+            <option value="rep_mapping.delete">Rep mapping deleted</option>
+          </select>
+          <input id="activityActor" class="auth-input" type="search" placeholder="Actor email contains…" style="max-width:200px;font-size:0.78rem;">
+          <input id="activityFrom" class="auth-input" type="date" style="max-width:150px;font-size:0.78rem;" title="From date">
+          <input id="activityTo"   class="auth-input" type="date" style="max-width:150px;font-size:0.78rem;" title="To date">
+          <input id="activitySearch" class="auth-input" type="search" placeholder="Search target / details…" style="max-width:200px;font-size:0.78rem;">
+          <button class="save-btn" id="activityClearBtn" style="font-size:0.7rem;">Clear filters</button>
+        </div>
+        <div id="activityList" style="padding:0 28px 24px;max-height:520px;overflow-y:auto;">
+          <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
+        </div>
+      </div>
+
+      <!-- Sessions pane -->
+      <div class="admin-pane" id="pane-sessions" style="padding:0;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:24px 28px 14px;">
+          <div>
+            <div style="font-size:0.78rem;font-weight:700;color:var(--text);">Sessions</div>
+            <div style="font-size:0.7rem;color:var(--text-dim);margin-top:3px;">Most recent sign-ins. <strong>Force logout</strong> invalidates a user's refresh tokens — they'll be kicked out within their access-token expiry (~1h), sooner if the page tries to refresh.</div>
+          </div>
+          <button class="save-btn" id="refreshSessionsBtn" style="font-size:0.7rem;">↻ Refresh</button>
+        </div>
+        <div id="sessionsList" style="padding:0 28px 24px;max-height:520px;overflow-y:auto;">
+          <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /.page -->
+</div><!-- /#app -->
+
+<script>
+const SUPABASE_URL      = "https://pojqljrhhtnigyrtzdzz.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBvanFsanJoaHRuaWd5cnR6ZHp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTA3ODMsImV4cCI6MjA5MTM4Njc4M30.PcSBDqOzbiZxZ7IAs5efqx0gsAlAG0cj3GqUOkAmxos";
+const INVITE_BASE    = SUPABASE_URL + "/functions/v1/invite";
+const ADMIN_API_BASE = SUPABASE_URL + "/functions/v1/admin-api";
+
+// Use the central permission registry. Adding a new role = edit permissions.js.
+const AVAILABLE_PERMS = window.RidleyPerms.AVAILABLE_PERMS;
+
+const BOARDS = [
+  {
+    id: 'sales', href: 'index.html', title: 'Sales Dashboard', permission: 'sales',
+    color: '#6b9eff', glow: 'rgba(107,158,255,0.18)', bg: 'rgba(107,158,255,0.12)',
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6b9eff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>`,
+    desc: 'Daily lead flow, call activity, contact rates, closes, and gross income. Track your sales team\u2019s performance in real time.',
+    tags: [{ label: 'Leads', bg: 'rgba(107,158,255,0.12)', color: '#6b9eff' }, { label: 'Closes', bg: 'rgba(52,211,153,0.12)', color: '#34d399' }],
+  },
+  {
+    id: 'meta', href: 'meta-ads.html', title: 'Meta Ads', permission: 'marketing',
+    color: '#f472b6', glow: 'rgba(244,114,182,0.18)', bg: 'rgba(244,114,182,0.12)',
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f472b6" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>`,
+    desc: 'Campaign spend, impressions, CTR, CPC, and reach. Full visibility into how every ad dollar is performing.',
+    tags: [{ label: 'Spend', bg: 'rgba(244,114,182,0.12)', color: '#f472b6' }, { label: 'Campaigns', bg: 'rgba(167,139,250,0.12)', color: '#a78bfa' }],
+  },
+  {
+    id: 'performance', href: 'performance.html', title: 'VSL Performance', permission: 'both',
+    color: '#34d399', glow: 'rgba(52,211,153,0.18)', bg: 'rgba(52,211,153,0.12)',
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>`,
+    desc: 'Ads + sales combined. Cost per lead, cost per close, gross profit, and ROAS broken down by Opt-In vs No Opt-In funnel.',
+    tags: [{ label: 'ROAS', bg: 'rgba(52,211,153,0.12)', color: '#34d399' }, { label: 'Funnels', bg: 'rgba(251,191,36,0.12)', color: '#fbbf24' }],
+  },
+  {
+    id: 'income', href: 'income.html', title: 'Income', permission: 'finance',
+    color: '#fbbf24', glow: 'rgba(251,191,36,0.18)', bg: 'rgba(251,191,36,0.12)',
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>`,
+    desc: 'Product revenue breakdown by sales, rebills, and payment plans. Live view of the Sales Log with real-time updates.',
+    tags: [{ label: 'Revenue', bg: 'rgba(251,191,36,0.12)', color: '#fbbf24' }, { label: 'Products', bg: 'rgba(52,211,153,0.12)', color: '#34d399' }],
+  },
+  {
+    id: 'calls', href: 'calls.html', title: 'Calls', permission: 'calls',
+    color: '#22d3ee', glow: 'rgba(34,211,238,0.18)', bg: 'rgba(34,211,238,0.12)',
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.41 2 2 0 0 1 3.6 1.22h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.82a16 16 0 0 0 6.29 6.29l.95-.95a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`,
+    desc: 'Rep call activity, talk time, avg duration, and daily trends. Full log with per-rep filtering and live updates.',
+    tags: [{ label: 'Reps', bg: 'rgba(34,211,238,0.12)', color: '#22d3ee' }, { label: 'Activity', bg: 'rgba(167,139,250,0.12)', color: '#a78bfa' }],
+  },
+  {
+    id: 'declarations', href: 'declarations.html', title: 'Declarations', permission: 'rep',
+    color: '#34d399', glow: 'rgba(52,211,153,0.18)', bg: 'rgba(52,211,153,0.12)',
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1" ry="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>`,
+    desc: 'Reps declare closed sales for verification. Automated sales-check cross-references the Sales Log by email, date, and amount.',
+    tags: [{ label: 'Reps', bg: 'rgba(52,211,153,0.12)', color: '#34d399' }, { label: 'Verification', bg: 'rgba(251,191,36,0.12)', color: '#fbbf24' }],
+  },
+  {
+    id: 'collections', href: 'collections.html', title: 'Collections', permission: 'collections',
+    color: '#a78bfa', glow: 'rgba(167,139,250,0.18)', bg: 'rgba(167,139,250,0.12)',
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`,
+    desc: 'Recover missed or disputed rebills. Separate from Declarations — entries here never count toward rep stats. Same sales-check against the Sales Log.',
+    tags: [{ label: 'Rebills', bg: 'rgba(167,139,250,0.12)', color: '#a78bfa' }, { label: 'Recovery', bg: 'rgba(251,191,36,0.12)', color: '#fbbf24' }],
+  },
+  {
+    id: 'refunds', href: 'refunds.html', title: 'Refunds', permission: 'refunds',
+    color: '#f87171', glow: 'rgba(248,113,113,0.18)', bg: 'rgba(248,113,113,0.12)',
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>`,
+    desc: 'Log refunds salvaged and refunds done. Its own ledger, fully separate from Collections. Entered by Treasury I/C, Delivery I/C, and admins.',
+    tags: [{ label: 'Salvaged', bg: 'rgba(52,211,153,0.12)', color: '#34d399' }, { label: 'Refunded', bg: 'rgba(248,113,113,0.12)', color: '#f87171' }],
+  },
+  {
+    id: 'support', href: 'support.html', title: 'Support', permission: 'support',
+    color: '#22d3ee', glow: 'rgba(34,211,238,0.18)', bg: 'rgba(34,211,238,0.12)',
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`,
+    desc: 'Customer support ticket log. Create and track tickets, log every note and status change, and auto-mark refunds as Processed on the Refunds board.',
+    tags: [{ label: 'Tickets', bg: 'rgba(34,211,238,0.12)', color: '#22d3ee' }, { label: 'CS', bg: 'rgba(52,211,153,0.12)', color: '#34d399' }],
+  },
+  {
+    id: 'subscriptions', href: 'subscriptions.html', title: 'Subscriptions', permission: 'subscriptions',
+    color: '#6b9eff', glow: 'rgba(107,158,255,0.18)', bg: 'rgba(107,158,255,0.12)',
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6b9eff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>`,
+    desc: 'Track payment-plan / rebill subscriptions and the ones that have stopped. Fed by support, the support-ticket extract, and the stopped-subscription webhook.',
+    tags: [{ label: 'Rebills', bg: 'rgba(107,158,255,0.12)', color: '#6b9eff' }, { label: 'Stopped', bg: 'rgba(248,113,113,0.12)', color: '#f87171' }],
+  },
+  {
+    id: 'students', href: 'students.html', title: 'Mentorship Students', permission: 'mentorship',
+    color: '#10b981', glow: 'rgba(16,185,129,0.18)', bg: 'rgba(16,185,129,0.12)',
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
+    desc: 'CRM for mentorship students. Click a name to open their profile, status, mentor, joined date, and notes.',
+    tags: [{ label: 'CRM', bg: 'rgba(16,185,129,0.12)', color: '#10b981' }, { label: 'Profiles', bg: 'rgba(167,139,250,0.12)', color: '#a78bfa' }],
+  },
+  {
+    id: 'coach', href: 'coach.html', title: 'Coach Dashboard', permission: 'coach',
+    color: '#34d399', glow: 'rgba(52,211,153,0.18)', bg: 'rgba(52,211,153,0.12)',
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>`,
+    desc: 'Coach view: KPIs across your roster, at-risk students, last-zoom tracking, and bulk-edit fields like last assignment and zoom dates.',
+    tags: [{ label: 'Coach', bg: 'rgba(52,211,153,0.12)', color: '#34d399' }, { label: 'Bulk edit', bg: 'rgba(251,191,36,0.12)', color: '#fbbf24' }],
+  },
+  {
+    id: 'email_automations', href: 'email-automations.html', title: 'Email Automations', permission: 'admin',
+    color: '#a78bfa', glow: 'rgba(167,139,250,0.18)', bg: 'rgba(167,139,250,0.12)',
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 7l-10 6L2 7"/></svg>`,
+    desc: 'Edit subject/body of transactional emails, fire test sends, broadcast to lists, and track open/click stats. Admin-only.',
+    tags: [{ label: 'Admin', bg: 'rgba(248,113,113,0.12)', color: '#f87171' }, { label: 'Email', bg: 'rgba(167,139,250,0.12)', color: '#a78bfa' }],
+  },
+  {
+    id: 'weekly_stats', href: 'weekly-stats.html', title: 'Weekly Stats', permission: 'weekly_stats',
+    color: '#22d3ee', glow: 'rgba(34,211,238,0.18)', bg: 'rgba(34,211,238,0.12)',
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="3" y2="21"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="9" x2="15" y2="21"/><line x1="21" y1="6" x2="21" y2="21"/></svg>`,
+    desc: 'Staff Meeting view. Phone Sales, Recurring & Refunds, Mentorship, and Masterclass KPIs grouped by division — auto-computed from live data where possible, manually entered or imported where not.',
+    tags: [{ label: 'Analytics', bg: 'rgba(34,211,238,0.12)', color: '#22d3ee' }, { label: 'Staff Meeting', bg: 'rgba(167,139,250,0.12)', color: '#a78bfa' }],
+  },
+  {
+    id: 'weekly_stats_entry', href: 'weekly-stats-entry.html', title: 'Stats Entry', permission: 'weekly_stats',
+    color: '#34d399', glow: 'rgba(52,211,153,0.18)', bg: 'rgba(52,211,153,0.12)',
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>`,
+    desc: 'One-stop form to enter the week’s (or month’s) numbers. Replaces the Google Sheet workflow — fill in all manual metrics on a single page and hit save.',
+    tags: [{ label: 'Data Entry', bg: 'rgba(52,211,153,0.12)', color: '#34d399' }, { label: 'Weekly', bg: 'rgba(34,211,238,0.12)', color: '#22d3ee' }],
+  },
+  {
+    id: 'access', href: 'access.html', title: 'Access & Org', permission: 'admin',
+    color: '#34d399', glow: 'rgba(52,211,153,0.18)', bg: 'rgba(52,211,153,0.12)',
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 22a8 8 0 0 1 16 0"/></svg>`,
+    desc: 'Manage users, roles, and the org board (divisions → departments → posts). Invite new users, assign granular permissions, and attach policies / orders to any level. Admin-only.',
+    tags: [{ label: 'Admin', bg: 'rgba(248,113,113,0.12)', color: '#f87171' }, { label: 'RBAC', bg: 'rgba(52,211,153,0.12)', color: '#34d399' }],
+  },
+];
+
+const supa = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: { persistSession: true, detectSessionInUrl: true, autoRefreshToken: true }
+});
+
+function setState(s) { document.body.dataset.state = s; }
+
+// Safe error-into-list helper. Builds the node via DOM so a maliciously
+// crafted error message can never inject HTML.
+function renderErrorInto(el, msg, sidePadPx) {
+  if (!el) return;
+  const div = document.createElement('div');
+  div.style.cssText = `color:var(--red);font-size:0.84rem;padding:12px ${Number(sidePadPx)||0}px;`;
+  div.textContent = String(msg || 'Failed');
+  el.replaceChildren(div);
+}
+let session_ = null;
+
+// ── Theme ─────────────────────────────────────────────────────
+const savedTheme = localStorage.getItem('theme') || 'dark';
+if (savedTheme === 'light') document.body.classList.add('light');
+function syncThemeBtn() {
+  document.getElementById('themeBtn').textContent = document.body.classList.contains('light') ? '🌙' : '☀️';
+}
+syncThemeBtn();
+document.getElementById('themeBtn').addEventListener('click', () => {
+  document.body.classList.toggle('light');
+  localStorage.setItem('theme', document.body.classList.contains('light') ? 'light' : 'dark');
+  syncThemeBtn();
+});
+
+// ── Admin tabs ────────────────────────────────────────────────
+document.querySelectorAll('.admin-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.admin-pane').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('pane-' + tab.dataset.tab).classList.add('active');
+    if (tab.dataset.tab === 'users') { loadAdminUsers(); loadPendingInvites(); }
+    if (tab.dataset.tab === 'rep-map') loadRepMappings();
+    if (tab.dataset.tab === 'activity') loadActivity();
+    if (tab.dataset.tab === 'sessions') loadSessions();
+  });
+});
+
+document.getElementById('refreshUsersBtn').addEventListener('click', () => { loadAdminUsers(); loadPendingInvites(); });
+// Wire "View all →" on the dashboard widget to scroll into Team
+// Management → Activity tab.
+document.getElementById('recentActivityViewAll')?.addEventListener('click', e => {
+  e.preventDefault();
+  document.querySelector('.admin-tab[data-tab="activity"]')?.click();
+  document.getElementById('adminSection')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+document.getElementById('refreshSessionsBtn')?.addEventListener('click', loadSessions);
+document.getElementById('refreshActivityBtn')?.addEventListener('click', loadActivity);
+document.getElementById('activityActionFilter')?.addEventListener('change', loadActivity);
+document.getElementById('activityActor')?.addEventListener('input', debouncedLoadActivity);
+document.getElementById('activityFrom')?.addEventListener('change', loadActivity);
+document.getElementById('activityTo')?.addEventListener('change', loadActivity);
+document.getElementById('activitySearch')?.addEventListener('input', debouncedLoadActivity);
+document.getElementById('activityClearBtn')?.addEventListener('click', () => {
+  ['activityActionFilter','activityActor','activityFrom','activityTo','activitySearch'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  loadActivity();
+});
+
+// ── Auth ──────────────────────────────────────────────────────
+// Detect invite/recovery from BOTH hash (legacy implicit flow) and query
+// (newer PKCE flow). detectSessionInUrl handles the token exchange async.
+const _hashParams  = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+const _queryParams = new URLSearchParams(window.location.search);
+function _authType() { return _hashParams.get('type') || _queryParams.get('type') || ''; }
+const isInviteLink   = _authType() === 'invite' || _authType() === 'signup';
+const isRecoveryLink = _authType() === 'recovery';
+
+async function initAuth() {
+  if (isInviteLink || isRecoveryLink) {
+    setState('set-password');
+    supa.auth.onAuthStateChange((_e, sess) => {
+      if (!sess) {
+        if (document.body.dataset.state === 'set-password') setState('login');
+        return;
+      }
+      // Pre-fill first name from invite metadata if present
+      const fnInput = document.getElementById('newFirstName');
+      const seeded = sess?.user?.user_metadata?.first_name;
+      if (fnInput && seeded && !fnInput.value) fnInput.value = seeded;
+      // Stay on set-password until user submits a new one. Submit handler
+      // below calls onAuthed() after updateUser succeeds.
+      if (document.body.dataset.state === 'set-password') return;
+      onAuthed(sess);
+    });
+    setTimeout(() => {
+      if (document.body.dataset.state === 'loading') setState('login');
+    }, 12000);
+    return;
+  }
+
+  // Safety net: if nothing resolves in 8s, drop to login
+  const timeout = setTimeout(() => setState('login'), 8000);
+  try {
+    const { data: { session }, error } = await supa.auth.getSession();
+    clearTimeout(timeout);
+    if (error) throw error;
+    if (session) { onAuthed(session); return; }
+    setState('login');
+  } catch(e) {
+    clearTimeout(timeout);
+    console.error('Auth init error:', e);
+    setState('login');
+  }
+  supa.auth.onAuthStateChange((_e, sess) => { if (sess) onAuthed(sess); else setState('login'); });
+}
+
+async function onAuthed(session) {
+  try {
+    // Hard gate: every authenticated user must have completed activation
+    // (activated=true in user_metadata) AND have a first_name.
+    // - New invitees: activated is false until they submit the activation
+    //   form (sets password + first_name). Even if first_name was pre-seeded
+    //   from the invite payload, they still need to set their own password.
+    // - Legacy users: activated=true (set by one-shot SQL backfill); they
+    //   only need to fill first_name if it's missing. Password fields are
+    //   hidden for them via the isLegacy branch below.
+    const fn = session?.user?.user_metadata?.first_name;
+    const activated = session?.user?.user_metadata?.activated === true;
+    if (!activated || !fn || !String(fn).trim()) {
+      session_ = session;
+      setState('set-password');
+      const fnInput = document.getElementById('newFirstName');
+      const pwGroup  = document.getElementById('newPassword')?.closest('.input-group');
+      const pwGroup2 = document.getElementById('confirmPassword')?.closest('.input-group');
+      const titleEl  = document.querySelector('#setPassword h1');
+      const subEl    = document.querySelector('#setPassword .sub');
+      const submitBtn = document.getElementById('setPasswordBtn');
+      // Legacy accounts (existing pre-first_name users) have already set a
+      // password — they only need to fill first name. We detect this with an
+      // explicit `activated` flag in user_metadata; a one-shot SQL backfilled
+      // it for all pre-existing users. New invitees never have activated=true
+      // until they finish this exact form, so they MUST fill the password too.
+      const isLegacy = session?.user?.user_metadata?.activated === true;
+      if (isLegacy) {
+        if (pwGroup)  pwGroup.style.display  = 'none';
+        if (pwGroup2) pwGroup2.style.display = 'none';
+        if (titleEl) titleEl.textContent = 'Tell us your first name';
+        if (subEl)   subEl.textContent = "We'd like to know how to address you.";
+        if (submitBtn) submitBtn.textContent = 'Save';
+        document.getElementById('newPassword').required = false;
+        document.getElementById('confirmPassword').required = false;
+      } else {
+        if (pwGroup)  pwGroup.style.display  = '';
+        if (pwGroup2) pwGroup2.style.display = '';
+        document.getElementById('newPassword').required = true;
+        document.getElementById('confirmPassword').required = true;
+      }
+      if (fnInput) { fnInput.value = ''; setTimeout(() => fnInput.focus(), 50); }
+      return;
+    }
+    session_ = session;
+
+    // Effective identity (handles impersonation transparently per the
+    // RBAC source-of-truth). Real session/JWT is still used for server
+    // calls — this only swaps what the UI shows.
+    const _eff   = window.RidleyPerms.effective(session.user);
+    const email   = _eff.email   || session.user.email || '';
+    const isAdmin = _eff.is_admin;
+    const perms   = _eff.permissions;
+
+    document.getElementById('userEmail').textContent = email;
+    document.getElementById('userAvatar').textContent = (email[0] || 'U').toUpperCase();
+
+    // Greeting
+    const now = new Date();
+    const hr  = now.getHours();
+    document.getElementById('greetTime').textContent = hr < 12 ? 'morning' : hr < 17 ? 'afternoon' : 'evening';
+    // Prefer the first_name they set on activation; fall back to email local-part.
+    const fnFromMeta = (session.user.user_metadata?.first_name || '').toString().trim();
+    const fallback = email.split('@')[0].split(/[+._]/)[0];
+    const name = fnFromMeta || fallback;
+    document.getElementById('firstName').textContent = name.charAt(0).toUpperCase() + name.slice(1);
+
+    // Date
+    document.getElementById('fullDate').textContent = now.toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric', year:'numeric' });
+
+    await loadArchiveList();
+    renderBoards(isAdmin, perms);
+
+    // Admin gating via body class — CSS rules ensure the section can't render without it
+    if (isAdmin) {
+      document.body.classList.add('is-admin');
+      loadRecentActivity(); // home dashboard widget
+    } else {
+      document.body.classList.remove('is-admin');
+    }
+
+    setState('dashboard');
+  } catch(e) {
+    console.error('onAuthed error:', e);
+    setState('login');
+  }
+}
+
+// ── Boards ────────────────────────────────────────────────────
+let archivedSet = new Set();
+
+async function loadArchiveList() {
+  try {
+    const r = await fetch(ADMIN_API_BASE + '?api=dashboard-archive', {
+      headers: { Authorization: 'Bearer ' + session_.access_token }
+    });
+    const j = await r.json();
+    archivedSet = new Set(j.archived || []);
+  } catch(e) { archivedSet = new Set(); }
+}
+
+// Defer to the central registry — single source of truth for what each role
+// can open. Adding a role / changing a page's required roles = edit permissions.js.
+function permsAllow(b, isAdmin, perms) {
+  return window.RidleyPerms.canOpenWith(b.href, { is_admin: isAdmin, permissions: perms });
+}
+
+function renderBoards(isAdmin, perms) {
+  const accessible = BOARDS.filter(b => {
+    if (!permsAllow(b, isAdmin, perms)) return false;
+    // Non-admins never see archived boards
+    if (!isAdmin && archivedSet.has(b.id)) return false;
+    return true;
+  });
+
+  if (accessible.length === 0) {
+    document.getElementById('boardsGrid').innerHTML =
+      `<div style="grid-column:1/-1;padding:60px 20px;text-align:center;color:var(--text-muted);font-size:0.9rem;">No dashboards have been assigned to your account yet. Contact an admin.</div>`;
+    return;
+  }
+
+  document.getElementById('boardsGrid').innerHTML = accessible.map(b => {
+    const tagsHtml = b.tags.map(t =>
+      `<span class="card-tag" style="background:${t.bg};color:${t.color};">${t.label}</span>`
+    ).join('');
+    const isArchived = archivedSet.has(b.id);
+    const archiveRow = isAdmin
+      ? `<div style="border-top:1px solid var(--border);margin:14px -22px 0;padding:10px 22px 0;display:flex;justify-content:flex-end;">
+          <button class="archive-btn" data-id="${b.id}" data-archived="${isArchived}"
+            style="background:${isArchived?'rgba(251,191,36,0.14)':'rgba(248,113,113,0.10)'};border:1px solid ${isArchived?'rgba(251,191,36,0.35)':'rgba(248,113,113,0.28)'};color:${isArchived?'#fbbf24':'#f87171'};font-size:0.65rem;font-weight:700;padding:5px 12px;border-radius:8px;cursor:pointer;text-transform:uppercase;letter-spacing:0.06em;">
+            ${isArchived?'Unarchive':'Archive'}
+          </button>
+        </div>` : '';
+    const archivedBadge = isArchived ? `<div class="card-status" style="background:rgba(251,191,36,0.18);color:#fbbf24;border:1px solid rgba(251,191,36,0.4);"><div class="card-status-dot" style="background:#fbbf24;"></div>Archived</div>` : `<div class="card-status open"><div class="card-status-dot"></div>Available</div>`;
+    const cardOpacity = isArchived ? 'opacity:0.6;' : '';
+
+    return `
+    <a href="${b.href}" class="board-card" data-id="${b.id}"
+       style="--c-color:${b.color};--c-glow:${b.glow};--c-bg:${b.bg};${cardOpacity}">
+      <div class="card-toprow">
+        <div class="card-icon-wrap">${b.icon}</div>
+        ${archivedBadge}
+      </div>
+      <div class="card-title">${b.title}</div>
+      <div class="card-desc">${b.desc}</div>
+      <div class="card-footer">
+        <div class="card-tags">${tagsHtml}</div>
+        <div class="card-cta">
+          Open
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        </div>
+      </div>
+      ${archiveRow}
+    </a>`;
+  }).join('');
+
+  // Wire archive buttons (admin only)
+  document.querySelectorAll('.archive-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const id = btn.dataset.id;
+      const isArchived = btn.dataset.archived === 'true';
+      const route = isArchived ? 'unarchive-dashboard' : 'archive-dashboard';
+      btn.disabled = true; const oldText = btn.textContent; btn.textContent = '...';
+      try {
+        const r = await fetch(ADMIN_API_BASE + '?api=' + route, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session_.access_token },
+          body: JSON.stringify({ dashboardId: id }),
+        });
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error || 'Failed');
+        if (isArchived) archivedSet.delete(id); else archivedSet.add(id);
+        const isAdmin = session_.user.app_metadata?.is_admin ?? false;
+        const perms   = session_.user.app_metadata?.permissions ?? [];
+        renderBoards(isAdmin, perms); // re-render
+      } catch(err) {
+        alert((isArchived?'Unarchive':'Archive') + ' failed: ' + err.message);
+        btn.disabled = false; btn.textContent = oldText;
+      }
+    });
+  });
+}
+
+// ── Admin: load users ─────────────────────────────────────────
+async function loadAdminUsers() {
+  const list = document.getElementById('adminUserList');
+  const count = document.getElementById('usersCount');
+  list.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>';
+  try {
+    const r = await fetch(ADMIN_API_BASE + '?api=users', {
+      headers: { Authorization: 'Bearer ' + session_.access_token }
+    });
+    const users = await r.json();
+    if (!r.ok) throw new Error(users.error || 'Failed to load users');
+
+    count.textContent = `${users.length} team member${users.length !== 1 ? 's' : ''}`;
+
+    const callerId = session_.user.id;
+
+    list.innerHTML = users.map(u => {
+      const initials = (u.email || u.id).slice(0, 2).toUpperCase();
+      const roleLabel = u.is_admin ? 'Admin' : (u.permissions?.length ? u.permissions.join(', ') : 'No permissions');
+      const lastLogin = formatLastLogin(u.last_sign_in_at);
+      const isSelf = u.id === callerId;
+      return `
+      <div class="user-row" data-id="${u.id}">
+        <div class="user-av">${initials}</div>
+        <div class="user-info">
+          <div class="user-email">${u.email || u.id}${isSelf?' <span style="color:var(--text-dim);font-weight:500;font-size:0.7rem;">(you)</span>':''}</div>
+          <div class="user-role" id="role-${u.id}">${roleLabel}${u.first_name ? ' · <span style="color:var(--text-dim);font-weight:500;">' + (u.first_name+'').replace(/[<>]/g,'') + '</span>' : ''}</div>
+          <div class="user-meta ${lastLogin.cls}">${lastLogin.text}</div>
+        </div>
+        <input class="auth-input first-name-input" type="text" data-id="${u.id}" value="${(u.first_name || '').replace(/"/g,'&quot;')}" placeholder="First name" style="max-width:140px;padding:8px 10px;font-size:0.78rem;">
+        <input class="auth-input zoom-email-input" type="email" data-id="${u.id}" value="${(u.zoom_host_email || '').replace(/"/g,'&quot;')}" placeholder="Zoom host email" title="Email of this user's Zoom account — meetings they schedule will be hosted here" style="max-width:200px;padding:8px 10px;font-size:0.78rem;">
+        <div class="user-perms">
+          ${permSelectHTML({ checked: u.permissions || [], isAdmin: !!u.is_admin })}
+        </div>
+        <button class="save-btn" data-id="${u.id}">Save</button>
+        ${u.email && !u.last_sign_in_at ? `<button class="resend-btn" data-id="${u.id}" data-email="${u.email}" title="Email a password-reset link (use this for legacy users who never signed in)" style="background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.4);color:#fbbf24;">Send reset</button>` : ''}
+        ${u.email ? `<button class="reset-btn" data-id="${u.id}" data-email="${u.email}" title="Email this user a password reset link">Reset password</button>` : ''}
+        ${isSelf ? '' : `<button class="impersonate-btn" data-id="${u.id}" data-email="${u.email||''}" data-admin="${u.is_admin?1:0}" data-perms="${(u.permissions||[]).join(',')}" title="See the app as this user">View as</button>`}
+        ${isSelf ? '' : `<button class="delete-btn" data-id="${u.id}" data-email="${u.email||''}">Delete</button>`}
+        <span class="save-msg" id="msg-${u.id}"></span>
+      </div>`;
+    }).join('');
+
+    wirePermSelects(list);
+    list.querySelectorAll('.save-btn').forEach(btn => {
+      btn.addEventListener('click', () => saveUser(btn));
+    });
+    list.querySelectorAll('.delete-btn').forEach(btn => {
+      btn.addEventListener('click', () => deleteUser(btn));
+    });
+    list.querySelectorAll('.reset-btn').forEach(btn => {
+      btn.addEventListener('click', () => sendPasswordReset(btn));
+    });
+    list.querySelectorAll('.resend-btn').forEach(btn => {
+      btn.addEventListener('click', () => resendInvite(btn));
+    });
+    list.querySelectorAll('.impersonate-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const perms = btn.dataset.perms ? btn.dataset.perms.split(',').filter(Boolean) : [];
+        // v282: audit the impersonation start so admins can be held
+        // accountable for "view as" sessions. Fire-and-forget — UI shouldn't
+        // wait for the log row.
+        try {
+          supa.rpc('log_activity_event', {
+            p_action: 'user.impersonate_start',
+            p_target_type: 'auth.user',
+            p_target_id: btn.dataset.id,
+            p_details: { target_email: btn.dataset.email || null, target_is_admin: btn.dataset.admin === '1', target_permissions: perms },
+          });
+        } catch (_) {}
+        window.uxImpersonate({
+          id: btn.dataset.id,
+          email: btn.dataset.email,
+          is_admin: btn.dataset.admin === '1',
+          permissions: perms,
+        });
+      });
+    });
+
+  } catch(err) {
+    renderErrorInto(list, err.message, 0);
+  }
+}
+
+// ── Activity log ──────────────────────────────────────────────
+let activityRows = [];
+const ACTION_META = {
+  'declaration.create':       { color: '#34d399', icon: '➕', label: 'declared a sale' },
+  'declaration.update':       { color: '#6b9eff', icon: '✏️', label: 'edited a declaration' },
+  'declaration.delete':       { color: '#f87171', icon: '🗑️', label: 'deleted a declaration' },
+  'declaration.auto_import':  { color: '#a78bfa', icon: '⚡', label: 'auto-imported a sale' },
+  'user.invite':              { color: '#34d399', icon: '✉️', label: 'invited' },
+  'user.delete':              { color: '#f87171', icon: '🗑️', label: 'deleted user' },
+  'user.permissions_change':  { color: '#fbbf24', icon: '🔐', label: 'changed permissions for' },
+  'dashboard.archive':        { color: '#fbbf24', icon: '📦', label: 'archived dashboard' },
+  'dashboard.unarchive':      { color: '#34d399', icon: '📂', label: 'unarchived dashboard' },
+  'rep_mapping.set':          { color: '#22d3ee', icon: '🧩', label: 'updated rep mapping' },
+  'rep_mapping.delete':       { color: '#f87171', icon: '🧩', label: 'deleted rep mapping' },
+};
+
+function formatActivityTime(iso) {
+  const d = new Date(iso); const now = new Date(); const diff = now - d;
+  const m = Math.floor(diff/60000), h = Math.floor(diff/3600000), days = Math.floor(diff/86400000);
+  if (m < 1) return 'just now';
+  if (m < 60) return m + 'm ago';
+  if (h < 24) return h + 'h ago';
+  if (days < 7) return days + 'd ago';
+  return d.toLocaleDateString('en-US', { month:'short', day:'numeric' }) + ' ' +
+         d.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' });
+}
+
+function activityDescription(row) {
+  const meta = ACTION_META[row.action] || { color:'#7880a8', icon:'•', label: row.action };
+  const actor = row.actor_email || 'system';
+  const d = row.details || {};
+  let target = '';
+  if (row.action === 'declaration.create' || row.action === 'declaration.update' || row.action === 'declaration.delete' || row.action === 'declaration.auto_import') {
+    const amt = d.amount ? '$' + Number(d.amount).toLocaleString() : '';
+    const name = d.name || '(unnamed)';
+    target = `${name}${amt ? ' · ' + amt : ''}${d.rep_name ? ' · ' + d.rep_name : ''}`;
+  } else if (row.action === 'user.invite') {
+    target = d.invited_email || row.target_id;
+  } else if (row.action === 'user.delete') {
+    target = d.email || row.target_id;
+  } else if (row.action === 'user.permissions_change') {
+    const perms = (d.permissions || []).join(', ') || 'no permissions';
+    target = `${row.target_id ? row.target_id.slice(0,8) + '…' : ''} → ${d.is_admin?'admin':perms}`;
+  } else if (row.action === 'dashboard.archive' || row.action === 'dashboard.unarchive') {
+    target = row.target_id;
+  } else if (row.action === 'rep_mapping.set' || row.action === 'rep_mapping.delete') {
+    target = d.callsName || row.target_id || '';
+  }
+  return { meta, actor, target };
+}
+
+// Debounced server-side reload when filters change.
+let _activityDebounce = null;
+function debouncedLoadActivity() {
+  clearTimeout(_activityDebounce);
+  _activityDebounce = setTimeout(loadActivity, 250);
+}
+
+async function loadActivity() {
+  const list = document.getElementById('activityList');
+  list.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>';
+  try {
+    const params = new URLSearchParams({ api: 'activity', limit: '300' });
+    const action = document.getElementById('activityActionFilter')?.value;
+    const actor  = document.getElementById('activityActor')?.value?.trim();
+    const from   = document.getElementById('activityFrom')?.value;
+    const to     = document.getElementById('activityTo')?.value;
+    const q      = document.getElementById('activitySearch')?.value?.trim();
+    if (action) params.set('action', action);
+    if (actor)  params.set('actor', actor);
+    if (from)   params.set('from', from);
+    if (to)     params.set('to', to);
+    if (q)      params.set('q', q);
+    const r = await fetch(ADMIN_API_BASE + '?' + params, {
+      headers: { Authorization: 'Bearer ' + session_.access_token }
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Failed');
+    activityRows = j.rows || [];
+    renderActivity();
+  } catch(err) {
+    renderErrorInto(list, err.message, 0);
+  }
+}
+
+function renderActivity() {
+  const list = document.getElementById('activityList');
+  const rows = activityRows; // already filtered server-side
+
+  if (!rows.length) {
+    list.innerHTML = `<div style="color:var(--text-dim);font-size:0.84rem;padding:24px 0;text-align:center;">No matching activity.</div>`;
+    return;
+  }
+
+  list.innerHTML = rows.map(r => {
+    const { meta, actor, target } = activityDescription(r);
+    return `
+    <div style="display:flex;gap:14px;padding:12px 0;border-bottom:1px solid var(--border);">
+      <div style="width:32px;height:32px;flex-shrink:0;border-radius:50%;background:${meta.color}22;color:${meta.color};display:flex;align-items:center;justify-content:center;font-size:0.95rem;">${meta.icon}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:0.82rem;color:var(--text);">
+          <span style="font-weight:700;">${actor}</span>
+          <span style="color:var(--text-muted);"> ${meta.label} </span>
+          <span style="font-weight:600;color:${meta.color};">${target||''}</span>
+        </div>
+        <div style="font-size:0.68rem;color:var(--text-dim);margin-top:3px;">${formatActivityTime(r.ts)}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Sessions tab ─────────────────────────────────────────────
+async function loadSessions() {
+  const list = document.getElementById('sessionsList');
+  list.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>';
+  try {
+    const r = await fetch(ADMIN_API_BASE + '?api=sessions', {
+      headers: { Authorization: 'Bearer ' + session_.access_token }
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Failed');
+    renderSessions(j);
+  } catch (err) {
+    renderErrorInto(list, err.message, 0);
+  }
+}
+
+// Auto-refresh sessions every 30s while the tab is active
+let _sessionsAutoTimer = null;
+function startSessionsAutoRefresh() {
+  if (_sessionsAutoTimer) return;
+  _sessionsAutoTimer = setInterval(() => {
+    if (document.querySelector('.admin-tab[data-tab="sessions"]')?.classList.contains('active')) {
+      loadSessions();
+    }
+  }, 30000);
+}
+startSessionsAutoRefresh();
+
+function renderSessions(payload) {
+  const list = document.getElementById('sessionsList');
+  const rows = payload?.rows || [];
+  const liveCount = payload?.liveCount ?? 0;
+  if (!rows.length) {
+    list.innerHTML = '<div style="color:var(--text-dim);font-size:0.84rem;padding:24px;text-align:center;">No users.</div>';
+    return;
+  }
+  const callerId = session_?.user?.id;
+  const now = Date.now();
+  const liveBanner = `<div style="padding:10px 14px;background:rgba(52,211,153,0.06);border-bottom:1px solid var(--border);font-size:0.78rem;color:var(--text-muted);"><span style="color:#34d399;font-weight:700;">● ${liveCount}</span> ${liveCount === 1 ? 'user is' : 'users are'} live right now ${liveCount > 0 ? '<span style="color:var(--text-dim);">— pinged in the last 90s</span>' : ''}</div>`;
+  list.innerHTML = liveBanner + `<table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
+    <thead><tr style="border-bottom:1px solid var(--border);color:var(--text-dim);font-size:0.68rem;text-transform:uppercase;letter-spacing:0.06em;">
+      <th style="padding:10px 12px;text-align:left;">User</th>
+      <th style="padding:10px 12px;text-align:left;">Role</th>
+      <th style="padding:10px 12px;text-align:left;">Last seen</th>
+      <th style="padding:10px 12px;text-align:left;">Last sign-in</th>
+      <th style="padding:10px 12px;text-align:right;">Action</th>
+    </tr></thead><tbody>
+    ${rows.map(u => {
+      const isSelf = u.id === callerId;
+      const role = u.is_admin ? 'Admin' : (u.permissions?.length ? u.permissions.join(', ') : '—');
+      const lastSeenMs = u.last_seen ? Date.parse(u.last_seen) : 0;
+      const lastSeenLbl = lastSeenMs ? formatActivityTime(u.last_seen) : '<span style="color:var(--text-dim);">—</span>';
+      const liveDot = u.is_live ? '<span style="color:#34d399;font-weight:700;">● live</span>' : '';
+      const lastSignLbl = u.last_sign_in_at ? formatActivityTime(u.last_sign_in_at) : 'Never';
+      return `<tr style="border-bottom:1px solid var(--border);${u.is_live ? 'background:rgba(52,211,153,0.04);' : ''}">
+        <td style="padding:10px 12px;font-weight:600;">${u.email || u.id}${isSelf ? ' <span style="color:var(--text-dim);font-weight:500;font-size:0.7rem;">(you)</span>' : ''}</td>
+        <td style="padding:10px 12px;color:var(--text-muted);">${role}</td>
+        <td style="padding:10px 12px;">${liveDot ? liveDot + ' · ' : ''}${lastSeenLbl}</td>
+        <td style="padding:10px 12px;color:var(--text-muted);">${lastSignLbl}</td>
+        <td style="padding:10px 12px;text-align:right;">${isSelf ? '<span style="color:var(--text-dim);font-size:0.74rem;">—</span>' : `<button class="delete-btn force-logout-btn" data-id="${u.id}" data-email="${u.email||''}" style="background:rgba(251,191,36,0.10);border-color:rgba(251,191,36,0.3);color:#fbbf24;">Force logout</button>`}</td>
+      </tr>`;
+    }).join('')}
+  </tbody></table>`;
+  list.querySelectorAll('.force-logout-btn').forEach(btn => {
+    btn.addEventListener('click', () => forceLogoutUser(btn));
+  });
+}
+
+async function forceLogoutUser(btn) {
+  const userId = btn.dataset.id;
+  const email = btn.dataset.email || 'this user';
+  if (!confirm(`Force logout ${email}?\n\nTheir refresh tokens will be invalidated. They'll be kicked within their access-token expiry (~1 hour), sooner if their app tries to refresh.`)) return;
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = '⏳';
+  try {
+    const r = await fetch(ADMIN_API_BASE + '?api=force-logout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session_.access_token },
+      body: JSON.stringify({ userId }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Failed');
+    btn.textContent = '✓ Logged out';
+    btn.style.color = '#34d399';
+    btn.style.borderColor = 'rgba(52,211,153,0.5)';
+    setTimeout(() => loadSessions(), 1200);
+  } catch (err) {
+    alert('Force logout failed: ' + (err.message || err));
+    btn.disabled = false; btn.textContent = orig;
+  }
+}
+
+// ── Recent activity widget on dashboard ──────────────────────
+async function loadRecentActivity() {
+  const list = document.getElementById('recentActivityList');
+  if (!list) return;
+  try {
+    const r = await fetch(ADMIN_API_BASE + '?api=activity&limit=10', {
+      headers: { Authorization: 'Bearer ' + session_.access_token }
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Failed');
+    const rows = j.rows || [];
+    if (!rows.length) {
+      list.innerHTML = '<div style="color:var(--text-dim);font-size:0.84rem;padding:24px;text-align:center;">No activity yet.</div>';
+      return;
+    }
+    list.innerHTML = rows.map(r => {
+      const { meta, actor, target } = activityDescription(r);
+      return `<div style="display:flex;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border);align-items:center;">
+        <div style="width:28px;height:28px;flex-shrink:0;border-radius:50%;background:${meta.color}22;color:${meta.color};display:flex;align-items:center;justify-content:center;font-size:0.85rem;">${meta.icon}</div>
+        <div style="flex:1;min-width:0;font-size:0.8rem;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+          <span style="font-weight:600;">${actor}</span>
+          <span style="color:var(--text-muted);"> ${meta.label} </span>
+          <span style="font-weight:600;color:${meta.color};">${target||''}</span>
+        </div>
+        <div style="font-size:0.68rem;color:var(--text-dim);flex-shrink:0;">${formatActivityTime(r.ts)}</div>
+      </div>`;
+    }).join('');
+  } catch (err) {
+    renderErrorInto(list, err.message, 16);
+  }
+}
+
+function formatLastLogin(iso) {
+  if (!iso) return { text: 'Never logged in', cls: 'user-meta-never' };
+  const d = new Date(iso);
+  const now = new Date();
+  const diffMs = now - d;
+  const mins = Math.floor(diffMs / 60000);
+  const hrs  = Math.floor(diffMs / 3600000);
+  const days = Math.floor(diffMs / 86400000);
+  let text;
+  if (mins < 1) text = 'Last login: just now';
+  else if (mins < 60) text = `Last login: ${mins}m ago`;
+  else if (hrs < 24) text = `Last login: ${hrs}h ago`;
+  else if (days < 7) text = `Last login: ${days}d ago`;
+  else if (days < 30) text = `Last login: ${Math.floor(days/7)}w ago`;
+  else text = `Last login: ${d.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })}`;
+  // Stale if no login for 30+ days
+  const cls = days >= 30 ? 'user-meta-stale' : '';
+  return { text, cls };
+}
+
+async function loadPendingInvites() {
+  const wrap = document.getElementById('pendingInvitesWrap');
+  const list = document.getElementById('pendingInvitesList');
+  if (!wrap || !list) return;
+  try {
+    const r = await fetch(INVITE_BASE + '?api=list', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session_.access_token },
+    });
+    if (!r.ok) {
+      // ?api=list is GET, not POST — try GET instead. Fall through.
+    }
+    // The endpoint accepts GET — call it that way
+    const r2 = await fetch(INVITE_BASE + '?api=list', { headers: { Authorization: 'Bearer ' + session_.access_token } });
+    const j = await r2.json();
+    const invites = j.invites || [];
+    document.getElementById('pendingInvitesCount').textContent = invites.length;
+    if (!invites.length) { wrap.style.display = 'none'; return; }
+    wrap.style.display = '';
+    list.innerHTML = invites.map(p => {
+      const sent = p.last_email_sent_at ? new Date(p.last_email_sent_at).toLocaleString() : '—';
+      const safeEmail = p.email.replace(/"/g,'&quot;');
+      const safeFn = (p.first_name || '').replace(/"/g,'&quot;');
+      const safeZoom = (p.zoom_host_email || '').replace(/"/g,'&quot;');
+      return `<div class="pending-row" data-email="${safeEmail}" style="background:rgba(0,0,0,0.15);border:1px solid rgba(251,191,36,0.25);border-radius:10px;padding:12px 14px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+        <div style="flex:1 1 200px;min-width:0;">
+          <div style="font-weight:700;font-size:0.88rem;color:var(--text);">${p.email.replace(/[<>]/g,'')}</div>
+          <div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;">last sent: ${sent}</div>
+        </div>
+        <input class="auth-input pending-fn" type="text" value="${safeFn}" placeholder="First name" style="flex:0 0 130px;padding:7px 10px;font-size:0.78rem;">
+        <input class="auth-input pending-zoom" type="email" value="${safeZoom}" placeholder="Zoom host email (optional)" style="flex:0 0 200px;padding:7px 10px;font-size:0.78rem;">
+        <div class="user-perms" style="flex:0 0 auto;">${permSelectHTML({ checked: p.permissions || [], isAdmin: !!p.is_admin })}</div>
+        <button class="save-btn pending-save" data-pending-save="${safeEmail}" style="font-size:0.72rem;padding:6px 12px;">Save</button>
+        <button class="save-btn" data-pending-resend="${safeEmail}" style="background:rgba(251,191,36,0.18);color:#fbbf24;border:1px solid rgba(251,191,36,0.4);font-size:0.72rem;padding:6px 12px;">Resend email</button>
+        <button class="save-btn" data-pending-revoke="${safeEmail}" style="background:transparent;color:#f87171;border:1px solid rgba(248,113,113,0.4);font-size:0.72rem;padding:6px 12px;">Revoke</button>
+        <span class="save-msg" data-pending-msg="${safeEmail}" style="flex:0 0 100%;font-size:0.72rem;"></span>
+      </div>`;
+    }).join('');
+    wirePermSelects(list);
+    list.querySelectorAll('[data-pending-save]').forEach(b => b.addEventListener('click', () => savePendingInvite(b)));
+    list.querySelectorAll('[data-pending-resend]').forEach(b => b.addEventListener('click', () => resendPendingInvite(b)));
+    list.querySelectorAll('[data-pending-revoke]').forEach(b => b.addEventListener('click', () => revokePendingInvite(b)));
+  } catch (e) { console.warn('loadPendingInvites failed', e); }
+}
+
+async function savePendingInvite(btn) {
+  const email = btn.dataset.pendingSave;
+  const row = btn.closest('.pending-row');
+  if (!row) return;
+  const first_name = row.querySelector('.pending-fn')?.value.trim() || '';
+  const zoom_host_email = row.querySelector('.pending-zoom')?.value.trim().toLowerCase() || '';
+  // perm select stores its checkboxes inside a menu (closed when not focused) — query within this row
+  const sel = row.querySelector('.perm-select');
+  const menu = sel?._permMenu || sel?.querySelector('.perm-select-menu');
+  const scope = menu || row;
+  const permissions = [...scope.querySelectorAll('.perm-check')].filter(c => c.checked).map(c => c.dataset.perm);
+  const is_admin = !!scope.querySelector('.admin-check')?.checked;
+  const msg = row.querySelector('[data-pending-msg]');
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Saving…';
+  if (msg) { msg.textContent = ''; msg.style.color = ''; }
+  try {
+    const r = await fetch(INVITE_BASE + '?api=update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session_.access_token },
+      body: JSON.stringify({ email, first_name, permissions, is_admin, zoom_host_email }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Failed');
+    if (msg) { msg.style.color = 'var(--green)'; msg.textContent = '✓ Saved'; }
+    setTimeout(() => { if (msg) msg.textContent = ''; }, 2500);
+  } catch (e) {
+    if (msg) { msg.style.color = 'var(--red)'; msg.textContent = '✗ ' + (e.message || 'Failed'); }
+  } finally {
+    btn.disabled = false; btn.textContent = orig;
+  }
+}
+
+async function resendPendingInvite(btn) {
+  const email = btn.dataset.pendingResend;
+  if (!confirm(`Resend invite email to ${email}?`)) return;
+  const orig = btn.textContent; btn.disabled = true; btn.textContent = 'Sending…';
+  try {
+    const r = await fetch(INVITE_BASE + '?api=resend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session_.access_token },
+      body: JSON.stringify({ email }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Failed');
+    btn.textContent = '✓ Sent'; setTimeout(() => loadPendingInvites(), 800);
+  } catch (e) { btn.textContent = '✗ ' + (e.message || 'Failed'); btn.disabled = false; }
+}
+
+async function revokePendingInvite(btn) {
+  const email = btn.dataset.pendingRevoke;
+  if (!confirm(`Revoke invite for ${email}?\n\nThe link they received will stop working.`)) return;
+  btn.disabled = true; btn.textContent = 'Revoking…';
+  try {
+    const r = await fetch(INVITE_BASE + '?api=revoke', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session_.access_token },
+      body: JSON.stringify({ email }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Failed');
+    loadPendingInvites();
+  } catch (e) { btn.textContent = '✗ ' + (e.message || 'Failed'); btn.disabled = false; }
+}
+
+// Legacy resendInvite (for already-existing auth.users with no last_sign_in) — uses Supabase recovery
+async function resendInvite(btn) {
+  const email = btn.dataset.email;
+  const userId = btn.dataset.id;
+  const msg = document.getElementById('msg-' + userId);
+  if (!email) return;
+  if (!confirm(`Send a password-reset email to ${email}?`)) return;
+  const original = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Sending…';
+  if (msg) { msg.textContent = ''; msg.style.color = ''; }
+  try {
+    const { error } = await supa.auth.resetPasswordForEmail(email, { redirectTo: 'https://ridleyacademy.team/' });
+    if (error) throw error;
+    if (msg) { msg.style.color = 'var(--green)'; msg.textContent = '✓ Reset email sent'; }
+  } catch (err) {
+    if (msg) { msg.style.color = 'var(--red)'; msg.textContent = err.message || 'Failed'; }
+  } finally {
+    btn.disabled = false; btn.textContent = original;
+    if (msg) setTimeout(() => { msg.textContent = ''; }, 6000);
+  }
+}
+
+async function sendPasswordReset(btn) {
+  const email = btn.dataset.email;
+  const userId = btn.dataset.id;
+  const msg = document.getElementById('msg-' + userId);
+  if (!email) return;
+  if (!confirm(`Send a password reset email to ${email}?`)) return;
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Sending…';
+  if (msg) { msg.textContent = ''; msg.style.color = ''; }
+  try {
+    const { error } = await supa.auth.resetPasswordForEmail(email, {
+      redirectTo: 'https://ridleyacademy.team/'
+    });
+    if (error) throw error;
+    if (msg) { msg.style.color = 'var(--green)'; msg.textContent = '✓ Reset email sent'; }
+  } catch (err) {
+    if (msg) { msg.style.color = 'var(--red)'; msg.textContent = err.message || 'Failed to send'; }
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
+    if (msg) setTimeout(() => { msg.textContent = ''; }, 6000);
+  }
+}
+
+async function deleteUser(btn) {
+  const userId = btn.dataset.id;
+  const email  = btn.dataset.email || 'this user';
+  if (!confirm(`Permanently delete ${email}?\n\nThis revokes their access immediately and cannot be undone.`)) return;
+  const msg = document.getElementById('msg-' + userId);
+  btn.disabled = true; btn.textContent = 'Deleting…';
+  try {
+    const r = await fetch(ADMIN_API_BASE + '?api=delete-user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session_.access_token },
+      body: JSON.stringify({ userId }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Delete failed');
+    // Remove the row
+    btn.closest('.user-row').remove();
+    // Update count
+    const countEl = document.getElementById('usersCount');
+    const remaining = document.querySelectorAll('#adminUserList .user-row').length;
+    if (countEl) countEl.textContent = `${remaining} team member${remaining !== 1 ? 's' : ''}`;
+  } catch(err) {
+    if (msg) { msg.style.color = 'var(--red)'; msg.textContent = err.message || 'Failed'; setTimeout(()=>{msg.textContent=''},4000); }
+    else alert('Delete failed: ' + (err.message || err));
+    btn.disabled = false; btn.textContent = 'Delete';
+  }
+}
+
+async function saveUser(btn) {
+  const row = btn.closest('.user-row');
+  const userId = btn.dataset.id;
+  // The perm-select menu is portaled to <body>; use the back-reference
+  // from the .perm-select container to find its checkboxes.
+  const sel = row.querySelector('.perm-select');
+  const menu = sel?._permMenu || sel?.querySelector('.perm-select-menu');
+  const scope = menu || row;
+  const permissions = [...scope.querySelectorAll('.perm-check')].filter(c=>c.checked).map(c=>c.dataset.perm);
+  const is_admin = scope.querySelector('.admin-check').checked;
+  const firstNameEl = row.querySelector('.first-name-input');
+  const first_name = firstNameEl ? firstNameEl.value.trim() : undefined;
+  const zoomEmailEl = row.querySelector('.zoom-email-input');
+  const zoom_host_email = zoomEmailEl ? zoomEmailEl.value.trim() : undefined;
+  const msg = document.getElementById('msg-' + userId);
+  const roleEl = document.getElementById('role-' + userId);
+
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const body = { userId, permissions, is_admin };
+    if (firstNameEl) body.first_name = first_name;
+    if (zoomEmailEl) body.zoom_host_email = zoom_host_email;
+    const r = await fetch(ADMIN_API_BASE + '?api=set-permissions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session_.access_token },
+      body: JSON.stringify(body),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Failed');
+    msg.style.color = 'var(--green)'; msg.textContent = '✓';
+    const roleLabel = is_admin ? 'Admin' : (permissions.length ? permissions.join(', ') : 'No permissions');
+    roleEl.innerHTML = roleLabel + (first_name ? ' · <span style="color:var(--text-dim);font-weight:500;">' + first_name.replace(/[<>]/g,'') + '</span>' : '');
+    setTimeout(() => { msg.textContent = ''; }, 2500);
+  } catch(err) {
+    msg.style.color = 'var(--red)'; msg.textContent = '✗';
+    setTimeout(() => { msg.textContent = ''; }, 3000);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save';
+  }
+}
+
+// ── Permission multi-select widget ────────────────────────────
+// Renders a dropdown that holds the same checkboxes the rest of the code
+// already queries (.perm-check / .admin-check, or .invite-perm / #inviteAdminCheck
+// when prefix === 'invite'). Drop-in replacement for the old chip strip.
+function permSelectHTML({ checked = [], isAdmin = false, prefix = '' } = {}) {
+  const permClass  = prefix === 'invite' ? 'invite-perm' : 'perm-check';
+  const adminAttr  = prefix === 'invite' ? 'id="inviteAdminCheck"' : 'class="admin-check"';
+  const opts = AVAILABLE_PERMS.map(p => `
+    <label class="perm-select-opt">
+      <input type="checkbox" class="${permClass}" data-perm="${p}" ${checked.includes(p) ? 'checked' : ''}>
+      <span>${p}</span>
+    </label>`).join('');
+  return `
+    <div class="perm-select">
+      <button type="button" class="perm-select-btn">
+        <span class="perm-select-summary">No permissions</span>
+        <span class="perm-select-caret">▾</span>
+      </button>
+      <div class="perm-select-menu" hidden>
+        ${opts}
+        <div class="perm-select-divider"></div>
+        <label class="perm-select-opt admin-opt">
+          <input type="checkbox" ${adminAttr} ${isAdmin ? 'checked' : ''}>
+          <span>admin (full access)</span>
+        </label>
+      </div>
+    </div>`;
+}
+
+function updatePermSummary(rootEl) {
+  const sel = rootEl.classList.contains('perm-select') ? rootEl : rootEl.querySelector('.perm-select');
+  if (!sel) return;
+  const summary = sel.querySelector('.perm-select-summary');
+  // The menu is portaled to <body> after first open, so query both the
+  // .perm-select container AND its portaled menu.
+  const menu = sel._permMenu || sel.querySelector('.perm-select-menu');
+  const checkboxScopes = menu ? [sel, menu] : [sel];
+  let adminCb = null;
+  const permCbs = [];
+  checkboxScopes.forEach(scope => {
+    const a = scope.querySelector('.admin-check, #inviteAdminCheck');
+    if (a && !adminCb) adminCb = a;
+    scope.querySelectorAll('.perm-check, .invite-perm').forEach(c => {
+      if (!permCbs.includes(c)) permCbs.push(c);
+    });
+  });
+  const checked = permCbs.filter(c => c.checked).map(c => c.dataset.perm);
+  summary.classList.remove('has-value', 'is-admin');
+  if (adminCb && adminCb.checked) {
+    summary.textContent = 'Admin (all access)';
+    summary.classList.add('is-admin');
+  } else if (checked.length === 0) {
+    summary.textContent = 'No permissions';
+  } else if (checked.length <= 2) {
+    summary.textContent = checked.join(', ');
+    summary.classList.add('has-value');
+  } else {
+    summary.textContent = `${checked.slice(0, 2).join(', ')} +${checked.length - 2} more`;
+    summary.classList.add('has-value');
+  }
+}
+
+// Wire up open/close + summary refresh for every perm-select inside `scope`.
+function wirePermSelects(scope = document) {
+  // Clean up orphan portaled menus from previous renders. A menu is orphan
+  // if its anchoring .perm-select was removed from the DOM.
+  document.querySelectorAll('body > .perm-select-menu').forEach(m => {
+    if (!m._anchor || !m._anchor.isConnected) m.remove();
+  });
+  scope.querySelectorAll('.perm-select').forEach(sel => {
+    if (sel.dataset.wired) { updatePermSummary(sel); return; }
+    sel.dataset.wired = '1';
+    const btn  = sel.querySelector('.perm-select-btn');
+    const menu = sel.querySelector('.perm-select-menu');
+    // Portal the menu to <body> so transformed/overflow ancestors can't
+    // clip or reframe it. Keep a back-reference so events still bubble to
+    // the .perm-select for `change` handling.
+    let portaled = false;
+    function ensurePortaled() {
+      if (portaled) return;
+      menu._anchor = sel;     // back-link so orphan cleanup can find us
+      document.body.appendChild(menu);
+      portaled = true;
+    }
+    function positionMenu() {
+      const r = btn.getBoundingClientRect();
+      const margin = 8;
+      const desiredWidth = Math.max(r.width, 220);
+      const w = Math.min(desiredWidth, window.innerWidth - margin * 2);
+      menu.style.width = w + 'px';
+      let left = r.left;
+      if (left + w > window.innerWidth - margin) left = window.innerWidth - w - margin;
+      if (left < margin) left = margin;
+      menu.style.left = left + 'px';
+      const menuH = Math.min(menu.scrollHeight + 12, 320);
+      const spaceBelow = window.innerHeight - r.bottom;
+      if (spaceBelow < menuH + margin && r.top > menuH + margin) {
+        menu.style.top = (r.top - menuH - 4) + 'px';
+      } else {
+        menu.style.top = (r.bottom + 4) + 'px';
+      }
+    }
+
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const willOpen = menu.hasAttribute('hidden');
+      document.querySelectorAll('.perm-select.open').forEach(o => {
+        if (o !== sel) {
+          o.classList.remove('open');
+          const m = o._permMenu || o.querySelector('.perm-select-menu');
+          if (m) m.setAttribute('hidden','');
+        }
+      });
+      if (willOpen) {
+        ensurePortaled();
+        menu.removeAttribute('hidden');
+        sel.classList.add('open');
+        positionMenu();
+      } else {
+        menu.setAttribute('hidden','');
+        sel.classList.remove('open');
+      }
+    });
+    // Keep a reference back so the document-level close handler can find
+    // the portaled menu after we move it out.
+    sel._permMenu = menu;
+    window.addEventListener('scroll', () => { if (sel.classList.contains('open')) positionMenu(); }, true);
+    window.addEventListener('resize', () => { if (sel.classList.contains('open')) positionMenu(); });
+    menu.addEventListener('click', (e) => e.stopPropagation());
+    // Bubble change from the portaled menu back to the original .perm-select
+    // so updatePermSummary still fires.
+    menu.addEventListener('change', () => updatePermSummary(sel));
+    updatePermSummary(sel);
+  });
+}
+// Click outside closes any open menu (the menu is portaled to body so
+// look it up via _permMenu first).
+document.addEventListener('click', () => {
+  document.querySelectorAll('.perm-select.open').forEach(o => {
+    o.classList.remove('open');
+    const m = o._permMenu || o.querySelector('.perm-select-menu');
+    if (m) m.setAttribute('hidden','');
+  });
+});
+
+// ── Invite ────────────────────────────────────────────────────
+// Render the invite permission picker (multi-select dropdown)
+function renderInvitePerms() {
+  const el = document.getElementById('invitePerms');
+  if (!el) return;
+  el.innerHTML = permSelectHTML({ checked: [], isAdmin: false, prefix: 'invite' });
+  wirePermSelects(el);
+}
+renderInvitePerms();
+
+// Mode toggle (single vs bulk)
+document.getElementById('inviteModeSingle').addEventListener('click', () => setInviteMode('single'));
+document.getElementById('inviteModeBulk').addEventListener('click', () => setInviteMode('bulk'));
+function setInviteMode(mode) {
+  document.querySelectorAll('.invite-mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+  document.getElementById('inviteSingleRow').style.display = mode === 'single' ? '' : 'none';
+  document.getElementById('inviteBulkRow').style.display   = mode === 'bulk'   ? '' : 'none';
+  document.getElementById('inviteFeedback').textContent = '';
+}
+
+// Parse a textarea into a clean unique email list
+function parseEmailList(raw) {
+  const parts = raw.split(/[\s,;]+/).map(s => s.trim()).filter(Boolean);
+  const seen = new Set();
+  const valid = [], invalid = [];
+  for (const p of parts) {
+    const lower = p.toLowerCase();
+    if (seen.has(lower)) continue;
+    seen.add(lower);
+    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p)) valid.push(p);
+    else invalid.push(p);
+  }
+  return { valid, invalid };
+}
+
+// Bulk invite handler
+document.getElementById('sendBulkInviteBtn').addEventListener('click', async () => {
+  const raw = document.getElementById('inviteBulkEmails').value;
+  const feedback = document.getElementById('inviteFeedback');
+  const btn = document.getElementById('sendBulkInviteBtn');
+  feedback.textContent = '';
+  const { valid, invalid } = parseEmailList(raw);
+  if (valid.length === 0) {
+    feedback.style.color = 'var(--red)';
+    feedback.textContent = 'Add at least one valid email.';
+    return;
+  }
+  const permissions = [...document.querySelectorAll('.invite-perm')].filter(c=>c.checked).map(c=>c.dataset.perm);
+  const is_admin    = document.getElementById('inviteAdminCheck')?.checked === true;
+  if (!is_admin && permissions.length === 0) {
+    feedback.style.color = 'var(--red)';
+    feedback.textContent = 'Pick at least one permission (or check admin).';
+    return;
+  }
+  btn.disabled = true;
+  const ok = [], fail = [];
+  for (let i = 0; i < valid.length; i++) {
+    btn.textContent = `Sending ${i+1}/${valid.length}…`;
+    try {
+      const res = await fetch(INVITE_BASE, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session_.access_token },
+        body: JSON.stringify({ email: valid[i], permissions, is_admin }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'failed');
+      ok.push(valid[i]);
+    } catch (err) {
+      fail.push({ email: valid[i], error: err.message });
+    }
+  }
+  // Build summary
+  const lines = [];
+  if (ok.length)      lines.push(`✓ Sent to ${ok.length}: ${ok.join(', ')}`);
+  if (fail.length)    lines.push(`✗ Failed (${fail.length}): ${fail.map(f => `${f.email} (${f.error})`).join(', ')}`);
+  if (invalid.length) lines.push(`⚠ Skipped invalid: ${invalid.join(', ')}`);
+  feedback.style.color = fail.length ? 'var(--red)' : 'var(--green)';
+  feedback.innerHTML = lines.map(l => `<div>${l}</div>`).join('');
+  if (ok.length === valid.length) {
+    document.getElementById('inviteBulkEmails').value = '';
+    document.querySelectorAll('.invite-perm').forEach(c => c.checked = false);
+    if (document.getElementById('inviteAdminCheck')) document.getElementById('inviteAdminCheck').checked = false;
+  }
+  btn.disabled = false;
+  btn.textContent = 'Send Bulk Invites';
+});
+
+document.getElementById('sendInviteBtn').addEventListener('click', async () => {
+  const emailVal = document.getElementById('inviteEmail').value.trim();
+  const firstName = document.getElementById('inviteFirstName')?.value.trim() || '';
+  const feedback = document.getElementById('inviteFeedback');
+  const btn = document.getElementById('sendInviteBtn');
+  feedback.textContent = '';
+  if (!emailVal || !emailVal.includes('@')) {
+    feedback.style.color = 'var(--red)'; feedback.textContent = 'Please enter a valid email address.'; return;
+  }
+  const permissions = [...document.querySelectorAll('.invite-perm')].filter(c=>c.checked).map(c=>c.dataset.perm);
+  const is_admin    = document.getElementById('inviteAdminCheck')?.checked === true;
+  if (!is_admin && permissions.length === 0) {
+    feedback.style.color = 'var(--red)';
+    feedback.textContent = 'Pick at least one permission (or check admin).';
+    return;
+  }
+  btn.disabled = true; btn.textContent = 'Sending…';
+  try {
+    const res = await fetch(INVITE_BASE, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session_.access_token },
+      body: JSON.stringify({ email: emailVal, permissions, is_admin, first_name: firstName }),
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || 'Invite failed');
+    feedback.style.color = 'var(--green)';
+    const roleSummary = is_admin ? 'as admin' : `with: ${permissions.join(', ')}`;
+    feedback.textContent = `✓ Invitation sent to ${emailVal} ${roleSummary}`;
+    document.getElementById('inviteEmail').value = '';
+    if (document.getElementById('inviteFirstName')) document.getElementById('inviteFirstName').value = '';
+    document.querySelectorAll('.invite-perm').forEach(c => c.checked = false);
+    if (document.getElementById('inviteAdminCheck')) document.getElementById('inviteAdminCheck').checked = false;
+    loadPendingInvites(); // refresh the pending list
+  } catch(err) {
+    feedback.style.color = 'var(--red)'; feedback.textContent = err.message;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Send Invite';
+  }
+});
+
+// ── Login ─────────────────────────────────────────────────────
+// Set-password (invite + recovery)
+document.getElementById('setPasswordForm')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const pwEl  = document.getElementById('newPassword');
+  const pw2El = document.getElementById('confirmPassword');
+  const pwGroupHidden = pwEl?.closest('.input-group')?.style.display === 'none';
+  const pw  = pwEl ? pwEl.value : '';
+  const pw2 = pw2El ? pw2El.value : '';
+  const fn  = document.getElementById('newFirstName')?.value.trim() || '';
+  const err = document.getElementById('setPasswordError');
+  const btn = document.getElementById('setPasswordBtn');
+  err.textContent = '';
+  if (!fn) { err.textContent = 'Please enter your first name.'; return; }
+  if (!pwGroupHidden) {
+    if (pw.length < 8) { err.textContent = 'Password must be at least 8 characters.'; return; }
+    if (pw !== pw2)    { err.textContent = "Passwords don't match."; return; }
+  }
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const update = { data: { first_name: fn, activated: true } };
+    if (!pwGroupHidden) update.password = pw;
+    const { error } = await supa.auth.updateUser(update);
+    if (error) throw error;
+    // Clean the URL and proceed.
+    history.replaceState({}, '', window.location.pathname);
+    const { data: { session } } = await supa.auth.getSession();
+    if (session) onAuthed(session);
+    else setState('login');
+  } catch (e) {
+    err.textContent = e.message || 'Failed to set password.';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Activate Account';
+  }
+});
+
+document.getElementById('loginForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const email    = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  const errEl    = document.getElementById('loginError');
+  const btn      = document.getElementById('sendBtn');
+  errEl.textContent = ''; btn.disabled = true; btn.textContent = 'Signing in…';
+  try {
+    const { data, error } = await supa.auth.signInWithPassword({ email, password });
+    if (error) {
+      // v282: log failed signin attempts (no auth.uid() yet, so we use the
+      // anon-allowed RPC path with details only). Don't await — the user
+      // shouldn't wait for the audit row.
+      try {
+        supa.rpc('log_activity_event', {
+          p_action: 'user.signin_failed',
+          p_target_type: 'auth.user',
+          p_target_id: null,
+          p_details: { email, reason: (error.message || 'unknown').slice(0, 200), user_agent: (navigator.userAgent || '').slice(0, 200) },
+        });
+      } catch (_) {}
+      throw error;
+    }
+    // v282: log successful signin once per session. supa-rpc is awaited so
+    // the row lands before the user navigates away, but failures don't
+    // block the actual login.
+    try {
+      await supa.rpc('log_activity_event', {
+        p_action: 'user.signin',
+        p_target_type: 'auth.user',
+        p_target_id: data.session?.user?.id || null,
+        p_details: { user_agent: (navigator.userAgent || '').slice(0, 200), email },
+      });
+    } catch (_) {}
+    onAuthed(data.session);
+  } catch(err) {
+    errEl.textContent = err.message || 'Invalid credentials';
+  } finally { btn.disabled = false; btn.textContent = 'Sign In'; }
+});
+
+document.getElementById('signOutBtn').addEventListener('click', async () => {
+  // v282: log signout BEFORE clearing the session so auth.uid() resolves.
+  try { await supa.rpc('log_activity_event', { p_action: 'user.signout', p_target_type: 'auth.user' }); } catch (_) {}
+  await supa.auth.signOut(); setState('login');
+});
+
+// ── Rep Mapping (profile-centric) ────────────────────────────
+let repMapAllUsers = []; // all user accounts for the "linked user" dropdown
+
+document.getElementById('refreshRepMapBtn').addEventListener('click', loadRepMappings);
+
+// Add Rep toggle
+document.getElementById('addRepBtn').addEventListener('click', () => {
+  const form = document.getElementById('addRepForm');
+  form.style.display = form.style.display === 'none' ? 'block' : 'none';
+  if (form.style.display === 'block') document.getElementById('newRepCallsName').focus();
+});
+document.getElementById('cancelAddRepBtn').addEventListener('click', () => {
+  document.getElementById('addRepForm').style.display = 'none';
+  document.getElementById('newRepCallsName').value = '';
+  document.getElementById('newRepAffiliates').value = '';
+  document.getElementById('addRepFeedback').textContent = '';
+});
+document.getElementById('createRepBtn').addEventListener('click', async () => {
+  const callsName = document.getElementById('newRepCallsName').value.trim();
+  const affRaw    = document.getElementById('newRepAffiliates').value;
+  const feedback  = document.getElementById('addRepFeedback');
+  const btn       = document.getElementById('createRepBtn');
+  if (!callsName) { feedback.style.color = 'var(--red)'; feedback.textContent = 'Calls Log name is required.'; return; }
+  btn.disabled = true; btn.textContent = 'Creating…';
+  try {
+    const r = await fetch(ADMIN_API_BASE + '?api=set-rep-mapping', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session_.access_token },
+      body: JSON.stringify({
+        callsName,
+        salesAffiliates: affRaw.split(',').map(s => s.trim()).filter(Boolean),
+        userId: null,
+      }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Failed');
+    feedback.style.color = 'var(--green)'; feedback.textContent = '✓ Rep profile created';
+    document.getElementById('newRepCallsName').value = '';
+    document.getElementById('newRepAffiliates').value = '';
+    setTimeout(() => {
+      document.getElementById('addRepForm').style.display = 'none';
+      feedback.textContent = '';
+      loadRepMappings();
+    }, 900);
+  } catch(err) {
+    feedback.style.color = 'var(--red)'; feedback.textContent = '✗ ' + err.message;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Create';
+  }
+});
+
+async function loadRepMappings() {
+  const list  = document.getElementById('repMapList');
+  const count = document.getElementById('repMapCount');
+  list.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>';
+
+  try {
+    const [rRes, nRes] = await Promise.all([
+      fetch(ADMIN_API_BASE + '?api=rep-mappings',    { headers: { Authorization: 'Bearer ' + session_.access_token } }),
+      fetch(ADMIN_API_BASE + '?api=unassigned-names', { headers: { Authorization: 'Bearer ' + session_.access_token } }),
+    ]);
+    const rData = await rRes.json();
+    const names = await nRes.json();
+    if (!rRes.ok) throw new Error(rData.error || 'Failed to load mappings');
+    if (!nRes.ok) throw new Error(names.error  || 'Failed to load names');
+
+    const { profiles, users } = rData;
+    repMapAllUsers = users || [];
+
+    // Populate the datalist for new rep form
+    document.getElementById('callsRepsList').innerHTML =
+      names.allCallsReps.map(n => `<option value="${n}">`).join('');
+
+    // Unassigned callout (collapsible <details>)
+    const callout = document.getElementById('unassignedCallout');
+    const countBadge = document.getElementById('unassignedCount');
+    const totalUnassigned = names.unassignedCallsReps.length + names.unassignedAffiliates.length;
+    if (countBadge) countBadge.textContent = String(totalUnassigned);
+    if (totalUnassigned) {
+      callout.style.display = 'block';
+      document.getElementById('unassignedCallsReps').innerHTML =
+        names.unassignedCallsReps.map(n =>
+          `<span class="unassigned-chip" data-type="calls">${n}</span>`).join('') ||
+        '<span style="color:var(--text-dim);font-size:0.72rem;">All mapped ✓</span>';
+      document.getElementById('unassignedAffiliates').innerHTML =
+        names.unassignedAffiliates.slice(0, 40).map(a =>
+          `<span class="unassigned-chip" data-type="aff">${a}</span>`).join('') +
+        (names.unassignedAffiliates.length > 40
+          ? `<span style="color:var(--text-dim);font-size:0.72rem;"> +${names.unassignedAffiliates.length - 40} more</span>` : '');
+    } else {
+      callout.style.display = 'none';
+    }
+
+    count.textContent = `${profiles.length} rep profile${profiles.length !== 1 ? 's' : ''}`;
+
+    // User dropdown options (for linking)
+    const userOpts = ['<option value="">— No user linked —</option>',
+      ...repMapAllUsers.map(u => `<option value="${u.id}">${u.email}</option>`)
+    ].join('');
+
+    list.innerHTML = profiles.map(p => {
+      const initials = (p.calls_name || '?').slice(0, 2).toUpperCase();
+      const currentAff = (p.sales_affiliates || []).join(', ');
+      // Build user select with current value pre-selected
+      const userSelect = `<select class="rep-map-select linked-user-sel">
+        <option value="">— No user linked —</option>
+        ${repMapAllUsers.map(u => `<option value="${u.id}"${p.user_id === u.id ? ' selected' : ''}>${u.email}</option>`).join('')}
+      </select>`;
+      return `
+      <div class="rep-map-row" data-profile-id="${p.id}">
+        <div class="rep-map-top">
+          <div style="width:38px;height:38px;border-radius:10px;flex-shrink:0;background:rgba(34,211,238,0.15);border:1px solid rgba(34,211,238,0.3);display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:800;color:var(--cyan);">${initials}</div>
+          <div style="flex:1;">
+            <div class="rep-map-email">${p.calls_name}</div>
+            <div class="rep-map-role">${p.user_email ? '🔗 ' + p.user_email : 'No user linked'}</div>
+          </div>
+          <button class="save-btn del-rep-btn" data-id="${p.id}" style="color:var(--red);border-color:rgba(248,113,113,0.25);font-size:0.68rem;padding:4px 10px;" title="Delete profile">✕ Delete</button>
+        </div>
+        <div class="rep-map-fields">
+          <div class="rep-map-field aff-input-wrap" style="flex:1;min-width:260px;">
+            <label>Sales Log Affiliates <span style="font-weight:400;text-transform:none;letter-spacing:0;">(comma-separated)</span></label>
+            <input class="aff-input aff-input-field" type="text" value="${currentAff}" placeholder="e.g. Jordin Pedlar, jordin pedlar, Jordin??">
+          </div>
+          <div class="rep-map-field" style="min-width:200px;">
+            <label>Linked User Account</label>
+            ${userSelect}
+          </div>
+        </div>
+        <div class="rep-map-actions">
+          <button class="save-btn rep-map-save" data-id="${p.id}" data-calls-name="${p.calls_name}">Save</button>
+          <span class="save-msg" id="rep-msg-${p.id}"></span>
+        </div>
+      </div>`;
+    }).join('');
+
+    if (!profiles.length) {
+      list.innerHTML = '<div style="color:var(--text-dim);font-size:0.84rem;padding:20px 0;text-align:center;">No rep profiles yet. Click "+ Add Rep" to create one.</div>';
+    }
+
+    // Wire save buttons
+    list.querySelectorAll('.rep-map-save').forEach(btn => {
+      btn.addEventListener('click', () => saveRepMapping(btn));
+    });
+
+    // Wire delete buttons
+    list.querySelectorAll('.del-rep-btn').forEach(btn => {
+      btn.addEventListener('click', () => deleteRepMapping(btn));
+    });
+
+    // Unassigned chips → click to focus last aff input or copy to new-rep field
+    document.querySelectorAll('.unassigned-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        const active = document.activeElement;
+        const target = (active && active.classList.contains('aff-input-field'))
+          ? active
+          : document.getElementById('newRepAffiliates');
+        const cur = target.value.trim();
+        target.value = cur ? cur + ', ' + chip.textContent : chip.textContent;
+        target.focus();
+      });
+    });
+
+  } catch(err) {
+    renderErrorInto(list, err.message, 0);
+  }
+}
+
+async function saveRepMapping(btn) {
+  const row        = btn.closest('.rep-map-row');
+  const profileId  = btn.dataset.id;
+  const callsName  = btn.dataset.callsName;
+  const affRaw     = row.querySelector('.aff-input-field').value;
+  const userId     = row.querySelector('.linked-user-sel').value || null;
+  const salesAffiliates = affRaw.split(',').map(s => s.trim()).filter(Boolean);
+  const msg = document.getElementById('rep-msg-' + profileId);
+
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const r = await fetch(ADMIN_API_BASE + '?api=set-rep-mapping', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session_.access_token },
+      body: JSON.stringify({ callsName, salesAffiliates, userId }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Failed');
+    msg.style.color = 'var(--green)'; msg.textContent = '✓ Saved';
+    // Update the linked user label in the header
+    const userEmail = userId ? (repMapAllUsers.find(u => u.id === userId)?.email || '') : 'No user linked';
+    const roleDiv = row.querySelector('.rep-map-role');
+    if (roleDiv) roleDiv.textContent = userId ? '🔗 ' + userEmail : 'No user linked';
+    setTimeout(() => { msg.textContent = ''; }, 3000);
+  } catch(err) {
+    msg.style.color = 'var(--red)'; msg.textContent = '✗ ' + err.message;
+    setTimeout(() => { msg.textContent = ''; }, 4000);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save';
+  }
+}
+
+async function deleteRepMapping(btn) {
+  const id = btn.dataset.id;
+  if (!confirm('Delete this rep profile? This cannot be undone.')) return;
+  btn.disabled = true; btn.textContent = 'Deleting…';
+  try {
+    const r = await fetch(ADMIN_API_BASE + '?api=delete-rep-mapping', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session_.access_token },
+      body: JSON.stringify({ id: Number(id) }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Failed');
+    loadRepMappings(); // reload
+  } catch(err) {
+    btn.disabled = false; btn.textContent = '✕ Delete';
+    alert('Delete failed: ' + err.message);
+  }
+}
+
+setState('loading');
+initAuth().catch(e => { console.error('Unhandled auth error:', e); setState('login'); });
+</script>
+<script src="forgot-password.js"></script>
+<script src="access-guard.js"></script>
+<script src="loading-states.js"></script>
+<script src="theme.js"></script>
+<script src="changelog.js"></script>
+<script src="notifications.js"></script>
+<script src="pwa.js"></script>
+  <script src="ux.js"></script>
+<script src="nav-menu.js"></script>
+</body>
+</html>

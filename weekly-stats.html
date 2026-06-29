@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg?v=303">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=303">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=303">
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Weekly Stats</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="permissions.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<style>
+  /* The full design system is duplicated from income.html so the dashboard
+     looks like a sibling, not a stranger. If anything here gets touched,
+     also update income.html / meta-ads.html for visual parity. */
+  :root {
+    --bg: #080a14;
+    --surface: #0f1120; --surface2: #141728; --surface3: #191e30;
+    --border: #1f2438; --border-light: #272d45;
+    --text: #eaecf8; --text-muted: #7880a8; --text-dim: #3e4668;
+    --blue: #6b9eff; --blue-glow: rgba(107,158,255,0.3); --blue-bg: rgba(107,158,255,0.1);
+    --green: #34d399; --green-glow: rgba(52,211,153,0.3); --green-bg: rgba(52,211,153,0.1);
+    --pink: #f472b6; --pink-glow: rgba(244,114,182,0.3); --pink-bg: rgba(244,114,182,0.1);
+    --purple: #a78bfa; --purple-bg: rgba(167,139,250,0.1);
+    --gold: #fbbf24; --gold-bg: rgba(251,191,36,0.1);
+    --red: #f87171; --cyan: #22d3ee;
+  }
+  body.light {
+    --bg: #f0f2fa; --surface: #ffffff; --surface2: #f5f6fc; --surface3: #eceef8;
+    --border: #dde1f2; --border-light: #ccd1e8;
+    --text: #0f1220; --text-muted: #525b82; --text-dim: #9099be;
+    --blue-glow: rgba(107,158,255,0.15); --green-glow: rgba(52,211,153,0.15); --pink-glow: rgba(244,114,182,0.15);
+    --blue-bg: rgba(107,158,255,0.1); --green-bg: rgba(52,211,153,0.1); --pink-bg: rgba(244,114,182,0.1);
+  }
+  body.light .topbar { background: rgba(255,255,255,0.9); }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+    background: var(--bg); color: var(--text); min-height: 100vh;
+    -webkit-font-smoothing: antialiased; overflow-x: hidden;
+  }
+  body::before {
+    content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background:
+      radial-gradient(ellipse at 15% 15%, rgba(107,158,255,0.07) 0%, transparent 55%),
+      radial-gradient(ellipse at 85% 85%, rgba(167,139,250,0.05) 0%, transparent 55%),
+      radial-gradient(ellipse at 80% 10%, rgba(244,114,182,0.05) 0%, transparent 50%);
+    animation: ambientShift 18s ease-in-out infinite;
+  }
+  @keyframes ambientShift { 0%,100%{opacity:1} 50%{opacity:0.6} }
+
+  /* State machine — copied from income.html exactly */
+  .full-center { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; position: relative; z-index: 1; }
+  .login-wrap { width: 100%; max-width: 420px; }
+  .login-logo { width: 56px; height: 56px; border-radius: 16px; margin: 0 auto 24px;
+    background: linear-gradient(135deg, #fbbf24, #34d399);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 8px 32px rgba(251,191,36,0.4); }
+  .login-card { background: var(--surface); border: 1px solid var(--border); border-radius: 24px; padding: 40px 36px; box-shadow: 0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.03) inset; }
+  .login-card h1 { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.03em; text-align: center; margin-bottom: 4px; }
+  .login-card .sub { color: var(--text-muted); font-size: 0.84rem; text-align: center; margin-bottom: 28px; }
+  .input-group { margin-bottom: 12px; }
+  .input-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-muted); margin-bottom: 6px; display: block; }
+  .auth-input { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 13px 16px; color: var(--text); font-size: 0.92rem; outline: none; transition: border-color 0.15s, box-shadow 0.15s; }
+  .auth-input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-bg); }
+  .auth-btn { width: 100%; margin-top: 8px; background: linear-gradient(135deg, #6b9eff, #4a7de0); border: none; border-radius: 12px; padding: 14px; color: #fff; font-size: 0.92rem; font-weight: 700; cursor: pointer; transition: transform 0.12s, box-shadow 0.12s; box-shadow: 0 4px 16px rgba(107,158,255,0.35); }
+  .auth-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(107,158,255,0.45); }
+  .auth-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+  .auth-error { color: var(--red); font-size: 0.78rem; margin-top: 10px; min-height: 1em; text-align: center; }
+  .spinner { width: 40px; height: 40px; border: 3px solid var(--border); border-top-color: var(--blue); border-radius: 50%; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  body[data-state="loading"] #app,
+  body[data-state="loading"] #login,
+  body[data-state="loading"] #denied { display: none; }
+  body[data-state="loading"] #boot { display: flex; }
+  body[data-state="login"] #app,
+  body[data-state="login"] #boot,
+  body[data-state="login"] #denied { display: none; }
+  body[data-state="login"] #login { display: flex; }
+  body[data-state="denied"] #app,
+  body[data-state="denied"] #boot,
+  body[data-state="denied"] #login { display: none; }
+  body[data-state="denied"] #denied { display: flex; }
+  body[data-state="dashboard"] #login,
+  body[data-state="dashboard"] #boot,
+  body[data-state="dashboard"] #denied { display: none; }
+  body[data-state="dashboard"] #app { display: block; }
+
+  /* Topbar */
+  .topbar {
+    display: flex; align-items: center; gap: 10px; padding: 12px 32px;
+    background: rgba(8,10,20,0.85); backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100;
+  }
+  /* Cyan gradient matches the Weekly Stats card on the home page. */
+  .topbar-logo {
+    width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0;
+    background: linear-gradient(135deg, #22d3ee, #6b9eff);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 14px rgba(34,211,238,0.4);
+  }
+  .topbar-brand { font-size: 0.9rem; font-weight: 700; letter-spacing: -0.02em; }
+  .topbar-spacer { flex: 1; }
+  .tbtn { border: none; border-radius: 8px; padding: 6px 12px; font-size: 0.74rem; font-weight: 600; cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 5px; font-family: inherit; }
+  .tbtn-ghost { background: var(--surface2); color: var(--text-muted); border: 1px solid var(--border); }
+  .tbtn-ghost:hover { color: var(--text); border-color: var(--border-light); }
+  .tbtn-primary { background: linear-gradient(135deg,#6b9eff,#4a7de0); color: #fff; box-shadow: 0 2px 10px rgba(107,158,255,0.3); }
+  .tbtn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(107,158,255,0.4); }
+  .tbtn-success { background: linear-gradient(135deg,#34d399,#10b981); color: #08231a; box-shadow: 0 2px 10px rgba(52,211,153,0.3); font-weight: 800; }
+  .tbtn-success:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(52,211,153,0.4); }
+
+  .daterange-wrap { position: relative; }
+  .daterange-btn { display: inline-flex; align-items: center; gap: 6px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 6px 11px; font-size: 0.74rem; color: var(--text-muted); cursor: pointer; transition: all 0.15s; white-space: nowrap; font-weight: 600; font-family: inherit; }
+  .daterange-btn:hover { border-color: var(--border-light); color: var(--text); }
+  .daterange-popup { display: none; position: absolute; top: calc(100% + 8px); right: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 14px; min-width: 280px; box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.03) inset; z-index: 500; }
+  .daterange-popup.open { display: block; }
+  .dr-presets { display: flex; flex-direction: column; gap: 2px; }
+  .dr-preset { display: block; width: 100%; text-align: left; background: none; border: none; padding: 9px 12px; border-radius: 9px; font-size: 0.8rem; font-weight: 600; color: var(--text-muted); cursor: pointer; transition: all 0.12s; font-family: inherit; }
+  .dr-preset:hover { background: var(--surface2); color: var(--text); }
+  .dr-preset.active { background: rgba(34,211,238,0.1); color: var(--cyan); }
+  .dr-divider { height: 1px; background: var(--border); margin: 10px 0; }
+  .dr-custom-label { font-size: 0.64rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-dim); margin-bottom: 8px; }
+  .dr-custom-row { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
+  .dr-date-input { flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 7px 8px; color: var(--text); font-size: 0.73rem; outline: none; font-family: inherit; transition: border-color 0.15s; color-scheme: dark; min-width: 0; }
+  .dr-date-input:focus { border-color: var(--blue); }
+  body.light .dr-date-input { color-scheme: light; }
+  .dr-sep { color: var(--text-dim); font-size: 0.7rem; }
+  .dr-apply { width: 100%; background: linear-gradient(135deg, var(--blue), #4a7de0); border: none; border-radius: 8px; padding: 8px; color: #fff; font-size: 0.78rem; font-weight: 700; cursor: pointer; font-family: inherit; }
+
+  .nav-dropdown { position: relative; }
+  .nav-dropdown-menu { display: none; position: absolute; top: calc(100% + 8px); right: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 6px; min-width: 200px; box-shadow: 0 16px 48px rgba(0,0,0,0.5); z-index: 200; }
+  .nav-dropdown-menu.open { display: block; }
+  .nav-dropdown-item { display: block; padding: 9px 13px; font-size: 0.78rem; font-weight: 600; color: var(--text-muted); text-decoration: none; border-radius: 9px; transition: all 0.12s; }
+  .nav-dropdown-item:hover { background: var(--surface2); color: var(--text); }
+  .nav-dropdown-item.active { color: var(--gold); background: var(--gold-bg); }
+  /* nav-menu.js generates .nav-menu-link items — style them identically so the
+     dropdown looks the same whether items come from inline HTML or the script */
+  .nav-menu-link {
+    display: flex; align-items: center; gap: 10px; padding: 9px 13px; font-size: 0.78rem;
+    font-weight: 600; color: var(--text-muted); text-decoration: none; border-radius: 9px;
+    transition: all 0.12s;
+  }
+  .nav-menu-link:hover { background: var(--surface2); color: var(--text); }
+  .nav-menu-link.active { color: var(--cyan); background: rgba(34,211,238,0.10); }
+  .nav-menu-link svg { flex-shrink: 0; }
+
+  .user-pill { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 4px 14px 4px 4px; cursor: default; }
+  .user-pill-av { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; background: linear-gradient(135deg, #fbbf24, #34d399); color: #fff; font-size: 0.62rem; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+  .user-pill-email { font-size: 0.73rem; color: var(--text-muted); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* Page */
+  #app { position: relative; z-index: 1; }
+  .main { max-width: 1280px; margin: 0 auto; padding: 36px 32px 100px; animation: fadeUp 0.5s ease both; }
+  @keyframes fadeUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+  @media(max-width:700px) { .main { padding: 24px 16px 80px; } .topbar { padding: 10px 16px; gap: 6px; flex-wrap: wrap; } }
+
+  /* Controls row */
+  .controls-row { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; flex-wrap: wrap; }
+  .pill-tabs { display: inline-flex; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 3px; gap: 2px; }
+  .pill-tab { border: none; background: transparent; color: var(--text-muted); border-radius: 7px; padding: 7px 14px; font-size: 0.78rem; font-weight: 600; cursor: pointer; transition: all 0.15s; white-space: nowrap; font-family: inherit; }
+  .pill-tab:hover { color: var(--text); }
+  .pill-tab.active { background: var(--surface3); color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,0.3); }
+
+  /* Section header */
+  .sec-label { display: flex; align-items: center; gap: 12px; margin: 28px 0 16px; }
+  .sec-label-text { font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-dim); white-space: nowrap; }
+  .sec-label-line { flex: 1; height: 1px; background: var(--border); }
+
+  /* KPI strip (top — 4 most important metrics in the active division) */
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
+  @media(max-width:900px) { .kpi-grid { grid-template-columns: repeat(2,1fr); } }
+  @media(max-width:480px) { .kpi-grid { grid-template-columns: 1fr; } }
+  .kpi-card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 20px 22px 18px; position: relative; overflow: hidden; transition: transform 0.22s, box-shadow 0.22s, border-color 0.22s; }
+  .kpi-card::before { content:''; position:absolute; inset:0; opacity:0; transition:opacity 0.3s; background: radial-gradient(ellipse at top right, var(--c-glow,rgba(107,158,255,0.14)), transparent 65%); pointer-events:none; }
+  .kpi-card:hover { transform: translateY(-3px); border-color: var(--c-color,var(--blue)); }
+  .kpi-card:hover::before { opacity:1; }
+  .kpi-label { font-size: 0.66rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-dim); margin-bottom: 10px; }
+  .kpi-value { font-size: 1.6rem; font-weight: 900; letter-spacing: -0.04em; line-height: 1; color: var(--c-color, var(--text)); }
+  .kpi-delta { font-size: 0.74rem; font-weight: 700; margin-top: 8px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 4px; }
+  .kpi-delta.up   { color: var(--green); }
+  .kpi-delta.down { color: var(--red); }
+  .kpi-delta.flat { color: var(--text-dim); }
+
+  /* Chart grid (one card per metric) */
+  .chart-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; }
+  @media(max-width:900px) { .chart-grid { grid-template-columns: 1fr; } }
+
+  /* Skeleton placeholders shown while the series API is in flight. A subtle
+     shimmer scans across the card so the user sees something animated
+     instead of blank space. */
+  .skel-card {
+    background: linear-gradient(90deg,
+      var(--surface) 0%,
+      var(--surface2) 50%,
+      var(--surface) 100%);
+    background-size: 200% 100%;
+    animation: skelShimmer 1.4s ease-in-out infinite;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    min-height: 92px;
+    position: relative;
+    overflow: hidden;
+  }
+  .skel-card::after {
+    content: '';
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(circle at 30% 35%, rgba(255,255,255,0.05) 0%, transparent 60%),
+      radial-gradient(circle at 80% 65%, rgba(255,255,255,0.03) 0%, transparent 50%);
+    pointer-events: none;
+  }
+  @keyframes skelShimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  /* Reorder mode — applied to body when active. Cards get a grab cursor +
+     a visible drag handle on hover; clicking the chart no longer opens the
+     drilldown (pointer-events disabled on chart canvases). */
+  body.reordering .chart-card { cursor: grab; user-select: none; }
+  body.reordering .chart-card:hover { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold), 0 12px 24px rgba(0,0,0,0.3); }
+  body.reordering .chart-card.dragging { opacity: 0.4; cursor: grabbing; }
+  body.reordering .chart-card.drop-target { box-shadow: 0 0 0 2px var(--gold) inset, 0 12px 24px rgba(251,191,36,0.25); transform: scale(1.01); }
+  body.reordering .chart-card canvas { pointer-events: none; }
+  .reorder-handle {
+    position: absolute; top: 12px; right: 12px; width: 28px; height: 28px;
+    border-radius: 6px; background: rgba(251,191,36,0.15); color: var(--gold);
+    display: none; align-items: center; justify-content: center; font-size: 1rem;
+    font-weight: 800; pointer-events: none; z-index: 5;
+  }
+  body.reordering .reorder-handle { display: flex; }
+  .chart-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 18px;
+    padding: 18px 20px 16px; transition: transform 0.18s, border-color 0.18s; cursor: pointer;
+    position: relative;
+  }
+  .chart-card:hover { transform: translateY(-2px); border-color: var(--border-light); }
+  .chart-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+  .chart-card-title { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); flex: 1; }
+  .chart-card-source { font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; padding: 2px 7px; border-radius: 999px; }
+  .src-derived { background: var(--green-bg); color: var(--green); }
+  .src-manual  { background: var(--blue-bg);  color: var(--blue);  }
+  .chart-card-now { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+  .chart-card-value { font-size: 1.4rem; font-weight: 900; letter-spacing: -0.03em; color: var(--text); }
+  .chart-card-delta { font-size: 0.72rem; font-weight: 700; color: var(--text-muted); }
+  .chart-card-delta.up   { color: var(--green); }
+  .chart-card-delta.down { color: var(--red); }
+  .chart-card-wrap { position: relative; height: 160px; }
+  .chart-card-foot { font-size: 0.66rem; color: var(--text-dim); margin-top: 8px; }
+
+  /* Modal */
+  .modal-overlay { display: none; position: fixed; inset: 0; z-index: 1000; background: rgba(8,9,18,0.78); backdrop-filter: blur(8px); align-items: center; justify-content: center; padding: 20px; }
+  .modal-overlay.open { display: flex; }
+  .modal-card { background: var(--surface); border: 1px solid var(--border); border-radius: 22px; padding: 28px 30px 24px; max-width: 760px; width: 100%; max-height: 88vh; overflow: auto; box-shadow: 0 32px 80px rgba(0,0,0,0.6); }
+  .modal-title { font-size: 1.05rem; font-weight: 900; letter-spacing: -0.02em; margin-bottom: 4px; }
+  .modal-sub { font-size: 0.78rem; color: var(--text-muted); margin-bottom: 20px; }
+  .modal-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .modal-row > .field { flex: 1; min-width: 160px; }
+  .field-label { display: block; font-size: 0.66rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); margin-bottom: 6px; }
+  .field-input, .field-select, .field-textarea { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 9px; padding: 9px 11px; color: var(--text); font-size: 0.84rem; outline: none; transition: border-color 0.15s; font-family: inherit; }
+  .field-input:focus, .field-select:focus, .field-textarea:focus { border-color: var(--blue); }
+  .field-textarea { min-height: 70px; resize: vertical; }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; flex-wrap: wrap; }
+  .btn-ghost { background: var(--surface2); border: 1px solid var(--border); color: var(--text-muted); border-radius: 9px; padding: 9px 16px; font-weight: 700; font-size: 0.8rem; cursor: pointer; font-family: inherit; }
+  .btn-ghost:hover { color: var(--text); border-color: var(--border-light); }
+  .btn-danger { background: rgba(248,113,113,0.12); border: 1px solid rgba(248,113,113,0.4); color: var(--red); border-radius: 9px; padding: 9px 16px; font-weight: 700; font-size: 0.8rem; cursor: pointer; font-family: inherit; }
+
+  /* Editable rows table inside the drill-down */
+  .raw-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin-top: 12px; }
+  .raw-table th { padding: 8px 10px; text-align: left; font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); border-bottom: 1px solid var(--border); background: var(--surface2); }
+  .raw-table td { padding: 7px 10px; border-bottom: 1px solid var(--border); color: var(--text-muted); }
+  .raw-table tr:last-child td { border-bottom: none; }
+  .raw-table .td-num { text-align: right; font-variant-numeric: tabular-nums; color: var(--text); }
+  .raw-table .row-edit { background: transparent; border: 1px solid var(--border); border-radius: 6px; padding: 4px 7px; font-size: 0.75rem; color: var(--text); font-family: inherit; font-variant-numeric: tabular-nums; width: 110px; text-align: right; }
+  .raw-table .row-edit:focus { border-color: var(--blue); outline: none; }
+
+  /* Import wizard */
+  .import-drop { border: 2px dashed var(--border); border-radius: 16px; padding: 30px; text-align: center; color: var(--text-muted); font-size: 0.84rem; transition: border-color 0.2s, background 0.2s; }
+  .import-drop.over { border-color: var(--blue); background: var(--blue-bg); }
+  .import-area { width: 100%; min-height: 220px; background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 12px; color: var(--text); font-size: 0.78rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; resize: vertical; }
+  .import-step-label { font-size: 0.64rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-dim); margin-bottom: 6px; }
+
+  /* Inline error / banner */
+  .inline-error { color: var(--red); font-size: 0.82rem; padding: 12px; text-align: center; }
+  .banner { padding: 10px 14px; border-radius: 10px; font-size: 0.8rem; margin-bottom: 16px; }
+  .banner-info  { background: var(--blue-bg);  color: var(--blue);  }
+  .banner-warn  { background: rgba(251,191,36,0.1); color: var(--gold); }
+  .banner-error { background: rgba(248,113,113,0.1); color: var(--red); }
+</style>
+</head>
+<body data-state="loading">
+
+<!-- Boot -->
+<div id="boot" class="full-center">
+  <div style="text-align:center;">
+    <div class="spinner" style="margin:0 auto 16px;"></div>
+    <div style="color:var(--text-muted);font-size:0.84rem;">Loading Weekly Stats…</div>
+  </div>
+</div>
+
+<!-- Login -->
+<div id="login" class="full-center">
+  <div class="login-wrap">
+    <div class="login-logo">
+      <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="3" y1="12" x2="3" y2="21"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="9" x2="15" y2="21"/><line x1="21" y1="6" x2="21" y2="21"/>
+      </svg>
+    </div>
+    <div class="login-card">
+      <h1>Weekly Stats</h1>
+      <p class="sub">Sign in to access the Staff Meeting dashboard</p>
+      <form id="loginForm">
+        <div class="input-group">
+          <label class="input-label" for="email">Email address</label>
+          <input class="auth-input" type="email" id="email" required autocomplete="email">
+        </div>
+        <div class="input-group">
+          <label class="input-label" for="password">Password</label>
+          <input class="auth-input" type="password" id="password" required autocomplete="current-password">
+        </div>
+        <button type="submit" class="auth-btn" id="sendBtn">Sign In</button>
+        <div class="auth-error" id="loginError"></div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Access denied -->
+<div id="denied" class="full-center">
+  <div class="login-wrap">
+    <div class="login-logo" style="background:linear-gradient(135deg,#f87171,#ef4444);box-shadow:0 8px 32px rgba(248,113,113,0.4);">
+      <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+    </div>
+    <div class="login-card">
+      <h1>Access Restricted</h1>
+      <p class="sub">You need the <code>weekly_stats</code> permission. Contact your administrator.</p>
+      <button class="auth-btn" id="deniedSignOutBtn" style="background:linear-gradient(135deg,#f87171,#ef4444);box-shadow:0 4px 16px rgba(248,113,113,0.35);">Sign Out</button>
+    </div>
+  </div>
+</div>
+
+<!-- App -->
+<div id="app">
+
+  <header class="topbar">
+    <div class="topbar-logo">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="3" y1="12" x2="3" y2="21"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="9" x2="15" y2="21"/><line x1="21" y1="6" x2="21" y2="21"/>
+      </svg>
+    </div>
+    <span class="topbar-brand">Weekly Stats</span>
+    <div class="topbar-spacer"></div>
+
+    <!-- Date range -->
+    <div class="daterange-wrap" id="daterangeWrap">
+      <button class="daterange-btn" id="daterangeBtn">
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <span id="drLabel">Last 13 Weeks</span>
+        <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="daterange-popup" id="daterangePopup">
+        <div class="dr-presets">
+          <button class="dr-preset" data-preset="last-30">Last 30 Days</button>
+          <button class="dr-preset active" data-preset="this-week">This Week (Thu – Wed)</button>
+          <button class="dr-preset" data-preset="last-week">Last Week (Thu – Wed)</button>
+          <button class="dr-preset" data-preset="mtd">Month to Date</button>
+        </div>
+        <div class="dr-divider"></div>
+        <div class="dr-custom-label">Custom Range</div>
+        <div class="dr-custom-row">
+          <input type="date" class="dr-date-input" id="dateFrom">
+          <span class="dr-sep">→</span>
+          <input type="date" class="dr-date-input" id="dateTo">
+        </div>
+        <button class="dr-apply" id="drApply">Apply</button>
+      </div>
+    </div>
+
+    <button class="tbtn tbtn-ghost" id="refreshBtn" title="Refresh data">
+      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+      Refresh
+    </button>
+
+    <button class="tbtn tbtn-ghost" id="themeBtn" style="font-size:1rem;padding:5px 10px;" title="Toggle theme"></button>
+
+    <div class="nav-dropdown" id="navDropdown">
+      <button class="tbtn tbtn-ghost" id="navDropdownBtn">
+        Dashboards
+        <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <!-- Items injected by nav-menu.js so the picker stays in sync with every other dashboard. -->
+      <div class="nav-dropdown-menu" id="navDropdownMenu"></div>
+    </div>
+
+    <div class="user-pill">
+      <div class="user-pill-av" id="userAvatar">U</div>
+      <span class="user-pill-email" id="userEmail"></span>
+    </div>
+
+    <button class="tbtn tbtn-ghost" id="signOutBtn">
+      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      Sign Out
+    </button>
+  </header>
+
+  <div class="main">
+
+    <!-- Banner row (errors / warnings) -->
+    <div id="banners"></div>
+
+    <!-- Controls row: period + division + actions -->
+    <div class="controls-row">
+      <div class="pill-tabs" id="periodTabs">
+        <button class="pill-tab active" data-period="weekly">Weekly</button>
+        <button class="pill-tab" data-period="monthly">Monthly</button>
+      </div>
+      <div class="pill-tabs" id="divisionTabs">
+        <button class="pill-tab active" data-div="all">All</button>
+        <button class="pill-tab" data-div="staff_meeting" title="Curated set of cross-division metrics shown at the weekly Staff Meeting"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>Staff Meeting</button>
+        <button class="pill-tab" data-div="D2">D2 · Phone Sales</button>
+        <button class="pill-tab" data-div="D3">D3 · Recurring & Refunds</button>
+        <button class="pill-tab" data-div="D4">D4 · Mentorship</button>
+        <button class="pill-tab" data-div="D5">D4B · Masterclass</button>
+      </div>
+      <label id="assigneeFilterWrap" style="display:none;align-items:center;gap:6px;font-size:0.78rem;color:var(--text-dim);">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <select id="assigneeFilter" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:0.78rem;cursor:pointer;max-width:220px;">
+          <option value="all">All people</option>
+        </select>
+      </label>
+      <div style="flex:1;"></div>
+      <a href="weekly-stats-entry.html" class="tbtn tbtn-success" id="entryLinkBtn" title="Fill in this period's numbers" style="text-decoration:none;padding:8px 14px;font-size:0.78rem;">📝 Enter stats</a>
+      <button class="tbtn tbtn-ghost" id="addEntryBtn" title="Log a single metric value (quick correction)" style="padding:8px 14px;font-size:0.78rem;">+ Quick add</button>
+      <button class="tbtn tbtn-ghost" id="importBtn" title="Bulk import a CSV backlog" style="padding:8px 14px;font-size:0.78rem;">⬆ Import CSV</button>
+      <button class="tbtn tbtn-ghost" id="createMetricBtn" title="Add a new manual metric to track" style="padding:8px 14px;font-size:0.78rem;">+ Add manual graph</button>
+      <button class="tbtn tbtn-ghost" id="reorderBtn" title="Drag-and-drop to reorder the metric cards (saved for everyone)" style="padding:8px 14px;font-size:0.78rem;">↕ Reorder</button>
+      <button class="tbtn tbtn-ghost" id="currentWeekBtn" title="Show or hide the current, still-in-progress period in the big numbers and charts" style="padding:8px 14px;font-size:0.78rem;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>Current week: Off</button>
+    </div>
+
+    <!-- KPI strip -->
+    <div class="sec-label"><span class="sec-label-text">Highlights</span><div class="sec-label-line"></div></div>
+    <div class="kpi-grid" id="kpiGrid"></div>
+
+    <!-- Reorder mode banner — only visible when reorder mode is on -->
+    <div id="reorderBar" style="display:none;align-items:center;gap:10px;padding:10px 14px;margin:14px 0;background:linear-gradient(135deg,rgba(251,191,36,0.10),rgba(167,139,250,0.08));border:1px solid rgba(251,191,36,0.35);border-radius:10px;">
+      <span style="font-size:1rem;">↕</span>
+      <div style="flex:1;font-size:0.84rem;font-weight:600;color:var(--text);">
+        Reorder mode — drag any card by its handle. Changes save for everyone when you hit Save.
+      </div>
+      <button class="tbtn tbtn-ghost" id="reorderCancelBtn" style="padding:6px 14px;font-size:0.78rem;">Cancel</button>
+      <button class="tbtn tbtn-success" id="reorderSaveBtn" style="padding:6px 14px;font-size:0.78rem;">✓ Save order</button>
+    </div>
+
+    <!-- Chart grid -->
+    <div class="sec-label"><span class="sec-label-text">Metrics</span><div class="sec-label-line"></div></div>
+    <div class="chart-grid" id="chartGrid"></div>
+
+  </div>
+</div>
+
+<!-- Drill-down modal -->
+<div class="modal-overlay" id="drillModal">
+  <div class="modal-card">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:4px;">
+      <div style="flex:1;min-width:0;">
+        <div class="modal-title" id="drillTitle">Metric</div>
+        <div class="modal-sub" id="drillSub"></div>
+      </div>
+      <button id="drillEditBtn" title="Rename or invert this metric"
+        style="background:rgba(167,139,250,0.10);border:1px solid rgba(167,139,250,0.35);color:#a78bfa;border-radius:8px;padding:6px 12px;font-size:0.78rem;font-weight:700;cursor:pointer;white-space:nowrap;display:none;">
+        ✎ Edit metric
+      </button>
+    </div>
+
+    <!-- Inline edit form — hidden until ✎ Edit is clicked -->
+    <div id="drillEditForm" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px;margin:8px 0 14px;">
+      <div style="display:grid;grid-template-columns:1fr;gap:10px;">
+        <div>
+          <label style="font-size:0.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:4px;">Label</label>
+          <input id="drillEditLabel" type="text" maxlength="120"
+            style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:0.88rem;outline:none;">
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.84rem;user-select:none;">
+          <input id="drillEditInvert" type="checkbox" style="width:16px;height:16px;cursor:pointer;">
+          <span><strong>Lower is better</strong> — flip Y-axis so higher values appear lower in the chart (useful for refunds, resigns, disputes lost, etc.)</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.84rem;user-select:none;">
+          <input id="drillEditPointLabels" type="checkbox" style="width:16px;height:16px;cursor:pointer;">
+          <span><strong>Show value at each point</strong> — print the numeric value above every data point on the line (like the Data Studio version).</span>
+        </label>
+        <div>
+          <label style="font-size:0.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:4px;">Also show in these tabs</label>
+          <div id="drillEditTabs" style="display:flex;flex-wrap:wrap;gap:8px;font-size:0.82rem;">
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" data-tab="D2"> D2 · Phone Sales</label>
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" data-tab="D3"> D3 · Recurring</label>
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" data-tab="D4"> D4 · Mentorship</label>
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" data-tab="D5"> D4B · Masterclass</label>
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" data-tab="monthly"> Monthly</label>
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" id="drillEditStaff"> <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> Staff Meeting</label>
+          </div>
+          <div style="font-size:0.7rem;color:var(--text-dim);margin-top:4px;">The metric's <em>home</em> tab (where you enter data) stays the same — these are additional places it'll appear.</div>
+        </div>
+        <div>
+          <label style="font-size:0.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:4px;">Assigned to</label>
+          <div id="drillEditAssignees" style="display:flex;flex-wrap:wrap;gap:8px;font-size:0.82rem;max-height:140px;overflow:auto;"></div>
+          <div style="font-size:0.7rem;color:var(--text-dim);margin-top:4px;">Tag the people responsible for this stat. Use the <strong>Assigned to</strong> filter at the top to view one person's stats. The value itself is shared.</div>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px;">
+          <button class="btn-ghost" id="drillEditCancel" style="padding:7px 14px;font-size:0.78rem;">Cancel</button>
+          <button class="btn-primary" id="drillEditSave" style="padding:7px 14px;font-size:0.78rem;">Save</button>
+        </div>
+        <div id="drillEditMsg" style="font-size:0.78rem;color:var(--text-dim);min-height:1em;"></div>
+      </div>
+    </div>
+
+    <div style="height:260px;position:relative;"><canvas id="drillChart"></canvas></div>
+    <div id="drillTableWrap" style="margin-top:18px;"></div>
+    <div class="modal-actions">
+      <button class="btn-ghost" id="drillClose">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add entry modal -->
+<div class="modal-overlay" id="addModal">
+  <div class="modal-card" style="max-width:520px;">
+    <div class="modal-title">Log a metric value</div>
+    <div class="modal-sub">Only manual metrics can be edited — derived metrics auto-compute from existing data.</div>
+    <div class="modal-row">
+      <div class="field">
+        <label class="field-label">Metric</label>
+        <select class="field-select" id="addMetric"></select>
+      </div>
+    </div>
+    <div class="modal-row">
+      <div class="field">
+        <label class="field-label">Period type</label>
+        <select class="field-select" id="addPeriodType">
+          <option value="weekly">Weekly</option>
+          <option value="monthly">Monthly</option>
+        </select>
+      </div>
+      <div class="field">
+        <label class="field-label">Week ending (Wed) · or 1st of month</label>
+        <input type="date" class="field-input" id="addPeriodStart">
+      </div>
+    </div>
+    <div class="modal-row">
+      <div class="field">
+        <label class="field-label">Value</label>
+        <input type="number" step="0.01" class="field-input" id="addValue">
+      </div>
+    </div>
+    <div class="modal-row">
+      <div class="field">
+        <label class="field-label">Notes (optional)</label>
+        <textarea class="field-textarea" id="addNotes"></textarea>
+      </div>
+    </div>
+    <div id="addError" style="color:var(--red);font-size:0.78rem;min-height:1em;"></div>
+    <div class="modal-actions">
+      <button class="btn-ghost" id="addCancel">Cancel</button>
+      <button class="tbtn tbtn-success" id="addSave" style="padding:9px 18px;">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Import modal -->
+<div class="modal-overlay" id="importModal">
+  <div class="modal-card">
+    <div class="modal-title">Import backlog</div>
+    <div class="modal-sub">Paste CSV/TSV from the Google Sheet (Export → Download → CSV), or drop a file. Three columns required: <code>metric_key</code>, <code>period_start</code> (YYYY-MM-DD), <code>value_num</code>. Optional: <code>period_type</code> (default weekly), <code>notes</code>.</div>
+
+    <div class="import-step-label">1 · Paste or drop CSV</div>
+    <textarea class="import-area" id="importText" placeholder="metric_key,period_type,period_start,value_num
+refunds_salvaged_amount,weekly,2026-04-22,18230
+disputes_won,weekly,2026-04-22,2
+..."></textarea>
+
+    <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;align-items:center;">
+      <button class="btn-ghost" id="importParse">Preview rows ↓</button>
+      <input type="file" id="importFile" accept=".csv,.tsv,.txt" style="font-size:0.78rem;color:var(--text-muted);">
+      <span style="font-size:0.7rem;color:var(--text-dim);">Or drag a file onto the box above</span>
+    </div>
+
+    <div id="importPreview" style="margin-top:18px;"></div>
+
+    <div class="modal-actions">
+      <button class="btn-ghost" id="importCancel">Cancel</button>
+      <button class="tbtn tbtn-primary" id="importConfirm" style="padding:9px 18px;" disabled>Import (0 rows)</button>
+    </div>
+  </div>
+</div>
+
+<!-- Create-metric modal (admin / weekly_stats.edit only) -->
+<div class="modal-overlay" id="createMetricModal">
+  <div class="modal-card">
+    <div class="modal-title">Add manual graph</div>
+    <div class="modal-sub" style="margin-bottom:14px;">Create a new metric you'll fill in manually each week. After it's created you can enter values from the Enter Stats sheet or the metric's drilldown.</div>
+    <div style="display:grid;grid-template-columns:1fr;gap:12px;">
+      <div>
+        <label style="font-size:0.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:4px;">Name</label>
+        <input id="cmLabel" type="text" maxlength="120" placeholder="e.g. Coaching no-shows"
+          style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:0.92rem;outline:none;">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div>
+          <label style="font-size:0.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:4px;">Home tab</label>
+          <select id="cmDivision" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:0.88rem;outline:none;">
+            <option value="D2">D2 · Phone Sales</option>
+            <option value="D3">D3 · Recurring &amp; Refunds</option>
+            <option value="D4" selected>D4 · Mentorship</option>
+            <option value="D5">D4B · Masterclass</option>
+            <option value="monthly">Monthly</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:0.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:4px;">Unit</label>
+          <select id="cmUnit" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:0.88rem;outline:none;">
+            <option value="count" selected>Count</option>
+            <option value="usd">Dollars ($)</option>
+            <option value="pct">Percentage (%)</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label style="font-size:0.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:4px;">Also show in</label>
+        <div id="cmTabs" style="display:flex;flex-wrap:wrap;gap:8px;font-size:0.82rem;">
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" data-tab="D2"> D2</label>
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" data-tab="D3"> D3</label>
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" data-tab="D4"> D4</label>
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" data-tab="D5"> D5</label>
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" data-tab="monthly"> Monthly</label>
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" id="cmStaff"> <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> Staff Meeting</label>
+        </div>
+      </div>
+      <div id="cmMsg" style="font-size:0.78rem;color:var(--text-dim);min-height:1em;"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" id="cmCancel">Cancel</button>
+      <button class="btn-primary" id="cmSave">Create</button>
+    </div>
+  </div>
+</div>
+
+<script src="weekly-stats.js"></script>
+<script src="nav-menu.js"></script>
+<script src="access-guard.js"></script>
+</body>
+</html>

@@ -1,0 +1,1217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg?v=303">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=303">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=303">
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VSL Performance</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="permissions.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<style>
+  :root {
+    --bg: #080a14;
+    --surface: #0f1120; --surface2: #141728; --surface3: #191e30;
+    --border: #1f2438; --border-light: #272d45;
+    --text: #eaecf8; --text-muted: #7880a8; --text-dim: #3e4668;
+    --blue: #6b9eff; --blue-glow: rgba(107,158,255,0.3); --blue-bg: rgba(107,158,255,0.1);
+    --green: #34d399; --green-glow: rgba(52,211,153,0.3); --green-bg: rgba(52,211,153,0.1);
+    --pink: #f472b6; --pink-glow: rgba(244,114,182,0.3); --pink-bg: rgba(244,114,182,0.1);
+    --purple: #a78bfa; --purple-bg: rgba(167,139,250,0.1);
+    --gold: #fbbf24; --gold-bg: rgba(251,191,36,0.1);
+    --red: #f87171; --red-bg: rgba(248,113,113,0.1);
+    --cyan: #22d3ee; --cyan-bg: rgba(34,211,238,0.1);
+    --optin: #6b9eff; --nooptin: #f472b6;
+  }
+  body.light {
+    --bg: #f0f2fa; --surface: #ffffff; --surface2: #f5f6fc; --surface3: #eceef8;
+    --border: #dde1f2; --border-light: #ccd1e8;
+    --text: #0f1220; --text-muted: #525b82; --text-dim: #9099be;
+    --blue-glow: rgba(107,158,255,0.15); --green-glow: rgba(52,211,153,0.15); --pink-glow: rgba(244,114,182,0.15);
+    --blue-bg: rgba(107,158,255,0.1); --green-bg: rgba(52,211,153,0.1); --pink-bg: rgba(244,114,182,0.1);
+  }
+  body.light .topbar { background: rgba(255,255,255,0.9); }
+  body.light .chart-card, body.light .chart-card-full { background: #fff !important; }
+  body.light .funnel-card { background: #fff !important; }
+  body.light thead th { background: var(--surface2); }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text); min-height: 100vh; -webkit-font-smoothing: antialiased;
+    overflow-x: hidden; position: relative; z-index: 1;
+  }
+
+  /* ── Animated ambient background ───────────────── */
+  body::before {
+    content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background:
+      radial-gradient(ellipse at 15% 15%, rgba(107,158,255,0.07) 0%, transparent 55%),
+      radial-gradient(ellipse at 85% 85%, rgba(244,114,182,0.06) 0%, transparent 55%),
+      radial-gradient(ellipse at 80% 10%, rgba(167,139,250,0.05) 0%, transparent 50%);
+    animation: ambientShift 18s ease-in-out infinite;
+  }
+  @keyframes ambientShift { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+  /* ── Auth ───────────────────────────────────────── */
+  .full-center { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; position: relative; z-index: 1; }
+
+  .login-wrap { width: 100%; max-width: 420px; }
+  .login-logo { width: 56px; height: 56px; border-radius: 16px; margin: 0 auto 24px;
+    background: linear-gradient(135deg, var(--optin), var(--nooptin));
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 8px 32px rgba(107,158,255,0.4); }
+  .login-card { background: var(--surface); border: 1px solid var(--border); border-radius: 24px; padding: 40px 36px; box-shadow: 0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.03) inset; }
+  .login-card h1 { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.03em; text-align: center; margin-bottom: 4px; }
+  .login-card .sub { color: var(--text-muted); font-size: 0.84rem; text-align: center; margin-bottom: 28px; }
+  .input-group { margin-bottom: 12px; }
+  .input-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-muted); margin-bottom: 6px; display: block; }
+  .auth-input { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 13px 16px; color: var(--text); font-size: 0.92rem; outline: none; transition: border-color 0.15s, box-shadow 0.15s; }
+  .auth-input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-bg); }
+  .auth-btn { width: 100%; margin-top: 8px; background: linear-gradient(135deg, #6b9eff, #4a7de0); border: none; border-radius: 12px; padding: 14px; color: #fff; font-size: 0.92rem; font-weight: 700; cursor: pointer; transition: transform 0.12s, box-shadow 0.12s; box-shadow: 0 4px 16px rgba(107,158,255,0.35); }
+  .auth-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(107,158,255,0.45); }
+  .auth-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+  .auth-error { color: var(--red); font-size: 0.78rem; margin-top: 10px; min-height: 1em; text-align: center; }
+
+  .spinner { width: 40px; height: 40px; border: 3px solid var(--border); border-top-color: var(--blue); border-radius: 50%; animation: spin 0.7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── State machine ──────────────────────────────── */
+  body[data-state="loading"] #app, body[data-state="loading"] #login,
+  body[data-state="dashboard"] #login, body[data-state="dashboard"] #boot,
+  body[data-state="login"] #app, body[data-state="login"] #boot { display: none; }
+  body[data-state="loading"] #boot { display: flex; }
+  body[data-state="login"] #login { display: flex; }
+  body[data-state="dashboard"] #app { display: block; }
+
+  /* ── Topbar ─────────────────────────────────────── */
+  .topbar {
+    display: flex; align-items: center; gap: 10px; padding: 12px 32px;
+    background: rgba(8,10,20,0.85); backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100;
+    flex-wrap: wrap;
+  }
+  .topbar-logo {
+    width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0;
+    background: linear-gradient(135deg, var(--optin), var(--nooptin));
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 14px rgba(107,158,255,0.3);
+  }
+  .topbar-brand { font-size: 0.9rem; font-weight: 700; letter-spacing: -0.02em; }
+  .topbar-spacer { flex: 1; }
+  .tbtn { border: none; border-radius: 8px; padding: 6px 12px; font-size: 0.74rem; font-weight: 600; cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 5px; }
+  .tbtn-ghost { background: var(--surface2); color: var(--text-muted); border: 1px solid var(--border); }
+  .tbtn-ghost:hover { color: var(--text); border-color: var(--border-light); }
+  .user-pill {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 999px; padding: 4px 14px 4px 4px;
+  }
+  .user-pill-av {
+    width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;
+    background: linear-gradient(135deg, var(--optin), var(--nooptin));
+    color: #fff; font-size: 0.62rem; font-weight: 800;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .user-pill-email { font-size: 0.73rem; color: var(--text-muted); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* Keep legacy classes for JS compatibility */
+  /* ── Date Range Picker ─────────────────────────── */
+  .daterange-wrap { position: relative; }
+  .daterange-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 6px 11px; font-size: 0.74rem; color: var(--text-muted); cursor: pointer;
+    transition: all 0.15s; white-space: nowrap; font-weight: 600; font-family: inherit;
+  }
+  .daterange-btn:hover { border-color: var(--border-light); color: var(--text); }
+  .daterange-popup {
+    display: none; position: absolute; top: calc(100% + 8px); right: 0;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+    padding: 14px; min-width: 270px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.03) inset;
+    z-index: 500;
+  }
+  .daterange-popup.open { display: block; }
+  .dr-presets { display: flex; flex-direction: column; gap: 2px; }
+  .dr-preset {
+    display: block; width: 100%; text-align: left; background: none; border: none;
+    padding: 9px 12px; border-radius: 9px; font-size: 0.8rem; font-weight: 600;
+    color: var(--text-muted); cursor: pointer; transition: all 0.12s; font-family: inherit;
+  }
+  .dr-preset:hover { background: var(--surface2); color: var(--text); }
+  .dr-preset.active { background: rgba(34,211,238,0.1); color: var(--cyan); }
+  .dr-divider { height: 1px; background: var(--border); margin: 10px 0; }
+  .dr-custom-label {
+    font-size: 0.64rem; font-weight: 800; text-transform: uppercase;
+    letter-spacing: 0.1em; color: var(--text-dim); margin-bottom: 8px;
+  }
+  .dr-custom-row { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
+  .dr-date-input {
+    flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 7px 8px; color: var(--text); font-size: 0.73rem; outline: none;
+    font-family: inherit; transition: border-color 0.15s; color-scheme: dark; min-width: 0;
+  }
+  .dr-date-input:focus { border-color: var(--blue); }
+  body.light .dr-date-input { color-scheme: light; }
+  .dr-sep { color: var(--text-dim); font-size: 0.7rem; flex-shrink: 0; }
+  .dr-apply {
+    width: 100%; background: linear-gradient(135deg, var(--blue), #4a7de0); border: none;
+    border-radius: 8px; padding: 8px; color: #fff; font-size: 0.78rem; font-weight: 700;
+    cursor: pointer; font-family: inherit; transition: opacity 0.15s;
+  }
+  .dr-apply:hover { opacity: 0.9; }
+  .btn { border: none; border-radius: 9px; padding: 7px 13px; font-size: 0.76rem; font-weight: 600; cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 6px; }
+  .btn-ghost { background: var(--surface2); color: var(--text-muted); border: 1px solid var(--border); }
+  .btn-ghost:hover { color: var(--text); border-color: var(--border-light); }
+  .btn-refresh.spinning .refresh-icon { animation: spin 0.8s linear infinite; }
+  .user-chip { display: flex; align-items: center; gap: 7px; background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 4px 13px 4px 4px; font-size: 0.75rem; color: var(--text-muted); }
+  .user-avatar { width: 24px; height: 24px; border-radius: 50%; background: linear-gradient(135deg, var(--optin) 0%, var(--nooptin) 100%); color: #fff; font-size: 0.65rem; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+
+  /* ── Mode tabs ──────────────────────────────────── */
+  .mode-row { margin-bottom: 24px; }
+  .funnel-tabs { display: flex; gap: 6px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 5px; width: fit-content; }
+  .funnel-tab { display: inline-flex; align-items: center; gap: 8px; padding: 9px 18px; background: transparent; color: var(--text-muted); border: none; border-radius: 8px; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: background 0.15s, color 0.15s; white-space: nowrap; }
+  .funnel-tab:hover { color: var(--text); background: var(--surface2); }
+  .funnel-tab.active { background: var(--surface2); color: var(--text); box-shadow: 0 2px 8px rgba(0,0,0,0.3), 0 0 0 1px var(--border-light); }
+  .funnel-tab.loading { opacity: 0.6; pointer-events: none; }
+  .funnel-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  @media(max-width:600px) { .funnel-tabs { width: 100%; overflow-x: auto; } .funnel-tab { padding: 8px 14px; font-size: 0.74rem; } }
+
+  /* ── Layout ─────────────────────────────────────── */
+  #app { position: relative; z-index: 1; }
+  .main { padding: 24px 32px 80px; max-width: 1380px; margin: 0 auto; animation: fadeUp 0.5s ease both; }
+  @media(max-width:768px) { .main { padding: 18px 16px 60px; } .topbar { padding: 10px 14px; } }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* ── Section label ──────────────────────────────── */
+  .sec-label { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+  .sec-label-text { font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-dim); white-space: nowrap; }
+  .sec-label-line { flex: 1; height: 1px; background: var(--border); }
+
+  /* ── Hero KPIs ──────────────────────────────────── */
+  .hero-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-bottom: 28px; }
+  @media(max-width:1000px) { .hero-grid { grid-template-columns: repeat(2,1fr); } }
+  @media(max-width:500px) { .hero-grid { grid-template-columns: 1fr; } }
+  .hero-kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 20px 20px 16px; position: relative; overflow: hidden; transition: transform 0.2s; }
+  .hero-kpi:hover { transform: translateY(-2px); }
+  .hero-kpi.blue   { border-color: rgba(107,158,255,0.25); box-shadow: 0 8px 32px rgba(107,158,255,0.08); }
+  .hero-kpi.green  { border-color: rgba(52,211,153,0.25);  box-shadow: 0 8px 32px rgba(52,211,153,0.08); }
+  .hero-kpi.gold   { border-color: rgba(251,191,36,0.25);  box-shadow: 0 8px 32px rgba(251,191,36,0.08); }
+  .hero-kpi.purple { border-color: rgba(167,139,250,0.25); box-shadow: 0 8px 32px rgba(167,139,250,0.08); }
+  .hero-kpi::after { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; border-radius: 18px 18px 0 0; }
+  .hero-kpi.blue::after   { background: linear-gradient(90deg, var(--blue), transparent); }
+  .hero-kpi.green::after  { background: linear-gradient(90deg, var(--green), transparent); }
+  .hero-kpi.gold::after   { background: linear-gradient(90deg, var(--gold), transparent); }
+  .hero-kpi.purple::after { background: linear-gradient(90deg, var(--purple), transparent); }
+  .hero-kpi-glow { position: absolute; top: -20px; right: -20px; width: 80px; height: 80px; border-radius: 50%; opacity: 0.1; pointer-events: none; }
+  .blue .hero-kpi-glow   { background: var(--blue); }
+  .green .hero-kpi-glow  { background: var(--green); }
+  .gold .hero-kpi-glow   { background: var(--gold); }
+  .purple .hero-kpi-glow { background: var(--purple); }
+  .hero-kpi-icon { width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center; margin-bottom: 12px; }
+  .blue .hero-kpi-icon   { background: rgba(107,158,255,0.15); }
+  .green .hero-kpi-icon  { background: rgba(52,211,153,0.15); }
+  .gold .hero-kpi-icon   { background: rgba(251,191,36,0.15); }
+  .purple .hero-kpi-icon { background: rgba(167,139,250,0.15); }
+  .hero-kpi-label { font-size: 0.67rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-muted); margin-bottom: 7px; }
+  .hero-kpi-value { font-size: 1.8rem; font-weight: 800; letter-spacing: -0.04em; line-height: 1; margin-bottom: 8px; }
+  .hero-kpi-sub { font-size: 0.69rem; color: var(--text-dim); line-height: 1.5; }
+
+  /* ── Funnel cards ───────────────────────────────── */
+  .funnels-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; transition: all 0.3s; }
+  .funnels-row.single { grid-template-columns: 1fr; }
+  @media(max-width:820px) { .funnels-row { grid-template-columns: 1fr; } }
+  .funnel-card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; overflow: hidden; }
+  .funnel-card.optin  { border-color: rgba(107,158,255,0.25); }
+  .funnel-card.nooptin { border-color: rgba(244,114,182,0.25); }
+  .funnel-card-header { padding: 18px 20px 16px; border-bottom: 1px solid var(--border); position: relative; overflow: hidden; }
+  .funnel-card-header::before { content: ''; position: absolute; inset: 0; opacity: 0.04; pointer-events: none; }
+  .funnel-card.optin  .funnel-card-header::before { background: radial-gradient(circle at right, var(--optin), transparent 70%); }
+  .funnel-card.nooptin .funnel-card-header::before { background: radial-gradient(circle at right, var(--nooptin), transparent 70%); }
+  .funnel-header-top { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .funnel-pill { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .funnel-card-title { font-size: 0.97rem; font-weight: 700; }
+  .funnel-card-tag { font-size: 0.68rem; color: var(--text-dim); margin-top: 2px; }
+  .funnel-big3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .funnel-big-stat { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; text-align: center; }
+  .funnel-big-val { font-size: 1.15rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; }
+  .funnel-big-label { font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); margin-top: 4px; }
+  .funnel-body { padding: 0; }
+  .msect { display: flex; align-items: center; gap: 8px; padding: 10px 20px 7px; background: var(--surface2); border-bottom: 1px solid var(--border); border-top: 1px solid var(--border); }
+  .msect-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .msect-label { font-size: 0.61rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-dim); }
+  .fmet { display: flex; align-items: center; justify-content: space-between; padding: 9px 20px; border-bottom: 1px solid rgba(31,36,56,0.4); }
+  .fmet:last-child { border-bottom: none; }
+  .fmet-label { font-size: 0.77rem; color: var(--text-muted); }
+  .fmet-val { font-size: 0.88rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .rings-row { display: flex; gap: 10px; padding: 14px 20px; border-bottom: 1px solid var(--border); }
+  .ring-wrap { flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 12px; display: flex; align-items: center; gap: 10px; }
+  .ring-svg { flex-shrink: 0; }
+  .ring-info-label { font-size: 0.64rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+  .ring-info-val { font-size: 1.05rem; font-weight: 800; letter-spacing: -0.02em; margin-top: 2px; }
+
+  /* ── Charts ─────────────────────────────────────── */
+  .chart-card-full { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 22px 24px; margin-bottom: 22px; }
+  .charts-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 22px; }
+  @media(max-width:900px) { .charts-2col { grid-template-columns: 1fr; } }
+  .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 20px 22px; }
+  .chart-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 8px; }
+  .chart-title { font-size: 0.87rem; font-weight: 700; }
+  .chart-sub { font-size: 0.69rem; color: var(--text-muted); margin-top: 3px; }
+  .chart-legend { display: flex; gap: 12px; flex-wrap: wrap; }
+  .leg-item { display: flex; align-items: center; gap: 5px; font-size: 0.69rem; color: var(--text-muted); font-weight: 500; }
+  .leg-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .leg-line { width: 14px; height: 3px; border-radius: 2px; flex-shrink: 0; }
+  .chart-wrap-lg { height: 280px; }
+  .chart-wrap-md { height: 230px; }
+
+  /* ── Conversion stages ──────────────────────────── */
+  .funnel-visual-card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 22px 24px; margin-bottom: 22px; }
+  .funnel-flow { display: flex; align-items: stretch; margin-top: 20px; }
+  .funnel-stage { flex: 1; display: flex; flex-direction: column; align-items: center; position: relative; }
+  .funnel-stage:not(:last-child)::after { content: '›'; position: absolute; right: -9px; top: 38%; color: var(--text-dim); font-size: 1rem; z-index: 1; }
+  .funnel-stage-label { font-size: 0.58rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); margin-bottom: 10px; text-align: center; }
+  .funnel-bars { display: flex; gap: 5px; justify-content: center; align-items: flex-end; height: 90px; }
+  .funnel-bar { width: 20px; border-radius: 4px 4px 0 0; min-height: 4px; }
+  .funnel-stage-data { margin-top: 10px; text-align: center; }
+  .funnel-stage-vals { display: flex; gap: 6px; justify-content: center; }
+  .funnel-stage-val { font-size: 0.71rem; font-weight: 700; }
+  .funnel-conv { margin-top: 5px; }
+  .funnel-conv-pct { font-size: 0.59rem; color: var(--text-dim); display: block; }
+
+  /* ── Compare table ──────────────────────────────── */
+  .compare-card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; overflow: hidden; margin-bottom: 22px; }
+  .compare-card table { width: 100%; border-collapse: collapse; font-size: 0.81rem; }
+  .compare-card thead th { background: var(--surface2); padding: 12px 18px; text-align: left; font-size: 0.65rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-muted); border-bottom: 1px solid var(--border); }
+  .compare-card thead th:not(:first-child) { text-align: right; }
+  .compare-card tbody td { padding: 10px 18px; border-bottom: 1px solid rgba(31,36,56,0.4); vertical-align: middle; }
+  .compare-card tbody td:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
+  .compare-card tbody tr:last-child td { border-bottom: none; }
+  .compare-card tbody tr:hover { background: var(--surface2); }
+  .compare-card tbody tr.tbl-sect td { background: var(--surface2); padding: 8px 18px; font-size: 0.6rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.09em; color: var(--text-dim); border-bottom: 1px solid var(--border); }
+  .td-label { color: var(--text-muted); font-size: 0.79rem; }
+  .win  { color: var(--green); font-weight: 700; }
+  .lose { color: var(--text-muted); font-weight: 500; }
+  .win-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 0.67rem; font-weight: 700; padding: 3px 9px; border-radius: 6px; }
+</style>
+<link rel="stylesheet" href="skeletons.css">
+<link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#000000">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Ridleyacademy">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=303">
+  <link rel="stylesheet" href="mobile.css">
+</head>
+<body data-state="loading">
+
+<div id="boot" class="full-center">
+  <div style="text-align:center;">
+    <div class="spinner" style="margin:0 auto 16px;"></div>
+    <div style="color:var(--text-muted);font-size:0.84rem;letter-spacing:0.02em;">Loading your workspace…</div>
+  </div>
+</div>
+
+<div id="login" class="full-center">
+  <div class="login-wrap">
+    <div class="login-logo" style="background:linear-gradient(135deg,var(--optin),var(--nooptin));">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+    </div>
+    <div class="login-card">
+      <h1>VSL Performance</h1>
+      <p class="sub">Sign in to view funnel analytics</p>
+      <form id="loginForm">
+        <div class="input-group">
+          <label class="input-label" for="email">Email address</label>
+          <input class="auth-input" type="email" id="email" placeholder="you@company.com" required autocomplete="email">
+        </div>
+        <div class="input-group">
+          <label class="input-label" for="password">Password</label>
+          <input class="auth-input" type="password" id="password" placeholder="••••••••" required autocomplete="current-password">
+        </div>
+        <button type="submit" class="auth-btn" id="sendBtn">Sign In</button>
+        <div class="auth-error" id="loginError"></div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div id="app">
+  <header class="topbar">
+    <div class="topbar-logo">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+    </div>
+    <span class="topbar-brand">VSL Performance</span>
+    <!-- Date range picker -->
+    <div class="daterange-wrap" id="daterangeWrap">
+      <button class="daterange-btn" id="daterangeBtn">
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <span id="drLabel">This Week</span>
+        <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="daterange-popup" id="daterangePopup">
+        <div class="dr-presets">
+          <button class="dr-preset" data-preset="last-30">Last 30 Days</button>
+          <button class="dr-preset active" data-preset="this-week">This Week (Thu – Wed)</button>
+          <button class="dr-preset" data-preset="last-week">Last Week  (Thu – Wed)</button>
+          <button class="dr-preset" data-preset="mtd">Month to Date</button>
+        </div>
+        <div class="dr-divider"></div>
+        <div class="dr-custom-label">Custom Range</div>
+        <div class="dr-custom-row">
+          <input type="date" class="dr-date-input" id="dateFrom">
+          <span class="dr-sep">→</span>
+          <input type="date" class="dr-date-input" id="dateTo">
+        </div>
+        <button class="dr-apply" id="drApply">Apply</button>
+      </div>
+    </div>
+    <button class="btn btn-ghost btn-refresh" id="refetchBtn">
+      <svg class="refresh-icon" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+      Refresh
+    </button>
+    <div class="topbar-spacer"></div>
+    <button class="btn btn-ghost" id="themeBtn" style="font-size:1rem;padding:6px 10px;"></button>
+    <div style="position:relative;" id="navDropdown">
+      <button class="btn btn-ghost" id="navDropBtn" style="gap:5px;">
+        Dashboards
+        <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div id="navDropMenu" style="display:none;position:absolute;top:calc(100% + 6px);right:0;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:6px;min-width:190px;z-index:200;box-shadow:0 16px 40px rgba(0,0,0,0.5);">
+        <a href="home.html" style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;font-size:0.79rem;font-weight:600;color:var(--text-muted);text-decoration:none;" onmouseover="this.style.background='var(--surface2)';this.style.color='var(--text)'" onmouseout="this.style.background='';this.style.color='var(--text-muted)'">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Home</a>
+        <a href="index.html" style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;font-size:0.79rem;font-weight:600;color:var(--text-muted);text-decoration:none;" onmouseover="this.style.background='var(--surface2)';this.style.color='var(--text)'" onmouseout="this.style.background='';this.style.color='var(--text-muted)'">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>Sales Dashboard</a>
+        <a href="meta-ads.html" style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;font-size:0.79rem;font-weight:600;color:var(--text-muted);text-decoration:none;" onmouseover="this.style.background='var(--surface2)';this.style.color='var(--text)'" onmouseout="this.style.background='';this.style.color='var(--text-muted)'">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>Meta Ads</a>
+        <a href="performance.html" style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;font-size:0.79rem;font-weight:600;color:var(--optin);background:var(--blue-bg);text-decoration:none;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>VSL Performance</a>
+        <a href="income.html" style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;font-size:0.79rem;font-weight:600;color:var(--text-muted);text-decoration:none;" onmouseover="this.style.background='var(--surface2)';this.style.color='var(--text)'" onmouseout="this.style.background='';this.style.color='var(--text-muted)'">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Income</a>
+        <a href="calls.html" style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;font-size:0.79rem;font-weight:600;color:var(--text-muted);text-decoration:none;" onmouseover="this.style.background='var(--surface2)';this.style.color='var(--text)'" onmouseout="this.style.background='';this.style.color='var(--text-muted)'">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.41 2 2 0 0 1 3.6 1.22h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.82a16 16 0 0 0 6.29 6.29l.95-.95a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>Calls</a>
+        <a href="declarations.html" style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;font-size:0.79rem;font-weight:600;color:var(--text-muted);text-decoration:none;" onmouseover="this.style.background='var(--surface2)';this.style.color='var(--text)'" onmouseout="this.style.background='';this.style.color='var(--text-muted)'">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1" ry="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>Declarations</a>
+      </div>
+    </div>
+    <div class="user-chip">
+      <div class="user-avatar" id="userAvatar">U</div>
+      <span id="userEmail"></span>
+    </div>
+    <button class="btn btn-ghost" id="signOutBtn">Sign Out</button>
+  </header>
+
+  <div class="main">
+
+    <!-- ── Mode tabs ──────────────────────────────── -->
+    <div class="mode-row">
+      <div class="funnel-tabs" id="modeTabs">
+        <button class="funnel-tab active" data-mode="all">
+          <span class="funnel-dot" style="background:linear-gradient(135deg,var(--optin),var(--nooptin));"></span>All Funnels
+        </button>
+        <button class="funnel-tab" data-mode="optin">
+          <span class="funnel-dot" style="background:var(--optin);"></span>VSL Opt-In
+        </button>
+        <button class="funnel-tab" data-mode="nooptin">
+          <span class="funnel-dot" style="background:var(--nooptin);"></span>VSL No Opt-In
+        </button>
+      </div>
+    </div>
+
+    <!-- ── Hero KPIs ──────────────────────────────── -->
+    <div class="sec-label">
+      <span class="sec-label-text" id="heroSectionLabel">Combined Overview</span>
+      <div class="sec-label-line"></div>
+    </div>
+    <div class="hero-grid" id="heroGrid">
+      <div class="hero-kpi blue"><div class="hero-kpi-glow"></div><div class="hero-kpi-value">—</div><div class="hero-kpi-label">Ad Spend</div></div>
+      <div class="hero-kpi green"><div class="hero-kpi-glow"></div><div class="hero-kpi-value">—</div><div class="hero-kpi-label">Leads</div></div>
+      <div class="hero-kpi gold"><div class="hero-kpi-glow"></div><div class="hero-kpi-value">—</div><div class="hero-kpi-label">Gross Profit</div></div>
+      <div class="hero-kpi purple"><div class="hero-kpi-glow"></div><div class="hero-kpi-value">—</div><div class="hero-kpi-label">ROAS</div></div>
+    </div>
+
+    <!-- ── Daily Performance Chart ─────────────────── -->
+    <div class="sec-label">
+      <span class="sec-label-text">Daily Performance</span>
+      <div class="sec-label-line"></div>
+    </div>
+    <div class="chart-card-full">
+      <div class="chart-top">
+        <div>
+          <div class="chart-title">Spend &amp; Leads by Day</div>
+          <div class="chart-sub">Ad spend (bars) with lead volume overlay (line, right axis)</div>
+        </div>
+        <div class="chart-legend" id="overviewLegend"></div>
+      </div>
+      <div class="chart-wrap-lg"><canvas id="overviewChart"></canvas></div>
+    </div>
+
+    <!-- ── Funnel Cards ──────────────────────────────── -->
+    <div class="sec-label">
+      <span class="sec-label-text">Funnel Breakdown</span>
+      <div class="sec-label-line"></div>
+    </div>
+    <div class="funnels-row" id="funnelsRow">
+      <div class="funnel-card optin"   id="cardOptin"></div>
+      <div class="funnel-card nooptin" id="cardNooptin"></div>
+    </div>
+
+    <!-- ── Conversion Journey ────────────────────────── -->
+    <div class="sec-label">
+      <span class="sec-label-text">Conversion Journey</span>
+      <div class="sec-label-line"></div>
+    </div>
+    <div class="funnel-visual-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+        <div>
+          <div class="chart-title">Stage Drop-off</div>
+          <div class="chart-sub">Volume at each step — conversion rate to next stage shown below</div>
+        </div>
+        <div class="chart-legend" id="stageLegend"></div>
+      </div>
+      <div class="funnel-flow" id="stagesGrid"></div>
+    </div>
+
+    <!-- ── Daily Trend Charts ────────────────────────── -->
+    <div class="sec-label">
+      <span class="sec-label-text">Daily Trends</span>
+      <div class="sec-label-line"></div>
+    </div>
+    <div class="charts-2col">
+      <div class="chart-card">
+        <div class="chart-top">
+          <div><div class="chart-title">Leads per Day</div><div class="chart-sub">New leads generated daily</div></div>
+          <div class="chart-legend" id="leadsLegend"></div>
+        </div>
+        <div class="chart-wrap-md"><canvas id="leadsChart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-top">
+          <div><div class="chart-title">Closes per Day</div><div class="chart-sub">Sales closed daily</div></div>
+          <div class="chart-legend" id="closesLegend"></div>
+        </div>
+        <div class="chart-wrap-md"><canvas id="closesChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- ── Economics Charts ──────────────────────────── -->
+    <div class="sec-label">
+      <span class="sec-label-text">Economics</span>
+      <div class="sec-label-line"></div>
+    </div>
+    <div class="charts-2col">
+      <div class="chart-card">
+        <div class="chart-top">
+          <div><div class="chart-title">Cost per Lead vs Cost per Close ($PC)</div><div class="chart-sub">Acquisition cost comparison</div></div>
+          <div class="chart-legend" id="costLegend"></div>
+        </div>
+        <div class="chart-wrap-md"><canvas id="costChart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-top">
+          <div><div class="chart-title">Gross Income vs Ad Spend</div><div class="chart-sub">Revenue versus what was spent</div></div>
+          <div class="chart-legend">
+            <div class="leg-item"><div class="leg-dot" style="background:rgba(52,211,153,0.8);"></div>Income</div>
+            <div class="leg-item"><div class="leg-dot" style="background:rgba(251,191,36,0.75);"></div>Spend</div>
+          </div>
+        </div>
+        <div class="chart-wrap-md"><canvas id="roasChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- ── Head-to-Head (all mode only) ──────────────── -->
+    <div id="compareSection">
+      <div class="sec-label">
+        <span class="sec-label-text">Head-to-Head Comparison</span>
+        <div class="sec-label-line"></div>
+      </div>
+      <div class="compare-card">
+        <table>
+          <thead>
+            <tr>
+              <th>Metric</th>
+              <th style="color:var(--optin);">🔵 VSL Opt-In</th>
+              <th style="color:var(--nooptin);">🩷 No Opt-In</th>
+              <th>Winner</th>
+            </tr>
+          </thead>
+          <tbody id="compareTbody">
+            <tr><td colspan="4" style="text-align:center;padding:50px;color:var(--text-muted);">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- /.main -->
+</div><!-- /#app -->
+
+<script>
+const SUPABASE_URL      = "https://pojqljrhhtnigyrtzdzz.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBvanFsanJoaHRuaWd5cnR6ZHp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTA3ODMsImV4cCI6MjA5MTM4Njc4M30.PcSBDqOzbiZxZ7IAs5efqx0gsAlAG0cj3GqUOkAmxos";
+const SALES_BASE = SUPABASE_URL + "/functions/v1/dashboard";
+const META_BASE_ = SUPABASE_URL + "/functions/v1/meta-ads";
+
+const OPTIN_CAMPAIGNS   = ['CAPXEL VSL (Survey) V2 BA Mar27','CAPXEL VSL (Survey) V2 BA Mar18'];
+const NOOPTIN_CAMPAIGNS = ['CAPXEL VSL (Survey) V2 BA Mar27 NO OPT-IN'];
+
+const supa = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth:{ persistSession:true, detectSessionInUrl:true, autoRefreshToken:true }
+});
+
+function setState(s) { document.body.dataset.state = s; }
+let currentSession = null;
+let charts = {};
+let activeMode = 'all'; // 'all' | 'optin' | 'nooptin'
+
+// Store last fetched data so mode switches don't re-fetch
+let lastData = null;
+
+// ── Theme ──────────────────────────────────────────────────
+const _saved = localStorage.getItem('theme') || 'dark';
+if (_saved === 'light') document.body.classList.add('light');
+function updateThemeBtn() {
+  const b = document.getElementById('themeBtn');
+  if (b) b.textContent = document.body.classList.contains('light') ? '🌙' : '☀️';
+}
+updateThemeBtn();
+document.getElementById('themeBtn').addEventListener('click', () => {
+  document.body.classList.toggle('light');
+  localStorage.setItem('theme', document.body.classList.contains('light') ? 'light' : 'dark');
+  updateThemeBtn();
+});
+
+// ── Nav dropdown ────────────────────────────────────────────
+document.getElementById('navDropBtn').addEventListener('click', e => {
+  e.stopPropagation();
+  const m = document.getElementById('navDropMenu');
+  m.style.display = m.style.display === 'none' ? 'block' : 'none';
+});
+document.addEventListener('click', () => {
+  const m = document.getElementById('navDropMenu');
+  if (m) m.style.display = 'none';
+});
+
+// ── Mode tab clicks ─────────────────────────────────────────
+document.querySelectorAll('.funnel-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const mode = btn.dataset.mode;
+    if (mode === activeMode) return;
+    activeMode = mode;
+    document.querySelectorAll('.funnel-tab').forEach(b => b.classList.toggle('active', b === btn));
+    if (lastData) renderAll(lastData);
+  });
+});
+
+// ── Auth ────────────────────────────────────────────────────
+async function initAuth() {
+  // 8s safety net so the boot screen never hangs forever.
+  const _safety = setTimeout(() => {
+    if (document.body.dataset.state === 'loading') setState('login');
+  }, 8000);
+  try {
+    const { data:{ session }, error } = await supa.auth.getSession();
+    clearTimeout(_safety);
+    if (error) throw error;
+    if (session) { onAuthed(session); return; }
+    setState('login');
+  } catch(e) {
+    clearTimeout(_safety);
+    console.error('Auth init error:', e);
+    setState('login');
+  }
+  supa.auth.onAuthStateChange((_e, sess) => { if (sess) onAuthed(sess); else setState('login'); });
+}
+
+async function onAuthed(session) {
+  currentSession = session;
+  const email = session.user.email || '';
+  document.getElementById('userEmail').textContent = email;
+  document.getElementById('userAvatar').textContent = (email[0] || 'U').toUpperCase();
+  setState('dashboard');
+  await loadAll();
+}
+
+// ── Fetch ───────────────────────────────────────────────────
+async function fetchSales(funnel = null) {
+  const from = document.getElementById('dateFrom').value;
+  const to   = document.getElementById('dateTo').value;
+  const params = new URLSearchParams({ api:'data', from, to });
+  if (funnel) params.set('funnel', funnel);
+  const r = await fetch(SALES_BASE + '?' + params, {
+    cache:'no-store', headers:{ Authorization:'Bearer ' + currentSession.access_token }
+  });
+  return r.ok ? r.json() : null;
+}
+
+async function fetchMetaInsights() {
+  const from = document.getElementById('dateFrom').value;
+  const to   = document.getElementById('dateTo').value;
+  const r = await fetch(META_BASE_ + '?' + new URLSearchParams({ api:'insights', from, to }), {
+    cache:'no-store', headers:{ Authorization:'Bearer ' + currentSession.access_token }
+  });
+  return r.ok ? r.json() : [];
+}
+
+async function loadAll() {
+  document.getElementById('refetchBtn').classList.add('spinning');
+  document.querySelectorAll('.funnel-tab').forEach(b => b.classList.add('loading'));
+  try {
+    const [allSales, oSales, nSales, insights] = await Promise.all([
+      fetchSales(), fetchSales('Artistic'), fetchSales('Artisticv2'), fetchMetaInsights()
+    ]);
+    lastData = { allSales, oSales, nSales, insights };
+    renderAll(lastData);
+  } catch(err) {
+    console.error(err);
+  } finally {
+    document.getElementById('refetchBtn').classList.remove('spinning');
+    document.querySelectorAll('.funnel-tab').forEach(b => b.classList.remove('loading'));
+  }
+}
+
+// ── Master render — delegates based on activeMode ────────────
+function renderAll({ allSales, oSales, nSales, insights }) {
+  const oMeta = aggMeta(insights, OPTIN_CAMPAIGNS);
+  const nMeta = aggMeta(insights, NOOPTIN_CAMPAIGNS);
+  const oS    = sumSales(oSales);
+  const nS    = sumSales(nSales);
+
+  const isAll     = activeMode === 'all';
+  const isOptin   = activeMode === 'optin';
+  const isNooptin = activeMode === 'nooptin';
+
+  // Update header subtitle
+  const subtitles = { all:'All Funnels — combined view', optin:'VSL Opt-In — Artistic funnel', nooptin:'VSL No Opt-In — Artisticv2 funnel' };
+  document.getElementById('headerSub') && (document.getElementById('headerSub').textContent = subtitles[activeMode]);
+
+  // Section label
+  const sectionLabels = { all:'Combined Overview', optin:'VSL Opt-In Overview', nooptin:'VSL No Opt-In Overview' };
+  document.getElementById('heroSectionLabel').textContent = sectionLabels[activeMode];
+
+  // Pick data for single-mode
+  const s = isOptin ? oS : nS;
+  const m = isOptin ? oMeta : nMeta;
+  const sales = isOptin ? oSales : nSales;
+  const color = isOptin ? 'var(--optin)' : 'var(--nooptin)';
+
+  // Hero KPIs
+  const allS = sumSales(allSales);
+  if (isAll) renderHeroAll(allS, oMeta, nMeta);
+  else        renderHeroSingle(s, m, color);
+
+  // Funnel cards — in single mode show only one, full-width
+  const row = document.getElementById('funnelsRow');
+  if (isAll) {
+    row.classList.remove('single');
+    document.getElementById('cardOptin').style.display = '';
+    document.getElementById('cardNooptin').style.display = '';
+    renderFunnelCard('cardOptin',   oS, oMeta, 'VSL Opt-In',    'Artistic · 2 campaigns',  'var(--optin)');
+    renderFunnelCard('cardNooptin', nS, nMeta, 'VSL No Opt-In', 'Artisticv2 · 1 campaign', 'var(--nooptin)');
+  } else {
+    row.classList.add('single');
+    const showId   = isOptin ? 'cardOptin' : 'cardNooptin';
+    const hideId   = isOptin ? 'cardNooptin' : 'cardOptin';
+    document.getElementById(hideId).style.display = 'none';
+    document.getElementById(showId).style.display = '';
+    const tag = isOptin ? 'Artistic · 2 campaigns' : 'Artisticv2 · 1 campaign';
+    const title = isOptin ? 'VSL Opt-In' : 'VSL No Opt-In';
+    renderFunnelCard(showId, s, m, title, tag, color);
+  }
+
+  // Conversion stages
+  renderStages(oS, nS, oMeta, nMeta);
+
+  // Charts
+  renderCharts(oSales, nSales, oMeta, nMeta);
+
+  // Head-to-head — only in all mode
+  document.getElementById('compareSection').style.display = isAll ? 'block' : 'none';
+  if (isAll) renderCompare(oS, nS, oMeta, nMeta);
+}
+
+// ── Aggregation ─────────────────────────────────────────────
+function aggMeta(rows, names) {
+  const byDate = {};
+  let spend=0, impressions=0, clicks=0, ulc=0;
+  rows.forEach(r => {
+    if (!names.includes(r.campaign_name)) return;
+    spend       += +r.spend || 0;
+    impressions += +r.impressions || 0;
+    clicks      += +r.clicks || 0;
+    ulc         += +r.unique_link_clicks || 0;
+    const d = r.date_start || '';
+    if (d) {
+      byDate[d] = byDate[d] || { spend:0, clicks:0 };
+      byDate[d].spend  += +r.spend || 0;
+      byDate[d].clicks += +r.clicks || 0;
+    }
+  });
+  return { spend, impressions, clicks, ulc, byDate };
+}
+
+function sumSales(data) {
+  if (!data?.daily) return { leads:0, contacted:0, closes:0, income:0, byDate:{} };
+  let leads=0, contacted=0, closes=0, income=0;
+  const byDate = {};
+  data.daily.forEach(d => {
+    leads     += +d.leads || 0;
+    contacted += +d.contacted || 0;
+    closes    += +d.closes_total || 0;
+    income    += +d.gross_income || 0;
+    byDate[d.stat_date] = { leads:+d.leads||0, closes:+d.closes_total||0 };
+  });
+  return { leads, contacted, closes, income, byDate };
+}
+
+// ── Formatters ──────────────────────────────────────────────
+const $m = v => '$' + (+v||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const $0 = v => '$' + Math.round(+v||0).toLocaleString();
+const N  = v => (+v||0).toLocaleString();
+const P  = (n,d) => d>0 ? (100*n/d).toFixed(1)+'%' : '—';
+const fmtK = v => v>=1000000?(v/1000000).toFixed(1)+'M':v>=10000?(v/1000).toFixed(1)+'K':N(v);
+
+const ICONS = [
+  `<svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>`,
+  `<svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
+  `<svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>`,
+  `<svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--purple)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>`,
+];
+
+// ── Hero: All mode ───────────────────────────────────────────
+function renderHeroAll(allS, oM, nM) {
+  const spend  = oM.spend + nM.spend;
+  const leads  = allS.leads;   // all leads, no funnel filter
+  const income = allS.income;
+  const closes = allS.closes;
+  const gp     = income - spend;
+  const roas   = spend > 0 ? income / spend : 0;
+  const cpl    = leads > 0 ? spend / leads : 0;
+  renderHeroKpis(spend, leads, gp, roas, cpl, oM.impressions+nM.impressions, oM.ulc+nM.ulc, closes);
+}
+
+// ── Hero: Single mode ────────────────────────────────────────
+function renderHeroSingle(s, m, color) {
+  const gp   = s.income - m.spend;
+  const roas = m.spend > 0 ? s.income / m.spend : 0;
+  const cpl  = s.leads > 0 ? m.spend / s.leads : 0;
+  renderHeroKpis(m.spend, s.leads, gp, roas, cpl, m.impressions, m.ulc, s.closes);
+}
+
+function renderHeroKpis(spend, leads, gp, roas, cpl, impressions, ulc, closes) {
+  const roasColor = roas>=2?'var(--green)':roas>=1?'var(--gold)':'var(--red)';
+  const gpColor   = gp>=0?'var(--gold)':'var(--red)';
+  document.getElementById('heroGrid').innerHTML = [
+    { cls:'blue',   label:'Ad Spend',     value:$0(spend),                  sub:`${fmtK(impressions)} impressions · ${N(ulc)} ULC` },
+    { cls:'green',  label:'Leads',        value:N(leads),                   sub:`CPL: ${cpl>0?$m(cpl):'—'} · ${closes} closes total` },
+    { cls:'gold',   label:'Gross Profit', value:$0(gp),                     sub:`Revenue: ${$0(spend+gp)} · Spend: ${$0(spend)}`, valColor:gpColor },
+    { cls:'purple', label:'ROAS',         value:roas>0?roas.toFixed(2)+'x':'—', sub:'Gross Income ÷ Ad Spend', valColor:roasColor },
+  ].map((k,i) => `
+    <div class="hero-kpi ${k.cls}">
+      <div class="hero-kpi-glow"></div>
+      <div class="hero-kpi-icon">${ICONS[i]}</div>
+      <div class="hero-kpi-label">${k.label}</div>
+      <div class="hero-kpi-value"${k.valColor?` style="color:${k.valColor};"`:''} >${k.value}</div>
+      <div class="hero-kpi-sub">${k.sub}</div>
+    </div>`).join('');
+}
+
+// ── Ring SVG ─────────────────────────────────────────────────
+function ring(pct, color, size=48) {
+  const r=15, circ=2*Math.PI*r, fill=Math.min(Math.max(pct/100,0),1)*circ;
+  return `<svg class="ring-svg" viewBox="0 0 36 36" width="${size}" height="${size}" style="transform:rotate(-90deg)">
+    <circle cx="18" cy="18" r="${r}" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="4.5"/>
+    <circle cx="18" cy="18" r="${r}" fill="none" stroke="${color}" stroke-width="4.5"
+      stroke-dasharray="${fill.toFixed(2)} ${circ.toFixed(2)}" stroke-linecap="round"/>
+  </svg>`;
+}
+
+// ── Funnel Card ──────────────────────────────────────────────
+function renderFunnelCard(id, s, m, title, tag, color) {
+  const cpc_meta   = m.clicks>0      ? m.spend/m.clicks         : 0;
+  const ctr        = m.impressions>0 ? (m.clicks/m.impressions)*100 : 0;
+  const cpl        = s.leads>0       ? m.spend/s.leads          : 0;
+  const contactRate= s.leads>0       ? (s.contacted/s.leads)*100 : 0;
+  const closeRate  = s.leads>0       ? (s.closes/s.leads)*100   : 0;
+  const dollarPC   = s.closes>0      ? m.spend/s.closes         : 0;
+  const grossProfit= s.income - m.spend;
+  const roas       = m.spend>0       ? s.income/m.spend         : 0;
+  const roasColor  = roas>=2?'var(--green)':roas>=1?'var(--gold)':'var(--red)';
+  const gpColor    = grossProfit>=0?'var(--green)':'var(--red)';
+
+  const row = (label, val, col='') =>
+    `<div class="fmet"><span class="fmet-label">${label}</span><span class="fmet-val"${col?` style="color:${col};"`:''} >${val}</span></div>`;
+
+  document.getElementById(id).innerHTML = `
+    <div class="funnel-card-header">
+      <div class="funnel-header-top">
+        <div class="funnel-pill" style="background:${color};box-shadow:0 0 8px ${color}99;"></div>
+        <div><div class="funnel-card-title">${title}</div><div class="funnel-card-tag">${tag}</div></div>
+      </div>
+      <div class="funnel-big3">
+        <div class="funnel-big-stat">
+          <div class="funnel-big-val" style="color:${color};">${$0(m.spend)}</div>
+          <div class="funnel-big-label">Ad Spend</div>
+        </div>
+        <div class="funnel-big-stat">
+          <div class="funnel-big-val">${N(s.leads)}</div>
+          <div class="funnel-big-label">Leads</div>
+        </div>
+        <div class="funnel-big-stat">
+          <div class="funnel-big-val" style="color:${gpColor};">${$0(grossProfit)}</div>
+          <div class="funnel-big-label">Gross Profit</div>
+        </div>
+      </div>
+    </div>
+    <div class="funnel-body">
+      <div class="rings-row">
+        <div class="ring-wrap">
+          ${ring(contactRate,'var(--cyan)')}
+          <div><div class="ring-info-label">Contact Rate</div><div class="ring-info-val" style="color:var(--cyan);">${contactRate.toFixed(1)}%</div></div>
+        </div>
+        <div class="ring-wrap">
+          ${ring(closeRate,'var(--green)')}
+          <div><div class="ring-info-label">Close Rate (CR)</div><div class="ring-info-val" style="color:var(--green);">${closeRate.toFixed(1)}%</div></div>
+        </div>
+      </div>
+      <div class="msect"><div class="msect-dot" style="background:${color};"></div><div class="msect-label">Ad Performance</div></div>
+      ${row('Ad Spend',    $m(m.spend),                      color)}
+      ${row('Impressions', N(m.impressions))}
+      ${row('CPC',         m.clicks>0?$m(cpc_meta):'—')}
+      ${row('CTR',         ctr.toFixed(2)+'%')}
+      ${row('ULC',         N(m.ulc))}
+      <div class="msect"><div class="msect-dot" style="background:var(--cyan);"></div><div class="msect-label">Lead Funnel</div></div>
+      ${row('Leads',            N(s.leads),                                         color)}
+      ${row('Cost per Lead',    s.leads>0  ? $m(cpl)    : '—')}
+      ${row('Contacts',         N(s.contacted),                                     'var(--cyan)')}
+      ${row('% Contacted',      contactRate.toFixed(1)+'%',                        'var(--cyan)')}
+      ${row('CR (Close Rate)',  closeRate.toFixed(1)+'%',                          'var(--green)')}
+      ${row('$PC (Cost/Close)', s.closes>0 ? $m(dollarPC) : '—')}
+      <div class="msect"><div class="msect-dot" style="background:var(--green);"></div><div class="msect-label">Sales</div></div>
+      ${row('Closes',       N(s.closes),                                                  'var(--green)')}
+      ${row('GI',           $0(s.income),                                                 'var(--gold)')}
+      ${row('Gross Profit', (grossProfit>=0?'':'−')+$0(Math.abs(grossProfit)),            gpColor)}
+      ${row('ROAS',         roas>0?roas.toFixed(2)+'x':'—',                              roasColor)}
+    </div>`;
+}
+
+// ── Conversion stages ────────────────────────────────────────
+function renderStages(oS, nS, oM, nM) {
+  const showO = activeMode !== 'nooptin';
+  const showN = activeMode !== 'optin';
+
+  const stages = [
+    { label:'Impressions', o:oM.impressions, n:nM.impressions },
+    { label:'ULC',         o:oM.ulc,         n:nM.ulc },
+    { label:'Leads',       o:oS.leads,       n:nS.leads },
+    { label:'Contacts',    o:oS.contacted,   n:nS.contacted },
+    { label:'Closes',      o:oS.closes,      n:nS.closes },
+  ];
+  const maxVal = Math.max(...stages.map(s=>Math.max(showO?s.o:0, showN?s.n:0)), 1);
+
+  // Update legend
+  const leg = document.getElementById('stageLegend');
+  leg.innerHTML = [
+    showO ? `<div class="leg-item"><div class="leg-dot" style="background:var(--optin);"></div>Opt-In</div>` : '',
+    showN ? `<div class="leg-item"><div class="leg-dot" style="background:var(--nooptin);"></div>No Opt-In</div>` : '',
+  ].join('');
+
+  document.getElementById('stagesGrid').innerHTML = stages.map((s,i) => {
+    const oH = showO ? Math.max(6,(s.o/maxVal)*90) : 0;
+    const nH = showN ? Math.max(6,(s.n/maxVal)*90) : 0;
+    const prev = i>0 ? stages[i-1] : null;
+    const oConv = showO && prev&&prev.o>0 ? (100*s.o/prev.o).toFixed(0)+'%' : '';
+    const nConv = showN && prev&&prev.n>0 ? (100*s.n/prev.n).toFixed(0)+'%' : '';
+    return `
+      <div class="funnel-stage">
+        <div class="funnel-stage-label">${s.label}</div>
+        <div class="funnel-bars">
+          ${showO ? `<div class="funnel-bar" style="height:${oH}px;background:linear-gradient(180deg,var(--optin),rgba(107,158,255,0.3));"></div>` : ''}
+          ${showN ? `<div class="funnel-bar" style="height:${nH}px;background:linear-gradient(180deg,var(--nooptin),rgba(244,114,182,0.3));"></div>` : ''}
+        </div>
+        <div class="funnel-stage-data">
+          <div class="funnel-stage-vals">
+            ${showO ? `<span class="funnel-stage-val" style="color:var(--optin);">${fmtK(s.o)}</span>` : ''}
+            ${showO&&showN ? `<span style="color:var(--text-dim);font-size:0.6rem;">/</span>` : ''}
+            ${showN ? `<span class="funnel-stage-val" style="color:var(--nooptin);">${fmtK(s.n)}</span>` : ''}
+          </div>
+          ${oConv||nConv?`<div class="funnel-conv">
+            ${oConv?`<span class="funnel-conv-pct" style="color:var(--optin);">↳${oConv}</span>`:''}
+            ${nConv?`<span class="funnel-conv-pct" style="color:var(--nooptin);">↳${nConv}</span>`:''}
+          </div>`:''}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ── Charts ────────────────────────────────────────────────────
+function baseOpts(yFmt, y2Fmt) {
+  const isLight = document.body.classList.contains('light');
+  const grid = isLight?'rgba(0,0,0,0.06)':'rgba(255,255,255,0.05)';
+  const tick = isLight?'#777':'#3e4668';
+  const opts = {
+    responsive:true, maintainAspectRatio:false,
+    interaction:{ mode:'index', intersect:false },
+    animation:{ duration:500, easing:'easeOutQuart' },
+    plugins:{
+      legend:{ display:false },
+      tooltip:{ backgroundColor:isLight?'#fff':'#141728', borderColor:isLight?'#dde2f0':'#1f2438', borderWidth:1, titleColor:isLight?'#0f1220':'#eaecf8', bodyColor:isLight?'#525b82':'#7880a8', padding:12, cornerRadius:10 },
+    },
+    scales:{
+      x:{ grid:{ color:grid }, ticks:{ color:tick, font:{size:10,family:'Inter'} } },
+      y:{ grid:{ color:grid }, ticks:{ color:tick, font:{size:10,family:'Inter'}, callback:yFmt||undefined } },
+    },
+  };
+  if (y2Fmt) {
+    opts.scales.y2 = { position:'right', grid:{ drawOnChartArea:false }, ticks:{ color:'rgba(52,211,153,0.7)', font:{size:10,family:'Inter'}, callback:y2Fmt } };
+  }
+  return opts;
+}
+
+function mkGrad(ctx, r, g, b) {
+  const grad = ctx.createLinearGradient(0,0,0,ctx.canvas.clientHeight||230);
+  grad.addColorStop(0,  `rgba(${r},${g},${b},0.35)`);
+  grad.addColorStop(0.7,`rgba(${r},${g},${b},0.08)`);
+  grad.addColorStop(1,  `rgba(${r},${g},${b},0)`);
+  return grad;
+}
+
+function mkChart(id, config) {
+  if (charts[id]) charts[id].destroy();
+  charts[id] = new Chart(document.getElementById(id).getContext('2d'), config);
+}
+
+function legHtml(items) {
+  return items.map(([color, label, isLine]) =>
+    `<div class="leg-item"><div class="${isLine?'leg-line':'leg-dot'}" style="background:${color};"></div>${label}</div>`
+  ).join('');
+}
+
+function renderCharts(oSales, nSales, oM, nM) {
+  const oByDate = sumSales(oSales).byDate;
+  const nByDate = sumSales(nSales).byDate;
+  const allDates   = [...new Set([...Object.keys(oM.byDate),...Object.keys(nM.byDate)])].sort();
+  const salesDates = [...new Set([...Object.keys(oByDate),...Object.keys(nByDate)])].sort();
+  const lbl = d => { const [,mo,day]=d.split('-'); return `${mo}/${day}`; };
+
+  const showO = activeMode !== 'nooptin';
+  const showN = activeMode !== 'optin';
+
+  // ── Overview chart (spend bars + lead lines)
+  const overviewDatasets = [
+    showO && { label:'Opt-In Spend',    data:allDates.map(d=>oM.byDate[d]?.spend||0),  backgroundColor:'rgba(107,158,255,0.55)', borderRadius:3, borderSkipped:false, yAxisID:'y' },
+    showN && { label:'No Opt-In Spend', data:allDates.map(d=>nM.byDate[d]?.spend||0),  backgroundColor:'rgba(244,114,182,0.55)', borderRadius:3, borderSkipped:false, yAxisID:'y' },
+    showO && { label:'Opt-In Leads',    data:allDates.map(d=>oByDate[d]?.leads||0),    type:'line', borderColor:'var(--green)', backgroundColor:'transparent', borderWidth:2.5, pointRadius:2, pointHoverRadius:5, tension:0.4, yAxisID:'y2' },
+    showN && { label:'No Opt-In Leads', data:allDates.map(d=>nByDate[d]?.leads||0),    type:'line', borderColor:'var(--gold)',  backgroundColor:'transparent', borderWidth:2.5, pointRadius:2, pointHoverRadius:5, tension:0.4, borderDash:[4,3], yAxisID:'y2' },
+  ].filter(Boolean);
+
+  mkChart('overviewChart',{ type:'bar', data:{ labels:allDates.map(lbl), datasets:overviewDatasets }, options:baseOpts(v=>'$'+v.toLocaleString(), v=>v) });
+  document.getElementById('overviewLegend').innerHTML = legHtml([
+    showO && ['rgba(107,158,255,0.7)', 'Opt-In Spend', false],
+    showN && ['rgba(244,114,182,0.7)', 'No Opt-In Spend', false],
+    showO && ['var(--green)', 'Opt-In Leads', true],
+    showN && ['var(--gold)', 'No Opt-In Leads', true],
+  ].filter(Boolean));
+
+  // ── Leads line chart
+  const lCtx = document.getElementById('leadsChart').getContext('2d');
+  const leadsDatasets = [
+    showO && { label:'Opt-In',    data:salesDates.map(d=>oByDate[d]?.leads||0), borderColor:'var(--optin)',   backgroundColor:()=>mkGrad(lCtx,107,158,255), fill:true, borderWidth:2.5, pointRadius:2, pointHoverRadius:5, tension:0.4 },
+    showN && { label:'No Opt-In', data:salesDates.map(d=>nByDate[d]?.leads||0), borderColor:'var(--nooptin)', backgroundColor:()=>mkGrad(lCtx,244,114,182), fill:true, borderWidth:2.5, pointRadius:2, pointHoverRadius:5, tension:0.4 },
+  ].filter(Boolean);
+  mkChart('leadsChart',{ type:'line', data:{ labels:salesDates.map(lbl), datasets:leadsDatasets }, options:baseOpts() });
+  document.getElementById('leadsLegend').innerHTML = legHtml([
+    showO && ['var(--optin)',   'Opt-In',    true],
+    showN && ['var(--nooptin)', 'No Opt-In', true],
+  ].filter(Boolean));
+
+  // ── Closes line chart
+  const cCtx = document.getElementById('closesChart').getContext('2d');
+  const closesDatasets = [
+    showO && { label:'Opt-In',    data:salesDates.map(d=>oByDate[d]?.closes||0), borderColor:'var(--green)', backgroundColor:()=>mkGrad(cCtx,52,211,153),  fill:true, borderWidth:2.5, pointRadius:2, pointHoverRadius:5, tension:0.4 },
+    showN && { label:'No Opt-In', data:salesDates.map(d=>nByDate[d]?.closes||0), borderColor:'var(--gold)',  backgroundColor:()=>mkGrad(cCtx,251,191,36),  fill:true, borderWidth:2.5, pointRadius:2, pointHoverRadius:5, tension:0.4 },
+  ].filter(Boolean);
+  mkChart('closesChart',{ type:'line', data:{ labels:salesDates.map(lbl), datasets:closesDatasets }, options:baseOpts() });
+  document.getElementById('closesLegend').innerHTML = legHtml([
+    showO && ['var(--green)', 'Opt-In',    true],
+    showN && ['var(--gold)',  'No Opt-In', true],
+  ].filter(Boolean));
+
+  // ── Cost chart (CPL vs $PC)
+  const oS = sumSales(oSales), nS = sumSales(nSales);
+  const oCPL = oS.leads>0  ? oM.spend/oS.leads  : 0;
+  const nCPL = nS.leads>0  ? nM.spend/nS.leads  : 0;
+  const oPC  = oS.closes>0 ? oM.spend/oS.closes : 0;
+  const nPC  = nS.closes>0 ? nM.spend/nS.closes : 0;
+  const costDatasets = [
+    showO && { label:'Opt-In',    data:[oCPL,oPC], backgroundColor:'rgba(107,158,255,0.8)', borderRadius:7, borderSkipped:false },
+    showN && { label:'No Opt-In', data:[nCPL,nPC], backgroundColor:'rgba(244,114,182,0.8)', borderRadius:7, borderSkipped:false },
+  ].filter(Boolean);
+  mkChart('costChart',{ type:'bar', data:{ labels:['Cost / Lead','Cost / Close ($PC)'], datasets:costDatasets }, options:baseOpts(v=>'$'+v.toFixed(0)) });
+  document.getElementById('costLegend').innerHTML = legHtml([
+    showO && ['rgba(107,158,255,0.8)', 'Opt-In',    false],
+    showN && ['rgba(244,114,182,0.8)', 'No Opt-In', false],
+  ].filter(Boolean));
+
+  // ── Revenue vs Spend (always compare income vs spend for each shown funnel)
+  const roasLabels = [showO&&'Opt-In', showN&&'No Opt-In'].filter(Boolean);
+  const roasIncome = [showO&&oS.income, showN&&nS.income].filter(v=>v!==false);
+  const roasSpend  = [showO&&oM.spend,  showN&&nM.spend].filter(v=>v!==false);
+  mkChart('roasChart',{
+    type:'bar',
+    data:{ labels:roasLabels, datasets:[
+      { label:'Gross Income', data:roasIncome, backgroundColor:'rgba(52,211,153,0.8)',  borderRadius:7, borderSkipped:false },
+      { label:'Ad Spend',     data:roasSpend,  backgroundColor:'rgba(251,191,36,0.75)', borderRadius:7, borderSkipped:false },
+    ]},
+    options:baseOpts(v=>'$'+Math.round(v).toLocaleString()),
+  });
+}
+
+// ── Compare table ─────────────────────────────────────────────
+function renderCompare(oS, nS, oM, nM) {
+  const oCPC  = oM.clicks>0       ? oM.spend/oM.clicks           : 0;
+  const nCPC  = nM.clicks>0       ? nM.spend/nM.clicks           : 0;
+  const oCTR  = oM.impressions>0  ? oM.clicks/oM.impressions*100 : 0;
+  const nCTR  = nM.impressions>0  ? nM.clicks/nM.impressions*100 : 0;
+  const oCPL  = oS.leads>0        ? oM.spend/oS.leads            : Infinity;
+  const nCPL  = nS.leads>0        ? nM.spend/nS.leads            : Infinity;
+  const oConR = oS.leads>0        ? oS.contacted/oS.leads        : 0;
+  const nConR = nS.leads>0        ? nS.contacted/nS.leads        : 0;
+  const oCR   = oS.leads>0        ? oS.closes/oS.leads           : 0;
+  const nCR   = nS.leads>0        ? nS.closes/nS.leads           : 0;
+  const oPC   = oS.closes>0       ? oM.spend/oS.closes           : Infinity;
+  const nPC   = nS.closes>0       ? nM.spend/nS.closes           : Infinity;
+  const oROAS = oM.spend>0        ? oS.income/oM.spend           : 0;
+  const nROAS = nM.spend>0        ? nS.income/nM.spend           : 0;
+  const oGP   = oS.income - oM.spend;
+  const nGP   = nS.income - nM.spend;
+
+  const sect = t => `<tr class="tbl-sect"><td colspan="4">${t}</td></tr>`;
+  const row  = (label,ov,nv,oWin) => `
+    <tr>
+      <td class="td-label">${label}</td>
+      <td class="${oWin?'win':'lose'}">${ov}</td>
+      <td class="${!oWin?'win':'lose'}">${nv}</td>
+      <td><span class="win-badge" style="background:${oWin?'rgba(107,158,255,0.1)':'rgba(244,114,182,0.1)'};color:${oWin?'var(--optin)':'var(--nooptin)'};">${oWin?'🔵 Opt-In':'🩷 No Opt-In'}</span></td>
+    </tr>`;
+
+  document.getElementById('compareTbody').innerHTML = [
+    sect('📡 Ad Performance'),
+    row('Ad Spend',    $m(oM.spend),          $m(nM.spend),           oM.spend<=nM.spend),
+    row('Impressions', N(oM.impressions),      N(nM.impressions),      oM.impressions>=nM.impressions),
+    row('CPC',         oM.clicks>0?$m(oCPC):'—', nM.clicks>0?$m(nCPC):'—', oCPC<=nCPC),
+    row('CTR',         oCTR.toFixed(2)+'%',   nCTR.toFixed(2)+'%',   oCTR>=nCTR),
+    row('ULC',         N(oM.ulc),             N(nM.ulc),             oM.ulc>=nM.ulc),
+    sect('📋 Lead Funnel'),
+    row('Leads',           N(oS.leads),                N(nS.leads),                oS.leads>=nS.leads),
+    row('Cost / Lead',     oCPL<Infinity?$m(oCPL):'—',nCPL<Infinity?$m(nCPL):'—',oCPL<=nCPL),
+    row('Contacts',        N(oS.contacted),            N(nS.contacted),            oS.contacted>=nS.contacted),
+    row('% Contacted',     P(oS.contacted,oS.leads),  P(nS.contacted,nS.leads),  oConR>=nConR),
+    row('CR (Close Rate)', P(oS.closes,oS.leads),     P(nS.closes,nS.leads),     oCR>=nCR),
+    row('$PC (Cost/Close)',oPC<Infinity?$m(oPC):'—',  nPC<Infinity?$m(nPC):'—',  oPC<=nPC),
+    sect('💰 Sales'),
+    row('Closes',       N(oS.closes),         N(nS.closes),          oS.closes>=nS.closes),
+    row('GI',           $0(oS.income),        $0(nS.income),         oS.income>=nS.income),
+    row('Gross Profit', $0(oGP),              $0(nGP),               oGP>=nGP),
+    row('ROAS',         oROAS.toFixed(2)+'x', nROAS.toFixed(2)+'x', oROAS>=nROAS),
+  ].join('');
+}
+
+// ── Events ────────────────────────────────────────────────────
+document.getElementById('loginForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const email    = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  const errEl    = document.getElementById('loginError');
+  const btn      = document.getElementById('sendBtn');
+  errEl.textContent = ''; btn.disabled=true; btn.textContent='Signing in…';
+  try {
+    const { data, error } = await supa.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+    onAuthed(data.session);
+  } catch(err) {
+    errEl.textContent = err.message || 'Invalid credentials';
+  } finally { btn.disabled=false; btn.textContent='Sign In'; }
+});
+
+document.getElementById('signOutBtn').addEventListener('click', async () => {
+  await supa.auth.signOut(); setState('login');
+});
+document.getElementById('refetchBtn').addEventListener('click', loadAll);
+// ── Date Range Picker ─────────────────────────────────────────
+function getPresetRange(preset) {
+  const today = new Date();
+  const iso = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  if (preset === 'last-30') {
+    const f = new Date(today); f.setDate(f.getDate() - 30);
+    return { from: iso(f), to: iso(today) };
+  }
+  if (preset === 'mtd') {
+    return { from: iso(new Date(today.getFullYear(), today.getMonth(), 1)), to: iso(today) };
+  }
+  const sinceThu = (today.getDay() + 3) % 7;
+  const thisThu  = new Date(today); thisThu.setDate(today.getDate() - sinceThu);
+  if (preset === 'this-week') return { from: iso(thisThu), to: iso(today) };
+  if (preset === 'last-week') {
+    const lThu = new Date(thisThu); lThu.setDate(thisThu.getDate() - 7);
+    const lWed = new Date(lThu);   lWed.setDate(lThu.getDate() + 6);
+    return { from: iso(lThu), to: iso(lWed) };
+  }
+  return { from: iso(today), to: iso(today) };
+}
+const DR_LABELS = { 'last-30': 'Last 30 Days', 'this-week': 'This Week', 'last-week': 'Last Week', 'mtd': 'Month to Date' };
+let drActivePreset = 'this-week';
+function drFmt(iso) {
+  return new Date(iso + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+function drTriggerLoad() { if (currentSession) loadAll(); }
+function drApplyPreset(preset, reload) {
+  const { from, to } = getPresetRange(preset);
+  drActivePreset = preset;
+  document.getElementById('dateFrom').value = from;
+  document.getElementById('dateTo').value   = to;
+  document.querySelectorAll('.dr-preset').forEach(b => b.classList.toggle('active', b.dataset.preset === preset));
+  document.getElementById('drLabel').textContent = DR_LABELS[preset] || preset;
+  document.getElementById('daterangePopup').classList.remove('open');
+  if (reload) drTriggerLoad();
+}
+(function(){var __p='this-week';try{var __s=JSON.parse(localStorage.getItem('ridley:dateRange:v2')||'null');if(__s&&__s.preset&&['this-week','last-week','mtd','last-30'].indexOf(__s.preset)>=0)__p=__s.preset;}catch(_){};drApplyPreset(__p,false);})();
+document.getElementById('daterangeBtn').addEventListener('click', e => {
+  e.stopPropagation();
+  document.getElementById('daterangePopup').classList.toggle('open');
+});
+document.getElementById('daterangePopup').addEventListener('click', e => e.stopPropagation());
+document.addEventListener('click', () => document.getElementById('daterangePopup').classList.remove('open'));
+document.querySelectorAll('.dr-preset').forEach(btn => {
+  btn.addEventListener('click', () => drApplyPreset(btn.dataset.preset, true));
+});
+document.getElementById('drApply').addEventListener('click', () => {
+  const from = document.getElementById('dateFrom').value;
+  const to   = document.getElementById('dateTo').value;
+  if (!from || !to) return;
+  drActivePreset = null;
+  document.querySelectorAll('.dr-preset').forEach(b => b.classList.remove('active'));
+  document.getElementById('drLabel').textContent = `${drFmt(from)} – ${drFmt(to)}`;
+  document.getElementById('daterangePopup').classList.remove('open');
+  drTriggerLoad();
+});
+
+setState('loading');
+initAuth();
+</script>
+<script src="forgot-password.js"></script>
+  <script src="access-guard.js"></script>
+<script src="loading-states.js"></script>
+<script src="theme.js"></script>
+<script src="changelog.js"></script>
+<script src="notifications.js"></script>
+<script src="pwa.js"></script>
+  <script src="ux.js"></script>
+<script src="filters.js"></script>
+<script src="nav-menu.js"></script>
+</body>
+</html>

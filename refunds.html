@@ -1,0 +1,1372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg?v=303">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=303">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=303">
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Refunds</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="permissions.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #080a14; --surface: #0f1120; --surface2: #141728; --surface3: #191e30;
+    --border: #1f2438; --border-light: #272d45;
+    --text: #eaecf8; --text-muted: #7880a8; --text-dim: #3e4668;
+    --blue: #6b9eff; --blue-glow: rgba(107,158,255,0.3); --blue-bg: rgba(107,158,255,0.1);
+    --green: #34d399; --green-bg: rgba(52,211,153,0.1);
+    --purple: #a78bfa; --purple-bg: rgba(167,139,250,0.1);
+    --red: #f87171; --red-bg: rgba(248,113,113,0.1);
+    --gold: #fbbf24; --gold-bg: rgba(251,191,36,0.1);
+  }
+  body.light {
+    --bg: #f0f2fa; --surface: #ffffff; --surface2: #f5f6fc; --surface3: #eceef8;
+    --border: #dde1f2; --border-light: #ccd1e8;
+    --text: #0f1220; --text-muted: #525b82; --text-dim: #9099be;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+    background: var(--bg); color: var(--text); min-height: 100vh;
+    -webkit-font-smoothing: antialiased; }
+  body::before { content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
+    background: radial-gradient(ellipse at 15% 15%, rgba(107,158,255,0.07) 0%, transparent 55%),
+                radial-gradient(ellipse at 85% 85%, rgba(167,139,250,0.05) 0%, transparent 55%); }
+
+  /* ── State machine ─────────────────────────────── */
+  .full-center { min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; position:relative; z-index:1; }
+  body[data-state="loading"] #app, body[data-state="loading"] #login, body[data-state="loading"] #denied, body[data-state="loading"] #forgot, body[data-state="loading"] #setPw { display:none; }
+  body[data-state="login"]   #app, body[data-state="login"]   #boot,  body[data-state="login"]   #denied, body[data-state="login"]   #forgot, body[data-state="login"]   #setPw { display:none; }
+  body[data-state="denied"]  #app, body[data-state="denied"]  #boot,  body[data-state="denied"]  #login,  body[data-state="denied"]  #forgot, body[data-state="denied"]  #setPw { display:none; }
+  body[data-state="app"]     #boot,body[data-state="app"]     #login, body[data-state="app"]     #denied, body[data-state="app"]     #forgot, body[data-state="app"]     #setPw { display:none; }
+  body[data-state="forgot"]  #app, body[data-state="forgot"]  #boot,  body[data-state="forgot"]  #login,  body[data-state="forgot"]  #denied, body[data-state="forgot"]  #setPw { display:none; }
+  body[data-state="setPw"]   #app, body[data-state="setPw"]   #boot,  body[data-state="setPw"]   #login,  body[data-state="setPw"]   #denied, body[data-state="setPw"]   #forgot { display:none; }
+
+  /* ── Spinner ────────────────────────────────────── */
+  .spinner { width:40px; height:40px; border:3px solid var(--border); border-top-color:var(--blue); border-radius:50%; animation:spin .7s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  /* ── Login card ─────────────────────────────────── */
+  .login-wrap { width:100%; max-width:420px; }
+  .login-logo { width:56px; height:56px; border-radius:16px; margin:0 auto 24px;
+    background:linear-gradient(135deg,#34d399,#6b9eff); display:flex; align-items:center; justify-content:center;
+    box-shadow:0 8px 32px rgba(52,211,153,0.4); }
+  .login-card { background:var(--surface); border:1px solid var(--border); border-radius:24px; padding:40px 36px;
+    box-shadow:0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.03) inset; }
+  .login-card h1 { font-size:1.5rem; font-weight:800; letter-spacing:-0.03em; text-align:center; margin-bottom:4px; }
+  .login-card .sub { color:var(--text-muted); font-size:0.84rem; text-align:center; margin-bottom:28px; }
+  .input-group { margin-bottom:12px; }
+  .input-label { font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-muted); margin-bottom:6px; display:block; }
+  .auth-input { width:100%; background:var(--surface2); border:1px solid var(--border); border-radius:12px; padding:13px 16px; color:var(--text); font-size:0.92rem; outline:none; transition:border-color 0.15s,box-shadow 0.15s; }
+  .auth-input:focus { border-color:var(--blue); box-shadow:0 0 0 3px var(--blue-bg); }
+  .auth-btn { width:100%; margin-top:8px; background:linear-gradient(135deg,#6b9eff,#4a7de0); border:none; border-radius:12px; padding:14px; color:#fff; font-size:0.92rem; font-weight:700; cursor:pointer; transition:transform 0.12s,box-shadow 0.12s; box-shadow:0 4px 16px rgba(107,158,255,0.35); }
+  .auth-btn:hover { transform:translateY(-1px); }
+  .auth-btn:disabled { opacity:0.6; cursor:not-allowed; transform:none; }
+  .auth-error { color:var(--red); font-size:0.78rem; margin-top:10px; min-height:1em; text-align:center; }
+
+  /* ── Topbar ─────────────────────────────────────── */
+  .topbar { position:sticky; top:0; z-index:100; background:rgba(8,10,20,0.85); backdrop-filter:blur(16px);
+    border-bottom:1px solid var(--border); padding:0 24px; height:56px;
+    display:flex; align-items:center; gap:10px; }
+  .topbar-brand { font-size:0.82rem; font-weight:800; letter-spacing:-0.01em; color:var(--text); margin-right:4px; }
+  .tbtn { border:none; border-radius:8px; padding:6px 12px; font-size:0.74rem; font-weight:600; cursor:pointer; transition:all 0.15s; display:inline-flex; align-items:center; gap:5px; }
+  .tbtn-ghost { background:var(--surface2); color:var(--text-muted); border:1px solid var(--border); }
+  .tbtn-ghost:hover { color:var(--text); border-color:var(--border-light); }
+  .tbtn-primary { background:linear-gradient(135deg,#34d399,#22b07d); color:#fff; box-shadow:0 2px 10px rgba(52,211,153,0.3); }
+  .tbtn-primary:hover { transform:translateY(-1px); box-shadow:0 4px 14px rgba(52,211,153,0.4); }
+  .user-pill { display:flex; align-items:center; gap:7px; background:var(--surface2); border:1px solid var(--border); border-radius:20px; padding:4px 12px 4px 4px; margin-left:auto; }
+  .user-pill-av { width:26px; height:26px; border-radius:50%; background:linear-gradient(135deg,#34d399,#6b9eff); display:flex; align-items:center; justify-content:center; font-size:0.72rem; font-weight:800; color:#fff; }
+  .user-pill-email { font-size:0.72rem; color:var(--text-muted); max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .nav-dropdown { position:relative; }
+  .nav-dropdown-menu { display:none; position:absolute; top:calc(100% + 8px); left:0; background:var(--surface); border:1px solid var(--border-light); border-radius:12px; padding:6px; min-width:180px; z-index:200; box-shadow:0 8px 32px rgba(0,0,0,0.5); }
+  .nav-dropdown-menu.open { display:block; }
+  .nav-dropdown-item { display:block; padding:8px 12px; border-radius:8px; font-size:0.78rem; color:var(--text-muted); text-decoration:none; transition:background 0.12s,color 0.12s; white-space:nowrap; }
+  .nav-dropdown-item:hover { background:var(--surface2); color:var(--text); }
+  .nav-dropdown-item.active { color:var(--green); }
+
+  /* Date range picker (matches other dashboards) */
+  .daterange-wrap { position: relative; }
+  .daterange-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 6px 11px; font-size: 0.74rem; color: var(--text-muted); cursor: pointer;
+    transition: all 0.15s; white-space: nowrap; font-weight: 600; font-family: inherit;
+  }
+  .daterange-btn:hover { border-color: var(--border-light); color: var(--text); }
+  .daterange-popup {
+    display: none; position: absolute; top: calc(100% + 8px); right: 0;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+    padding: 14px; min-width: 270px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    z-index: 500;
+  }
+  .daterange-popup.open { display: block; }
+  .dr-presets-vert { display: flex; flex-direction: column; gap: 2px; }
+  .dr-preset-item {
+    display: block; width: 100%; text-align: left; background: none; border: none;
+    padding: 9px 12px; border-radius: 9px; font-size: 0.8rem; font-weight: 600;
+    color: var(--text-muted); cursor: pointer; transition: all 0.12s; font-family: inherit;
+  }
+  .dr-preset-item:hover { background: var(--surface2); color: var(--text); }
+  .dr-preset-item.active { background: rgba(52,211,153,0.1); color: var(--green); }
+  .dr-divider { height: 1px; background: var(--border); margin: 10px 0; }
+  .dr-custom-label {
+    font-size: 0.64rem; font-weight: 800; text-transform: uppercase;
+    letter-spacing: 0.1em; color: var(--text-dim); margin-bottom: 8px;
+  }
+  .dr-custom-row { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
+  .dr-date-input {
+    flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 7px 8px; color: var(--text); font-size: 0.73rem; outline: none;
+    font-family: inherit; color-scheme: dark; min-width: 0;
+  }
+  body.light .dr-date-input { color-scheme: light; }
+  .dr-sep { color: var(--text-dim); font-size: 0.7rem; flex-shrink: 0; }
+  .dr-apply {
+    width: 100%; background: linear-gradient(135deg, var(--green), #22b07d); border: none;
+    border-radius: 8px; padding: 8px; color: #fff; font-size: 0.78rem; font-weight: 700;
+    cursor: pointer; font-family: inherit;
+  }
+
+  /* ── Main layout ────────────────────────────────── */
+  #app { position:relative; z-index:1; }
+  .main { max-width:1400px; margin:0 auto; padding:28px 24px 60px; }
+
+  /* ── Filter bar ─────────────────────────────────── */
+  .filter-bar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:12px 16px; margin-bottom:20px; }
+  .filter-label { font-size:0.65rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-dim); white-space:nowrap; }
+  .filter-input { background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:6px 10px; color:var(--text); font-size:0.78rem; outline:none; cursor:pointer; transition:border-color 0.15s; }
+  .filter-input:focus { border-color:var(--blue); }
+  .filter-sep { color:var(--text-dim); font-size:0.8rem; }
+
+  /* ── Record-type segmented toggle ───────────────── */
+  .rt-seg { display:inline-flex; border:1px solid var(--border); border-radius:9px; overflow:hidden; }
+  .rt-seg button { background:transparent; border:none; color:var(--text-muted); font-size:0.74rem; font-weight:700; padding:6px 14px; cursor:pointer; transition:all 0.12s; font-family:inherit; }
+  .rt-seg button:not(:last-child) { border-right:1px solid var(--border); }
+  .rt-seg button.active { background:var(--green-bg); color:var(--green); }
+
+  /* ── KPI cards ──────────────────────────────────── */
+  .kpi-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(155px,1fr)); gap:12px; margin-bottom:20px; }
+  .kpi-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:16px 18px; position:relative; overflow:hidden; }
+  .kpi-card::before { content:''; position:absolute; inset:0; border-radius:inherit; opacity:0; transition:opacity 0.2s; }
+  .kpi-card:hover::before { opacity:1; }
+  .kpi-label { font-size:0.63rem; font-weight:700; text-transform:uppercase; letter-spacing:0.09em; color:var(--text-muted); margin-bottom:8px; }
+  .kpi-value  { font-size:1.55rem; font-weight:800; letter-spacing:-0.03em; line-height:1; }
+  .kpi-income { font-size:0.9rem; font-weight:700; margin-top:5px; letter-spacing:-0.01em; }
+  .kpi-sub    { font-size:0.65rem; color:var(--text-muted); margin-top:3px; }
+  .kpi-green  .kpi-value, .kpi-green  .kpi-income { color:var(--green); }
+  .kpi-blue   .kpi-value, .kpi-blue   .kpi-income { color:var(--blue); }
+  .kpi-purple .kpi-value, .kpi-purple .kpi-income { color:var(--purple); }
+  .kpi-gold   .kpi-value, .kpi-gold   .kpi-income { color:var(--gold); }
+  .kpi-red    .kpi-value, .kpi-red    .kpi-income { color:var(--red); }
+
+  /* ── Chart + product row ────────────────────────── */
+  .dash-row { display:grid; grid-template-columns:1fr 320px; gap:16px; margin-bottom:24px; }
+  @media(max-width:900px) { .dash-row { grid-template-columns:1fr; } }
+  .chart-card { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:18px 20px; }
+  .chart-card-title { font-size:0.72rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.07em; margin-bottom:14px; }
+  .chart-wrap { position:relative; height:180px; }
+  .product-card { background:var(--surface); border:1px solid var(--border); border-radius:16px; overflow:hidden; }
+  .product-card-title { font-size:0.72rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.07em; padding:16px 18px 10px; }
+  .product-tbl { width:100%; border-collapse:collapse; font-size:0.75rem; }
+  .product-tbl th { padding:6px 14px; text-align:left; font-size:0.62rem; font-weight:700; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-dim); border-bottom:1px solid var(--border); }
+  .product-tbl td { padding:8px 14px; border-bottom:1px solid var(--border); }
+  .product-tbl tr:last-child td { border-bottom:none; }
+  .product-tbl tr:hover td { background:var(--surface2); }
+
+  /* ── Section label ──────────────────────────────── */
+  .sec-label { display:flex; align-items:center; gap:12px; margin-bottom:16px; }
+  .sec-label-text { font-size:0.66rem; font-weight:800; text-transform:uppercase; letter-spacing:0.1em; color:var(--text-muted); white-space:nowrap; }
+  .sec-label-line { flex:1; height:1px; background:var(--border); }
+
+  /* ── Table card ─────────────────────────────────── */
+  .table-card { background:var(--surface); border:1px solid var(--border); border-radius:16px; overflow:hidden; }
+  .table-toolbar { display:flex; align-items:center; gap:10px; padding:14px 18px; border-bottom:1px solid var(--border); flex-wrap:wrap; }
+  .table-title { font-size:0.82rem; font-weight:700; color:var(--text); }
+  .search-box { background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:6px 12px; color:var(--text); font-size:0.78rem; outline:none; transition:border-color 0.15s; }
+  .search-box:focus { border-color:var(--blue); }
+  .row-count-badge { background:var(--surface2); border:1px solid var(--border); border-radius:20px; padding:3px 10px; font-size:0.7rem; color:var(--text-muted); white-space:nowrap; }
+
+  /* ── Data table ─────────────────────────────────── */
+  .data-table { width:100%; border-collapse:collapse; font-size:0.74rem; table-layout:fixed; }
+  .data-table th { padding:10px 10px; text-align:left; font-size:0.65rem; font-weight:700; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-muted); border-bottom:1px solid var(--border); white-space:nowrap; cursor:pointer; user-select:none; }
+  .data-table th:hover { color:var(--text); }
+  .data-table th.sort-asc::after  { content:' ↑'; color:var(--blue); }
+  .data-table th.sort-desc::after { content:' ↓'; color:var(--blue); }
+  .data-table td { padding:10px 10px; border-bottom:1px solid var(--border); vertical-align:middle; }
+  .data-table tr:last-child td { border-bottom:none; }
+  .data-table tr:hover td { background:var(--surface2); }
+  .td-num   { text-align:right; font-variant-numeric:tabular-nums; }
+  .td-money { color:var(--text); font-weight:700; text-align:right; font-variant-numeric:tabular-nums; }
+  .td-main  { color:var(--text); font-weight:600; }
+  .clip     { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .muted    { color:var(--text-muted); }
+  .empty-state { text-align:center; color:var(--text-dim); font-size:0.8rem; padding:40px 20px !important; }
+
+  /* Edit-only controls hidden for read-only viewers */
+  .edit-only { display:none; }
+  body.can-edit .edit-only { display:inline-flex; }
+
+  /* ── Badges ─────────────────────────────────────── */
+  .badge { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:20px; font-size:0.68rem; font-weight:700; white-space:nowrap; }
+  .badge-dot { width:5px; height:5px; border-radius:50%; flex-shrink:0; }
+  .badge-green  { background:var(--green-bg);  color:var(--green);  } .badge-green  .badge-dot { background:var(--green); }
+  .badge-blue   { background:var(--blue-bg);   color:var(--blue);   } .badge-blue   .badge-dot { background:var(--blue); }
+  .badge-purple { background:var(--purple-bg); color:var(--purple); } .badge-purple .badge-dot { background:var(--purple); }
+  .badge-red    { background:var(--red-bg);    color:var(--red);    } .badge-red    .badge-dot { background:var(--red); }
+  .badge-dim    { background:var(--surface3);  color:var(--text-dim);} .badge-dim   .badge-dot { background:var(--text-dim); }
+  .badge-gold   { background:var(--gold-bg);   color:var(--gold);   } .badge-gold   .badge-dot { background:var(--gold); }
+
+  /* ── Action buttons ─────────────────────────────── */
+  .action-btn { display:inline-flex; align-items:center; justify-content:center; border:none; border-radius:6px; cursor:pointer; font-size:0.68rem; font-weight:600; padding:3px 8px; transition:background 0.12s; line-height:1.4; }
+  .action-btn-edit { background:var(--blue-bg);  color:var(--blue); } .action-btn-edit:hover { background:rgba(107,158,255,0.2); }
+  .action-btn-del  { background:var(--red-bg);   color:var(--red);  } .action-btn-del:hover  { background:rgba(248,113,113,0.2); }
+  .action-btn:disabled { opacity:0.4; cursor:not-allowed; }
+
+  /* ── Modal ──────────────────────────────────────── */
+  .modal-overlay { display:none; position:fixed; inset:0; z-index:1000; background:rgba(0,0,0,0.65); backdrop-filter:blur(4px); align-items:center; justify-content:center; padding:24px; }
+  .modal-overlay.open { display:flex; }
+  .modal-card { background:var(--surface); border:1px solid var(--border-light); border-radius:20px; padding:28px 26px; width:100%; max-width:520px; box-shadow:0 32px 80px rgba(0,0,0,0.7); max-height:90vh; overflow-y:auto; }
+  .modal-title { font-size:1rem; font-weight:800; letter-spacing:-0.02em; margin-bottom:18px; display:flex; align-items:center; gap:8px; }
+  .modal-grid  { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:18px; }
+  .modal-field { display:flex; flex-direction:column; gap:5px; }
+  .modal-field.full { grid-column:1 / -1; }
+  .modal-label { font-size:0.67rem; font-weight:700; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-muted); }
+  .modal-input { background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:9px 12px; color:var(--text); font-size:0.86rem; outline:none; transition:border-color 0.15s,box-shadow 0.15s; width:100%; }
+  .modal-input:focus { border-color:var(--blue); box-shadow:0 0 0 3px var(--blue-bg); }
+  textarea.modal-input { resize:vertical; min-height:64px; font-family:inherit; }
+  .modal-footer { display:flex; gap:10px; justify-content:flex-end; }
+  .modal-btn { border:none; border-radius:10px; padding:10px 20px; font-size:0.86rem; font-weight:700; cursor:pointer; transition:transform 0.1s,box-shadow 0.1s; }
+  .modal-btn-cancel { background:var(--surface3); color:var(--text-muted); } .modal-btn-cancel:hover { color:var(--text); }
+  .modal-btn-save { background:linear-gradient(135deg,#34d399,#22b07d); color:#fff; box-shadow:0 4px 14px rgba(52,211,153,0.3); }
+  .modal-btn-save:hover { transform:translateY(-1px); }
+  .modal-btn-save:disabled { opacity:0.5; cursor:not-allowed; transform:none; }
+  .modal-err { color:var(--red); font-size:0.76rem; margin-bottom:10px; min-height:1em; }
+
+  /* Record-type radio toggle inside the modal */
+  .rt-pick { display:flex; gap:10px; }
+  .rt-pick label { flex:1; display:flex; align-items:center; justify-content:center; gap:6px; padding:10px; border:1px solid var(--border); border-radius:10px; cursor:pointer; font-size:0.84rem; font-weight:700; color:var(--text-muted); transition:all 0.12s; }
+  .rt-pick input { display:none; }
+  .rt-pick label.sel-salvaged { border-color:var(--green); color:var(--green); background:var(--green-bg); }
+  .rt-pick label.sel-refunded { border-color:var(--red); color:var(--red); background:var(--red-bg); }
+
+  /* Activity timeline in the edit modal */
+  .rf-timeline { max-height:240px; overflow-y:auto; border:1px solid var(--border); border-radius:10px; padding:10px 12px; background:var(--surface2); margin-bottom:10px; }
+  .rf-ev { display:flex; gap:8px; padding:7px 0; border-bottom:1px solid var(--border); }
+  .rf-ev:last-child { border-bottom:none; }
+  .rf-ev-dot { flex:0 0 8px; width:8px; height:8px; border-radius:50%; margin-top:5px; background:var(--text-dim); }
+  .rf-ev.note .rf-ev-dot { background:var(--blue); }
+  .rf-ev.status_change .rf-ev-dot { background:var(--gold); }
+  .rf-ev.created .rf-ev-dot { background:var(--green); }
+  .rf-ev-body { flex:1; min-width:0; }
+  .rf-ev-text { font-size:0.82rem; color:var(--text); line-height:1.4; white-space:pre-wrap; word-break:break-word; }
+  .rf-ev-meta { font-size:0.68rem; color:var(--text-dim); margin-top:2px; }
+  .rf-empty { font-size:0.8rem; color:var(--text-dim); text-align:center; padding:14px 0; }
+</style>
+<link rel="stylesheet" href="skeletons.css">
+<link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#000000">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Ridleyacademy">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=303">
+  <link rel="stylesheet" href="mobile.css">
+</head>
+<body data-state="loading">
+
+<!-- Boot -->
+<div id="boot" class="full-center">
+  <div style="text-align:center;">
+    <div class="spinner" style="margin:0 auto 16px;"></div>
+    <div style="color:var(--text-muted);font-size:0.84rem;">Loading…</div>
+  </div>
+</div>
+
+<!-- Login -->
+<div id="login" class="full-center">
+  <div class="login-wrap">
+    <div class="login-logo">
+      <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+      </svg>
+    </div>
+    <div class="login-card">
+      <h1>Refunds</h1>
+      <p class="sub">Sign in to access the refunds ledger</p>
+      <form id="loginForm">
+        <div class="input-group">
+          <label class="input-label" for="email">Email address</label>
+          <input class="auth-input" type="email" id="loginEmail" placeholder="you@company.com" required autocomplete="email">
+        </div>
+        <div class="input-group">
+          <label class="input-label" for="password">Password</label>
+          <input class="auth-input" type="password" id="loginPassword" placeholder="••••••••" required autocomplete="current-password">
+        </div>
+        <button type="submit" class="auth-btn" id="loginBtn">Sign In</button>
+        <div class="auth-error" id="loginError"></div>
+        <div style="text-align:center;margin-top:14px;">
+          <a href="#" id="forgotLink" style="color:var(--blue);font-size:0.78rem;text-decoration:none;">Forgot password?</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Forgot password -->
+<div id="forgot" class="full-center">
+  <div class="login-wrap">
+    <div class="login-card">
+      <h1>Reset password</h1>
+      <p class="sub">Enter your email — we'll send you a reset link.</p>
+      <form id="forgotForm">
+        <div class="input-group">
+          <label class="input-label" for="forgotEmail">Email address</label>
+          <input class="auth-input" type="email" id="forgotEmail" placeholder="you@company.com" required autocomplete="email">
+        </div>
+        <button type="submit" class="auth-btn" id="forgotBtn">Send reset link</button>
+        <div class="auth-error" id="forgotError"></div>
+        <div class="auth-success" id="forgotSuccess" style="color:var(--green);font-size:0.78rem;margin-top:10px;text-align:center;display:none;"></div>
+        <div style="text-align:center;margin-top:14px;">
+          <a href="#" id="backToLoginLink" style="color:var(--text-muted);font-size:0.78rem;text-decoration:none;">← Back to sign in</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Set new password (recovery flow) -->
+<div id="setPw" class="full-center">
+  <div class="login-wrap">
+    <div class="login-card">
+      <h1>Choose a new password</h1>
+      <p class="sub">Pick a strong password to secure your account.</p>
+      <form id="setPwForm">
+        <div class="input-group">
+          <label class="input-label" for="newPw">New password</label>
+          <input class="auth-input" type="password" id="newPw" placeholder="Min 8 characters" required autocomplete="new-password">
+        </div>
+        <div class="input-group">
+          <label class="input-label" for="newPw2">Confirm password</label>
+          <input class="auth-input" type="password" id="newPw2" placeholder="Confirm password" required autocomplete="new-password">
+        </div>
+        <button type="submit" class="auth-btn" id="setPwBtn">Update password</button>
+        <div class="auth-error" id="setPwError"></div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Access Denied -->
+<div id="denied" class="full-center">
+  <div class="login-wrap">
+    <div class="login-logo" style="background:linear-gradient(135deg,#f87171,#ef4444);box-shadow:0 8px 32px rgba(248,113,113,0.4);">
+      <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+    </div>
+    <div class="login-card" style="text-align:center;">
+      <h1 style="color:var(--red);">Access Denied</h1>
+      <p class="sub" style="margin-bottom:20px;">Your account doesn't have permission to view refunds.</p>
+      <button class="auth-btn" id="deniedSignOutBtn">Sign Out</button>
+    </div>
+  </div>
+</div>
+
+<!-- App -->
+<div id="app">
+  <header class="topbar">
+    <div class="topbar-logo" style="width:32px;height:32px;border-radius:9px;flex-shrink:0;background:linear-gradient(135deg,#34d399,#6b9eff);display:flex;align-items:center;justify-content:center;box-shadow:0 0 14px rgba(52,211,153,0.35);">
+      <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+    </div>
+    <span class="topbar-brand">Refunds</span>
+    <div class="topbar-spacer" style="flex:1;"></div>
+
+    <!-- Date range picker -->
+    <div class="daterange-wrap" id="daterangeWrap">
+      <button class="daterange-btn" id="daterangeBtn">
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <span id="drLabel">This Week</span>
+        <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="daterange-popup" id="daterangePopup">
+        <div class="dr-presets-vert">
+          <button class="dr-preset-item active" data-p="this-week">This Week (Thu – Wed)</button>
+          <button class="dr-preset-item" data-p="last-week">Last Week (Thu – Wed)</button>
+          <button class="dr-preset-item" data-p="mtd">Month to Date</button>
+          <button class="dr-preset-item" data-p="last30">Last 30 Days</button>
+          <button class="dr-preset-item" data-p="all">All Time</button>
+        </div>
+        <div class="dr-divider"></div>
+        <div class="dr-custom-label">Custom Range</div>
+        <div class="dr-custom-row">
+          <input type="date" class="dr-date-input" id="drFrom">
+          <span class="dr-sep">→</span>
+          <input type="date" class="dr-date-input" id="drTo">
+        </div>
+        <button class="dr-apply" id="drApply">Apply</button>
+      </div>
+    </div>
+
+    <!-- Refresh -->
+    <button class="tbtn tbtn-ghost" id="refreshBtn" title="Refresh data">
+      <svg id="refreshIcon" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+      Refresh
+    </button>
+
+    <!-- Theme -->
+    <button class="tbtn tbtn-ghost" id="themeBtn" style="font-size:1rem;padding:5px 10px;" title="Toggle theme"></button>
+
+    <!-- Nav dropdown -->
+    <div class="nav-dropdown" id="navDropdown">
+      <button class="tbtn tbtn-ghost" id="navDropdownBtn">
+        Dashboards
+        <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="nav-dropdown-menu" id="navDropdownMenu">
+        <a class="nav-dropdown-item" href="home.html">🏠 Home</a>
+        <a class="nav-dropdown-item" href="collections.html">📥 Collections</a>
+        <a class="nav-dropdown-item active" href="refunds.html">💸 Refunds</a>
+      </div>
+    </div>
+
+    <!-- User pill -->
+    <div class="user-pill">
+      <div class="user-pill-av" id="userAvatar">U</div>
+      <span class="user-pill-email" id="userEmail"></span>
+    </div>
+
+    <!-- Sign out -->
+    <button class="tbtn tbtn-ghost" id="signOutBtn">
+      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      Sign Out
+    </button>
+  </header>
+
+  <div class="main">
+
+    <!-- ── Filter bar ──────────────────────────────── -->
+    <div class="filter-bar">
+      <span class="filter-label">Type</span>
+      <select class="filter-input" id="rtFilter" style="max-width:200px;">
+        <option value="">All Types</option>
+      </select>
+      <span class="filter-sep">·</span>
+      <span class="filter-label">Product</span>
+      <select class="filter-input" id="productFilter" style="max-width:200px;">
+        <option value="">All Products</option>
+        <option>The Complete Piano Masterclass Bundle</option>
+        <option>Private Mentorship</option>
+        <option>Christmas Course</option>
+        <option value="A Luxury Music Retreat in Nashville">Experience</option>
+      </select>
+    </div>
+
+    <!-- ── Stats Dashboard ─────────────────────────── -->
+    <div class="sec-label">
+      <span class="sec-label-text">Overview</span>
+      <div class="sec-label-line"></div>
+    </div>
+
+    <div class="kpi-grid" id="kpiGrid"></div>
+
+    <div class="dash-row">
+      <div class="chart-card">
+        <div class="chart-card-title">Amount by Date</div>
+        <div class="chart-wrap"><canvas id="dailyChart"></canvas></div>
+      </div>
+      <div class="product-card">
+        <div class="product-card-title">By Product</div>
+        <table class="product-tbl">
+          <thead><tr><th>Product</th><th style="text-align:right">Count</th><th style="text-align:right">Total</th></tr></thead>
+          <tbody id="productBody"><tr><td colspan="3" style="padding:20px;text-align:center;color:var(--text-dim);font-size:0.75rem;">—</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── Log ─────────────────────────────────────── -->
+    <div class="sec-label">
+      <span class="sec-label-text">Refunds</span>
+      <div class="sec-label-line"></div>
+    </div>
+
+    <div class="table-card">
+      <div class="table-toolbar">
+        <div class="table-title">Refund Log</div>
+        <input class="search-box" type="search" id="searchBox" placeholder="Search name, email, product…" style="width:210px;">
+        <div class="row-count-badge" id="rowCount">—</div>
+        <button class="tbtn tbtn-primary edit-only" id="addBtn" style="margin-left:auto;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add Refund
+        </button>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="data-table" id="declTable" style="min-width:1080px;">
+          <colgroup>
+            <col style="width:9%;"><!-- Type -->
+            <col style="width:7%;"><!-- Date -->
+            <col style="width:13%;"><!-- Name -->
+            <col style="width:15%;"><!-- Email -->
+            <col style="width:13%;"><!-- Product -->
+            <col style="width:8%;"><!-- Amount -->
+            <col style="width:9%;"><!-- Type of Sale -->
+            <col style="width:7%;"><!-- From -->
+            <col style="width:10%;"><!-- Note -->
+            <col style="width:11%;"><!-- Actions -->
+          </colgroup>
+          <thead>
+            <tr>
+              <th data-col="record_type">Type</th>
+              <th data-col="date_closed">Date</th>
+              <th data-col="original_purchase_date">Original purchase</th>
+              <th data-col="name">Name</th>
+              <th data-col="email">Email</th>
+              <th data-col="product">Product</th>
+              <th data-col="sale_amount" class="td-num">Amount</th>
+              <th data-col="type_of_sale">Type of Sale</th>
+              <th data-col="platform">From</th>
+              <th data-col="note">Note</th>
+              <th class="col-actions"></th>
+            </tr>
+          </thead>
+          <tbody id="declBody">
+            <tr><td colspan="10" style="padding:12px 16px;"><div style="display:grid;grid-template-columns:repeat(6,1fr);gap:12px;"><span class="skel skel-row" style="width:80%;"></span><span class="skel skel-row" style="width:90%;"></span><span class="skel skel-row" style="width:70%;"></span><span class="skel skel-row" style="width:85%;"></span><span class="skel skel-row" style="width:60%;"></span><span class="skel skel-row" style="width:75%;"></span></div></td></tr>
+            <tr><td colspan="10" style="padding:12px 16px;"><div style="display:grid;grid-template-columns:repeat(6,1fr);gap:12px;"><span class="skel skel-row" style="width:65%;"></span><span class="skel skel-row" style="width:80%;"></span><span class="skel skel-row" style="width:75%;"></span><span class="skel skel-row" style="width:70%;"></span><span class="skel skel-row" style="width:55%;"></span><span class="skel skel-row" style="width:80%;"></span></div></td></tr>
+            <tr><td colspan="10" style="padding:12px 16px;"><div style="display:grid;grid-template-columns:repeat(6,1fr);gap:12px;"><span class="skel skel-row" style="width:75%;"></span><span class="skel skel-row" style="width:70%;"></span><span class="skel skel-row" style="width:85%;"></span><span class="skel skel-row" style="width:60%;"></span><span class="skel skel-row" style="width:90%;"></span><span class="skel skel-row" style="width:65%;"></span></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add / Edit Modal -->
+<div class="modal-overlay" id="declModal">
+  <div class="modal-card">
+    <div class="modal-title" id="modalTitle">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+      Add Refund
+    </div>
+    <input type="hidden" id="fId">
+    <div class="modal-grid">
+      <div class="modal-field full">
+        <label class="modal-label">Record Type</label>
+        <select class="modal-input" id="fType"></select>
+      </div>
+      <div class="modal-field">
+        <label class="modal-label">Date</label>
+        <input class="modal-input" type="date" id="fDate">
+      </div>
+      <div class="modal-field">
+        <label class="modal-label">Original purchase date</label>
+        <input class="modal-input" type="date" id="fOrigDate">
+      </div>
+      <div class="modal-field">
+        <label class="modal-label">Amount ($)</label>
+        <input class="modal-input" type="number" step="0.01" min="0" id="fAmount" placeholder="0.00">
+      </div>
+      <div class="modal-field full">
+        <label class="modal-label">Name</label>
+        <input class="modal-input" type="text" id="fName" placeholder="Client full name">
+      </div>
+      <div class="modal-field full">
+        <label class="modal-label">Email</label>
+        <input class="modal-input" type="email" id="fEmail" placeholder="client@email.com">
+      </div>
+      <div class="modal-field full">
+        <label class="modal-label">Product</label>
+        <select class="modal-input" id="fProduct">
+          <option value="">— Select product —</option>
+          <option>The Complete Piano Masterclass Bundle</option>
+          <option>Private Mentorship</option>
+          <option>Christmas Course</option>
+          <option value="A Luxury Music Retreat in Nashville">Experience</option>
+        </select>
+      </div>
+      <div class="modal-field full">
+        <label class="modal-label">From (Platform)</label>
+        <select class="modal-input" id="fPlatform">
+          <option value="">— Select —</option>
+          <option>Kajabi</option>
+          <option>Stripe</option>
+          <option>ThriveCart</option>
+          <option>PayPal</option>
+          <option>Hotmart</option>
+          <option>Other</option>
+        </select>
+      </div>
+      <div class="modal-field full">
+        <label class="modal-label">Type of Sale</label>
+        <input class="modal-input" type="text" id="fTypeOfSale" placeholder="e.g. Organic, Webinar, DM…">
+      </div>
+      <!-- New record only: the first note. -->
+      <div class="modal-field full" id="fNewNoteWrap">
+        <label class="modal-label">Note (optional)</label>
+        <textarea class="modal-input" id="fNote" placeholder="Reason, who handled it, any context…"></textarea>
+      </div>
+      <!-- Existing record only: append-only notes + status-change history. -->
+      <div class="modal-field full" id="fActivityWrap" style="display:none;">
+        <label class="modal-label">Activity &amp; notes</label>
+        <div id="fTimeline" class="rf-timeline">Loading…</div>
+        <div class="rf-addnote">
+          <textarea class="modal-input" id="fAddNote" placeholder="Add a note… (saved immediately, never overwrites earlier notes)"></textarea>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+            <button type="button" class="modal-btn modal-btn-save" id="fAddNoteBtn" style="padding:7px 14px;font-size:0.8rem;">Add note</button>
+            <span id="fAddNoteMsg" style="font-size:0.74rem;color:var(--text-dim);"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-err" id="modalErr"></div>
+    <div class="modal-footer">
+      <button class="modal-btn modal-btn-cancel" id="modalCancelBtn">Cancel</button>
+      <button class="modal-btn modal-btn-save" id="modalSaveBtn">Submit</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL      = 'https://pojqljrhhtnigyrtzdzz.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBvanFsanJoaHRuaWd5cnR6ZHp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTA3ODMsImV4cCI6MjA5MTM4Njc4M30.PcSBDqOzbiZxZ7IAs5efqx0gsAlAG0cj3GqUOkAmxos';
+const REFUNDS_BASE      = SUPABASE_URL + '/functions/v1/refunds';
+
+const supa = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: { persistSession: true, detectSessionInUrl: true, autoRefreshToken: true }
+});
+
+// ── State ────────────────────────────────────────────────────────
+let currentSession = null;
+let declData       = [];
+let canEdit        = false;
+let editRow        = null;
+let rtFilter       = '';   // '' or a record_type slug
+let sortCol        = 'date_closed';
+let sortDir        = 'desc';
+
+// Record types (slug → label + badge color). Order drives the dropdowns + KPIs.
+const RECORD_TYPES = [
+  { v: 'request',         label: 'Refund Request',     badge: 'badge-gold'   },
+  { v: 'approved',        label: 'Refund Approved',    badge: 'badge-red'    },
+  { v: 'disapproved',     label: 'Refund Disapproved', badge: 'badge-green'  },
+  { v: 'processed',       label: 'Processed',          badge: 'badge-blue'   },
+  { v: 'dispute_started', label: 'Dispute Started',    badge: 'badge-purple' },
+  { v: 'dispute_won',     label: 'Dispute Won',        badge: 'badge-green'  },
+  { v: 'dispute_lost',    label: 'Dispute Lost',       badge: 'badge-red'    },
+];
+const RT_LABEL = Object.fromEntries(RECORD_TYPES.map(t => [t.v, t.label]));
+const RT_BADGE = Object.fromEntries(RECORD_TYPES.map(t => [t.v, t.badge]));
+// Back-compat: map the original two slugs onto the renamed ones.
+function rtCanon(v) { return v === 'salvaged' ? 'disapproved' : v === 'refunded' ? 'approved' : v; }
+
+// Populate the filter + modal dropdowns from RECORD_TYPES.
+function buildTypeSelectors() {
+  const f = document.getElementById('rtFilter');
+  if (f) f.innerHTML = '<option value="">All Types</option>' +
+    RECORD_TYPES.map(t => `<option value="${t.v}">${t.label}</option>`).join('');
+  const m = document.getElementById('fType');
+  if (m) m.innerHTML = RECORD_TYPES.map(t => `<option value="${t.v}">${t.label}</option>`).join('');
+}
+
+function setState(s) { document.body.dataset.state = s; }
+
+function displayProduct(p) {
+  if (!p) return '';
+  return /nashville/i.test(p) ? 'Experience' : p;
+}
+
+// ── Auth ──────────────────────────────────────────────────────────
+const _hashParams  = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+const _queryParams = new URLSearchParams(window.location.search);
+function _authType() { return _hashParams.get('type') || _queryParams.get('type') || ''; }
+const isInviteLink   = _authType() === 'invite' || _authType() === 'signup';
+const isRecoveryLink = _authType() === 'recovery';
+
+async function initAuth() {
+  if (isInviteLink || isRecoveryLink) {
+    setState('setPw');
+    supa.auth.onAuthStateChange((_e, sess) => {
+      if (document.body.dataset.state === 'setPw') return;
+      if (sess) onAuthed(sess); else setState('login');
+    });
+    setTimeout(() => {
+      if (document.body.dataset.state === 'loading') setState('login');
+    }, 12000);
+    return;
+  }
+  const timeout = setTimeout(() => setState('login'), 8000);
+  try {
+    const { data: { session }, error } = await supa.auth.getSession();
+    clearTimeout(timeout);
+    if (error) throw error;
+    if (session) { await onAuthed(session); return; }
+    setState('login');
+  } catch(e) { clearTimeout(timeout); console.error('Auth init error:', e); setState('login'); }
+  supa.auth.onAuthStateChange(async (_e, sess) => {
+    if (sess) await onAuthed(sess); else setState('login');
+  });
+}
+
+async function onAuthed(session) {
+  currentSession = session;
+  // Page-level access (single source of truth: permissions.js)
+  if (!window.RidleyPerms.canOpen('refunds.html', session.user)) {
+    setState('denied'); return;
+  }
+
+  // Edit rights: admins + Treasury I/C + Delivery I/C (+ granular refunds.edit
+  // / .manage). Everyone else who can open the page is read-only; the server
+  // enforces this too.
+  const eff = window.RidleyPerms.effective(session.user);
+  const ev2 = Array.isArray(eff.permissions_v2) ? eff.permissions_v2 : [];
+  canEdit = eff.is_admin
+    || eff.permissions.includes('treasury_ic') || eff.permissions.includes('delivery_ic')
+    || ev2.includes('refunds.edit') || ev2.includes('refunds.manage');
+  if (canEdit) document.body.classList.add('can-edit');
+
+  const em = session.user.email || '';
+  document.getElementById('userEmail').textContent = em;
+  document.getElementById('userAvatar').textContent = (em[0] || 'U').toUpperCase();
+
+  setState('app');
+  await loadDeclarations();
+}
+
+// ── Load data ─────────────────────────────────────────────────────
+async function loadDeclarations() {
+  const tbody = document.getElementById('declBody');
+  function renderErrorRow(msg) {
+    tbody.innerHTML = '';
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 10;
+    td.className = 'empty-state';
+    td.style.color = 'var(--red)';
+    td.textContent = String(msg || 'Failed');
+    tr.appendChild(td); tbody.appendChild(tr);
+  }
+  try {
+    const { data: { session } } = await supa.auth.getSession();
+    const res = await fetch(REFUNDS_BASE + '?api=log', {
+      headers: { Authorization: 'Bearer ' + session.access_token }
+    });
+    const payload = await res.json();
+    if (!res.ok) throw new Error(payload.error || 'Failed to load');
+    if (payload.error) { renderErrorRow(payload.error); declData = []; return; }
+    declData = Array.isArray(payload.rows) ? payload.rows : [];
+    renderTable();
+  } catch(e) {
+    renderErrorRow(e.message);
+  }
+}
+
+// ── Date-range helpers ────────────────────────────────────────────
+function localIso(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function applyPreset(p) {
+  const today = new Date();
+  let from, to = localIso(today);
+  const sinceThu = (today.getDay() + 3) % 7;
+  const thisThu = new Date(today); thisThu.setDate(today.getDate() - sinceThu);
+  if (p === 'this-week') {
+    from = localIso(thisThu);
+    to   = localIso(today);
+  } else if (p === 'last-week') {
+    const lThu = new Date(thisThu); lThu.setDate(thisThu.getDate() - 7);
+    const lWed = new Date(lThu); lWed.setDate(lThu.getDate() + 6);
+    from = localIso(lThu); to = localIso(lWed);
+  } else if (p === 'mtd') {
+    from = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-01`;
+  } else if (p === 'last30') {
+    const d = new Date(today); d.setDate(d.getDate() - 30);
+    from = localIso(d);
+  } else { // all
+    from = ''; to = '';
+  }
+  document.getElementById('drFrom').value = from;
+  document.getElementById('drTo').value   = to;
+  document.querySelectorAll('.dr-preset-item').forEach(b => b.classList.toggle('active', b.dataset.p === p));
+  const labels = { 'this-week': 'This Week', 'last-week': 'Last Week', mtd: 'Month to Date', last30: 'Last 30 Days', all: 'All Time' };
+  const lbl = document.getElementById('drLabel');
+  if (lbl) lbl.textContent = labels[p] || 'Custom Range';
+}
+
+// ── Base filter (date + product + type) — used for stats ──────────
+function getBaseRows() {
+  const from = document.getElementById('drFrom').value;
+  const to   = document.getElementById('drTo').value;
+  const prod = document.getElementById('productFilter').value;
+  return declData.filter(r => {
+    const d = (r.date_closed || '').slice(0, 10);
+    if (from && d < from) return false;
+    if (to   && d > to)   return false;
+    if (prod && r.product !== prod) return false;
+    if (rtFilter && rtCanon(r.record_type) !== rtFilter) return false;
+    return true;
+  });
+}
+
+// ── Stats Dashboard ───────────────────────────────────────────────
+let dailyChartInst = null;
+
+function renderStats(rows) {
+  const fmt = v => '$' + Math.round(v).toLocaleString('en-US');
+
+  const total = rows.length;
+  let gi = 0;
+  const byType = Object.fromEntries(RECORD_TYPES.map(t => [t.v, { count: 0, amt: 0 }]));
+
+  const dayMap  = {};
+  const prodMap = {};
+
+  for (const r of rows) {
+    const amt = Number(r.sale_amount) || 0;
+    gi += amt;
+
+    const t = rtCanon(r.record_type);
+    if (byType[t]) { byType[t].count++; byType[t].amt += amt; }
+
+    const day = (r.date_closed || '').slice(0, 10);
+    if (day) { dayMap[day] = (dayMap[day] || 0) + amt; }
+
+    const prod = r.product || 'Unknown';
+    if (!prodMap[prod]) prodMap[prod] = { count: 0, total: 0 };
+    prodMap[prod].count++;
+    prodMap[prod].total += amt;
+  }
+
+  // KPI cards: a Total card, then one per record type (count + $ amount).
+  const kpiColors = {
+    request: 'kpi-gold', approved: 'kpi-red', disapproved: 'kpi-green',
+    processed: 'kpi-blue', dispute_started: 'kpi-purple',
+    dispute_won: 'kpi-green', dispute_lost: 'kpi-red',
+  };
+  let kpiHtml = `
+    <div class="kpi-card kpi-gold">
+      <div class="kpi-label">Total Records</div>
+      <div class="kpi-value">${total}</div>
+      <div class="kpi-income">${fmt(gi)}</div>
+      <div class="kpi-sub">total amount</div>
+    </div>`;
+  for (const t of RECORD_TYPES) {
+    const c = byType[t.v];
+    kpiHtml += `
+    <div class="kpi-card ${kpiColors[t.v] || 'kpi-blue'}">
+      <div class="kpi-label">${t.label}</div>
+      <div class="kpi-value">${c.count}</div>
+      <div class="kpi-income">${fmt(c.amt)}</div>
+      <div class="kpi-sub">${c.count === 1 ? '1 entry' : c.count + ' entries'}</div>
+    </div>`;
+  }
+  document.getElementById('kpiGrid').innerHTML = kpiHtml;
+
+  // Daily bar chart
+  const days   = Object.keys(dayMap).sort();
+  const values = days.map(d => dayMap[d]);
+  const labels = days.map(d => { try { const [,m,dd] = d.split('-'); return `${m}/${dd}`; } catch { return d; } });
+
+  if (dailyChartInst) { dailyChartInst.destroy(); dailyChartInst = null; }
+  if (days.length) {
+    const ctx = document.getElementById('dailyChart').getContext('2d');
+    dailyChartInst = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Amount',
+          data: values,
+          backgroundColor: 'rgba(52,211,153,0.55)',
+          borderColor: '#34d399',
+          borderWidth: 1.5,
+          borderRadius: 4,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: {
+          callbacks: { label: c => '$' + Math.round(c.raw).toLocaleString('en-US') }
+        }},
+        scales: {
+          x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#7880a8', font: { size: 10 }, maxRotation: 45 } },
+          y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#7880a8', font: { size: 10 },
+               callback: v => '$' + (v >= 1000 ? (v/1000).toFixed(0)+'k' : v) } }
+        }
+      }
+    });
+  }
+
+  // Product breakdown table
+  const prods = Object.entries(prodMap).sort((a,b) => b[1].total - a[1].total);
+  const short = n => n.length <= 20 ? n : (n.split(' ').length > 3 ? n.split(' ').map(w=>w[0]).join('').toUpperCase() : n.slice(0,20)+'…');
+  document.getElementById('productBody').innerHTML = prods.length
+    ? prods.map(([name, v]) =>
+        `<tr>
+          <td class="clip" style="max-width:130px;" title="${name}">${short(name)}</td>
+          <td style="text-align:right;color:var(--text-muted);">${v.count}</td>
+          <td style="text-align:right;font-weight:700;color:var(--text);">${fmt(v.total)}</td>
+        </tr>`).join('')
+    : `<tr><td colspan="3" style="padding:20px;text-align:center;color:var(--text-dim);font-size:0.75rem;">No data</td></tr>`;
+}
+
+// ── Render table ──────────────────────────────────────────────────
+function fmtDate(v) {
+  if (!v) return '—';
+  try {
+    const [y,m,d] = String(v).slice(0,10).split('-');
+    return `${m}/${d}/${y.slice(2)}`;
+  } catch { return v; }
+}
+
+function fmtMoney(v) {
+  const n = Number(v) || 0;
+  return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+
+function recordTypeBadge(t) {
+  const v = rtCanon(t);
+  const label = RT_LABEL[v];
+  if (!label) return '<span class="badge badge-dim"><span class="badge-dot"></span>—</span>';
+  return `<span class="badge ${RT_BADGE[v] || 'badge-dim'}"><span class="badge-dot"></span>${label}</span>`;
+}
+
+function renderTable() {
+  const search = document.getElementById('searchBox').value.toLowerCase();
+  const tbody  = document.getElementById('declBody');
+
+  const baseRows = getBaseRows();
+  renderStats(baseRows);
+
+  let rows = baseRows;
+  if (search) rows = rows.filter(r =>
+    (r.name||'').toLowerCase().includes(search) ||
+    (r.email||'').toLowerCase().includes(search) ||
+    (r.product||'').toLowerCase().includes(search) ||
+    (r.type_of_sale||'').toLowerCase().includes(search) ||
+    (r.note||'').toLowerCase().includes(search)
+  );
+
+  rows = [...rows].sort((a, b) => {
+    let va = a[sortCol] ?? '', vb = b[sortCol] ?? '';
+    if (sortCol === 'sale_amount') { va = Number(va); vb = Number(vb); }
+    if (va < vb) return sortDir === 'asc' ? -1 : 1;
+    if (va > vb) return sortDir === 'asc' ? 1  : -1;
+    return 0;
+  });
+
+  document.getElementById('rowCount').textContent = `${rows.length} row${rows.length !== 1 ? 's' : ''}`;
+
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="10" class="empty-state">No refunds found</td></tr>`;
+    return;
+  }
+
+  const wrap = 'word-break:break-word;white-space:normal;line-height:1.35;';
+  const actionCell = canEdit
+    ? r => `<td class="col-actions" style="text-align:right;white-space:nowrap;">
+        <button class="action-btn action-btn-edit" data-id="${r.id}">Edit</button>
+        <button class="action-btn action-btn-del"  data-id="${r.id}" style="margin-left:4px;">Del</button>
+      </td>`
+    : () => `<td class="col-actions"></td>`;
+
+  tbody.innerHTML = rows.map(r => `<tr data-row-id="${r.id}" style="cursor:pointer;">
+    <td data-label="Type" style="white-space:nowrap;">${recordTypeBadge(r.record_type)}</td>
+    <td data-label="Date" style="white-space:nowrap;color:var(--text-muted);">${fmtDate(r.date_closed)}</td>
+    <td data-label="Original purchase" style="white-space:nowrap;color:var(--text-muted);">${r.original_purchase_date ? fmtDate(r.original_purchase_date) : '—'}</td>
+    <td class="td-main" data-label="Name" style="${wrap}">${r.name||'—'}</td>
+    <td class="muted" data-label="Email" style="${wrap}">${r.email||'—'}</td>
+    <td class="muted" data-label="Product" style="${wrap}" title="${r.product||''}">${displayProduct(r.product)||'—'}</td>
+    <td class="td-money" data-label="Amount" style="white-space:nowrap;">${r.sale_amount ? fmtMoney(r.sale_amount) : '—'}</td>
+    <td class="muted" data-label="Type of sale" style="${wrap}">${r.type_of_sale||'—'}</td>
+    <td class="muted" data-label="From" style="${wrap}">${r.platform||'—'}</td>
+    <td class="muted" data-label="Note" style="${wrap}">${r.note||'—'}</td>
+    ${actionCell(r)}
+  </tr>`).join('');
+
+  // Sort indicators
+  document.querySelectorAll('#declTable th[data-col]').forEach(th => {
+    th.classList.remove('sort-asc', 'sort-desc');
+    if (th.dataset.col === sortCol) th.classList.add(sortDir === 'asc' ? 'sort-asc' : 'sort-desc');
+  });
+}
+
+// ── Modal ─────────────────────────────────────────────────────────
+function _fmtEventTime(iso) {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+  } catch { return iso; }
+}
+
+function renderTimeline(events) {
+  const el = document.getElementById('fTimeline');
+  if (!events || !events.length) { el.innerHTML = '<div class="rf-empty">No activity yet.</div>'; return; }
+  el.innerHTML = events.map(ev => {
+    let text = '';
+    if (ev.event_type === 'note') text = ev.note || '';
+    else if (ev.event_type === 'status_change') text = `Status changed: ${RT_LABEL[rtCanon(ev.from_status)] || ev.from_status || '—'} → ${RT_LABEL[rtCanon(ev.to_status)] || ev.to_status || '—'}`;
+    else if (ev.event_type === 'created') text = `Created as ${RT_LABEL[rtCanon(ev.to_status)] || ev.to_status || '—'}`;
+    else text = ev.note || ev.event_type;
+    const who = ev.created_by_email ? ' · ' + ev.created_by_email : '';
+    return `<div class="rf-ev ${ev.event_type}">
+      <div class="rf-ev-dot"></div>
+      <div class="rf-ev-body">
+        <div class="rf-ev-text">${escapeHtmlR(text)}</div>
+        <div class="rf-ev-meta">${_fmtEventTime(ev.created_at)}${escapeHtmlR(who)}</div>
+      </div>
+    </div>`;
+  }).join('');
+  el.scrollTop = el.scrollHeight;
+}
+function escapeHtmlR(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+async function loadTimeline(refundId) {
+  const el = document.getElementById('fTimeline');
+  el.innerHTML = '<div class="rf-empty">Loading…</div>';
+  try {
+    const { data: { session } } = await supa.auth.getSession();
+    const res = await fetch(REFUNDS_BASE + '?api=events&refund_id=' + encodeURIComponent(refundId), {
+      headers: { Authorization: 'Bearer ' + session.access_token }
+    });
+    const j = await res.json();
+    if (!res.ok) throw new Error(j.error || 'Failed');
+    renderTimeline(j.events || []);
+  } catch (e) {
+    el.innerHTML = `<div class="rf-empty" style="color:var(--red);">${escapeHtmlR(e.message)}</div>`;
+  }
+}
+
+function openModal(row) {
+  const viewOnly = !canEdit;
+  if (viewOnly && !row?.id) return;  // viewers can only open existing rows
+  editRow = row || null;
+  const isNew = !row?.id;
+  document.getElementById('modalTitle').childNodes[2].textContent = isNew ? ' Add Refund' : ' Edit Refund';
+  document.getElementById('modalSaveBtn').textContent = isNew ? 'Submit' : 'Save Changes';
+  document.getElementById('fId').value           = row?.id ?? '';
+  document.getElementById('fType').value          = rtCanon(row?.record_type) || 'request';
+  document.getElementById('fDate').value         = (row?.date_closed || new Date().toISOString()).slice(0,10);
+  document.getElementById('fOrigDate').value     = (row?.original_purchase_date || '').slice(0,10);
+  document.getElementById('fName').value         = row?.name || '';
+  document.getElementById('fEmail').value        = row?.email || '';
+  document.getElementById('fProduct').value      = row?.product || '';
+  document.getElementById('fAmount').value       = row?.sale_amount ?? '';
+  document.getElementById('fTypeOfSale').value   = row?.type_of_sale || '';
+  document.getElementById('fPlatform').value     = row?.platform || '';
+  document.getElementById('fNote').value         = '';
+  document.getElementById('modalErr').textContent = '';
+  document.getElementById('modalSaveBtn').disabled = false;
+
+  // New record → show the first-note box. Existing → show the activity log.
+  document.getElementById('fNewNoteWrap').style.display = (isNew && !viewOnly) ? '' : 'none';
+  document.getElementById('fActivityWrap').style.display = isNew ? 'none' : '';
+  document.getElementById('fAddNote').value = '';
+  document.getElementById('fAddNoteMsg').textContent = '';
+  if (!isNew) loadTimeline(row.id);
+
+  // View-only (no edit permission): lock the fields, hide Save + the add-note
+  // composer, but still let them read the full notes + status history.
+  ['fType','fDate','fName','fEmail','fProduct','fAmount','fTypeOfSale','fPlatform','fNote'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.disabled = viewOnly;
+  });
+  document.getElementById('modalSaveBtn').style.display = viewOnly ? 'none' : '';
+  document.querySelector('#fActivityWrap .rf-addnote').style.display = viewOnly ? 'none' : '';
+  document.getElementById('modalTitle').childNodes[2].textContent =
+    viewOnly ? ' Refund details' : (isNew ? ' Add Refund' : ' Edit Refund');
+
+  document.getElementById('declModal').classList.add('open');
+}
+
+// Append a note immediately (separate from Save).
+document.getElementById('fAddNoteBtn').addEventListener('click', async () => {
+  const id = document.getElementById('fId').value;
+  const ta = document.getElementById('fAddNote');
+  const msg = document.getElementById('fAddNoteMsg');
+  const note = ta.value.trim();
+  if (!id) return;
+  if (!note) { msg.textContent = 'Type a note first.'; msg.style.color = 'var(--red)'; return; }
+  msg.textContent = 'Adding…'; msg.style.color = 'var(--text-dim)';
+  try {
+    const { data: { session } } = await supa.auth.getSession();
+    const res = await fetch(REFUNDS_BASE + '?api=add-note', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+      body: JSON.stringify({ refund_id: Number(id), note }),
+    });
+    const j = await res.json();
+    if (!res.ok || !j.ok) throw new Error(j.error || 'Failed');
+    ta.value = '';
+    msg.textContent = 'Added ✓'; msg.style.color = 'var(--green)';
+    await loadTimeline(Number(id));
+    // refresh the underlying list so the Note column shows the latest note
+    loadDeclarations();
+  } catch (e) {
+    msg.textContent = 'Failed: ' + e.message; msg.style.color = 'var(--red)';
+  }
+});
+
+document.getElementById('declModal').addEventListener('click', e => {
+  if (e.target === document.getElementById('declModal')) document.getElementById('declModal').classList.remove('open');
+});
+document.getElementById('modalCancelBtn').addEventListener('click', () => {
+  document.getElementById('declModal').classList.remove('open');
+});
+
+document.getElementById('modalSaveBtn').addEventListener('click', async () => {
+  const btn   = document.getElementById('modalSaveBtn');
+  const errEl = document.getElementById('modalErr');
+  btn.disabled = true; errEl.textContent = '';
+  btn.textContent = 'Saving…';
+
+  const id    = document.getElementById('fId').value;
+  const isNew = !id;
+  const rt = document.getElementById('fType').value || '';
+  if (!rt) {
+    errEl.textContent = 'Pick a record type.';
+    btn.disabled = false; btn.textContent = isNew ? 'Submit' : 'Save Changes';
+    return;
+  }
+
+  const payload = {
+    id:           id || undefined,
+    record_type:  rt,
+    date_closed:  document.getElementById('fDate').value        || null,
+    original_purchase_date: document.getElementById('fOrigDate').value || null,
+    name:         document.getElementById('fName').value.trim() || null,
+    email:        document.getElementById('fEmail').value.trim()|| null,
+    product:      document.getElementById('fProduct').value     || null,
+    sale_amount:  parseFloat(document.getElementById('fAmount').value) || null,
+    type_of_sale: document.getElementById('fTypeOfSale').value.trim() || null,
+    platform:     document.getElementById('fPlatform').value    || null,
+    note:         document.getElementById('fNote').value.trim() || null,
+  };
+
+  try {
+    const { data: { session } } = await supa.auth.getSession();
+    const endpoint = isNew ? '?api=insert' : '?api=update';
+    const res  = await fetch(REFUNDS_BASE + endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+      body: JSON.stringify(payload),
+    });
+    const json = await res.json();
+    if (!res.ok || !json.ok) throw new Error(json.error || 'Save failed');
+
+    document.getElementById('declModal').classList.remove('open');
+    await loadDeclarations();
+  } catch(err) {
+    errEl.textContent = err.message || 'Error saving';
+    btn.disabled = false;
+    btn.textContent = isNew ? 'Submit' : 'Save Changes';
+  }
+});
+
+// ── Delete ────────────────────────────────────────────────────────
+async function deleteRow(id, btn) {
+  if (!confirm('Delete this refund record? This cannot be undone.')) return;
+  btn.disabled = true; btn.textContent = '…';
+  try {
+    const { data: { session } } = await supa.auth.getSession();
+    const res  = await fetch(REFUNDS_BASE + '?api=delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+      body: JSON.stringify({ id }),
+    });
+    const json = await res.json();
+    if (!res.ok || !json.ok) throw new Error(json.error || 'Delete failed');
+    declData = declData.filter(r => String(r.id) !== String(id));
+    renderTable();
+  } catch(err) {
+    alert('Delete failed: ' + err.message);
+    btn.disabled = false; btn.textContent = 'Del';
+  }
+}
+
+// ── Event listeners ───────────────────────────────────────────────
+document.getElementById('addBtn').addEventListener('click', () => openModal(null));
+
+document.getElementById('declBody').addEventListener('click', e => {
+  const editBtn = e.target.closest('.action-btn-edit');
+  const delBtn  = e.target.closest('.action-btn-del');
+  if (delBtn) { deleteRow(delBtn.dataset.id, delBtn); return; }
+  if (editBtn) {
+    const row = declData.find(r => String(r.id) === editBtn.dataset.id);
+    if (row) openModal(row);
+    return;
+  }
+  // Click anywhere else on the row → open the record (view notes + history).
+  const tr = e.target.closest('tr[data-row-id]');
+  if (tr) {
+    const row = declData.find(r => String(r.id) === tr.dataset.rowId);
+    if (row) openModal(row);
+  }
+});
+
+document.getElementById('declTable').addEventListener('click', e => {
+  const th = e.target.closest('th[data-col]');
+  if (!th) return;
+  const col = th.dataset.col;
+  if (sortCol === col) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+  else { sortCol = col; sortDir = 'asc'; }
+  renderTable();
+});
+
+// Record-type filter
+document.getElementById('rtFilter').addEventListener('change', e => {
+  rtFilter = e.target.value;
+  renderTable();
+});
+
+document.getElementById('searchBox').addEventListener('input', () => renderTable());
+document.getElementById('productFilter').addEventListener('change', () => { clearPresets(); renderTable(); });
+document.getElementById('drFrom').addEventListener('change', () => { clearPresets(); renderTable(); });
+document.getElementById('drTo').addEventListener('change',   () => { clearPresets(); renderTable(); });
+document.querySelectorAll('.dr-preset-item').forEach(b => b.addEventListener('click', () => { applyPreset(b.dataset.p); renderTable(); document.getElementById('daterangePopup').classList.remove('open'); }));
+function clearPresets() {
+  document.querySelectorAll('.dr-preset-item').forEach(b => b.classList.remove('active'));
+  const lbl = document.getElementById('drLabel');
+  if (lbl) lbl.textContent = 'Custom Range';
+}
+
+// Date range popup open/close
+document.getElementById('daterangeBtn').addEventListener('click', e => {
+  e.stopPropagation();
+  document.getElementById('daterangePopup').classList.toggle('open');
+});
+document.addEventListener('click', e => {
+  if (!e.target.closest('#daterangeWrap')) {
+    document.getElementById('daterangePopup').classList.remove('open');
+  }
+});
+document.getElementById('drApply').addEventListener('click', () => {
+  renderTable();
+  document.getElementById('daterangePopup').classList.remove('open');
+});
+
+// Default to this week (Thu – Wed)
+(function(){var __p='this-week';try{var __s=JSON.parse(localStorage.getItem('ridley:dateRange:v2')||'null');if(__s&&__s.preset){var __m={'last-30':'last30','this-week':'this-week','last-week':'last-week','mtd':'mtd','all':'all'};if(__m[__s.preset])__p=__m[__s.preset];}}catch(_){};applyPreset(__p);})();
+
+document.getElementById('loginForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const btn = document.getElementById('loginBtn');
+  const err = document.getElementById('loginError');
+  btn.disabled = true; btn.textContent = 'Signing in…'; err.textContent = '';
+  try {
+    const { data, error } = await supa.auth.signInWithPassword({
+      email:    document.getElementById('loginEmail').value.trim(),
+      password: document.getElementById('loginPassword').value,
+    });
+    if (error) throw error;
+    await onAuthed(data.session);
+  } catch(e) {
+    err.textContent = e.message || 'Invalid credentials';
+  } finally { btn.disabled = false; btn.textContent = 'Sign In'; }
+});
+
+document.getElementById('signOutBtn').addEventListener('click', async () => {
+  await supa.auth.signOut(); setState('login');
+});
+document.getElementById('deniedSignOutBtn').addEventListener('click', async () => {
+  await supa.auth.signOut(); setState('login');
+});
+
+// Refresh button — re-fetches refunds
+document.getElementById('refreshBtn').addEventListener('click', async () => {
+  if (currentSession) await loadDeclarations();
+});
+
+// Theme toggle (light / dark)
+const _savedTheme = localStorage.getItem('theme');
+if (_savedTheme === 'light') document.body.classList.add('light');
+function _setThemeIcon() {
+  document.getElementById('themeBtn').textContent = document.body.classList.contains('light') ? '🌙' : '☀️';
+}
+_setThemeIcon();
+document.getElementById('themeBtn').addEventListener('click', () => {
+  document.body.classList.toggle('light');
+  localStorage.setItem('theme', document.body.classList.contains('light') ? 'light' : 'dark');
+  _setThemeIcon();
+});
+
+// Dashboard picker dropdown toggle
+document.getElementById('navDropdownBtn').addEventListener('click', e => {
+  e.stopPropagation();
+  document.getElementById('navDropdownMenu').classList.toggle('open');
+});
+document.addEventListener('click', e => {
+  if (!e.target.closest('#navDropdown')) {
+    document.getElementById('navDropdownMenu').classList.remove('open');
+  }
+});
+
+// ── Forgot password flow ──────────────────────────────────────────
+document.getElementById('forgotLink').addEventListener('click', e => {
+  e.preventDefault();
+  document.getElementById('forgotEmail').value = document.getElementById('loginEmail').value.trim();
+  document.getElementById('forgotError').textContent = '';
+  document.getElementById('forgotSuccess').style.display = 'none';
+  setState('forgot');
+});
+document.getElementById('backToLoginLink').addEventListener('click', e => {
+  e.preventDefault(); setState('login');
+});
+document.getElementById('forgotForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const btn = document.getElementById('forgotBtn');
+  const err = document.getElementById('forgotError');
+  const ok  = document.getElementById('forgotSuccess');
+  const email = document.getElementById('forgotEmail').value.trim();
+  err.textContent = ''; ok.style.display = 'none';
+  if (!email) { err.textContent = 'Enter your email'; return; }
+  btn.disabled = true; btn.textContent = 'Sending…';
+  try {
+    const { error } = await supa.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + window.location.pathname,
+    });
+    if (error) throw error;
+    ok.textContent = 'If that email is registered, a reset link is on its way.';
+    ok.style.display = 'block';
+  } catch(e) {
+    ok.textContent = 'If that email is registered, a reset link is on its way.';
+    ok.style.display = 'block';
+  } finally { btn.disabled = false; btn.textContent = 'Send reset link'; }
+});
+
+// ── Set new password (recovery flow) ──────────────────────────────
+document.getElementById('setPwForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const pw  = document.getElementById('newPw').value;
+  const pw2 = document.getElementById('newPw2').value;
+  const err = document.getElementById('setPwError');
+  const btn = document.getElementById('setPwBtn');
+  err.textContent = '';
+  if (pw.length < 8) { err.textContent = 'Password must be at least 8 characters'; return; }
+  if (pw !== pw2)    { err.textContent = 'Passwords do not match'; return; }
+  btn.disabled = true; btn.textContent = 'Updating…';
+  try {
+    const { error } = await supa.auth.updateUser({ password: pw });
+    if (error) throw error;
+    history.replaceState({}, '', window.location.pathname);
+    const { data: { session } } = await supa.auth.getSession();
+    if (session) await onAuthed(session); else setState('login');
+  } catch(e) {
+    err.textContent = e.message || 'Could not update password';
+    btn.disabled = false; btn.textContent = 'Update password';
+  }
+});
+
+// ── Boot ──────────────────────────────────────────────────────────
+buildTypeSelectors();
+setState('loading');
+initAuth().catch(() => setState('login'));
+</script>
+<script src="access-guard.js"></script>
+<script src="loading-states.js"></script>
+<script src="theme.js"></script>
+<script src="changelog.js"></script>
+<script src="notifications.js"></script>
+<script src="pwa.js"></script>
+  <script src="ux.js"></script>
+<script src="filters.js"></script>
+<script src="nav-menu.js"></script>
+</body>
+</html>

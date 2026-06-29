@@ -1,0 +1,3987 @@
+// Access & Org dashboard.
+// Three tabs: Users, Roles, Org Board. All admin/users.manage gated.
+// Backend: edge function /functions/v1/access-control
+
+const SUPABASE_URL = "https://pojqljrhhtnigyrtzdzz.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBvanFsanJoaHRuaWd5cnR6ZHp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTA3ODMsImV4cCI6MjA5MTM4Njc4M30.PcSBDqOzbiZxZ7IAs5efqx0gsAlAG0cj3GqUOkAmxos";
+const AC_BASE = SUPABASE_URL + '/functions/v1/access-control';
+const ADMIN_API_BASE = SUPABASE_URL + '/functions/v1/admin-api';
+// Thin wrapper to call the legacy admin-api function (used by the new
+// Activity / Sessions panes — these endpoints don't live in access-control).
+async function adminApi(path, opts = {}) {
+  const r = await fetch(ADMIN_API_BASE + path, {
+    method: opts.method || 'GET',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+  return j;
+}
+const INVITE_BASE = SUPABASE_URL + '/functions/v1/invite';
+const supa = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
+window.__ridleySession = null;
+
+// ── State ───────────────────────────────────────────────────────────────
+let session = null;
+let activeTab = 'users';
+// Catalog (loaded once)
+let permissions = []; // [{key, dashboard, action, label, ...}]
+let roles = [];       // [{id, slug, name, ...}]
+let rolePerms = [];   // [{role_id, permission_key}]
+// Data per tab
+let usersData = [];
+let divisionsData = [], departmentsData = [], postsData = [];
+// Top-tier executive posts. Each can be linked to >=1 divisions and held by
+// >=1 users. Loaded by loadOrgTab().
+let execPostsData = [];
+let execHoldersByExecPost = {}; // { [execPostId]: [{user_id, started_at}, …] } — active only
+let selectedId = null;          // current selected row id (users tab uses user uuid string)
+let selectedKind = 'user';      // 'user' | 'role' | 'division' | 'department' | 'post'
+
+function escapeHtml(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function setState(s) { document.body.dataset.state = s; const lg = document.getElementById('login'); if (lg) lg.style.display = s === 'login' ? '' : 'none'; }
+function syncThemeBtn() { const b = document.getElementById('themeBtn'); if (b) b.textContent = document.body.classList.contains('light') ? '🌙' : '☀️'; }
+
+const savedTheme = localStorage.getItem('theme') || 'dark';
+if (savedTheme === 'light') document.body.classList.add('light');
+syncThemeBtn();
+document.getElementById('themeBtn')?.addEventListener('click', () => {
+  const isLight = document.body.classList.toggle('light');
+  localStorage.setItem('theme', isLight ? 'light' : 'dark');
+  syncThemeBtn();
+});
+document.getElementById('navDropdownBtn')?.addEventListener('click', e => {
+  e.stopPropagation();
+  document.getElementById('navDropMenu').classList.toggle('open');
+});
+document.addEventListener('click', () => document.getElementById('navDropMenu')?.classList.remove('open'));
+document.getElementById('signOutBtn')?.addEventListener('click', async () => { await supa.auth.signOut(); window.location.reload(); });
+document.getElementById('loginForm')?.addEventListener('submit', async e => {
+  e.preventDefault();
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const errEl = document.getElementById('loginErr');
+  errEl.textContent = '';
+  const { error } = await supa.auth.signInWithPassword({ email, password });
+  if (error) errEl.textContent = error.message;
+  else boot();
+});
+document.getElementById('refreshBtn')?.addEventListener('click', refreshAll);
+// ── Toast helper (one-line action feedback, top-right) ───────────────
+function toast(message, kind = 'info', timeout = 2800) {
+  const root = document.getElementById('toastRoot');
+  if (!root) { console.log('[toast]', message); return; }
+  const el = document.createElement('div');
+  el.className = `toast ${kind}`;
+  el.textContent = (kind === 'ok' ? '✓ ' : kind === 'err' ? '⚠ ' : '') + message;
+  root.appendChild(el);
+  setTimeout(() => { el.style.transition = 'opacity .25s'; el.style.opacity = '0'; setTimeout(() => el.remove(), 250); }, timeout);
+}
+
+// ── Live search/filter on the left list ─────────────────────────────
+let axSearchQuery = '';
+document.getElementById('axSearch')?.addEventListener('input', e => {
+  axSearchQuery = e.target.value.trim().toLowerCase();
+  document.getElementById('axSearchClear').style.display = axSearchQuery ? '' : 'none';
+  refreshTab();
+});
+document.getElementById('axSearchClear')?.addEventListener('click', () => {
+  const inp = document.getElementById('axSearch');
+  inp.value = ''; axSearchQuery = '';
+  document.getElementById('axSearchClear').style.display = 'none';
+  refreshTab();
+  inp.focus();
+});
+
+// inviteBtn removed from the topbar in v239 — the action now lives inside
+// the Users tab via the shared axAddBtn (which becomes "+ Invite user" when
+// the Users tab is active). See switchTab().
+document.querySelectorAll('.ax-tab').forEach(t => t.addEventListener('click', () => switchTab(t.dataset.tab)));
+document.getElementById('axAddBtn')?.addEventListener('click', () => onAddInTab());
+
+async function boot() {
+  setState('loading');
+  const { data: { session: s } } = await supa.auth.getSession();
+  if (!s) { setState('login'); return; }
+  session = s; window.__ridleySession = s;
+  const eff = window.RidleyPerms.effective(s.user);
+  const hasManage = eff.is_admin || (eff.permissions_v2 || []).includes('users.manage');
+  if (!hasManage) {
+    document.getElementById('app').innerHTML = '<div style="padding:60px 20px;text-align:center;color:var(--text-dim);font-size:0.95rem;">Access & Org is admin-only.<br>Ask an admin to grant your account this access.</div>';
+    setState('dashboard');
+    return;
+  }
+  document.getElementById('userEmail').textContent = s.user.email || '';
+  document.getElementById('userAvatar').textContent = (s.user.email || 'A').slice(0, 1).toUpperCase();
+  setState('dashboard');
+  await refreshAll();
+}
+boot();
+
+async function api(path, opts = {}) {
+  const r = await fetch(AC_BASE + path, {
+    method: opts.method || 'GET',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+  return j;
+}
+
+async function refreshAll() {
+  // Catalog is required (roles + permissions drive every tab). Org structure
+  // is nice-to-have so the Users tab can render Posts without flipping tabs;
+  // but if anything in the org-data fetch hangs/errors we don't want the
+  // whole page stuck. Fall back to empty arrays and let loadOrgTab fill them
+  // properly later.
+  try {
+    const catalog = await api('?api=catalog');
+    permissions = catalog.permissions || [];
+    roles = catalog.roles || [];
+    rolePerms = catalog.role_permissions || [];
+  } catch (e) {
+    document.getElementById('axList').innerHTML = `<div style="padding:14px;color:var(--red);font-size:0.84rem;">${escapeHtml(e.message)}</div>`;
+    return;
+  }
+  // Best-effort org + rep-map + users preload — never throws.
+  // (Users go in here too so the Org Board can resolve UUIDs → names
+  // without first visiting the Users tab.)
+  try {
+    const [divRes, depRes, postRes, holderRes, repRes, unassignedRes, usersRes] = await Promise.all([
+      api('?api=divisions').catch(() => ({ rows: [] })),
+      api('?api=departments').catch(() => ({ rows: [] })),
+      api('?api=posts').catch(() => ({ rows: [] })),
+      api('?api=post-holders').catch(() => ({ rows: [] })),
+      api('?api=rep-mappings').catch(() => ({ profiles: [], users: [] })),
+      adminApi('?api=unassigned-names').catch(() => null),
+      api('?api=users').catch(() => ({ rows: [] })),
+    ]);
+    divisionsData = divRes.rows || [];
+    departmentsData = depRes.rows || [];
+    postsData = postRes.rows || [];
+    activeHoldersByPost = {};
+    for (const row of (holderRes.rows || [])) {
+      if (row.ended_at) continue;
+      (activeHoldersByPost[row.post_id] ||= []).push(row);
+    }
+    repMapProfiles = repRes.profiles || [];
+    repMapUnassigned = unassignedRes || { allCallsReps: [], unassignedCallsReps: [], unassignedAffiliates: [] };
+    if ((usersRes.rows || []).length) {
+      usersData = (usersRes.rows || []).sort((a, b) => {
+        const an = ((a.first_name && a.first_name.trim()) || a.email || '').toLowerCase();
+        const bn = ((b.first_name && b.first_name.trim()) || b.email || '').toLowerCase();
+        return an.localeCompare(bn);
+      });
+    }
+  } catch (_) { /* swallow — Users tab still works without preload */ }
+  // Ensure the per-tab chrome (especially the + Invite user button) is in
+  // sync on the very first paint — not just after a tab click.
+  applyTabChrome(activeTab);
+  try { await refreshTab(); }
+  catch (e) {
+    document.getElementById('axList').innerHTML = `<div style="padding:14px;color:var(--red);font-size:0.84rem;">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+// Sync the per-tab visual chrome (tab pills, list title, add-button label
+// + visibility). Pulled out of switchTab so the initial boot can call it
+// once before refreshTab — otherwise the "+ Invite user" button stays
+// hidden until the user clicks a tab.
+function applyTabChrome(tab) {
+  document.body.dataset.tab = tab; // toggles CSS for full-width panes
+  document.querySelectorAll('.ax-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  const titleEl = document.getElementById('axListTitle');
+  if (titleEl) titleEl.textContent =
+    tab === 'users' ? 'Users' :
+    tab === 'roles' ? 'Roles' :
+    tab === 'org'   ? 'Org Board' :
+    tab === 'activity' ? 'Activity' :
+    tab === 'sessions' ? 'Sessions' : '';
+  const addBtn = document.getElementById('axAddBtn');
+  if (!addBtn) return;
+  // Tabs with their own full-width view (no left list / right detail) hide
+  // the shared add-button. Users keeps it as + Invite user, Roles as + Role.
+  if (['org', 'activity', 'sessions'].includes(tab)) {
+    addBtn.style.display = 'none';
+  } else if (tab === 'users') {
+    addBtn.style.display = '';
+    addBtn.textContent = '+ Invite user';
+    addBtn.title = 'Invite a new user';
+  } else {
+    addBtn.style.display = '';
+    addBtn.textContent = '+ Role';
+    addBtn.title = 'New role';
+  }
+}
+
+function switchTab(tab) {
+  activeTab = tab;
+  selectedId = null;
+  document.getElementById('axEditor').innerHTML = '<div class="ax-editor-empty">Select an item on the left.</div>';
+  applyTabChrome(tab);
+  closeDrawer();
+  refreshTab();
+}
+
+async function refreshTab() {
+  if (activeTab === 'users') return loadUsersTab();
+  if (activeTab === 'roles') return loadRolesTab();
+  if (activeTab === 'org')   return loadOrgTab();
+  if (activeTab === 'activity')  return loadActivityTab();
+  if (activeTab === 'sessions')  return loadSessionsTab();
+}
+
+function onAddInTab() {
+  if (activeTab === 'users') return openInviteModal();
+  if (activeTab === 'roles') return openRoleEditor(null);
+  if (activeTab === 'org')   return openCreateDivisionModal();
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// USERS TAB
+// ═══════════════════════════════════════════════════════════════════════
+let pendingInvitesData = [];
+
+function _userStatus(u) {
+  if (u.is_pending) return { label: 'Pending', cls: 'pending' };
+  if (u.is_admin && !u.last_sign_in_at) return { label: 'Never signed in', cls: 'never' };
+  if (!u.last_sign_in_at) return { label: 'Never signed in', cls: 'never' };
+  const days = Math.round((Date.now() - new Date(u.last_sign_in_at).getTime()) / 86400000);
+  if (days > 30) return { label: `Inactive ${days}d`, cls: 'stale' };
+  return { label: 'Active', cls: 'active' };
+}
+
+async function loadUsersTab() {
+  const list = document.getElementById('axList');
+  list.innerHTML = '<div style="padding:14px;color:var(--text-dim);font-size:0.84rem;">Loading users…</div>';
+  try {
+    // Fetch users first — that's the blocking call. Pending invites are
+    // a nice-to-have we race with a short timeout so a slow / failing
+    // invite endpoint never blocks the Users tab from rendering.
+    const j = await api('?api=users');
+    usersData = (j.rows || []).sort((a, b) => {
+      const an = ((a.first_name && a.first_name.trim()) || a.email || '').toLowerCase();
+      const bn = ((b.first_name && b.first_name.trim()) || b.email || '').toLowerCase();
+      return an.localeCompare(bn);
+    });
+    // Background invite fetch with 4 s ceiling.
+    pendingInvitesData = await Promise.race([
+      fetch(SUPABASE_URL + '/functions/v1/invite?api=list', {
+        headers: { Authorization: 'Bearer ' + session.access_token },
+      }).then(r => r.ok ? r.json() : { invites: [] }).then(p => p.invites || []).catch(() => []),
+      new Promise(resolve => setTimeout(() => resolve([]), 4000)),
+    ]);
+
+    // Build a unified list: real users + pending-invite stubs that look the
+    // same to the renderer. Stubs use id="invite:<email>" so we can detect.
+    const inviteStubs = pendingInvitesData.map(inv => ({
+      id: 'invite:' + inv.email,
+      email: inv.email,
+      first_name: inv.first_name || null,
+      is_admin: !!inv.is_admin,
+      is_pending: true,
+      role_ids: [],
+      permissions_v2: [],
+      last_sign_in_at: null,
+      created_at: inv.invited_at,
+    }));
+    const combined = [...inviteStubs, ...usersData];
+
+    // Apply live search filter
+    const q = axSearchQuery;
+    const matches = combined.filter(u => {
+      if (!q) return true;
+      const hay = [u.email, u.first_name].filter(Boolean).join(' ').toLowerCase();
+      if (hay.includes(q)) return true;
+      // Match by role name too
+      const roleNames = (u.role_ids || []).map(id => roles.find(r => r.id === id)?.name).filter(Boolean).join(' ').toLowerCase();
+      return roleNames.includes(q);
+    });
+
+    const realCount = usersData.length;
+    const pendingCount = inviteStubs.length;
+    document.getElementById('axCount').textContent = q
+      ? `${matches.length} of ${realCount + pendingCount}`
+      : `${realCount} user${realCount === 1 ? '' : 's'}${pendingCount ? ` · ${pendingCount} pending` : ''}`;
+
+    if (!matches.length) {
+      list.innerHTML = q
+        ? `<div style="padding:24px 14px;text-align:center;color:var(--text-dim);font-size:0.84rem;">No match for <strong>${escapeHtml(q)}</strong>.</div>`
+        : '<div style="padding:24px 14px;text-align:center;color:var(--text-dim);font-size:0.84rem;">No users yet. Click <strong>+ Invite user</strong> at the top to add the first one.</div>';
+      return;
+    }
+    list.innerHTML = matches.map(u => {
+      const roleNames = (u.role_ids || []).map(id => roles.find(r => r.id === id)?.name).filter(Boolean);
+      const sel = u.id === selectedId ? 'selected' : '';
+      const display = (u.first_name && u.first_name.trim()) ? u.first_name.trim() : u.email;
+      const secondary = (u.first_name && u.first_name.trim()) ? u.email : '';
+      const status = _userStatus(u);
+      return `<div class="ax-row ${sel}" data-uid="${u.id}">
+        <div class="ax-row-name">${escapeHtml(display)}${secondary ? `<span style="font-weight:400;color:var(--text-dim);font-size:0.74rem;margin-left:6px;">${escapeHtml(secondary)}</span>` : ''}</div>
+        <div class="ax-row-meta">
+          <span class="ax-status ${status.cls}">${status.label}</span>
+          ${u.suspended ? '<span class="pill" style="background:rgba(251,191,36,0.18);color:var(--gold);border-color:rgba(251,191,36,0.4);">⏸ Suspended</span>' : ''}
+          ${u.is_admin ? '<span class="pill pill-admin">Admin</span>' : ''}
+          ${roleNames.slice(0,3).map(n => `<span class="pill pill-blue">${escapeHtml(n)}</span>`).join('')}
+          ${roleNames.length > 3 ? `<span class="pill">+${roleNames.length - 3}</span>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+    list.querySelectorAll('.ax-row').forEach(r => r.addEventListener('click', () => {
+      const id = r.dataset.uid;
+      if (id.startsWith('invite:')) openPendingInviteEditor(id.slice('invite:'.length));
+      else openUserEditor(id);
+    }));
+  } catch (e) { list.innerHTML = `<div style="padding:14px;color:var(--red);">${escapeHtml(e.message)}</div>`; }
+}
+
+// Editor pane shown when a Pending Invite row is clicked. Lets admins
+// resend or cancel without leaving the Users tab.
+function openPendingInviteEditor(email) {
+  selectedId = 'invite:' + email; selectedKind = 'invite';
+  document.querySelectorAll('.ax-row').forEach(r => r.classList.toggle('selected', r.dataset.uid === selectedId));
+  const inv = pendingInvitesData.find(x => x.email === email);
+  const ed = document.getElementById('axEditor');
+  if (!inv) { ed.innerHTML = '<div class="ax-editor-empty">Invite not found.</div>'; return; }
+  const invitedAt = inv.invited_at ? new Date(inv.invited_at).toLocaleString() : '—';
+  const lastSent = inv.last_email_sent_at ? new Date(inv.last_email_sent_at).toLocaleString() : '—';
+  const roleNames = (inv.permissions || []).map(s => roles.find(r => r.slug === s)?.name || s).join(', ') || '(none yet)';
+  ed.innerHTML = `<div class="ax-editor">
+    <h2>${escapeHtml(inv.first_name || inv.email)} <span class="ax-status pending" style="font-size:.7rem;margin-left:8px;">Pending invite</span></h2>
+    <div style="color:var(--text-dim);font-size:0.82rem;">${escapeHtml(inv.email)}</div>
+    <div style="color:var(--text-dim);font-size:0.74rem;margin-top:4px;">Invited ${escapeHtml(invitedAt)} · Last email sent ${escapeHtml(lastSent)}</div>
+
+    <h3>What they'll get on activation</h3>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+      ${inv.is_admin ? '<span class="pill pill-admin">Admin</span>' : ''}
+      <span class="pill pill-blue">Roles: ${escapeHtml(roleNames)}</span>
+    </div>
+
+    <div class="ax-actions">
+      <button class="btn-primary" id="inv-resend">↻ Resend invitation</button>
+      <button class="btn-ghost" style="color:var(--red);" id="inv-revoke">✕ Cancel invite</button>
+      <span class="ax-msg" id="inv-msg"></span>
+    </div>
+  </div>`;
+  document.getElementById('inv-resend').addEventListener('click', async () => {
+    const btn = document.getElementById('inv-resend');
+    btn.disabled = true; btn.textContent = 'Sending…';
+    try {
+      const r = await fetch(SUPABASE_URL + '/functions/v1/invite?api=resend', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+        body: JSON.stringify({ email }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'Send failed');
+      toast('Invitation resent to ' + email, 'ok');
+      btn.disabled = false; btn.textContent = '↻ Resend invitation';
+      loadUsersTab();
+    } catch (e) { toast(e.message, 'err'); btn.disabled = false; btn.textContent = '↻ Resend invitation'; }
+  });
+  document.getElementById('inv-revoke').addEventListener('click', async () => {
+    if (!confirm('Cancel the pending invite for ' + email + '? They won\'t be able to activate via that link.')) return;
+    try {
+      const r = await fetch(SUPABASE_URL + '/functions/v1/invite?api=revoke', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+        body: JSON.stringify({ email }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'Revoke failed');
+      toast('Invite cancelled for ' + email, 'ok');
+      selectedId = null;
+      loadUsersTab();
+      document.getElementById('axEditor').innerHTML = '<div class="ax-editor-empty">Select a user on the left.</div>';
+    } catch (e) { toast(e.message, 'err'); }
+  });
+}
+
+function openUserEditor(uid) {
+  selectedId = uid; selectedKind = 'user';
+  document.querySelectorAll('.ax-row').forEach(r => r.classList.toggle('selected', r.dataset.uid === uid));
+  const u = usersData.find(x => x.id === uid);
+  if (!u) return;
+  const ed = document.getElementById('axEditor');
+  const allRoles = roles.map(r => {
+    const on = u.role_ids.includes(r.id);
+    return `<span class="role-chip ${on ? 'on' : ''}" data-role-id="${r.id}" style="${on ? '' : ''}">
+      <span class="role-chip-dot" style="background:${r.color}"></span>${escapeHtml(r.name)}
+    </span>`;
+  }).join('');
+  // Effective perms grouped by dashboard
+  const grouped = {};
+  for (const k of u.permissions_v2 || []) {
+    const d = k.split('.')[0]; (grouped[d] ||= []).push(k);
+  }
+  const effHtml = Object.keys(grouped).sort().map(d =>
+    `<div style="width:100%;font-size:0.74rem;color:var(--text-muted);margin-top:6px;">${escapeHtml(d)}</div>` +
+    grouped[d].sort().map(k => `<span class="pill pill-on">${escapeHtml(k.split('.').slice(1).join('.'))}</span>`).join('')
+  ).join('') || '<span style="color:var(--text-dim);">No permissions yet.</span>';
+
+  // ── Posts the user currently holds ────────────────────────────────
+  // u.post_ids comes from the /users endpoint (active holders only).
+  const heldPosts = (u.post_ids || []).map(pid => postsData.find(p => p.id === pid)).filter(Boolean);
+  const postsHtml = heldPosts.length
+    ? heldPosts.map(p => {
+        const dep = departmentsData.find(d => d.id === p.department_id);
+        const div = divisionsData.find(d => d.id === dep?.division_id);
+        return `<div class="user-post-pill" data-pid="${p.id}">
+          <span class="user-post-path">${escapeHtml(div?.name || '?')} › ${escapeHtml(dep?.name || '?')}</span>
+          <span class="user-post-name">${escapeHtml(p.name)}</span>
+          <button class="user-post-remove" data-pid="${p.id}" title="Remove from this post">×</button>
+        </div>`;
+      }).join('')
+    : '<span style="color:var(--text-dim);font-size:0.82rem;font-style:italic;">Not assigned to any post yet.</span>';
+
+  // Posts available to assign — every post in the system, grouped by Division › Dept
+  const postOptions = ['<option value="">— Pick a post to assign —</option>'];
+  for (const div of divisionsData) {
+    const deps = departmentsData.filter(d => d.division_id === div.id);
+    for (const dep of deps) {
+      const posts = postsData.filter(p => p.department_id === dep.id);
+      if (!posts.length) continue;
+      postOptions.push(`<optgroup label="${escapeHtml(div.name + ' › ' + dep.name)}">`);
+      for (const p of posts) {
+        if ((u.post_ids || []).includes(p.id)) continue; // hide already-held
+        postOptions.push(`<option value="${p.id}">${escapeHtml(p.name)}</option>`);
+      }
+      postOptions.push('</optgroup>');
+    }
+  }
+
+  ed.innerHTML = `<div class="ax-editor">
+    <h2>${escapeHtml(_displayOf(uid) || u.email)}${u.is_admin ? ' <span class="pill pill-admin">Admin</span>' : ''}</h2>
+    <div style="color:var(--text-dim);font-size:0.82rem;">${escapeHtml(u.email)}</div>
+    <div style="color:var(--text-dim);font-size:0.74rem;margin-top:2px;">Created ${u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'} · Last sign-in ${u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleString() : 'never'}</div>
+
+    <h3>Admin flag</h3>
+    <label class="invite-admin-toggle ${u.is_admin ? '' : ''}" style="padding:10px 12px;background:${u.is_admin ? 'rgba(251,191,36,.10)' : 'var(--surface2)'};border:1px solid ${u.is_admin ? 'rgba(251,191,36,.45)' : 'var(--border)'};border-radius:10px;">
+      <input type="checkbox" id="u-isadmin" ${u.is_admin ? 'checked' : ''} style="margin-top:3px;">
+      <span class="invite-admin-text">
+        <strong>⚙️ Make admin</strong>
+        <em>Wildcard access to everything, including Access &amp; Org itself. Use sparingly.</em>
+      </span>
+    </label>
+
+    <h3>Roles <span style="font-weight:400;color:var(--text-dim);font-size:0.74rem;">(hover any chip to see what it grants)</span></h3>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;" id="u-roles">${allRoles}</div>
+    <div style="display:flex;gap:8px;margin-top:6px;align-items:center;">
+      <button class="small-btn" id="u-copy-from" style="background:var(--surface3);">⧉ Copy from another user…</button>
+      <span style="font-size:0.7rem;color:var(--text-dim);">Click any chip to toggle. Click Save when ready.</span>
+    </div>
+
+    <h3>🪪 Posts <span style="font-weight:400;color:var(--text-dim);font-size:0.74rem;">(where this person is posted on the Org Board)</span></h3>
+    <div id="u-posts" style="display:flex;flex-direction:column;gap:6px;">${postsHtml}</div>
+    <div style="display:flex;gap:6px;margin-top:8px;">
+      <select id="u-post-pick" style="flex:1;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);">${postOptions.join('')}</select>
+      <button class="small-btn" id="u-post-assign">Assign</button>
+    </div>
+
+    <h3>🧩 Rep Mapping <span style="font-weight:400;color:var(--text-dim);font-size:0.74rem;">(Calls Log names + Sales Affiliate spellings linked to this user)</span></h3>
+    <div id="u-repmap"></div>
+
+    <h3>✅ What they can do <span style="font-weight:400;color:var(--text-dim);font-size:0.74rem;">(everything granted by their roles + posts)</span></h3>
+    <div class="effective-perms" id="u-effective">${effHtml}</div>
+
+    <div class="ax-actions">
+      <button class="btn-primary" id="u-save">Save roles &amp; admin</button>
+      <button class="btn-ghost"  id="u-activity" title="See everything this user has done">📜 Activity history</button>
+      <button class="btn-ghost"  id="u-view-as" title="See the app as this user (read-only impersonation)">👁 View as</button>
+      <button class="btn-ghost"  id="u-reset-pw">📧 Send password reset</button>
+      <button class="btn-ghost"  id="u-revoke">↻ Refresh access</button>
+      <button class="btn-ghost"  style="color:${u.suspended ? 'var(--green)' : 'var(--gold)'};" id="u-suspend">${u.suspended ? '✓ Reactivate user' : '⏸ Suspend user'}</button>
+      <button class="btn-ghost"  style="color:var(--red);" id="u-delete">Delete user</button>
+      <span class="ax-msg" id="u-msg"></span>
+    </div>
+  </div>`;
+
+  // Role chip toggles (clicking the body toggles)
+  ed.querySelectorAll('#u-roles .role-chip').forEach(c => {
+    // Add a hover tooltip listing the perms this role grants
+    const rid = Number(c.dataset.roleId);
+    const perms = rolePerms.filter(rp => rp.role_id === rid).map(rp => rp.permission_key);
+    c.title = perms.length ? `Grants: ${perms.slice(0, 16).join(', ')}${perms.length > 16 ? ` (+${perms.length - 16} more)` : ''}` : 'No permissions yet';
+    c.addEventListener('click', () => c.classList.toggle('on'));
+  });
+
+  // Post pills: remove handler
+  ed.querySelectorAll('.user-post-remove').forEach(btn => btn.addEventListener('click', async e => {
+    e.stopPropagation();
+    const pid = Number(btn.dataset.pid);
+    if (!confirm('Remove this user from that post?')) return;
+    try {
+      await api('?api=post-remove-holder', { method: 'POST', body: { post_id: pid, user_id: uid } });
+      await loadOrgTab(); await loadUsersTab();
+      openUserEditor(uid);
+    } catch (e2) { alert(e2.message); }
+  }));
+
+  // Assign-to-post button
+  document.getElementById('u-post-assign').addEventListener('click', async () => {
+    const pid = Number(document.getElementById('u-post-pick').value);
+    if (!pid) return;
+    try {
+      await api('?api=post-add-holder', { method: 'POST', body: { post_id: pid, user_id: uid } });
+      await loadOrgTab(); await loadUsersTab();
+      openUserEditor(uid);
+    } catch (e) { alert(e.message); }
+  });
+
+  // Copy roles from another user
+  document.getElementById('u-copy-from').addEventListener('click', () => openCopyRolesPicker(uid));
+
+  // Rep mapping section (linked profiles + add-new form + unassigned chips)
+  renderUserRepMap(uid);
+
+  document.getElementById('u-save').addEventListener('click', () => saveUser(uid));
+  document.getElementById('u-revoke').addEventListener('click', () => revokeUserSession(uid));
+  document.getElementById('u-suspend').addEventListener('click', () => toggleSuspend(uid, !!u.suspended));
+  document.getElementById('u-delete').addEventListener('click', () => deleteUser(uid));
+  document.getElementById('u-activity').addEventListener('click', () => openUserActivityModal(uid));
+  document.getElementById('u-view-as').addEventListener('click', () => {
+    if (uid === session?.user?.id) { toast("That's already you.", 'info'); return; }
+    if (typeof window.uxImpersonate !== 'function') {
+      toast('Impersonation helper not loaded. Try reloading the page.', 'err'); return;
+    }
+    window.uxImpersonate({
+      id: uid,
+      email: u.email,
+      is_admin: !!u.is_admin,
+      permissions: u.permissions_legacy || [],
+    });
+  });
+  document.getElementById('u-reset-pw').addEventListener('click', async () => {
+    if (!confirm('Send a password-reset email to ' + (u.email || 'this user') + '?')) return;
+    try {
+      const r = await fetch(SUPABASE_URL + '/functions/v1/admin-api?api=send-password-reset', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+        body: JSON.stringify({ userId: uid }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || 'Failed');
+      toast('Password reset email sent to ' + u.email, 'ok');
+    } catch (e) {
+      // Graceful fallback: this endpoint may not exist on admin-api yet.
+      // Use Supabase password-reset on the user's email via the auth client (no key needed).
+      try {
+        const { error } = await supa.auth.resetPasswordForEmail(u.email, { redirectTo: window.location.origin + '/forgot-password' });
+        if (error) throw error;
+        toast('Password reset email sent to ' + u.email, 'ok');
+      } catch (e2) {
+        toast(e2.message || e.message, 'err');
+      }
+    }
+  });
+}
+
+// ── Rep Mapping subsection inside the user editor ──────────────────────
+function renderUserRepMap(uid) {
+  const wrap = document.getElementById('u-repmap');
+  if (!wrap) return;
+  const u = usersData.find(x => x.id === uid);
+  const firstName = (u?.first_name || '').trim();
+  const mine = repMapProfiles.filter(p => p.user_id === uid);
+  const unlinked = repMapProfiles.filter(p => !p.user_id);
+  const unassignedNames = repMapUnassigned?.unassignedCallsReps || [];
+  const datalistOptions = (repMapUnassigned?.allCallsReps || []).map(n => `<option value="${escapeHtml(n)}">`).join('');
+
+  // ── Smart-match suggestions when this user has no profile yet ─────────
+  // 1) Does an UNLINKED profile have calls_name == this user's first_name?
+  //    → "Looks like Jordin's profile already exists — Link it"
+  // 2) Does an UNASSIGNED Calls Log name == first_name?
+  //    → "This name is in the calls log but has no profile — Create & link"
+  // 3) Otherwise the create-new form below will pre-fill calls_name=firstName.
+  let smartSuggestion = '';
+  if (!mine.length && firstName) {
+    const fLower = firstName.toLowerCase();
+    const matchUnlinked = unlinked.find(p => (p.calls_name || '').toLowerCase() === fLower);
+    const matchUnassigned = unassignedNames.find(n => (n || '').toLowerCase() === fLower);
+    if (matchUnlinked) {
+      smartSuggestion = `
+        <div class="rep-suggest">
+          <span class="rep-suggest-emoji">💡</span>
+          <div style="flex:1;">
+            <div><strong>${escapeHtml(matchUnlinked.calls_name)}</strong> is an existing unlinked rep profile.</div>
+            <div style="font-size:0.72rem;color:var(--text-dim);">Probably this user. Link it?</div>
+          </div>
+          <button class="btn-primary" id="u-rm-suggest-link" data-id="${matchUnlinked.id}">Link to this user</button>
+        </div>`;
+    } else if (matchUnassigned) {
+      smartSuggestion = `
+        <div class="rep-suggest">
+          <span class="rep-suggest-emoji">💡</span>
+          <div style="flex:1;">
+            <div><strong>${escapeHtml(matchUnassigned)}</strong> appears in the Calls Log but has no rep profile yet.</div>
+            <div style="font-size:0.72rem;color:var(--text-dim);">Create a profile for this user with that exact name?</div>
+          </div>
+          <button class="btn-primary" id="u-rm-suggest-create" data-name="${escapeHtml(matchUnassigned)}">Create &amp; link</button>
+        </div>`;
+    }
+  }
+
+  // Pre-fill calls_name in the create-new form with the user's first name
+  // (the common case is they match — admins only need to change it when the
+  // Calls Log spelling differs from the user's stored first_name).
+  const newNameDefault = !mine.length ? firstName : '';
+  // Auto-expand the create form when user has no profile yet so admins
+  // don't need to hunt for it.
+  const createOpenAttr = !mine.length ? ' open' : '';
+
+  const minePillsHtml = mine.length ? mine.map(p => {
+    const aff = (p.sales_affiliates || []).join(', ');
+    return `<div class="rep-map-row" data-profile-id="${p.id}">
+      <div class="rep-map-top">
+        <div class="rep-map-avatar">${escapeHtml((p.calls_name || '?').slice(0,2).toUpperCase())}</div>
+        <div style="flex:1;">
+          <div class="rep-map-name">${escapeHtml(p.calls_name)}</div>
+          <div class="rep-map-sub">🔗 linked to this user</div>
+        </div>
+        <button class="small-btn u-rm-unlink" data-id="${p.id}" data-name="${escapeHtml(p.calls_name)}" title="Unlink from this user (keep the profile)">Unlink</button>
+        <button class="small-btn u-rm-delete" data-id="${p.id}" style="color:var(--red);border-color:rgba(248,113,113,.3);">✕ Delete</button>
+      </div>
+      <div class="rep-map-fields">
+        <div class="rep-map-field" style="flex:1;min-width:240px;">
+          <label>Sales Log Affiliates (comma-separated)</label>
+          <input class="u-rm-aff" type="text" value="${escapeHtml(aff)}" placeholder="e.g. Jordin Pedlar, jordin pedlar">
+        </div>
+      </div>
+      <div class="rep-map-actions">
+        <button class="btn-primary u-rm-save" data-id="${p.id}" data-name="${escapeHtml(p.calls_name)}">Save</button>
+        <span class="ax-msg" id="u-rm-msg-${p.id}"></span>
+      </div>
+    </div>`;
+  }).join('') : '<div style="color:var(--text-dim);font-size:0.78rem;font-style:italic;padding:6px;">No rep profiles linked to this user yet.</div>';
+
+  const unlinkedOpts = unlinked.length
+    ? '<option value="">— Pick an unlinked profile —</option>' + unlinked
+        .sort((a, b) => (a.calls_name || '').localeCompare(b.calls_name || ''))
+        .map(p => `<option value="${p.id}" data-name="${escapeHtml(p.calls_name)}">${escapeHtml(p.calls_name)} ${(p.sales_affiliates || []).length ? '(' + p.sales_affiliates.length + ' aff)' : ''}</option>`)
+        .join('')
+    : '';
+
+  wrap.innerHTML = `
+    ${smartSuggestion}
+    ${minePillsHtml}
+    ${unlinked.length ? `
+      <div style="margin-top:10px;display:flex;gap:6px;align-items:center;">
+        <select id="u-rm-attach-pick" style="flex:1;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);">${unlinkedOpts}</select>
+        <button class="small-btn" id="u-rm-attach">Attach to this user</button>
+      </div>
+    ` : ''}
+    <details style="margin-top:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;overflow:hidden;"${createOpenAttr}>
+      <summary style="cursor:pointer;padding:8px 10px;font-size:0.78rem;font-weight:600;color:var(--text-muted);list-style:none;">${mine.length ? '+ Create another rep profile for this user' : '+ Set this user’s Calls Log name'}</summary>
+      <div style="padding:10px;display:flex;flex-direction:column;gap:8px;">
+        ${firstName && !mine.length ? `<div style="font-size:0.72rem;color:var(--text-dim);">Default is the user’s first name (<strong>${escapeHtml(firstName)}</strong>). Change it if the Calls Log uses a different spelling for this person.</div>` : ''}
+        <div class="rep-map-fields">
+          <div class="rep-map-field" style="flex:1;min-width:160px;">
+            <label>Calls Log Name (exact match)</label>
+            <input id="u-rm-new-name" list="u-rm-name-list" placeholder="e.g. Jordin" autocomplete="off" value="${escapeHtml(newNameDefault)}">
+            <datalist id="u-rm-name-list">${datalistOptions}</datalist>
+          </div>
+          <div class="rep-map-field" style="flex:2;min-width:240px;">
+            <label>Sales Affiliates (comma-separated)</label>
+            <input id="u-rm-new-aff" placeholder="e.g. Jordin Pedlar, jordin pedlar">
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button class="btn-primary" id="u-rm-create">${mine.length ? 'Create &amp; link' : 'Save Calls Log name'}</button>
+          <span class="ax-msg" id="u-rm-new-msg"></span>
+        </div>
+      </div>
+    </details>
+    ${unassignedNames.length ? `
+      <div style="margin-top:10px;padding:8px 10px;background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.2);border-radius:8px;">
+        <div style="font-size:0.7rem;color:#fbbf24;font-weight:700;margin-bottom:6px;">Calls Log reps without a profile — click to claim for this user</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px;">
+          ${unassignedNames.map(n => `<span class="unassigned-chip u-rm-claim" data-name="${escapeHtml(n)}">${escapeHtml(n)}</span>`).join('')}
+        </div>
+      </div>
+    ` : ''}
+  `;
+
+  // Wire row save / unlink / delete
+  wrap.querySelectorAll('.u-rm-save').forEach(btn => btn.addEventListener('click', async () => {
+    const row = btn.closest('.rep-map-row');
+    const id = btn.dataset.id;
+    const name = btn.dataset.name;
+    const aff = row.querySelector('.u-rm-aff').value.split(',').map(s => s.trim()).filter(Boolean);
+    const msg = document.getElementById('u-rm-msg-' + id);
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      await setRepMapping(name, aff, uid);
+      msg.className = 'ax-msg ok'; msg.textContent = '✓ Saved';
+      setTimeout(() => renderUserRepMap(uid), 700);
+    } catch (e) { msg.className = 'ax-msg err'; msg.textContent = e.message; btn.disabled = false; btn.textContent = 'Save'; }
+  }));
+  wrap.querySelectorAll('.u-rm-unlink').forEach(btn => btn.addEventListener('click', async () => {
+    if (!confirm(`Unlink "${btn.dataset.name}" from this user? (The rep profile stays — only the user link is cleared.)`)) return;
+    btn.disabled = true; btn.textContent = 'Unlinking…';
+    try {
+      const profile = repMapProfiles.find(p => p.id === Number(btn.dataset.id));
+      await setRepMapping(btn.dataset.name, profile?.sales_affiliates || [], null);
+      renderUserRepMap(uid);
+    } catch (e) { btn.disabled = false; btn.textContent = 'Unlink'; alert(e.message); }
+  }));
+  wrap.querySelectorAll('.u-rm-delete').forEach(btn => btn.addEventListener('click', async () => {
+    if (!confirm('Delete this rep profile entirely? This cannot be undone.')) return;
+    btn.disabled = true; btn.textContent = 'Deleting…';
+    try { await deleteRepMappingById(btn.dataset.id); renderUserRepMap(uid); }
+    catch (e) { btn.disabled = false; btn.textContent = '✕ Delete'; alert(e.message); }
+  }));
+
+  // Attach an existing unlinked profile to this user
+  document.getElementById('u-rm-attach')?.addEventListener('click', async () => {
+    const sel = document.getElementById('u-rm-attach-pick');
+    const opt = sel.selectedOptions[0];
+    if (!opt || !opt.value) return;
+    const profile = repMapProfiles.find(p => p.id === Number(opt.value));
+    if (!profile) return;
+    try {
+      await setRepMapping(profile.calls_name, profile.sales_affiliates || [], uid);
+      renderUserRepMap(uid);
+    } catch (e) { alert(e.message); }
+  });
+
+  // Create new + link
+  document.getElementById('u-rm-create')?.addEventListener('click', async () => {
+    const name = document.getElementById('u-rm-new-name').value.trim();
+    const aff = document.getElementById('u-rm-new-aff').value.split(',').map(s => s.trim()).filter(Boolean);
+    const msg = document.getElementById('u-rm-new-msg');
+    if (!name) { msg.className = 'ax-msg err'; msg.textContent = 'Calls Log name is required.'; return; }
+    msg.className = 'ax-msg'; msg.textContent = 'Saving…';
+    try {
+      await setRepMapping(name, aff, uid);
+      msg.className = 'ax-msg ok'; msg.textContent = '✓ Linked';
+      setTimeout(() => renderUserRepMap(uid), 600);
+    } catch (e) { msg.className = 'ax-msg err'; msg.textContent = e.message; }
+  });
+
+  // One-click claim: take an unassigned Calls Log name and link it to this user
+  wrap.querySelectorAll('.u-rm-claim').forEach(chip => chip.addEventListener('click', async () => {
+    const name = chip.dataset.name;
+    if (!confirm(`Create a rep profile for "${name}" and link it to this user?`)) return;
+    try { await setRepMapping(name, [], uid); renderUserRepMap(uid); }
+    catch (e) { alert(e.message); }
+  }));
+
+  // Smart-match: existing unlinked profile that matches first_name → one-click link
+  document.getElementById('u-rm-suggest-link')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    const profile = repMapProfiles.find(p => p.id === Number(btn.dataset.id));
+    if (!profile) return;
+    btn.disabled = true; btn.textContent = 'Linking…';
+    try {
+      await setRepMapping(profile.calls_name, profile.sales_affiliates || [], uid);
+      renderUserRepMap(uid);
+    } catch (err) { btn.disabled = false; btn.textContent = 'Link to this user'; alert(err.message); }
+  });
+  // Smart-match: unassigned calls-log name that matches first_name → one-click create+link
+  document.getElementById('u-rm-suggest-create')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true; btn.textContent = 'Creating…';
+    try { await setRepMapping(btn.dataset.name, [], uid); renderUserRepMap(uid); }
+    catch (err) { btn.disabled = false; btn.textContent = 'Create & link'; alert(err.message); }
+  });
+}
+
+// Per-user activity history modal — fetches every activity_log entry where
+// actor_email matches this user, renders with the same _formatActivity
+// helper as the global Activity tab so the formatting (icon + verb + diff
+// + content block) is identical.
+async function openUserActivityModal(uid) {
+  // Fall back to sessionsRaw when the Users tab hasn't been visited yet
+  // (Sessions tab can call this without usersData being populated).
+  const u = usersData.find(x => x.id === uid)
+         || sessionsRaw.find(x => x.id === uid)
+         || null;
+  if (!u || !u.email) { toast('User not found.', 'err'); return; }
+  const display = (u.first_name && u.first_name.trim()) ? u.first_name.trim() : u.email;
+  showModal(`
+    <div class="invite-modal" style="max-height:80vh;">
+      <div class="invite-header">
+        <h3>📜 ${escapeHtml(display)}'s activity</h3>
+        <span class="invite-subtitle">Everything ${escapeHtml(display)} has done in the system. Most recent first.</span>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <input id="ua-search" type="search" placeholder="Filter…" style="flex:1;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);font-size:0.82rem;">
+        <select id="ua-limit" style="padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);font-size:0.82rem;">
+          <option value="100">Last 100</option>
+          <option value="200" selected>Last 200</option>
+          <option value="500">Last 500</option>
+        </select>
+        <button class="small-btn" id="ua-refresh">↻ Refresh</button>
+      </div>
+      <div id="ua-list" style="overflow-y:auto;max-height:55vh;border:1px solid var(--border);border-radius:10px;padding:8px;background:var(--surface2);">
+        <div style="padding:14px;color:var(--text-dim);font-size:0.84rem;">Loading…</div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+        <span id="ua-count" style="font-size:0.72rem;color:var(--text-dim);">—</span>
+        <button class="btn-ghost" onclick="document.getElementById('modalRoot').innerHTML=''">Close</button>
+      </div>
+    </div>
+  `, { wide: true });
+
+  let cachedRows = [];
+
+  async function refresh() {
+    const listEl = document.getElementById('ua-list');
+    const countEl = document.getElementById('ua-count');
+    const limit = Number(document.getElementById('ua-limit').value) || 200;
+    listEl.innerHTML = '<div style="padding:14px;color:var(--text-dim);font-size:0.84rem;">Loading…</div>';
+    try {
+      const params = new URLSearchParams({ api: 'activity', limit: String(limit), actor: u.email || '' });
+      const j = await adminApi('?' + params.toString());
+      cachedRows = j.rows || [];
+      // The actor filter is ilike — narrow to exact email match client-side.
+      const myEmail = (u.email || '').toLowerCase();
+      cachedRows = cachedRows.filter(r => (r.actor_email || '').toLowerCase() === myEmail);
+      render();
+    } catch (e) {
+      listEl.innerHTML = `<div style="padding:14px;color:var(--red);font-size:0.84rem;">${escapeHtml(e.message)}</div>`;
+    }
+  }
+
+  function render() {
+    const listEl = document.getElementById('ua-list');
+    const countEl = document.getElementById('ua-count');
+    if (!listEl) return;
+    const q = (document.getElementById('ua-search')?.value || '').trim().toLowerCase();
+    const filtered = !q ? cachedRows : cachedRows.filter(r => {
+      const f = _formatActivity(r);
+      const hay = `${f.verb} ${f.target || ''} ${JSON.stringify(r.details || {})}`.toLowerCase();
+      return hay.includes(q);
+    });
+    countEl.textContent = q ? `${filtered.length} of ${cachedRows.length} entries match` : `${cachedRows.length} entr${cachedRows.length === 1 ? 'y' : 'ies'}`;
+    if (!filtered.length) {
+      listEl.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-dim);font-size:0.84rem;">${q ? 'No match.' : 'No activity yet.'}</div>`;
+      return;
+    }
+    listEl.innerHTML = filtered.map(r => {
+      const f = _formatActivity(r);
+      const whenAbs = f.when ? new Date(f.when) : null;
+      const whenStr = whenAbs && !isNaN(whenAbs.getTime()) ? whenAbs.toLocaleString() : '';
+      const ago = _ago(f.when);
+      const target = f.target ? `<span class="act-target">${escapeHtml(f.target)}</span>` : '';
+      return `<div class="act-row" title="${escapeHtml(whenStr)}">
+        <span class="act-icon">${f.icon}</span>
+        <div class="act-body">
+          <div>
+            <span class="act-verb">${escapeHtml(f.verb)}</span>
+            ${target}
+          </div>
+          ${f.diff ? `<div class="act-diff">${f.diff}</div>` : ''}
+          ${f.content || ''}
+        </div>
+        <span class="act-when">${escapeHtml(ago || whenStr)}</span>
+      </div>`;
+    }).join('');
+  }
+
+  document.getElementById('ua-refresh').addEventListener('click', refresh);
+  document.getElementById('ua-limit').addEventListener('change', refresh);
+  let _uaSearchTimer;
+  document.getElementById('ua-search').addEventListener('input', () => {
+    clearTimeout(_uaSearchTimer);
+    _uaSearchTimer = setTimeout(render, 250);
+  });
+  refresh();
+}
+
+function openCopyRolesPicker(targetUid) {
+  const choices = usersData.filter(u => u.id !== targetUid && (u.is_admin || u.role_ids.length))
+    .sort((a, b) => (_displayOf(a.id) || '').localeCompare(_displayOf(b.id) || ''));
+  if (!choices.length) { alert('No users with roles to copy from yet.'); return; }
+  const opts = choices.map(u => `<option value="${u.id}">${escapeHtml(_displayOf(u.id))} ${u.is_admin ? '(admin)' : `(${u.role_ids.length} roles)`}</option>`).join('');
+  showModal(`<h3>⧉ Copy roles from another user</h3>
+    <div class="ax-editor-row"><label>Copy from</label><select id="cf-source">${opts}</select></div>
+    <div style="font-size:0.74rem;color:var(--text-dim);margin:6px 0;">This will replace the current user's roles + admin flag with the chosen user's. Posts and grants are not copied.</div>
+    <div class="ax-actions"><button class="btn-primary" id="cf-apply">Copy &amp; Save</button><button class="btn-ghost" id="cf-cancel">Cancel</button></div>`);
+  document.getElementById('cf-cancel').addEventListener('click', closeModal);
+  document.getElementById('cf-apply').addEventListener('click', async () => {
+    const srcId = document.getElementById('cf-source').value;
+    const src = usersData.find(u => u.id === srcId);
+    if (!src) return;
+    try {
+      await api('?api=user-set-admin', { method: 'POST', body: { user_id: targetUid, is_admin: !!src.is_admin } });
+      await api('?api=user-set-roles', { method: 'POST', body: { user_id: targetUid, role_ids: src.role_ids } });
+      closeModal();
+      await loadUsersTab();
+      openUserEditor(targetUid);
+    } catch (e) { alert(e.message); }
+  });
+}
+
+async function saveUser(uid) {
+  const msg = document.getElementById('u-msg');
+  msg.textContent = 'Saving…'; msg.className = 'ax-msg';
+  try {
+    const isAdmin = document.getElementById('u-isadmin').checked;
+    const roleIds = [...document.querySelectorAll('#u-roles .role-chip.on')].map(c => Number(c.dataset.roleId));
+    await api('?api=user-set-admin', { method: 'POST', body: { user_id: uid, is_admin: isAdmin } });
+    await api('?api=user-set-roles', { method: 'POST', body: { user_id: uid, role_ids: roleIds } });
+    msg.textContent = ''; msg.className = 'ax-msg';
+    toast('Saved roles & access for ' + (_displayOf(uid) || 'user'), 'ok');
+    await loadUsersTab();
+    openUserEditor(uid);
+  } catch (e) { msg.textContent = e.message; msg.className = 'ax-msg err'; toast(e.message, 'err'); }
+}
+
+async function revokeUserSession(uid) {
+  try {
+    await api('?api=user-recompute', { method: 'POST', body: { user_id: uid } });
+    toast('Access refreshed — they\'ll pick up the new permissions on their next sign-in or token refresh.', 'ok', 3600);
+  } catch (e) { toast(e.message, 'err'); }
+}
+
+async function toggleSuspend(uid, isSuspended) {
+  const u = usersData.find(x => x.id === uid);
+  const email = u?.email || 'this user';
+  if (!isSuspended && uid && session?.user?.id && uid === session.user.id) {
+    alert('You cannot suspend your own account.');
+    return;
+  }
+  if (isSuspended) {
+    if (!confirm(`Reactivate ${email}? They'll be able to log in again with their existing roles.`)) return;
+  } else {
+    if (!confirm(`Suspend ${email}?\n\nThey lose access to every board (including Home) and cannot log in. Their roles are kept, so you can reactivate them anytime.`)) return;
+  }
+  try {
+    await api(isSuspended ? '?api=reactivate-user' : '?api=suspend-user', { method: 'POST', body: { user_id: uid } });
+    toast(isSuspended ? `${email} reactivated.` : `${email} suspended — access revoked & login blocked.`, 'ok');
+    await loadUsersTab();
+    openUserEditor(uid);
+  } catch (e) {
+    toast((isSuspended ? 'Reactivate' : 'Suspend') + ' failed: ' + (e.message || e), 'err');
+  }
+}
+
+async function deleteUser(uid) {
+  const u = usersData.find(x => x.id === uid);
+  const email = u?.email || 'this user';
+  if (uid && session?.user?.id && uid === session.user.id) {
+    alert('You cannot delete your own account.');
+    return;
+  }
+  if (!confirm(`Delete ${email}?\n\nThis permanently removes the account and clears all their roles, posts, and permission grants. It cannot be undone.`)) return;
+  const typed = prompt(`To confirm, type DELETE to permanently remove ${email}:`);
+  if ((typed || '').trim().toUpperCase() !== 'DELETE') { toast('Cancelled — nothing deleted.', 'ok'); return; }
+  try {
+    await api('?api=delete-user', { method: 'POST', body: { user_id: uid } });
+    toast(`${email} deleted.`, 'ok');
+    selectedId = null;
+    document.getElementById('axEditor').innerHTML = '<div class="ax-editor-empty">Select a user on the left.</div>';
+    await loadUsersTab();
+  } catch (e) {
+    toast('Delete failed: ' + (e.message || e), 'err');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ROLES TAB
+// ═══════════════════════════════════════════════════════════════════════
+function loadRolesTab() {
+  const list = document.getElementById('axList');
+  document.getElementById('axCount').textContent = `${roles.length} roles`;
+  list.innerHTML = roles.map(r => {
+    const sel = r.id === selectedId ? 'selected' : '';
+    const permCount = rolePerms.filter(rp => rp.role_id === r.id).length;
+    return `<div class="ax-row ${sel}" data-rid="${r.id}">
+      <div class="ax-row-name"><span class="role-chip-dot" style="background:${r.color};display:inline-block;margin-right:6px;"></span>${escapeHtml(r.name)}</div>
+      <div class="ax-row-meta">
+        ${r.is_system ? '<span class="pill">System</span>' : ''}
+        <span>${permCount} perms</span>
+        <span>${escapeHtml(r.slug)}</span>
+      </div>
+    </div>`;
+  }).join('');
+  list.querySelectorAll('.ax-row').forEach(r => r.addEventListener('click', () => openRoleEditor(parseInt(r.dataset.rid, 10))));
+}
+
+function openRoleEditor(rid) {
+  selectedId = rid; selectedKind = 'role';
+  document.querySelectorAll('.ax-row').forEach(r => r.classList.toggle('selected', parseInt(r.dataset.rid, 10) === rid));
+  const r = rid ? roles.find(x => x.id === rid) : { id: null, name: '', slug: '', description: '', color: '#6b9eff', sort_order: 999, is_system: false };
+  if (!r) return;
+  const currentPermKeys = new Set(rolePerms.filter(rp => rp.role_id === rid).map(rp => rp.permission_key));
+  const byDashboard = {};
+  for (const p of permissions) (byDashboard[p.dashboard] ||= []).push(p);
+  const gridHtml = Object.keys(byDashboard).sort().map(d => `
+    <div class="perm-grid-dashboard">${escapeHtml(d)}</div>
+    <div class="perm-grid-actions">
+      ${byDashboard[d].map(p => `<span class="perm-chip ${currentPermKeys.has(p.key) ? 'on' : ''}" data-perm-key="${p.key}" title="${escapeHtml(p.description || p.key || '')}">${escapeHtml(p.label || p.action)}</span>`).join('')}
+    </div>
+  `).join('');
+
+  const ed = document.getElementById('axEditor');
+  ed.innerHTML = `<div class="ax-editor">
+    <h2>${r.id ? escapeHtml(r.name) : 'New role'} ${r.is_system ? '<span class="pill">System</span>' : ''}</h2>
+    <div class="ax-editor-row"><label>Name</label><input id="r-name" value="${escapeHtml(r.name)}"></div>
+    <div class="ax-editor-row"><label>Slug</label><input id="r-slug" value="${escapeHtml(r.slug)}" ${r.is_system ? 'readonly' : ''} placeholder="lowercase_with_underscores"></div>
+    <div class="ax-editor-row"><label>Description</label><input id="r-desc" value="${escapeHtml(r.description || '')}"></div>
+    <div class="ax-editor-row"><label>Color</label><input id="r-color" type="color" value="${escapeHtml(r.color || '#6b9eff')}" style="max-width:80px;"></div>
+    <div class="ax-editor-row"><label>Sort order</label><input id="r-sort" type="number" value="${r.sort_order || 0}" style="max-width:120px;"></div>
+
+    <h3>Permissions in this bundle</h3>
+    <div class="perm-grid" id="r-perm-grid">${gridHtml}</div>
+    <div style="font-size:0.72rem;color:var(--text-dim);margin-top:6px;">Click an action chip to include/exclude it. Users with this role get the union of all checked permissions.</div>
+
+    <div class="ax-actions">
+      <button class="btn-primary" id="r-save">Save</button>
+      ${!r.is_system && r.id ? '<button class="btn-ghost" style="color:var(--red);" id="r-delete">Delete</button>' : ''}
+      <span class="ax-msg" id="r-msg"></span>
+    </div>
+  </div>`;
+
+  ed.querySelectorAll('#r-perm-grid .perm-chip').forEach(c => c.addEventListener('click', () => c.classList.toggle('on')));
+  document.getElementById('r-save').addEventListener('click', () => saveRole(rid));
+  document.getElementById('r-delete')?.addEventListener('click', () => deleteRole(rid));
+}
+
+async function saveRole(rid) {
+  const msg = document.getElementById('r-msg');
+  msg.textContent = 'Saving…'; msg.className = 'ax-msg';
+  try {
+    const body = {
+      name: document.getElementById('r-name').value.trim(),
+      slug: document.getElementById('r-slug').value.trim(),
+      description: document.getElementById('r-desc').value.trim(),
+      color: document.getElementById('r-color').value,
+      sort_order: Number(document.getElementById('r-sort').value) || 0,
+      permission_keys: [...document.querySelectorAll('#r-perm-grid .perm-chip.on')].map(c => c.dataset.permKey),
+    };
+    if (!body.name) throw new Error('Name is required');
+    let res;
+    if (rid) res = await api('?api=role-update&id=' + rid, { method: 'POST', body });
+    else     res = await api('?api=role-create', { method: 'POST', body });
+    msg.textContent = '✓ Saved'; msg.className = 'ax-msg ok';
+    await refreshAll();
+    if (res?.row?.id) openRoleEditor(res.row.id);
+  } catch (e) { msg.textContent = e.message; msg.className = 'ax-msg err'; }
+}
+
+async function deleteRole(rid) {
+  if (!confirm('Delete this role? Users currently assigned will lose its permissions on their next refresh.')) return;
+  try { await api('?api=role-delete&id=' + rid, { method: 'POST', body: {} }); selectedId = null; await refreshAll(); }
+  catch (e) { alert(e.message); }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ORG BOARD TAB
+// ═══════════════════════════════════════════════════════════════════════
+// ── Org board: holders index ────────────────────────────────────────────
+// We fetch every active holder once per org-tab load so we can render the
+// avatar stack on each post card without an extra request per card.
+let activeHoldersByPost = {}; // { [postId]: [{user_id, started_at}, …] }
+let repMapProfiles = [];       // [{ id, calls_name, sales_affiliates[], user_id, user_email }]
+let repMapUnassigned = { allCallsReps: [], unassignedCallsReps: [], unassignedAffiliates: [] };
+
+async function loadOrgTab() {
+  const board = document.getElementById('orgBoard');
+  board.innerHTML = '<div style="padding:24px;color:var(--text-dim);font-size:0.84rem;">Loading…</div>';
+  try {
+    const [d, dep, p, h, ep, eph] = await Promise.all([
+      api('?api=divisions'),
+      api('?api=departments'),
+      api('?api=posts'),
+      api('?api=post-holders'),
+      api('?api=exec-posts').catch(() => ({ rows: [] })),
+      api('?api=exec-post-holders').catch(() => ({ rows: [] })),
+    ]);
+    divisionsData = d.rows || [];
+    departmentsData = dep.rows || [];
+    postsData = p.rows || [];
+    execPostsData = ep.rows || [];
+    activeHoldersByPost = {};
+    for (const row of (h.rows || [])) {
+      if (row.ended_at) continue;
+      (activeHoldersByPost[row.post_id] ||= []).push(row);
+    }
+    execHoldersByExecPost = {};
+    for (const row of (eph.rows || [])) {
+      if (row.ended_at) continue;
+      (execHoldersByExecPost[row.exec_post_id] ||= []).push(row);
+    }
+    document.getElementById('axCount').textContent = `${divisionsData.length} div · ${departmentsData.length} dept · ${postsData.length} posts · ${execPostsData.length} exec`;
+    renderOrgBoard();
+  } catch (e) { board.innerHTML = `<div style="padding:24px;color:var(--red);font-size:0.84rem;">${escapeHtml(e.message)}</div>`; }
+  // Hook up zoom controls AFTER the board is rendered so the natural-size
+  // measurement in applyOrgZoom sees the real content. Idempotent — the
+  // helper re-binds each load.
+  initOrgZoom();
+}
+
+// ── Org-board zoom controls ────────────────────────────────────────────
+// Apply a CSS transform: scale() on #orgBoardZoom so the whole board can
+// shrink down to fit a small viewport, or zoom in for detail. The scaled
+// element's layout box doesn't change with transform, so we also set
+// --org-zoom-w on the inner element to (naturalWidth × zoom) so the
+// wrapper's horizontal scrollbar reflects the visible size.
+//
+// Zoom level is persisted in localStorage so it survives a reload. The
+// "Fit" button auto-computes the scale needed to show the whole board
+// without horizontal scrolling.
+const ORG_ZOOM_KEY = 'orgBoard:zoom:v1';
+let _orgZoomNaturalWidth = 0;
+let _orgZoomNaturalHeight = 0;
+function _measureOrgZoomNatural() {
+  const inner = document.getElementById('orgBoardZoom');
+  if (!inner) return { w: 0, h: 0 };
+  // Temporarily clear transform so we measure the natural (un-scaled)
+  // size of the inner element, then restore.
+  const prev = inner.style.transform;
+  inner.style.transform = 'none';
+  // scrollWidth/Height includes overflowing children (all divisions even
+  // if they'd normally be hidden behind the inner board's scrollbar).
+  const w = inner.scrollWidth;
+  const h = inner.scrollHeight;
+  inner.style.transform = prev;
+  return { w, h };
+}
+// Zoom range — wider than v279 so users can really shrink the board down
+// or zoom in for detail work.
+const ORG_ZOOM_MIN = 0.1;   // 10%
+const ORG_ZOOM_MAX = 3.0;   // 300%
+const ORG_ZOOM_STEP = 0.05; // 5% per button click
+
+// applyOrgZoom — sets the visual scale. `continuous` skips the CSS
+// transition so a drag of the range slider or wheel scroll feels
+// instantaneous (no .08s lag per micro-step).
+function applyOrgZoom(zoom, continuous = false) {
+  const inner = document.getElementById('orgBoardZoom');
+  const sizer = document.getElementById('orgBoardZoomSizer');
+  const wrap  = document.getElementById('orgBoardZoomWrap');
+  if (!inner || !sizer || !wrap) return;
+  const z = Math.max(ORG_ZOOM_MIN, Math.min(ORG_ZOOM_MAX, Number(zoom) || 1));
+  // Always re-measure on every apply — the org board content can change
+  // (add/remove division) between renders.
+  const m = _measureOrgZoomNatural();
+  _orgZoomNaturalWidth = m.w;
+  _orgZoomNaturalHeight = m.h;
+  if (continuous) inner.style.transition = 'none';
+  else            inner.style.transition = '';
+  inner.style.setProperty('--org-zoom', String(z));
+  if (_orgZoomNaturalWidth)  sizer.style.width  = Math.ceil(_orgZoomNaturalWidth  * z) + 'px';
+  if (_orgZoomNaturalHeight) sizer.style.height = Math.ceil(_orgZoomNaturalHeight * z) + 'px';
+  const pct = document.getElementById('orgZoomPct');
+  if (pct) pct.textContent = Math.round(z * 100) + '%';
+  const slider = document.getElementById('orgZoomRange');
+  if (slider && Math.abs(parseFloat(slider.value) - z * 100) > 0.5) slider.value = String(Math.round(z * 100));
+  try { localStorage.setItem(ORG_ZOOM_KEY, String(z)); } catch (_) {}
+}
+function initOrgZoom() {
+  const inBtn  = document.getElementById('orgZoomIn');
+  const outBtn = document.getElementById('orgZoomOut');
+  const rstBtn = document.getElementById('orgZoomReset');
+  const fitBtn = document.getElementById('orgZoomFit');
+  const range  = document.getElementById('orgZoomRange');
+  const wrap   = document.getElementById('orgBoardZoomWrap');
+  if (!inBtn || !outBtn || !rstBtn || !fitBtn || !range || !wrap) return;
+  // Re-measure natural size — content may have changed since last render.
+  _orgZoomNaturalWidth = 0; _orgZoomNaturalHeight = 0;
+  let z = 1;
+  try { z = parseFloat(localStorage.getItem(ORG_ZOOM_KEY) || '1') || 1; } catch (_) {}
+  applyOrgZoom(z);
+  // Idempotent re-binding: clone-and-replace strips any old listeners.
+  const fresh = (el) => { const c = el.cloneNode(true); el.parentNode.replaceChild(c, el); return c; };
+  const inN  = fresh(inBtn), outN = fresh(outBtn), rstN = fresh(rstBtn), fitN = fresh(fitBtn), rangeN = fresh(range);
+  const cur = () => parseFloat(getComputedStyle(document.getElementById('orgBoardZoom')).getPropertyValue('--org-zoom')) || 1;
+  inN .addEventListener('click', () => applyOrgZoom(cur() + ORG_ZOOM_STEP));
+  outN.addEventListener('click', () => applyOrgZoom(cur() - ORG_ZOOM_STEP));
+  rstN.addEventListener('click', () => applyOrgZoom(1));
+  fitN.addEventListener('click', () => {
+    // Fit-to-width: scale so naturalWidth × z = wrapper visible width.
+    const m = _measureOrgZoomNatural();
+    _orgZoomNaturalWidth = m.w; _orgZoomNaturalHeight = m.h;
+    const visible = wrap.clientWidth - 8; // small margin so it doesn't kiss the edge
+    if (!m.w || !visible) return applyOrgZoom(1);
+    applyOrgZoom(Math.min(1, visible / m.w));
+  });
+  // Range slider — fully continuous; transition is suppressed during drag.
+  rangeN.addEventListener('input', (e) => {
+    applyOrgZoom(parseFloat(e.target.value) / 100, /*continuous*/ true);
+  });
+  // Cmd/Ctrl + scroll wheel — proportional to deltaY for a smooth, fine
+  // zoom that matches native trackpad pinch feel. (Pinch on trackpads
+  // fires wheel events with ctrlKey set, so this hooks both.)
+  wrap.addEventListener('wheel', (e) => {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    e.preventDefault();
+    // 0.0015 → ~15% zoom per typical 100-px wheel notch; fine enough to
+    // be smooth, coarse enough that one notch still moves the needle.
+    const delta = e.deltaY * -0.0015;
+    applyOrgZoom(cur() + delta, /*continuous*/ true);
+  }, { passive: false });
+}
+
+// Find a user record across every cache we have. The Users tab populates
+// usersData; the Sessions tab populates sessionsRaw; rep-mapping prefetch
+// gives us a thin list too. The Org Board may need to resolve a UUID
+// before any of those tabs have been visited — fall through them all so
+// the board never falls back to raw UUIDs.
+function _findUserRecord(uid) {
+  if (!uid) return null;
+  return usersData.find(x => x.id === uid)
+      || (typeof sessionsRaw !== 'undefined' ? sessionsRaw.find(x => x.id === uid) : null)
+      || null;
+}
+function _emailOf(uid) {
+  if (!uid) return null;
+  const u = _findUserRecord(uid);
+  return (u && u.email) || uid;
+}
+// Display name — first_name if set, else email. As a last-resort fallback
+// for unknown UUIDs we show "(unknown user)" instead of the raw UUID so
+// admins know to refresh.
+function _displayOf(uid) {
+  if (!uid) return null;
+  const u = _findUserRecord(uid);
+  if (!u) return '(unknown user)';
+  return (u.first_name && u.first_name.trim()) ? u.first_name.trim() : (u.email || '(unknown user)');
+}
+// Picker label: "Carlos (carlos@…)" if there's a name; plain email otherwise.
+function _pickerLabelFor(u) {
+  const name = (u.first_name || '').trim();
+  return name ? `${name} (${u.email})` : (u.email || u.id);
+}
+function _initialOf(uid) { const d = _displayOf(uid); return d ? d.slice(0,1).toUpperCase() : '?'; }
+// All-users option list, with current selection preselected.
+function _userOptions(selectedId, includeVacant = true) {
+  const sorted = [...usersData].sort((a, b) => (_displayOf(a.id) || '').localeCompare(_displayOf(b.id) || ''));
+  return (includeVacant ? '<option value="">— Vacant —</option>' : '') +
+    sorted.map(u => `<option value="${u.id}" ${selectedId === u.id ? 'selected' : ''}>${escapeHtml(_pickerLabelFor(u))}</option>`).join('');
+}
+
+// Top tier: executive posts that sit ABOVE the divisions. Each can cover
+// one or more divisions (many-to-many via org_executive_post_divisions) and
+// be held by one or more users. The host page must contain
+// <div id="orgTopTier"></div> right above #orgBoard.
+function renderTopTier() {
+  const tier = document.getElementById('orgTopTier');
+  if (!tier) return;
+  const cards = execPostsData.map(ep => {
+    const holders = execHoldersByExecPost[ep.id] || [];
+    const role = ep.default_role_id ? roles.find(r => r.id === ep.default_role_id) : null;
+    const divChips = (ep.division_ids || []).map(did => {
+      const d = divisionsData.find(x => x.id === did);
+      return d ? `<span class="div-chip" style="border-color:${d.color}66;color:${d.color};">${escapeHtml(d.name)}</span>` : '';
+    }).join('') || '<span style="color:var(--text-dim);font-style:italic;font-size:0.72rem;">(no divisions linked)</span>';
+    const holderHtml = holders.length
+      ? holders.map(h => `<span class="org-exec-holder" title="${escapeHtml(_emailOf(h.user_id) || '')}"><span class="havatar small">${escapeHtml(_initialOf(h.user_id))}</span>${escapeHtml(_displayOf(h.user_id))}</span>`).join('')
+      : '<span class="org-exec-holder vacant">Vacant — click to assign</span>';
+    return `<div class="org-exec-card" data-kind="exec-post" data-id="${ep.id}" draggable="true" style="border-color:${ep.color || '#fbbf24'}66;">
+      <div class="org-exec-card-stripe" style="background:${ep.color || '#fbbf24'};"></div>
+      <div class="org-exec-card-body">
+        <div class="org-exec-card-title">⭐ ${escapeHtml(ep.name)}</div>
+        <div class="org-exec-card-holders">${holderHtml}</div>
+        <div class="org-exec-card-divs">${divChips}</div>
+        ${role ? `<div class="org-exec-card-role" style="color:${role.color || '#a78bfa'};">Auto-role: ${escapeHtml(role.name)}</div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+  tier.innerHTML = `<div class="org-top-tier-label">Executive layer</div>
+    <div class="org-top-tier-cards">${cards}<button class="org-add-exec" id="org-add-exec">+ Add exec post</button></div>`;
+
+  tier.querySelectorAll('.org-exec-card').forEach(el => {
+    el.addEventListener('click', e => { e.stopPropagation(); openExecPostEditor(Number(el.dataset.id)); });
+    // Drag to reorder within the strip.
+    el.addEventListener('dragstart', e => {
+      el.classList.add('dragging');
+      e.dataTransfer.setData('text/plain', 'exec:' + el.dataset.id);
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    el.addEventListener('dragend', () => el.classList.remove('dragging'));
+    el.addEventListener('dragover', e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; el.classList.add('drag-over'); });
+    el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
+    el.addEventListener('drop', async e => {
+      e.preventDefault(); el.classList.remove('drag-over');
+      const payload = e.dataTransfer.getData('text/plain') || '';
+      if (!payload.startsWith('exec:')) return;
+      const draggedId = Number(payload.slice(5));
+      const targetId = Number(el.dataset.id);
+      if (!draggedId || draggedId === targetId) return;
+      const order = execPostsData.map(x => x.id).filter(id => id !== draggedId);
+      const idx = order.indexOf(targetId);
+      order.splice(idx, 0, draggedId);
+      try { await api('?api=reorder', { method: 'POST', body: { kind: 'exec_posts', order } }); await loadOrgTab(); }
+      catch (err) { alert(err.message); }
+    });
+  });
+  document.getElementById('org-add-exec')?.addEventListener('click', () => openExecPostEditor(null));
+  return;
+  // Legacy body kept below as dead code for context.
+  // eslint-disable-next-line no-unreachable
+  if (false) {
+  const cardsHtml = execPostsData.map(ep => {
+    const holderName = _displayOf(ep.head_user_id);
+    const role = ep.default_role_id ? roles.find(r => r.id === ep.default_role_id) : null;
+    const divChips = ep.division_ids.map(did => {
+      const d = divisionsData.find(x => x.id === did);
+      return d ? `<span class="div-chip" style="border-color:${d.color}66;color:${d.color};">${escapeHtml(d.name)}</span>` : '';
+    }).join('') || '<span style="color:var(--text-dim);font-style:italic;">(no divisions linked yet)</span>';
+    const holderHtml = holderName
+      ? `<div class="org-exec-card-holder" title="${escapeHtml(_emailOf(ep.head_user_id) || '')}"><span class="havatar">${escapeHtml(_initialOf(ep.head_user_id))}</span>${escapeHtml(holderName)}</div>`
+      : `<div class="org-exec-card-holder vacant">Vacant — click to assign</div>`;
+    return `
+      <div class="org-exec-card" data-exec-id="${ep.id}" style="--exec-color:${ep.color || '#fbbf24'};">
+        <div class="org-exec-card-stripe"></div>
+        <div class="org-exec-card-title">⭐ ${escapeHtml(ep.name)}</div>
+        ${holderHtml}
+        ${role ? `<span class="org-exec-card-role">${escapeHtml(role.name)}</span>` : ''}
+        <div class="org-exec-card-divs">${divChips}</div>
+      </div>`;
+  }).join('');
+  tier.innerHTML =
+    '<div class="org-top-tier-label">Executive</div>' +
+    cardsHtml +
+    '<button class="org-add-exec" id="org-add-exec">+ Executive post</button>';
+  tier.querySelectorAll('.org-exec-card').forEach(el => {
+    const epId = Number(el.dataset.execId);
+    el.addEventListener('click', () => openExecPostEditor(epId));
+    // Hover → highlight the divisions this exec post covers.
+    el.addEventListener('mouseenter', () => {
+      const ep = execPostsData.find(x => x.id === epId);
+      if (!ep) return;
+      for (const did of ep.division_ids) {
+        document.querySelector(`.org-col-division [data-id="${did}"][data-kind="division"]`)?.closest('.org-col-division')?.classList.add('exec-covered');
+      }
+    });
+    el.addEventListener('mouseleave', () => {
+      document.querySelectorAll('.org-col-division.exec-covered').forEach(n => n.classList.remove('exec-covered'));
+    });
+  });
+  document.getElementById('org-add-exec')?.addEventListener('click', () => openExecPostEditor(null));
+  } // end if(false) — dead code block
+}
+
+async function seedStandardOrg() {
+  const seedBtn = document.getElementById('orgSeedBtn');
+  if (!confirm('Create the canonical Scientology-style org board?\n\n• 6 Divisions: HCO, Dissemination, Treasury, Technical, Qualifications, Public\n• 18 Departments\n• ~30 standard posts (each with Purpose)\n• 3 Executive top-tier posts: Executive Director, LRH Communicator, Cope Officer\n\nWon\'t duplicate anything that already exists. You can rename/delete anything afterwards.')) return;
+  if (seedBtn) { seedBtn.disabled = true; seedBtn.textContent = 'Seeding…'; }
+  try {
+    const res = await api('?api=seed-standard-org', { method: 'POST', body: {} });
+    await loadOrgTab();
+    const c = res.created || {};
+    alert(`✓ Seed complete — ${c.divisions || 0} divisions, ${c.departments || 0} departments, ${c.posts || 0} posts, ${c.exec_posts || 0} exec posts added.`);
+  } catch (e) { alert('Seed failed: ' + e.message); }
+  finally { if (seedBtn) { seedBtn.disabled = false; seedBtn.textContent = '🏛 Seed standard org board'; } }
+}
+
+function renderOrgBoard() {
+  const board = document.getElementById('orgBoard');
+  // Wire the always-visible Seed button (admins only — it's gated server-side anyway).
+  const seedBtn = document.getElementById('orgSeedBtn');
+  if (seedBtn) {
+    const eff = window.RidleyPerms?.effective(session?.user);
+    seedBtn.style.display = eff?.is_admin ? '' : 'none';
+    seedBtn.onclick = seedStandardOrg;
+  }
+  renderTopTier(); // no-op now — Executive is a regular Division
+  if (!divisionsData.length) {
+    board.innerHTML = `
+      <div style="display:flex;flex-direction:column;align-items:center;gap:12px;padding:40px 16px;">
+        <button class="org-add-division" id="org-seed-empty" style="background:rgba(167,139,250,.10);color:#a78bfa;border-color:#a78bfa;font-size:0.92rem;padding:14px 22px;min-height:auto;">🏛 Seed standard Scientology org board</button>
+        <span style="color:var(--text-dim);font-size:0.78rem;">— or —</span>
+        <button class="org-add-division" id="org-first-div" style="min-height:auto;">+ Add your first division (start blank)</button>
+      </div>`;
+    document.getElementById('org-first-div').addEventListener('click', openCreateDivisionModal);
+    document.getElementById('org-seed-empty').addEventListener('click', seedStandardOrg);
+    return;
+  }
+  const divsHtml = divisionsData.map(d => {
+    const depts = departmentsData.filter(x => x.division_id === d.id);
+    const totalPosts = postsData.filter(p => depts.some(dep => dep.id === p.department_id)).length;
+    const deptsHtml = depts.map(dep => renderDepartmentSubColumn(dep)).join('') +
+      `<button class="org-add-btn" style="align-self:flex-start;margin-top:4px;" data-add-dept="${d.id}">+ Department</button>`;
+    const headDisplay = _displayOf(d.head_user_id);
+    const headBadge = headDisplay
+      ? `<span class="org-head-pill" title="Division Head: ${escapeHtml(_emailOf(d.head_user_id) || '')} — click to change"><span class="havatar" style="background:${d.color || '#6b9eff'};">${escapeHtml(_initialOf(d.head_user_id))}</span><span>👑 ${escapeHtml(headDisplay)}</span></span>`
+      : `<span class="org-head-pill vacant" title="No Division Head — click to assign">👑 No Division Head</span>`;
+    return `
+      <div class="org-col-division" data-div-id="${d.id}" draggable="true">
+        <div class="org-col-division-head" data-kind="division" data-id="${d.id}">
+          <span class="org-div-drag-handle" title="Drag to reorder">⋮⋮</span>
+          <div class="org-col-division-stripe" style="background:${d.color || '#6b9eff'};"></div>
+          <div style="flex:1;display:flex;flex-direction:column;gap:4px;min-width:0;">
+            <div class="org-col-division-title">${escapeHtml(d.name)}</div>
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+              ${headBadge}
+              <span class="org-col-division-meta">${depts.length} dept · ${totalPosts} posts</span>
+            </div>
+          </div>
+        </div>
+        <div class="org-col-departments">${deptsHtml}</div>
+      </div>`;
+  }).join('');
+  board.innerHTML = divsHtml +
+    '<button class="org-add-division" id="org-add-div">+ Division</button>';
+
+  // Wire clicks
+  board.querySelectorAll('.org-col-division-head').forEach(el => el.addEventListener('click', e => {
+    e.stopPropagation();
+    openOrgEditor('division', Number(el.dataset.id));
+  }));
+  board.querySelectorAll('.org-col-department-head').forEach(el => el.addEventListener('click', e => {
+    e.stopPropagation();
+    openOrgEditor('department', Number(el.dataset.id));
+  }));
+  board.querySelectorAll('.org-post-card').forEach(el => el.addEventListener('click', e => {
+    e.stopPropagation();
+    openOrgEditor('post', Number(el.dataset.id));
+  }));
+  board.querySelectorAll('[data-add-dept]').forEach(el => el.addEventListener('click', e => {
+    e.stopPropagation();
+    openCreateDepartmentModal(Number(el.dataset.addDept));
+  }));
+  board.querySelectorAll('[data-add-post]').forEach(el => el.addEventListener('click', e => {
+    e.stopPropagation();
+    openCreatePostModal(Number(el.dataset.addPost));
+  }));
+  document.getElementById('org-add-div')?.addEventListener('click', openCreateDivisionModal);
+
+  // Division drag-to-reorder. Drag the column header / handle to drop it
+  // before another division; the new order is persisted via ?api=reorder.
+  board.querySelectorAll('.org-col-division').forEach(el => {
+    el.addEventListener('dragstart', e => {
+      el.classList.add('dragging');
+      e.dataTransfer.setData('text/plain', 'div:' + el.dataset.divId);
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    el.addEventListener('dragend', () => el.classList.remove('dragging'));
+    el.addEventListener('dragover', e => {
+      const payload = e.dataTransfer.types.includes('text/plain') ? '' : null;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      el.classList.add('drag-over');
+    });
+    el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
+    el.addEventListener('drop', async e => {
+      e.preventDefault();
+      el.classList.remove('drag-over');
+      const payload = e.dataTransfer.getData('text/plain') || '';
+      if (!payload.startsWith('div:')) return;
+      const draggedId = Number(payload.slice(4));
+      const targetId = Number(el.dataset.divId);
+      if (!draggedId || draggedId === targetId) return;
+      // Drop semantics: dropped column lands BEFORE the target column.
+      const order = divisionsData.map(d => d.id).filter(id => id !== draggedId);
+      const idx = order.indexOf(targetId);
+      order.splice(idx, 0, draggedId);
+      try { await api('?api=reorder', { method: 'POST', body: { kind: 'divisions', order } }); await loadOrgTab(); }
+      catch (err) { alert(err.message); }
+    });
+  });
+}
+
+function renderDepartmentSubColumn(dep) {
+  const posts = postsData.filter(x => x.department_id === dep.id);
+  const postsHtml = posts.map(po => renderPostCard(po)).join('') ||
+    '<div style="color:var(--text-dim);font-size:0.74rem;font-style:italic;padding:6px;">No posts yet</div>';
+  const headDisplay = _displayOf(dep.head_user_id);
+  const headLine = headDisplay
+    ? `<div class="org-dept-head" title="${escapeHtml(_emailOf(dep.head_user_id) || '')}"><span class="havatar small">${escapeHtml(_initialOf(dep.head_user_id))}</span><span>🎩 ${escapeHtml(headDisplay)}</span></div>`
+    : `<div class="org-dept-head vacant">🎩 No Dept Head</div>`;
+  return `
+    <div class="org-col-department">
+      <div class="org-col-department-head" data-kind="department" data-id="${dep.id}">
+        <span class="title">${escapeHtml(dep.name)}</span>
+        <span class="count">${posts.length}</span>
+      </div>
+      ${headLine}
+      <div class="org-col-department-posts">${postsHtml}</div>
+      <button class="org-add-btn" data-add-post="${dep.id}">+ Post</button>
+    </div>`;
+}
+
+function renderPostCard(po) {
+  // One post = one person. Show the (single) active holder as a name+avatar,
+  // or "Vacant". If a legacy post somehow has multiple holders, we display the
+  // most recent one and silently treat the rest as inactive.
+  const role = po.default_role_id ? roles.find(r => r.id === po.default_role_id) : null;
+  const holders = activeHoldersByPost[po.id] || [];
+  const primary = holders[0];
+  const holderHtml = primary
+    ? `<div class="org-post-card-holders" title="${escapeHtml(_emailOf(primary.user_id) || '')}"><span class="havatar">${escapeHtml(_initialOf(primary.user_id))}</span><span class="hname">${escapeHtml(_displayOf(primary.user_id))}</span></div>`
+    : '<div class="org-post-card-holders"><span class="vacant">Vacant — click to assign</span></div>';
+  const roleChip = role ? `<span class="org-post-card-role">${escapeHtml(role.name)}</span>` : '';
+  const purposeHtml = po.purpose ? `<div class="org-post-card-purpose" title="Purpose">${escapeHtml(po.purpose)}</div>` : '';
+  const senior = po.senior_post_id ? postsData.find(x => x.id === po.senior_post_id) : null;
+  const reportsLine = senior ? `<div class="org-post-card-reports" title="Reports to">↑ reports to ${escapeHtml(senior.name)}</div>` : '';
+  return `
+    <div class="org-post-card" data-id="${po.id}">
+      <div class="org-post-card-title">${escapeHtml(po.name)}</div>
+      ${purposeHtml}
+      <div class="org-post-card-meta">${roleChip}</div>
+      ${holderHtml}
+      ${reportsLine}
+    </div>`;
+}
+
+// ── Drawer (right-side edit panel for org board items) ────────────────
+function openDrawer(innerHtml) {
+  closeDrawer();
+  const root = document.getElementById('modalRoot');
+  root.insertAdjacentHTML('beforeend',
+    `<div class="org-drawer-overlay" id="orgDrawerOverlay"></div>
+     <div class="org-drawer" id="orgDrawer">
+       <div class="org-drawer-close">
+         <span style="font-size:0.78rem;color:var(--text-dim);font-weight:600;">Editing</span>
+         <button id="orgDrawerCloseBtn" title="Close (Esc)">×</button>
+       </div>
+       <div class="org-drawer-body" id="orgDrawerBody">${innerHtml}</div>
+     </div>`);
+  document.getElementById('orgDrawerOverlay').addEventListener('click', closeDrawer);
+  document.getElementById('orgDrawerCloseBtn').addEventListener('click', closeDrawer);
+  document.addEventListener('keydown', _drawerEsc);
+}
+function _drawerEsc(e) { if (e.key === 'Escape') closeDrawer(); }
+function closeDrawer() {
+  document.removeEventListener('keydown', _drawerEsc);
+  document.getElementById('orgDrawer')?.remove();
+  document.getElementById('orgDrawerOverlay')?.remove();
+  _useDrawerEditor = false;
+}
+
+// Active editor element — defaults to the main detail pane (#axEditor),
+// but openOrgEditor swaps it to the drawer's body so the same render* helpers
+// can target it without duplicating ids.
+function editorEl() {
+  if (_useDrawerEditor) return document.getElementById('axDrawerEditor');
+  return document.getElementById('axEditor');
+}
+let _useDrawerEditor = false;
+
+function openOrgEditor(kind, id) {
+  selectedKind = kind; selectedId = id;
+  openDrawer('<div id="axDrawerEditor"><div class="ax-editor-empty">Loading…</div></div>');
+  _useDrawerEditor = true;
+  if (kind === 'division') return renderDivisionEditor(divisionsData.find(x => x.id === id));
+  if (kind === 'department') return renderDepartmentEditor(departmentsData.find(x => x.id === id));
+  if (kind === 'post') return renderPostEditor(postsData.find(x => x.id === id));
+}
+
+function openExecPostEditor(epId) {
+  openDrawer('<div id="axDrawerEditor"><div class="ax-editor-empty">Loading…</div></div>');
+  _useDrawerEditor = true;
+  const ep = epId ? execPostsData.find(x => x.id === epId) : { id: null, name: '', slug: '', description: '', default_role_id: null, head_user_id: null, color: '#fbbf24', sort_order: execPostsData.length, division_ids: [] };
+  const ed = editorEl();
+  if (!ed) return;
+  const divChecks = divisionsData.map(d => {
+    const checked = (ep.division_ids || []).includes(d.id);
+    return `<label class="div-check" style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--border);border-radius:999px;cursor:pointer;font-size:0.78rem;${checked ? 'background:rgba(251,191,36,.18);color:#fbbf24;border-color:rgba(251,191,36,.45);' : ''}">
+      <input type="checkbox" data-div-id="${d.id}" ${checked ? 'checked' : ''} style="margin:0;">
+      ${escapeHtml(d.name)}
+    </label>`;
+  }).join('');
+  ed.innerHTML = `<div class="ax-editor">
+    <div class="breadcrumb">Top tier · Executive post</div>
+    <h2>${ep.id ? '⭐ ' + escapeHtml(ep.name) : '⭐ New executive post'}</h2>
+    <div style="color:var(--text-dim);font-size:0.78rem;margin-bottom:6px;">Sits ABOVE divisions. One person, in charge of one or more divisions. The default role is auto-conferred to whoever holds this post.</div>
+
+    <div class="ax-editor-row"><label>Name</label><input id="ep-name" value="${escapeHtml(ep.name)}" placeholder="e.g. COO"></div>
+    <div class="ax-editor-row"><label>Slug</label><input id="ep-slug" value="${escapeHtml(ep.slug)}" placeholder="coo"></div>
+    <div class="ax-editor-row"><label title="One sentence: why does this executive post exist?">Purpose</label><input id="ep-purpose" value="${escapeHtml(ep.purpose || '')}" placeholder="One sentence: why does this exec post exist?"></div>
+    <div class="ax-editor-row"><label title="The single tangible thing this exec post is accountable for delivering.">What this produces</label><input id="ep-vfp" value="${escapeHtml(ep.valuable_final_product || '')}" placeholder="The tangible thing this exec post is accountable for"></div>
+    <div class="ax-editor-row"><label>Description</label><textarea id="ep-desc">${escapeHtml(ep.description || '')}</textarea></div>
+    <div class="ax-editor-row"><label>Color</label><input id="ep-color" type="color" value="${escapeHtml(ep.color || '#fbbf24')}" style="max-width:80px;"></div>
+
+    <h3>Assigned to</h3>
+    <div class="ax-editor-row"><label>Auto-assigned role</label><select id="ep-role"></select></div>
+    ${ep.id ? `
+    <div class="ax-editor-row" style="flex-direction:column;align-items:stretch;">
+      <label style="margin-bottom:4px;">Holders</label>
+      <div id="ep-holders" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;"></div>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <select id="ep-holder-pick" style="flex:1;"></select>
+        <button class="small-btn" id="ep-add-holder">+ Assign</button>
+      </div>
+      <div style="font-size:0.72rem;color:var(--text-dim);margin-top:4px;">One or more users can hold this exec post. Assigning gives them the auto-role above (on next sign-in).</div>
+    </div>
+    ` : `
+    <div class="ax-editor-row"><label>Holders</label><span style="color:var(--text-dim);font-size:0.78rem;">Save this exec post first, then assign holders.</span></div>
+    `}
+
+    <h3>Divisions overseen</h3>
+    <div style="font-size:0.74rem;color:var(--text-dim);margin-bottom:6px;">Pick every division this person is in charge of. Hover the card on the board to see them highlighted.</div>
+    <div id="ep-divs" style="display:flex;flex-wrap:wrap;gap:6px;">${divChecks}</div>
+
+    <div class="ax-actions">
+      <button class="btn-primary" id="ep-save">Save</button>
+      ${ep.id ? '<button class="small-btn" id="ep-duplicate" style="background:var(--surface3);">⧉ Duplicate</button>' : ''}
+      ${ep.id ? '<button class="btn-ghost" style="color:var(--red);" id="ep-delete">Delete</button>' : ''}
+      <span class="ax-msg" id="ep-msg"></span>
+    </div>
+  </div>`;
+
+  document.getElementById('ep-role').innerHTML = '<option value="">— No default role —</option>' + roles.map(r => `<option value="${r.id}" ${ep.default_role_id === r.id ? 'selected' : ''}>${escapeHtml(r.name)}</option>`).join('');
+  if (ep.id) {
+    document.getElementById('ep-holder-pick').innerHTML = _userOptions(null, false);
+    refreshExecPostHolders(ep.id);
+    document.getElementById('ep-add-holder')?.addEventListener('click', async () => {
+      const uid = document.getElementById('ep-holder-pick').value;
+      if (!uid) return;
+      try { await api('?api=exec-post-add-holder', { method: 'POST', body: { exec_post_id: ep.id, user_id: uid } }); await refreshExecPostHolders(ep.id); }
+      catch (e) { alert(e.message); }
+    });
+  }
+
+  // Toggle chip-style highlight on check
+  ed.querySelectorAll('#ep-divs input[type="checkbox"]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const label = cb.closest('label');
+      if (cb.checked) label.style.cssText = 'display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid rgba(251,191,36,.45);border-radius:999px;cursor:pointer;font-size:0.78rem;background:rgba(251,191,36,.18);color:#fbbf24;';
+      else label.style.cssText = 'display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--border);border-radius:999px;cursor:pointer;font-size:0.78rem;';
+    });
+  });
+
+  document.getElementById('ep-save').addEventListener('click', async () => {
+    const msg = document.getElementById('ep-msg');
+    msg.className = 'ax-msg'; msg.textContent = 'Saving…';
+    try {
+      const body = {
+        name: document.getElementById('ep-name').value.trim(),
+        slug: document.getElementById('ep-slug').value.trim() || document.getElementById('ep-name').value.trim().toLowerCase().replace(/\s+/g, '_'),
+        description: document.getElementById('ep-desc').value.trim(),
+        color: document.getElementById('ep-color').value,
+        default_role_id: document.getElementById('ep-role').value ? Number(document.getElementById('ep-role').value) : null,
+        division_ids: [...document.querySelectorAll('#ep-divs input:checked')].map(cb => Number(cb.dataset.divId)),
+        sort_order: ep.sort_order || 0,
+        purpose: document.getElementById('ep-purpose').value.trim(),
+        valuable_final_product: document.getElementById('ep-vfp').value.trim(),
+      };
+      if (!body.name) throw new Error('Name required');
+      let res;
+      if (ep.id) res = await api('?api=exec-post-update&id=' + ep.id, { method: 'POST', body });
+      else       res = await api('?api=exec-post-create', { method: 'POST', body });
+      msg.className = 'ax-msg ok'; msg.textContent = '✓ Saved';
+      await loadOrgTab();
+      if (res?.row?.id) openExecPostEditor(res.row.id);
+    } catch (e) { msg.className = 'ax-msg err'; msg.textContent = e.message; }
+  });
+  document.getElementById('ep-duplicate')?.addEventListener('click', async () => {
+    const newName = prompt('Name for the new executive post', ep.name + ' (copy)');
+    if (!newName) return;
+    try {
+      const res = await api('?api=exec-post-duplicate&id=' + ep.id, { method: 'POST', body: { new_name: newName } });
+      await loadOrgTab();
+      if (res?.row?.id) openExecPostEditor(res.row.id);
+    } catch (e) { alert(e.message); }
+  });
+  document.getElementById('ep-delete')?.addEventListener('click', async () => {
+    if (!confirm('Delete this executive post?')) return;
+    try { await api('?api=exec-post-delete&id=' + ep.id, { method: 'POST', body: {} }); closeDrawer(); await loadOrgTab(); }
+    catch (e) { alert(e.message); }
+  });
+}
+
+function renderDivisionEditor(d) {
+  if (!d) return;
+  const ed = editorEl();
+  if (!ed) return;
+  ed.innerHTML = `<div class="ax-editor">
+    <div class="breadcrumb">Division</div>
+    <h2>${escapeHtml(d.name)}</h2>
+
+    <div class="ax-editor-row"><label>Name</label><input id="d-name" value="${escapeHtml(d.name)}"></div>
+    <div class="ax-editor-row"><label>Slug</label><input id="d-slug" value="${escapeHtml(d.slug)}"></div>
+    <div class="ax-editor-row"><label title="One sentence: why does this division exist?">Purpose</label><input id="d-purpose" value="${escapeHtml(d.purpose || '')}" placeholder="One sentence: why does this division exist?"></div>
+    <div class="ax-editor-row"><label title="The single tangible thing this division produces and ships out.">What this produces</label><input id="d-vfp" value="${escapeHtml(d.valuable_final_product || '')}" placeholder="The tangible thing this division produces and ships"></div>
+    <div class="ax-editor-row"><label>Description</label><textarea id="d-desc">${escapeHtml(d.description || '')}</textarea></div>
+    <div class="ax-editor-row"><label>Color</label><input id="d-color" type="color" value="${escapeHtml(d.color || '#6b9eff')}" style="max-width:80px;"></div>
+    <div class="ax-editor-row"><label>Sort order</label><input id="d-sort" type="number" value="${d.sort_order || 0}" style="max-width:120px;"></div>
+
+    <h3>👑 Division Head</h3>
+    <div style="font-size:0.74rem;color:var(--text-dim);margin-bottom:6px;">The single person in charge of this whole division. The default role here is auto-conferred to them.</div>
+    <div class="ax-editor-row"><label>Head user</label><select id="d-head-user"></select></div>
+    <div class="ax-editor-row"><label>Auto-assigned role</label><select id="d-head-role"></select></div>
+
+    <h3>Departments</h3>
+    <div id="d-depts-list" style="display:flex;flex-direction:column;gap:4px;"></div>
+    <button class="small-btn" id="d-add-dept" style="margin-top:8px;">+ Add department</button>
+
+    <h3>Policies & orders</h3>
+    <div style="font-size:0.74rem;color:var(--text-dim);margin-bottom:6px;">Policies set here cascade down to every department and post inside this division.</div>
+    <div id="d-policies"></div>
+    <button class="small-btn" id="d-add-policy" style="margin-top:8px;display:none;">+ Add policy / order</button>
+
+    <h3>Policy editors <span style="font-weight:400;color:var(--text-dim);font-size:0.74rem;">(admin only)</span></h3>
+    <div style="font-size:0.74rem;color:var(--text-dim);margin-bottom:6px;">These users can create / edit / delete policies and orders on this division <strong>and every department + post under it</strong>. Other users see policies read-only.</div>
+    <div id="d-editors" style="display:flex;flex-wrap:wrap;gap:4px;"></div>
+    <div style="display:flex;gap:6px;margin-top:8px;" id="d-editor-add-row">
+      <select id="d-editor-pick" style="flex:1;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);"></select>
+      <button class="small-btn" id="d-editor-add">+ Add editor</button>
+    </div>
+
+    <div class="ax-actions">
+      <button class="btn-primary" id="d-save">Save</button>
+      <button class="btn-ghost" style="color:var(--red);" id="d-delete">Delete division</button>
+      <span class="ax-msg" id="d-msg"></span>
+    </div>
+  </div>`;
+
+  // Populate sub-lists
+  const depts = departmentsData.filter(x => x.division_id === d.id);
+  document.getElementById('d-depts-list').innerHTML = depts.length
+    ? depts.map(dep => `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;cursor:pointer;" data-dep-id="${dep.id}"><span>${escapeHtml(dep.name)}</span><span class="org-badge">${postsData.filter(p => p.department_id === dep.id).length} posts</span></div>`).join('')
+    : '<span style="color:var(--text-dim);font-size:0.82rem;">No departments yet.</span>';
+  document.querySelectorAll('#d-depts-list [data-dep-id]').forEach(el => el.addEventListener('click', () => openOrgEditor('department', Number(el.dataset.depId))));
+
+  document.getElementById('d-add-dept').addEventListener('click', () => openCreateDepartmentModal(d.id));
+  document.getElementById('d-add-policy').addEventListener('click', () => openPolicyModal('division', d.id));
+
+  // Populate Head selects
+  const headUserSel = document.getElementById('d-head-user');
+  headUserSel.innerHTML = _userOptions(d.head_user_id);
+  const headRoleSel = document.getElementById('d-head-role');
+  headRoleSel.innerHTML = '<option value="">— No role —</option>' + roles.map(r => `<option value="${r.id}" ${d.head_default_role_id === r.id ? 'selected' : ''}>${escapeHtml(r.name)}</option>`).join('');
+
+  // Hide editor management UI for non-admins (server enforces this too).
+  const eff = window.RidleyPerms?.effective(session.user);
+  if (!eff?.is_admin) {
+    document.getElementById('d-editor-add-row').style.display = 'none';
+  }
+  loadDivisionEditors(d.id);
+  document.getElementById('d-save').addEventListener('click', async () => {
+    const body = {
+      name: document.getElementById('d-name').value,
+      slug: document.getElementById('d-slug').value,
+      description: document.getElementById('d-desc').value,
+      color: document.getElementById('d-color').value,
+      sort_order: Number(document.getElementById('d-sort').value) || 0,
+      head_user_id: document.getElementById('d-head-user').value || null,
+      head_default_role_id: document.getElementById('d-head-role').value ? Number(document.getElementById('d-head-role').value) : null,
+      purpose: document.getElementById('d-purpose').value,
+      valuable_final_product: document.getElementById('d-vfp').value,
+    };
+    try { await api('?api=division-update&id=' + d.id, { method: 'POST', body }); await loadOrgTab(); openOrgEditor('division', d.id); }
+    catch (e) { document.getElementById('d-msg').textContent = e.message; }
+  });
+  document.getElementById('d-delete').addEventListener('click', async () => {
+    if (!confirm('Delete this division and all its departments + posts? This cannot be undone.')) return;
+    try { await api('?api=division-delete&id=' + d.id, { method: 'POST', body: {} }); selectedId = null; closeDrawer(); await loadOrgTab(); }
+    catch (e) { alert(e.message); }
+  });
+  loadPoliciesInto('d-policies', 'division', d.id);
+}
+
+function renderDepartmentEditor(dep) {
+  if (!dep) return;
+  const ed = editorEl();
+  if (!ed) return;
+  const division = divisionsData.find(x => x.id === dep.division_id);
+  ed.innerHTML = `<div class="ax-editor">
+    <div class="breadcrumb"><a data-jump="division" data-id="${division?.id}">${escapeHtml(division?.name || 'Division')}</a> › Department</div>
+    <h2>${escapeHtml(dep.name)}</h2>
+
+    <div class="ax-editor-row"><label>Name</label><input id="dep-name" value="${escapeHtml(dep.name)}"></div>
+    <div class="ax-editor-row"><label>Slug</label><input id="dep-slug" value="${escapeHtml(dep.slug)}"></div>
+    <div class="ax-editor-row"><label title="One sentence: why does this department exist?">Purpose</label><input id="dep-purpose" value="${escapeHtml(dep.purpose || '')}" placeholder="One sentence: why does this department exist?"></div>
+    <div class="ax-editor-row"><label title="The single tangible thing this department produces and ships out.">What this produces</label><input id="dep-vfp" value="${escapeHtml(dep.valuable_final_product || '')}" placeholder="The tangible thing this department produces and ships"></div>
+    <div class="ax-editor-row"><label>Description</label><textarea id="dep-desc">${escapeHtml(dep.description || '')}</textarea></div>
+    <div class="ax-editor-row"><label>Sort order</label><input id="dep-sort" type="number" value="${dep.sort_order || 0}" style="max-width:120px;"></div>
+
+    <h3>🎩 Department Head</h3>
+    <div style="font-size:0.74rem;color:var(--text-dim);margin-bottom:6px;">The single person in charge of this department. The default role here is auto-conferred to them.</div>
+    <div class="ax-editor-row"><label>Head user</label><select id="dep-head-user"></select></div>
+    <div class="ax-editor-row"><label>Auto-assigned role</label><select id="dep-head-role"></select></div>
+
+    <h3>Posts</h3>
+    <div id="dep-posts-list" style="display:flex;flex-direction:column;gap:4px;"></div>
+    <button class="small-btn" id="dep-add-post" style="margin-top:8px;">+ Add post</button>
+
+    <h3>Policies & orders</h3>
+    <div id="dep-policies"></div>
+    <div style="font-size:0.74rem;color:var(--text-dim);margin-top:4px;">Policies here apply to this department + every post inside it. Policies inherited from the division above show with an "↑ from" badge.</div>
+    <button class="small-btn" id="dep-add-policy" style="margin-top:8px;display:none;">+ Add policy / order</button>
+
+    <div class="ax-actions">
+      <button class="btn-primary" id="dep-save">Save</button>
+      <button class="btn-ghost" style="color:var(--red);" id="dep-delete">Delete department</button>
+      <span class="ax-msg" id="dep-msg"></span>
+    </div>
+  </div>`;
+  document.querySelectorAll('[data-jump]').forEach(a => a.addEventListener('click', e => { e.preventDefault(); openOrgEditor(a.dataset.jump, Number(a.dataset.id)); }));
+  const posts = postsData.filter(p => p.department_id === dep.id);
+  document.getElementById('dep-posts-list').innerHTML = posts.length
+    ? posts.map(po => `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;cursor:pointer;" data-post-id="${po.id}"><span>${escapeHtml(po.name)}</span><span class="org-badge">${po.default_role_id ? (roles.find(r => r.id === po.default_role_id)?.name || 'role') : '—'}</span></div>`).join('')
+    : '<span style="color:var(--text-dim);font-size:0.82rem;">No posts yet.</span>';
+  document.querySelectorAll('#dep-posts-list [data-post-id]').forEach(el => el.addEventListener('click', () => openOrgEditor('post', Number(el.dataset.postId))));
+
+  document.getElementById('dep-add-post').addEventListener('click', () => openCreatePostModal(dep.id));
+  document.getElementById('dep-add-policy').addEventListener('click', () => openPolicyModal('department', dep.id));
+  // Populate dept head selects
+  const depHeadUserSel = document.getElementById('dep-head-user');
+  depHeadUserSel.innerHTML = _userOptions(dep.head_user_id);
+  const depHeadRoleSel = document.getElementById('dep-head-role');
+  depHeadRoleSel.innerHTML = '<option value="">— No role —</option>' + roles.map(r => `<option value="${r.id}" ${dep.head_default_role_id === r.id ? 'selected' : ''}>${escapeHtml(r.name)}</option>`).join('');
+  document.getElementById('dep-save').addEventListener('click', async () => {
+    const body = {
+      name: document.getElementById('dep-name').value,
+      slug: document.getElementById('dep-slug').value,
+      description: document.getElementById('dep-desc').value,
+      sort_order: Number(document.getElementById('dep-sort').value) || 0,
+      head_user_id: document.getElementById('dep-head-user').value || null,
+      head_default_role_id: document.getElementById('dep-head-role').value ? Number(document.getElementById('dep-head-role').value) : null,
+      purpose: document.getElementById('dep-purpose').value,
+      valuable_final_product: document.getElementById('dep-vfp').value,
+    };
+    try { await api('?api=department-update&id=' + dep.id, { method: 'POST', body }); await loadOrgTab(); openOrgEditor('department', dep.id); }
+    catch (e) { document.getElementById('dep-msg').textContent = e.message; }
+  });
+  document.getElementById('dep-delete').addEventListener('click', async () => {
+    if (!confirm('Delete this department and its posts?')) return;
+    try { await api('?api=department-delete&id=' + dep.id, { method: 'POST', body: {} }); selectedId = null; closeDrawer(); await loadOrgTab(); }
+    catch (e) { alert(e.message); }
+  });
+  loadPoliciesInto('dep-policies', 'department', dep.id);
+}
+
+function renderPostEditor(po) {
+  if (!po) return;
+  const dep = departmentsData.find(x => x.id === po.department_id);
+  const div = divisionsData.find(x => x.id === dep?.division_id);
+  const ed = editorEl();
+  if (!ed) return;
+  const roleOpts = ['<option value="">— No default role —</option>'].concat(
+    roles.map(r => `<option value="${r.id}" ${po.default_role_id === r.id ? 'selected' : ''}>${escapeHtml(r.name)}</option>`)
+  ).join('');
+  ed.innerHTML = `<div class="ax-editor">
+    <div class="breadcrumb">
+      <a data-jump="division" data-id="${div?.id}">${escapeHtml(div?.name || 'Division')}</a> ›
+      <a data-jump="department" data-id="${dep?.id}">${escapeHtml(dep?.name || 'Department')}</a> › Post
+    </div>
+    <h2>${escapeHtml(po.name)}</h2>
+
+    <div class="ax-editor-row"><label>Name</label><input id="po-name" value="${escapeHtml(po.name)}"></div>
+    <div class="ax-editor-row"><label>Slug</label><input id="po-slug" value="${escapeHtml(po.slug)}"></div>
+    <div class="ax-editor-row"><label title="One sentence: why does this post exist?">Purpose</label><input id="po-purpose" value="${escapeHtml(po.purpose || '')}" placeholder="One sentence: why does this post exist?"></div>
+    <div class="ax-editor-row"><label title="The single tangible thing this post produces and ships out.">What this produces</label><input id="po-vfp" value="${escapeHtml(po.valuable_final_product || '')}" placeholder="The tangible thing this post produces and ships"></div>
+    <div class="ax-editor-row"><label>Description</label><textarea id="po-desc">${escapeHtml(po.description || '')}</textarea></div>
+    <div class="ax-editor-row"><label title="Whoever holds this post automatically receives this role's permissions.">Auto-assigned role</label><select id="po-role">${roleOpts}</select></div>
+    <div class="ax-editor-row"><label title="Which post does this one report up to? Leave blank to default to the Department Head.">Reports to (senior post)</label><select id="po-senior"></select></div>
+    <div class="ax-editor-row"><label>Sort order</label><input id="po-sort" type="number" value="${po.sort_order || 0}" style="max-width:120px;"></div>
+
+    <h3>Assigned to <span style="font-weight:400;color:var(--text-dim);font-size:0.78rem;">(one person per post — duplicate the post to add another)</span></h3>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <select id="po-holder-pick" style="flex:1;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);"></select>
+      <button class="small-btn" id="po-set-holder">Assign</button>
+      <button class="small-btn" id="po-clear-holder" style="color:var(--red);">Vacate</button>
+    </div>
+    <div id="po-holders" style="margin-top:6px;"></div>
+    <button class="small-btn" id="po-duplicate" style="margin-top:10px;background:var(--surface3);">⧉ Duplicate post (add another)</button>
+
+    <h3>Policies & orders</h3>
+    <div id="po-policies"></div>
+    <div style="font-size:0.74rem;color:var(--text-dim);margin-top:4px;">Policies set here apply only to this post. Inherited policies from the parent department and division show with an "↑ from" badge.</div>
+    <button class="small-btn" id="po-add-policy" style="margin-top:8px;display:none;">+ Add policy / order</button>
+
+    <div class="ax-actions">
+      <button class="btn-primary" id="po-save">Save</button>
+      <button class="btn-ghost" style="color:var(--red);" id="po-delete">Delete post</button>
+      <span class="ax-msg" id="po-msg"></span>
+    </div>
+  </div>`;
+  document.querySelectorAll('[data-jump]').forEach(a => a.addEventListener('click', e => { e.preventDefault(); openOrgEditor(a.dataset.jump, Number(a.dataset.id)); }));
+
+  // Single-holder picker: preselect current holder if any.
+  const currentHolder = (activeHoldersByPost[po.id] || [])[0];
+  const pick = document.getElementById('po-holder-pick');
+  pick.innerHTML = _userOptions(currentHolder?.user_id);
+  refreshPostHolders(po.id);
+  document.getElementById('po-set-holder').addEventListener('click', async () => {
+    const uid = pick.value;
+    if (!uid) return;
+    try {
+      await api('?api=post-add-holder', { method: 'POST', body: { post_id: po.id, user_id: uid } });
+      await loadOrgTab();
+      openOrgEditor('post', po.id);
+    } catch (e) { alert(e.message); }
+  });
+  document.getElementById('po-clear-holder').addEventListener('click', async () => {
+    if (!currentHolder) return;
+    try {
+      await api('?api=post-remove-holder', { method: 'POST', body: { post_id: po.id, user_id: currentHolder.user_id } });
+      await loadOrgTab();
+      openOrgEditor('post', po.id);
+    } catch (e) { alert(e.message); }
+  });
+  document.getElementById('po-duplicate').addEventListener('click', async () => {
+    const newName = prompt('Name for the new post (e.g. "Coach — Jane")', po.name);
+    if (!newName) return;
+    try {
+      const res = await api('?api=post-duplicate&id=' + po.id, { method: 'POST', body: { new_name: newName } });
+      await loadOrgTab();
+      if (res?.row?.id) openOrgEditor('post', res.row.id);
+    } catch (e) { alert(e.message); }
+  });
+
+  document.getElementById('po-add-policy').addEventListener('click', () => openPolicyModal('post', po.id));
+
+  // Senior-post picker: any other post in the org, grouped by department.
+  // The default-head fallback ("Reports to Dept Head") is the blank option.
+  const seniorSel = document.getElementById('po-senior');
+  const byDept = {};
+  for (const p of postsData) {
+    if (p.id === po.id) continue; // can't report to itself
+    (byDept[p.department_id] ||= []).push(p);
+  }
+  let seniorHtml = '<option value="">— Reports to Dept Head (default) —</option>';
+  for (const depRow of departmentsData) {
+    if (!byDept[depRow.id]?.length) continue;
+    const divRow = divisionsData.find(d => d.id === depRow.division_id);
+    seniorHtml += `<optgroup label="${escapeHtml((divRow?.name || '') + ' › ' + depRow.name)}">`;
+    for (const p of byDept[depRow.id]) {
+      seniorHtml += `<option value="${p.id}" ${po.senior_post_id === p.id ? 'selected' : ''}>${escapeHtml(p.name)}</option>`;
+    }
+    seniorHtml += '</optgroup>';
+  }
+  seniorSel.innerHTML = seniorHtml;
+
+  document.getElementById('po-save').addEventListener('click', async () => {
+    const body = {
+      name: document.getElementById('po-name').value,
+      slug: document.getElementById('po-slug').value,
+      description: document.getElementById('po-desc').value,
+      default_role_id: document.getElementById('po-role').value ? Number(document.getElementById('po-role').value) : null,
+      sort_order: Number(document.getElementById('po-sort').value) || 0,
+      purpose: document.getElementById('po-purpose').value,
+      valuable_final_product: document.getElementById('po-vfp').value,
+      senior_post_id: document.getElementById('po-senior').value ? Number(document.getElementById('po-senior').value) : null,
+    };
+    try { await api('?api=post-update&id=' + po.id, { method: 'POST', body }); await loadOrgTab(); openOrgEditor('post', po.id); }
+    catch (e) { document.getElementById('po-msg').textContent = e.message; }
+  });
+  document.getElementById('po-delete').addEventListener('click', async () => {
+    if (!confirm('Delete this post and its holder history?')) return;
+    try { await api('?api=post-delete&id=' + po.id, { method: 'POST', body: {} }); selectedId = null; closeDrawer(); await loadOrgTab(); }
+    catch (e) { alert(e.message); }
+  });
+  loadPoliciesInto('po-policies', 'post', po.id);
+}
+
+async function refreshExecPostHolders(execPostId) {
+  try {
+    const j = await api('?api=exec-post-holders&exec_post_id=' + execPostId);
+    const rows = (j.rows || []).filter(r => !r.ended_at);
+    const wrap = document.getElementById('ep-holders');
+    if (!wrap) return;
+    if (!rows.length) { wrap.innerHTML = '<span style="color:var(--text-dim);font-size:0.82rem;">No holders yet — pick someone below and click Assign.</span>'; return; }
+    wrap.innerHTML = rows.map(r => `<span class="holder-pill" title="${escapeHtml(_emailOf(r.user_id) || '')}">
+        <span class="holder-pill-av">${escapeHtml(_initialOf(r.user_id))}</span>
+        ${escapeHtml(_displayOf(r.user_id))}
+        <button title="Remove from post" data-uid="${r.user_id}">×</button>
+      </span>`).join('');
+    wrap.querySelectorAll('button[data-uid]').forEach(b => b.addEventListener('click', async () => {
+      try { await api('?api=exec-post-remove-holder', { method: 'POST', body: { exec_post_id: execPostId, user_id: b.dataset.uid } }); await refreshExecPostHolders(execPostId); await loadOrgTab(); }
+      catch (e) { alert(e.message); }
+    }));
+  } catch (_) {}
+}
+
+async function refreshPostHolders(postId) {
+  try {
+    const j = await api('?api=post-holders&post_id=' + postId);
+    const rows = (j.rows || []).filter(r => !r.ended_at);
+    const wrap = document.getElementById('po-holders');
+    if (!wrap) return;
+    if (!rows.length) { wrap.innerHTML = '<span style="color:var(--text-dim);font-size:0.82rem;">No one assigned yet — pick someone above and click Assign.</span>'; return; }
+    wrap.innerHTML = rows.map(r => {
+      return `<span class="holder-pill" title="${escapeHtml(_emailOf(r.user_id) || '')}">
+        <span class="holder-pill-av">${escapeHtml(_initialOf(r.user_id))}</span>
+        ${escapeHtml(_displayOf(r.user_id))}
+        <button title="Remove from post" data-uid="${r.user_id}">×</button>
+      </span>`;
+    }).join('');
+    wrap.querySelectorAll('button[data-uid]').forEach(b => b.addEventListener('click', async () => {
+      try { await api('?api=post-remove-holder', { method: 'POST', body: { post_id: postId, user_id: b.dataset.uid } }); await refreshPostHolders(postId); await loadUsersTab(); }
+      catch (e) { alert(e.message); }
+    }));
+  } catch (_) {}
+}
+
+async function loadPoliciesInto(elId, scopeType, scopeId) {
+  // Uses /policies-for-scope which returns own + inherited policies.
+  // Inherited policies (from a parent department or division) are displayed
+  // read-only with a badge — clicking them jumps to the source scope.
+  const el = document.getElementById(elId);
+  if (!el) return;
+  el.innerHTML = '<span style="color:var(--text-dim);font-size:0.82rem;">Loading…</span>';
+  try {
+    const j = await api('?api=policies-for-scope&scope_type=' + scopeType + '&scope_id=' + scopeId);
+    const rows = j.rows || [];
+    const canEdit = !!j.can_edit_self;
+
+    // Show / hide the "+ Add policy" button paired with this list.
+    const addBtnIdMap = { 'd-policies': 'd-add-policy', 'dep-policies': 'dep-add-policy', 'po-policies': 'po-add-policy' };
+    const addBtn = document.getElementById(addBtnIdMap[elId]);
+    if (addBtn) addBtn.style.display = canEdit ? '' : 'none';
+
+    if (!rows.length) {
+      el.innerHTML = canEdit
+        ? '<span style="color:var(--text-dim);font-size:0.82rem;">No policies or orders yet. Click <strong>+ Add policy / order</strong> to create one.</span>'
+        : '<span style="color:var(--text-dim);font-size:0.82rem;">No policies or orders apply here. Ask an admin to add you as a policy editor for this division if you need to create one.</span>';
+      return;
+    }
+    el.innerHTML = rows.map(p => {
+      const kindLabel = p.kind === 'order' ? 'ORDER' : p.kind === 'directive' ? 'DIRECTIVE' : 'POLICY';
+      const kindColor = p.kind === 'order' ? '#fbbf24' : p.kind === 'directive' ? '#f472b6' : '#6b9eff';
+      const expiry = p.expires_at ? new Date(p.expires_at) : null;
+      const expired = expiry && expiry < new Date();
+      const expiryText = expiry ? (expired ? `expired ${expiry.toLocaleDateString()}` : `expires ${expiry.toLocaleDateString()}`) : '';
+      const inh = p.inherited_from;
+      // Inherited policies look slightly dimmer and carry an "inherited from X" badge.
+      const baseStyle = inh
+        ? 'padding:10px;background:var(--surface);border:1px dashed var(--border);border-radius:8px;margin-top:6px;cursor:pointer;opacity:0.92;'
+        : 'padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;margin-top:6px;cursor:pointer;';
+      const inhBadge = inh
+        ? `<span style="font-size:0.64rem;padding:2px 6px;border-radius:4px;background:rgba(167,139,250,.18);color:#a78bfa;font-weight:700;">↑ from ${escapeHtml(inh.type)} ${escapeHtml(inh.name)}</span>`
+        : '';
+      return `<div style="${baseStyle}" data-pid="${p.id}" data-inherited="${inh ? '1' : '0'}" data-source-type="${inh ? inh.type : scopeType}" data-source-id="${inh ? inh.id : scopeId}">
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap;">
+          <span style="font-weight:600;font-size:0.88rem;">${escapeHtml(p.title)}</span>
+          <span style="display:flex;gap:6px;align-items:center;">
+            ${inhBadge}
+            <span style="font-size:0.66rem;font-weight:700;color:${kindColor};">${kindLabel}</span>
+          </span>
+        </div>
+        ${p.body ? `<div style="font-size:0.78rem;color:var(--text-muted);margin-top:4px;white-space:pre-wrap;">${escapeHtml(p.body).slice(0, 280)}${p.body.length > 280 ? '…' : ''}</div>` : ''}
+        ${expiryText ? `<div style="font-size:0.7rem;color:${expired ? 'var(--red)' : 'var(--text-dim)'};margin-top:4px;">${expiryText}</div>` : ''}
+      </div>`;
+    }).join('');
+    el.querySelectorAll('[data-pid]').forEach(div => div.addEventListener('click', () => {
+      const inherited = div.dataset.inherited === '1';
+      if (inherited) {
+        // Inherited: jump to the source scope so the user can edit (if allowed) there.
+        const sType = div.dataset.sourceType;
+        const sId = Number(div.dataset.sourceId);
+        openOrgEditor(sType, sId);
+      } else {
+        openPolicyEditModal(Number(div.dataset.pid), scopeType, scopeId);
+      }
+    }));
+  } catch (e) { el.innerHTML = `<span style="color:var(--red);font-size:0.82rem;">${escapeHtml(e.message)}</span>`; }
+}
+
+async function loadDivisionEditors(divisionId) {
+  const wrap = document.getElementById('d-editors');
+  const pick = document.getElementById('d-editor-pick');
+  if (!wrap) return;
+  wrap.innerHTML = '<span style="color:var(--text-dim);font-size:0.78rem;">Loading…</span>';
+  try {
+    const j = await api('?api=division-editors&division_id=' + divisionId);
+    const editors = j.rows || [];
+    const editorIds = new Set(editors.map(e => e.user_id));
+    wrap.innerHTML = editors.length
+      ? editors.map(e => {
+          return `<span class="holder-pill" title="${escapeHtml(e.email)}">
+            <span class="holder-pill-av">${escapeHtml(_initialOf(e.user_id))}</span>
+            ${escapeHtml(_displayOf(e.user_id))}
+            <button title="Remove" data-uid="${e.user_id}">×</button>
+          </span>`;
+        }).join('')
+      : '<span style="color:var(--text-dim);font-size:0.78rem;">No policy editors yet — only admins can edit policies on this division.</span>';
+    wrap.querySelectorAll('button[data-uid]').forEach(b => b.addEventListener('click', async () => {
+      try { await api('?api=division-editor-remove', { method: 'POST', body: { division_id: divisionId, user_id: b.dataset.uid } }); await loadDivisionEditors(divisionId); }
+      catch (e) { alert(e.message); }
+    }));
+    // Populate dropdown with non-editor users
+    if (pick) {
+      pick.innerHTML = [...usersData]
+        .filter(u => !editorIds.has(u.id))
+        .sort((a, b) => (_displayOf(a.id) || '').localeCompare(_displayOf(b.id) || ''))
+        .map(u => `<option value="${u.id}">${escapeHtml(_pickerLabelFor(u))}</option>`).join('');
+      const addBtn = document.getElementById('d-editor-add');
+      if (addBtn) addBtn.onclick = async () => {
+        const uid = pick.value;
+        if (!uid) return;
+        try { await api('?api=division-editor-add', { method: 'POST', body: { division_id: divisionId, user_id: uid } }); await loadDivisionEditors(divisionId); }
+        catch (e) { alert(e.message); }
+      };
+    }
+  } catch (e) { wrap.innerHTML = `<span style="color:var(--red);font-size:0.78rem;">${escapeHtml(e.message)}</span>`; }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// MODALS
+// ═══════════════════════════════════════════════════════════════════════
+function showModal(html, opts = {}) {
+  const root = document.getElementById('modalRoot');
+  const wide = opts.wide ? ' invite-wide' : '';
+  root.innerHTML = `<div class="modal-overlay" id="modalOverlay"><div class="modal-card${wide}" onclick="event.stopPropagation()">${html}</div></div>`;
+  document.getElementById('modalOverlay').addEventListener('click', closeModal);
+}
+function closeModal() { document.getElementById('modalRoot').innerHTML = ''; }
+
+function openCreateDivisionModal() {
+  showModal(`<h3>New division</h3>
+    <div class="ax-editor-row"><label>Name</label><input id="m-name" placeholder="e.g. Mentorship Operations"></div>
+    <div class="ax-editor-row"><label>Slug</label><input id="m-slug" placeholder="mentorship_ops"></div>
+    <div class="ax-editor-row"><label>Color</label><input id="m-color" type="color" value="#6b9eff" style="max-width:80px;"></div>
+    <div class="ax-actions"><button class="btn-primary" id="m-create">Create</button><button class="btn-ghost" onclick="document.getElementById('modalRoot').innerHTML=''">Cancel</button></div>`);
+  document.getElementById('m-create').addEventListener('click', async () => {
+    try {
+      const body = { name: document.getElementById('m-name').value.trim(), slug: document.getElementById('m-slug').value.trim() || document.getElementById('m-name').value.trim().toLowerCase().replace(/\s+/g, '_'), color: document.getElementById('m-color').value, sort_order: divisionsData.length };
+      const res = await api('?api=division-create', { method: 'POST', body });
+      closeModal(); await loadOrgTab(); if (res?.row?.id) openOrgEditor('division', res.row.id);
+    } catch (e) { alert(e.message); }
+  });
+}
+
+function openCreateDepartmentModal(divisionId) {
+  showModal(`<h3>New department</h3>
+    <div class="ax-editor-row"><label>Name</label><input id="m-name" placeholder="e.g. Coaching"></div>
+    <div class="ax-editor-row"><label>Slug</label><input id="m-slug" placeholder="coaching"></div>
+    <div class="ax-actions"><button class="btn-primary" id="m-create">Create</button><button class="btn-ghost" onclick="document.getElementById('modalRoot').innerHTML=''">Cancel</button></div>`);
+  document.getElementById('m-create').addEventListener('click', async () => {
+    try {
+      const body = { division_id: divisionId, name: document.getElementById('m-name').value.trim(), slug: document.getElementById('m-slug').value.trim() || document.getElementById('m-name').value.trim().toLowerCase().replace(/\s+/g, '_'), sort_order: departmentsData.filter(d => d.division_id === divisionId).length };
+      const res = await api('?api=department-create', { method: 'POST', body });
+      closeModal(); await loadOrgTab(); if (res?.row?.id) openOrgEditor('department', res.row.id);
+    } catch (e) { alert(e.message); }
+  });
+}
+
+function openCreatePostModal(departmentId) {
+  const roleOpts = ['<option value="">— No default role —</option>'].concat(roles.map(r => `<option value="${r.id}">${escapeHtml(r.name)}</option>`)).join('');
+  showModal(`<h3>New post</h3>
+    <div class="ax-editor-row"><label>Name</label><input id="m-name" placeholder="e.g. Coach"></div>
+    <div class="ax-editor-row"><label>Slug</label><input id="m-slug" placeholder="coach"></div>
+    <div class="ax-editor-row"><label>Auto-assigned role</label><select id="m-role">${roleOpts}</select></div>
+    <div class="ax-actions"><button class="btn-primary" id="m-create">Create</button><button class="btn-ghost" onclick="document.getElementById('modalRoot').innerHTML=''">Cancel</button></div>`);
+  document.getElementById('m-create').addEventListener('click', async () => {
+    try {
+      const body = { department_id: departmentId, name: document.getElementById('m-name').value.trim(), slug: document.getElementById('m-slug').value.trim() || document.getElementById('m-name').value.trim().toLowerCase().replace(/\s+/g, '_'), default_role_id: document.getElementById('m-role').value ? Number(document.getElementById('m-role').value) : null, sort_order: postsData.filter(p => p.department_id === departmentId).length };
+      const res = await api('?api=post-create', { method: 'POST', body });
+      closeModal(); await loadOrgTab(); if (res?.row?.id) openOrgEditor('post', res.row.id);
+    } catch (e) { alert(e.message); }
+  });
+}
+
+function openPolicyModal(scopeType, scopeId, existingId) {
+  // For new: existingId is undefined. For edit: existingId is set and we'll prefill via openPolicyEditModal.
+  showModal(`<h3>${existingId ? 'Edit' : 'New'} policy / order</h3>
+    <div class="ax-editor-row"><label>Kind</label><select id="p-kind">
+      <option value="policy">Policy (standing rule)</option>
+      <option value="order">Order (directive, often time-bounded)</option>
+      <option value="directive">Directive</option>
+    </select></div>
+    <div class="ax-editor-row"><label>Title</label><input id="p-title" placeholder="e.g. Welcome new students within 24h"></div>
+    <div class="ax-editor-row" style="align-items:flex-start;"><label style="padding-top:6px;">Body</label><textarea id="p-body" style="min-height:140px;" placeholder="What this says, who it applies to, expected behavior."></textarea></div>
+    <div class="ax-editor-row"><label>Expires</label><input id="p-expires" type="datetime-local" style="max-width:240px;"></div>
+    <div class="ax-actions">
+      ${existingId ? '<button class="btn-ghost" style="color:var(--red);" id="p-delete">Delete</button>' : ''}
+      <button class="btn-primary" id="p-save">${existingId ? 'Save' : 'Create'}</button>
+      <button class="btn-ghost" onclick="document.getElementById('modalRoot').innerHTML=''">Cancel</button>
+    </div>`);
+  document.getElementById('p-save').addEventListener('click', async () => {
+    try {
+      const body = {
+        scope_type: scopeType, scope_id: scopeId,
+        kind: document.getElementById('p-kind').value,
+        title: document.getElementById('p-title').value.trim(),
+        body: document.getElementById('p-body').value,
+        expires_at: document.getElementById('p-expires').value || null,
+      };
+      if (!body.title) throw new Error('Title required');
+      if (existingId) await api('?api=policy-update&id=' + existingId, { method: 'POST', body });
+      else            await api('?api=policy-create', { method: 'POST', body });
+      closeModal();
+      // Reload the policy list within the currently-open scope editor.
+      const elId = scopeType === 'division' ? 'd-policies' : scopeType === 'department' ? 'dep-policies' : 'po-policies';
+      loadPoliciesInto(elId, scopeType, scopeId);
+    } catch (e) { alert(e.message); }
+  });
+  if (existingId) {
+    document.getElementById('p-delete').addEventListener('click', async () => {
+      if (!confirm('Delete this policy / order?')) return;
+      try {
+        await api('?api=policy-delete&id=' + existingId, { method: 'POST', body: {} });
+        closeModal();
+        const elId = scopeType === 'division' ? 'd-policies' : scopeType === 'department' ? 'dep-policies' : 'po-policies';
+        loadPoliciesInto(elId, scopeType, scopeId);
+      } catch (e) { alert(e.message); }
+    });
+  }
+  return existingId;
+}
+
+async function openPolicyEditModal(policyId, scopeType, scopeId) {
+  // Fetch + populate
+  try {
+    const j = await api('?api=policies&scope_type=' + scopeType + '&scope_id=' + scopeId);
+    const p = (j.rows || []).find(x => x.id === policyId);
+    if (!p) return;
+    openPolicyModal(scopeType, scopeId, policyId);
+    document.getElementById('p-kind').value = p.kind;
+    document.getElementById('p-title').value = p.title;
+    document.getElementById('p-body').value = p.body || '';
+    if (p.expires_at) {
+      const d = new Date(p.expires_at);
+      const pad = n => String(n).padStart(2, '0');
+      document.getElementById('p-expires').value = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+  } catch (e) { alert(e.message); }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// INVITE MODAL — guided, with quick presets and live permission preview
+// ═══════════════════════════════════════════════════════════════════════
+function openInviteModal(prefillFromUid) {
+  // Hardcoded quick-pick presets: each is { label, emoji, role_slugs[], is_admin }
+  // These map to roles that may or may not exist in the system; missing roles
+  // are silently skipped at apply time.
+  const PRESETS = [
+    { key: 'coach',      emoji: '🎓', label: 'Coach',          desc: 'Music Education delivery',   role_slugs: ['coach'] },
+    { key: 'sales',      emoji: '💼', label: 'Sales Rep',      desc: 'Calls + closes',             role_slugs: ['sales'] },
+    { key: 'mentorship', emoji: '🧑‍🏫', label: 'Mentorship I/C', desc: 'Mentorship oversight',    role_slugs: ['ms_ic'] },
+    { key: 'delivery',   emoji: '📦', label: 'Delivery I/C',   desc: 'Delivery + production',      role_slugs: ['delivery_ic'] },
+    { key: 'marketing',  emoji: '📢', label: 'Marketing',      desc: 'Ads / funnels / creative',   role_slugs: ['marketing'] },
+    { key: 'finance',    emoji: '💰', label: 'Finance',        desc: 'Income + disbursements',     role_slugs: ['finance'] },
+    { key: 'admin',      emoji: '⚙️', label: 'Admin',          desc: 'Wildcard — full access',     role_slugs: [], is_admin: true },
+  ];
+
+  // If we were asked to prefill from another user, grab their roles/admin.
+  const sourceUser = prefillFromUid ? usersData.find(u => u.id === prefillFromUid) : null;
+  const prefillRoleIds = new Set(sourceUser?.role_ids || []);
+  const prefillIsAdmin = !!sourceUser?.is_admin;
+
+  // Build role grid grouped — role name + tiny dot + perm count hover.
+  const roleByPermCount = {};
+  for (const rp of rolePerms) (roleByPermCount[rp.role_id] = (roleByPermCount[rp.role_id] || 0) + 1);
+  const roleGrid = roles.map(r => {
+    const isOn = prefillRoleIds.has(r.id);
+    const permCount = roleByPermCount[r.id] || 0;
+    const permList = rolePerms.filter(rp => rp.role_id === r.id).map(rp => rp.permission_key).slice(0, 12).join(', ');
+    const moreCount = Math.max(0, permCount - 12);
+    const tooltip = permList ? permList + (moreCount ? ` … (+${moreCount} more)` : '') : 'No permissions yet';
+    return `<label class="invite-role-chip ${isOn ? 'on' : ''}" data-rid="${r.id}" data-slug="${escapeHtml(r.slug)}" title="${escapeHtml(tooltip)}">
+      <input type="checkbox" ${isOn ? 'checked' : ''}>
+      <span class="role-chip-dot" style="background:${r.color}"></span>
+      <span class="invite-role-name">${escapeHtml(r.name)}</span>
+      <span class="invite-role-count">${permCount}</span>
+    </label>`;
+  }).join('');
+
+  // Build "copy from user" dropdown — only show users with at least one role / admin
+  const copyableUsers = usersData.filter(u => u.is_admin || u.role_ids.length).sort((a, b) => (_displayOf(a.id) || '').localeCompare(_displayOf(b.id) || ''));
+  const copyFromHtml = copyableUsers.map(u => `<option value="${u.id}" ${u.id === prefillFromUid ? 'selected' : ''}>${escapeHtml(_displayOf(u.id))} ${u.is_admin ? '(admin)' : `(${u.role_ids.length} role${u.role_ids.length === 1 ? '' : 's'})`}</option>`).join('');
+
+  // Big job-card grid (primary picker). Each card is a single click and
+  // sets the corresponding roles + admin flag.
+  const jobCardsHtml = PRESETS.map(p => `
+    <button type="button" class="invite-jobcard" data-key="${p.key}" title="${escapeHtml(p.desc)}">
+      <span class="invite-jobcard-emoji">${p.emoji}</span>
+      <span class="invite-jobcard-name">${escapeHtml(p.label)}</span>
+      <span class="invite-jobcard-desc">${escapeHtml(p.desc)}</span>
+    </button>`).join('') + `
+    <button type="button" class="invite-jobcard" data-key="__custom__" title="Pick roles manually">
+      <span class="invite-jobcard-emoji">✏️</span>
+      <span class="invite-jobcard-name">Custom</span>
+      <span class="invite-jobcard-desc">Pick roles manually</span>
+    </button>`;
+
+  showModal(`
+    <div class="invite-modal">
+      <div class="invite-header">
+        <h3>✉️ Add a person</h3>
+        <span class="invite-subtitle">They'll get an email with an activation link. Pick their job — we'll set up the right access automatically.</span>
+      </div>
+
+      <div class="invite-section">
+        <label class="invite-label">Who's joining? <span class="invite-required">*</span></label>
+        <div id="i-recipients" class="invite-recipients"></div>
+        <button class="invite-add-row" id="i-add-row" type="button">+ Add another person</button>
+        <span class="invite-hint" id="i-email-count" style="color:var(--text-dim);margin-top:6px;">0 ready</span>
+      </div>
+
+      <div class="invite-section">
+        <label class="invite-label">What's their job?</label>
+        <div class="invite-jobs">${jobCardsHtml}</div>
+        <span class="invite-hint" id="i-job-summary" style="margin-top:6px;display:block;color:var(--text-dim);">Pick a job above to set their access.</span>
+      </div>
+
+      <details class="invite-advanced">
+        <summary>Advanced options</summary>
+        <div class="invite-section" style="margin-top:10px;">
+          <label class="invite-label">Or copy from an existing user</label>
+          <select id="i-copy-from"><option value="">— None —</option>${copyFromHtml}</select>
+        </div>
+        <div class="invite-section">
+          <label class="invite-label">Custom roles <span class="invite-hint">(hover for what each grants)</span></label>
+          <div class="invite-roles" id="i-roles">${roleGrid}</div>
+        </div>
+        <div class="invite-section invite-admin-row ${prefillIsAdmin ? 'warn' : ''}">
+          <label class="invite-admin-toggle">
+            <input type="checkbox" id="i-is-admin" ${prefillIsAdmin ? 'checked' : ''}>
+            <span class="invite-admin-text">
+              <strong>⚙️ Make admin</strong>
+              <em>Wildcard access to everything — including Access &amp; Org itself.</em>
+            </span>
+          </label>
+        </div>
+      </details>
+
+      <div class="invite-section invite-preview" id="i-preview-wrap">
+        <div class="invite-preview-label">📋 When they activate, they'll get:</div>
+        <div class="invite-preview-body" id="i-preview">—</div>
+      </div>
+
+      <div class="invite-actions">
+        <button class="btn-primary invite-send-btn" id="i-send">Send invitation</button>
+        <button class="btn-ghost" id="i-cancel">Cancel</button>
+        <span class="ax-msg" id="i-msg" style="margin-left:auto;"></span>
+      </div>
+    </div>
+  `, { wide: true });
+
+  // ── Wire everything ──────────────────────────────────────────────────
+  const roleEl = document.getElementById('i-roles');
+  const adminEl = document.getElementById('i-is-admin');
+  const previewEl = document.getElementById('i-preview');
+
+  function selectedRoleIds() {
+    return [...roleEl.querySelectorAll('input:checked')].map(cb => Number(cb.closest('[data-rid]').dataset.rid));
+  }
+  function refreshPreview() {
+    const rids = selectedRoleIds();
+    const isAdmin = adminEl.checked;
+    if (isAdmin) {
+      previewEl.innerHTML = '<span style="color:#fbbf24;font-weight:700;">⚙️ Full admin access</span> — every dashboard, every action.';
+      document.querySelector('.invite-admin-row').classList.add('warn');
+      return;
+    }
+    document.querySelector('.invite-admin-row').classList.remove('warn');
+    if (!rids.length) {
+      previewEl.innerHTML = '<span style="color:var(--text-dim);font-style:italic;">No roles selected — they\'ll have no access yet. Add at least one role above.</span>';
+      return;
+    }
+    // Aggregate distinct permissions across selected roles
+    const perms = new Set();
+    for (const rid of rids) for (const rp of rolePerms) if (rp.role_id === rid) perms.add(rp.permission_key);
+    // Group by dashboard
+    const grouped = {};
+    for (const k of perms) { const d = k.split('.')[0]; (grouped[d] ||= []).push(k.split('.').slice(1).join('.')); }
+    const rolesPicked = rids.map(rid => roles.find(r => r.id === rid)).filter(Boolean);
+    const roleChips = rolesPicked.map(r => `<span class="pill" style="background:${r.color}22;color:${r.color};border:1px solid ${r.color}55;">${escapeHtml(r.name)}</span>`).join(' ');
+    const dashChips = Object.keys(grouped).sort().map(d => `<div class="invite-preview-dash"><strong>${escapeHtml(d)}:</strong> ${grouped[d].slice(0,8).map(a => `<span class="pill pill-on">${escapeHtml(a)}</span>`).join('')} ${grouped[d].length > 8 ? `<span style="color:var(--text-dim);font-size:0.7rem;">+${grouped[d].length - 8} more</span>` : ''}</div>`).join('');
+    previewEl.innerHTML = `<div style="margin-bottom:6px;">${roleChips}</div>${dashChips}<div style="font-size:0.7rem;color:var(--text-dim);margin-top:6px;">${perms.size} total permission${perms.size === 1 ? '' : 's'} across ${Object.keys(grouped).length} dashboard${Object.keys(grouped).length === 1 ? '' : 's'}.</div>`;
+  }
+
+  // ── Job card click: SETS the role set atomically (not toggle) ──
+  document.querySelectorAll('.invite-jobcard').forEach(card => {
+    card.addEventListener('click', () => {
+      const key = card.dataset.key;
+      // Mark selected card visually
+      document.querySelectorAll('.invite-jobcard').forEach(c => c.classList.toggle('on', c === card));
+      // Clear roles + admin
+      roleEl.querySelectorAll('.invite-role-chip').forEach(c => { c.classList.remove('on'); c.querySelector('input').checked = false; });
+      adminEl.checked = false;
+      // Apply preset
+      const preset = PRESETS.find(p => p.key === key);
+      if (preset?.is_admin) {
+        adminEl.checked = true;
+      } else if (preset?.role_slugs?.length) {
+        for (const slug of preset.role_slugs) {
+          const chip = roleEl.querySelector(`.invite-role-chip[data-slug="${slug}"]`);
+          if (chip) { chip.classList.add('on'); chip.querySelector('input').checked = true; }
+        }
+      }
+      // If they picked "Custom", auto-open the Advanced panel
+      if (key === '__custom__') {
+        const det = document.querySelector('.invite-advanced'); if (det) det.open = true;
+      }
+      // Job summary text
+      const sumEl = document.getElementById('i-job-summary');
+      if (sumEl) {
+        if (preset) sumEl.innerHTML = `<strong style="color:var(--text);">${preset.emoji} ${escapeHtml(preset.label)}</strong> — ${escapeHtml(preset.desc)}`;
+        else sumEl.innerHTML = '<strong style="color:var(--text);">✏️ Custom</strong> — pick roles in Advanced below.';
+      }
+      refreshPreview();
+    });
+  });
+
+  // Role chip toggle (click anywhere on the label) — only inside Advanced
+  roleEl.querySelectorAll('.invite-role-chip').forEach(chip => {
+    chip.addEventListener('click', e => {
+      // Let the actual checkbox click bubble naturally; only handle clicks on the label background
+      if (e.target.tagName === 'INPUT') { setTimeout(() => { chip.classList.toggle('on', chip.querySelector('input').checked); refreshPreview(); }, 0); return; }
+      const cb = chip.querySelector('input');
+      cb.checked = !cb.checked;
+      chip.classList.toggle('on', cb.checked);
+      refreshPreview();
+    });
+  });
+
+  // Legacy small "invite-preset" chip handler removed in v249 — the big
+  // job cards above replaced it.
+
+  // Copy-from-user dropdown
+  document.getElementById('i-copy-from').addEventListener('change', e => {
+    const uid = e.target.value;
+    const src = uid ? usersData.find(u => u.id === uid) : null;
+    const wantIds = new Set(src?.role_ids || []);
+    roleEl.querySelectorAll('.invite-role-chip').forEach(chip => {
+      const on = wantIds.has(Number(chip.dataset.rid));
+      chip.querySelector('input').checked = on;
+      chip.classList.toggle('on', on);
+    });
+    adminEl.checked = !!src?.is_admin;
+    refreshPreview();
+  });
+
+  // Admin toggle
+  adminEl.addEventListener('change', refreshPreview);
+
+  document.getElementById('i-cancel').addEventListener('click', closeModal);
+
+  // ── Row-based recipient editor ────────────────────────────────────
+  // Each row = one invitee with its own first name + email. Pressing Enter
+  // in the email field of the last row auto-adds another row. Pasting a
+  // blob of emails into any email field auto-splits into rows.
+  const recipientsEl = document.getElementById('i-recipients');
+  const countEl = document.getElementById('i-email-count');
+  const isEmail = s => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+
+  function makeRow(initial = { name: '', email: '' }) {
+    const row = document.createElement('div');
+    row.className = 'invite-recipient-row';
+    row.innerHTML = `
+      <input class="invite-r-name"  placeholder="First name (optional)" autocomplete="off" value="${escapeHtml(initial.name || '')}">
+      <input class="invite-r-email" type="email" placeholder="email@ridleyacademy.team" autocomplete="off" value="${escapeHtml(initial.email || '')}">
+      <button class="invite-r-remove" type="button" title="Remove this recipient">×</button>`;
+    const emailIn = row.querySelector('.invite-r-email');
+    const nameIn  = row.querySelector('.invite-r-name');
+    const remove  = row.querySelector('.invite-r-remove');
+    emailIn.addEventListener('input', refreshRowsState);
+    nameIn.addEventListener('input', refreshRowsState);
+    // Enter on email field → add another row (or focus existing next one).
+    emailIn.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const allRows = [...recipientsEl.querySelectorAll('.invite-recipient-row')];
+        const idx = allRows.indexOf(row);
+        const next = allRows[idx + 1];
+        if (next) next.querySelector('.invite-r-name').focus();
+        else addRow().querySelector('.invite-r-name').focus();
+      }
+    });
+    // Tab on email field of the LAST row → add a new row and tab into it.
+    emailIn.addEventListener('keydown', e => {
+      if (e.key !== 'Tab' || e.shiftKey) return;
+      const allRows = [...recipientsEl.querySelectorAll('.invite-recipient-row')];
+      if (allRows[allRows.length - 1] !== row) return;
+      if (!emailIn.value.trim()) return; // only if user typed something
+      e.preventDefault();
+      addRow().querySelector('.invite-r-name').focus();
+    });
+    // Paste a blob → split into rows.
+    emailIn.addEventListener('paste', e => {
+      const text = (e.clipboardData || window.clipboardData)?.getData('text') || '';
+      if (!/[\n,;]/.test(text)) return; // single email — let it paste normally
+      e.preventDefault();
+      const parsed = parseBlob(text);
+      if (!parsed.length) return;
+      // First parsed pair fills this row, the rest get new rows.
+      emailIn.value = parsed[0].email;
+      if (parsed[0].name && !nameIn.value) nameIn.value = parsed[0].name;
+      for (let i = 1; i < parsed.length; i++) addRow(parsed[i]);
+      refreshRowsState();
+    });
+    remove.addEventListener('click', () => {
+      const allRows = [...recipientsEl.querySelectorAll('.invite-recipient-row')];
+      if (allRows.length <= 1) { nameIn.value = ''; emailIn.value = ''; refreshRowsState(); return; }
+      row.remove();
+      refreshRowsState();
+    });
+    recipientsEl.appendChild(row);
+    refreshRowsState();
+    return row;
+  }
+  function addRow(initial) { return makeRow(initial); }
+
+  // Parse a pasted blob into recipient pairs. Supports the same syntaxes the
+  // textarea used to, so users can still paste in bulk.
+  function parseBlob(blob) {
+    const lines = (blob || '').split(/[\n\r]+/g).map(s => s.trim()).filter(Boolean);
+    const out = []; const seen = new Set();
+    for (const line of lines) {
+      const hasAngle = /<[^>]+>/.test(line);
+      const tokens = hasAngle ? [line] : line.split(/[,;]/g).map(t => t.trim()).filter(Boolean);
+      for (const tok of tokens) {
+        let name = '', email = '';
+        const angle = tok.match(/^(.*?)<\s*([^>\s]+)\s*>\s*$/);
+        if (angle) { name = angle[1].trim().replace(/^["']|["']$/g, ''); email = angle[2].trim().toLowerCase(); }
+        else {
+          const m = tok.match(/^(.*?)[\s,]+([^\s,]+)$/);
+          if (m && isEmail(m[2])) { name = m[1].trim().replace(/^["']|["']$/g, ''); email = m[2].toLowerCase(); }
+          else if (isEmail(tok)) { email = tok.toLowerCase(); }
+        }
+        if (!isEmail(email) || seen.has(email)) continue;
+        seen.add(email); out.push({ name, email });
+      }
+    }
+    return out;
+  }
+
+  function gatherRecipients() {
+    const rows = [...recipientsEl.querySelectorAll('.invite-recipient-row')];
+    const out = []; const seen = new Set();
+    for (const row of rows) {
+      const name = row.querySelector('.invite-r-name').value.trim();
+      const email = row.querySelector('.invite-r-email').value.trim().toLowerCase();
+      if (!isEmail(email)) continue;
+      if (seen.has(email)) continue;
+      seen.add(email); out.push({ name, email });
+    }
+    return out;
+  }
+
+  function refreshRowsState() {
+    const list = gatherRecipients();
+    countEl.textContent = list.length + ' valid recipient' + (list.length === 1 ? '' : 's');
+    countEl.style.color = list.length ? 'var(--accent)' : 'var(--text-dim)';
+    // Show / hide remove buttons: hide × on the only row when both fields are empty.
+    const rows = [...recipientsEl.querySelectorAll('.invite-recipient-row')];
+    if (rows.length === 1) rows[0].querySelector('.invite-r-remove').style.visibility = 'hidden';
+    else rows.forEach(r => r.querySelector('.invite-r-remove').style.visibility = 'visible');
+  }
+
+  // Start with one empty row.
+  addRow();
+  document.getElementById('i-add-row').addEventListener('click', () => {
+    addRow().querySelector('.invite-r-name').focus();
+  });
+
+  document.getElementById('i-send').addEventListener('click', async () => {
+    const msg = document.getElementById('i-msg');
+    const sendBtn = document.getElementById('i-send');
+    const recipients = gatherRecipients();
+    if (!recipients.length) {
+      msg.className = 'ax-msg err'; msg.textContent = 'Please add at least one recipient with a valid email.';
+      return;
+    }
+    const selectedRoles = selectedRoleIds();
+    const is_admin = adminEl.checked;
+    if (!is_admin && !selectedRoles.length && !confirm('No roles selected — these invitees will have no access at first. Send anyway?')) {
+      msg.className = 'ax-msg'; msg.textContent = '';
+      return;
+    }
+    const legacyPerms = [...new Set(selectedRoles.map(rid => roles.find(r => r.id === rid)?.slug).filter(Boolean))];
+
+    sendBtn.disabled = true;
+    let ok = 0, failed = 0; const failures = [];
+    for (let i = 0; i < recipients.length; i++) {
+      const { name, email } = recipients[i];
+      const first_name = (name || '').trim().split(/\s+/)[0] || '';
+      msg.className = 'ax-msg'; msg.textContent = `Sending ${i + 1} / ${recipients.length}: ${name ? name + ' · ' : ''}${email}…`;
+      try {
+        const r = await fetch(INVITE_BASE, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+          body: JSON.stringify({ email, first_name, permissions: legacyPerms, is_admin }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) { failed++; failures.push({ email, error: j.error || ('HTTP ' + r.status) }); }
+        else { ok++; }
+      } catch (e) { failed++; failures.push({ email, error: e.message || String(e) }); }
+    }
+    sendBtn.disabled = false;
+    if (failed === 0) {
+      toast(`Sent ${ok} invite${ok === 1 ? '' : 's'}`, 'ok');
+      closeModal(); loadUsersTab();
+    } else {
+      msg.className = 'ax-msg err';
+      msg.innerHTML = `Sent ${ok}, failed ${failed}.<br><small style="color:var(--text-dim);">${failures.map(f => `<strong>${escapeHtml(f.email)}</strong>: ${escapeHtml(f.error)}`).join('<br>')}</small>`;
+    }
+  });
+
+  refreshPreview();
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// REP MAPPING — merged into the User editor (v246)
+// repMapProfiles and repMapUnassigned are loaded by refreshAll.
+// ═══════════════════════════════════════════════════════════════════════
+
+async function refreshRepMapData() {
+  const [repRes, unassignedRes] = await Promise.all([
+    api('?api=rep-mappings').catch(() => ({ profiles: [], users: [] })),
+    adminApi('?api=unassigned-names').catch(() => null),
+  ]);
+  repMapProfiles = repRes.profiles || [];
+  repMapUnassigned = unassignedRes || { allCallsReps: [], unassignedCallsReps: [], unassignedAffiliates: [] };
+}
+
+// Set / upsert a rep-mapping row. Called from the inline user-editor form.
+async function setRepMapping(callsName, salesAffiliates, userId) {
+  await api('?api=set-rep-mapping', { method: 'POST', body: { callsName, salesAffiliates, userId: userId || null } });
+  await refreshRepMapData();
+}
+
+async function deleteRepMappingById(id) {
+  await api('?api=delete-rep-mapping', { method: 'POST', body: { id: Number(id) } });
+  await refreshRepMapData();
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ACTIVITY TAB
+// ═══════════════════════════════════════════════════════════════════════
+// Action codes → friendly { icon, label }. Each label completes the sentence
+// "Carlos [label] [target]" so it should read naturally even when the
+// target is appended (e.g. "Carlos updated student #996").
+//
+// The `target` field of each entry is an optional formatter (id) → string
+// used to turn a bare ID into something readable.
+// v2: action codes here match what the backend actually writes (e.g.
+// `mentorship.alert_add` — past versions had `mentorship.add_alert`, which is
+// what made the activity feed render raw action codes for half the entries).
+// Whenever you add a new logActivity() call server-side, ALSO add the action
+// here so it gets a friendly verb + icon in the feed.
+const ACT_LABELS = {
+  // Declarations
+  'declaration.create':         { icon: '📝', label: 'created a declaration',          target: id => 'on row #' + id },
+  'declaration.update':         { icon: '✏️', label: 'edited a declaration',           target: id => 'on row #' + id },
+  'declaration.delete':         { icon: '🗑️', label: 'deleted a declaration',          target: id => 'row #' + id },
+  'declaration.auto_assign':    { icon: '🤖', label: 'auto-assigned declarations',     target: () => '(batch)' },
+  'declaration.auto_import':    { icon: '🤖', label: 'auto-imported a declaration',    target: id => '#' + id },
+
+  // Users / invites / auth events
+  'user.invite':                { icon: '✉️', label: 'invited',                        target: id => id },
+  'user.delete':                { icon: '🗑️', label: 'deleted user',                   target: id => id },
+  'user.permissions_change':    { icon: '🔐', label: 'changed permissions for',        target: id => id },
+  'user.force_logout':          { icon: '🚪', label: 'force-logged-out',                target: id => id },
+  'user.activate':              { icon: '🎉', label: 'activated their account' },
+  'user.signup':                { icon: '🆕', label: 'signed up' },
+  'user.signin':                { icon: '🔑', label: 'signed in' },
+  'user.signin_failed':         { icon: '⛔', label: 'failed sign-in attempt' },
+  'user.signout':               { icon: '🚪', label: 'signed out' },
+  'user.impersonate_start':     { icon: '👁',  label: 'started viewing as',             target: id => id },
+  'user.impersonate_stop':      { icon: '🛑', label: 'stopped viewing as',             target: id => id },
+  'user.admin_change':          { icon: '🛡️', label: 'changed admin flag for',         target: id => id },
+
+  // RBAC roles / permissions / policies
+  'role.create':                { icon: '🎭', label: 'created role',                   target: id => '#' + id },
+  'role.update':                { icon: '✏️', label: 'updated role',                   target: id => '#' + id },
+  'role.delete':                { icon: '🗑️', label: 'deleted role',                  target: id => '#' + id },
+  'role.user_set_roles':        { icon: '🎭', label: 'set roles for',                  target: id => id },
+  'permission.user_set_grants': { icon: '🔓', label: 'set direct grants for',          target: id => id },
+  'org.policy_create':          { icon: '📜', label: 'created policy',                 target: id => '#' + id },
+  'org.policy_update':          { icon: '✏️', label: 'updated policy',                 target: id => '#' + id },
+  'org.policy_delete':          { icon: '🗑️', label: 'deleted policy',                target: id => '#' + id },
+  'org.exec_post_create':       { icon: '⭐', label: 'created exec post',              target: id => id },
+  'org.exec_post_update':       { icon: '✏️', label: 'updated exec post',              target: id => id },
+  'org.exec_post_delete':       { icon: '🗑️', label: 'deleted exec post',             target: id => id },
+  'org.exec_post_assign':       { icon: '🪪', label: 'changed exec post holder',       target: id => id },
+  'org.division_editor_add':    { icon: '✏️', label: 'granted policy-editor on',      target: id => id },
+  'org.division_editor_remove': { icon: '🚫', label: 'revoked policy-editor on',      target: id => id },
+  'org.reorder':                { icon: '🔢', label: 'reordered org items',            target: () => '(batch)' },
+
+  // Student lifecycle transitions (DB trigger)
+  'mentorship.coach_assigned':  { icon: '🧑‍🏫', label: 'assigned coach to',            target: id => 'student #' + id },
+  'mentorship.coach_changed':   { icon: '🔄', label: 'reassigned coach for',           target: id => 'student #' + id },
+  'mentorship.refund_processed':{ icon: '💸', label: 'marked refunded',                target: id => 'student #' + id },
+  'mentorship.refund_reversed': { icon: '↩️', label: 'reversed refund on',             target: id => 'student #' + id },
+  'mentorship.graduated':       { icon: '🎓', label: 'marked graduated',               target: id => 'student #' + id },
+  'mentorship.status_change':   { icon: '🔁', label: 'changed status for',             target: id => 'student #' + id },
+
+  // Coach board pins
+  'coach_board.pin':             { icon: '📌', label: 'pinned',                         target: id => 'student #' + id },
+  'coach_board.unpin':           { icon: '📍', label: 'unpinned',                       target: id => 'student #' + id },
+
+  // External webhooks
+  'webhook.calendly_booking':    { icon: '📅', label: 'Calendly booking received',      target: () => '' },
+  'webhook.sales_log':           { icon: '💳', label: 'new sale logged',                target: id => '#' + id },
+  'webhook.fanbasis':            { icon: '🪝', label: 'Fanbasis webhook',               target: id => '#' + id },
+  'webhook.fanbasis_invalid_signature': { icon: '⚠️', label: 'Fanbasis BAD SIGNATURE',  target: id => '#' + id },
+
+  // Frontend telemetry
+  'page.view':                   { icon: '📄', label: 'opened page',                    target: id => id },
+  'action.failed':               { icon: '⚠️', label: 'action failed:',                target: id => id },
+
+  // Push subscription lifecycle (DB trigger on push_subscriptions).
+  'push.subscribed':             { icon: '🔔', label: 'enabled push on',                target: id => '#' + id },
+  'push.unsubscribed':           { icon: '🔕', label: 'disabled push on',               target: id => '#' + id },
+
+  // Notification delivery (per channel, per device — DB trigger on
+  // notification_dispatch_log fires these so we can see "did the push
+  // actually land on Vale's phone" without a separate query).
+  'notification.push_sent':      { icon: '📲', label: 'push delivered to',              target: id => '#' + id },
+  'notification.push_failed':    { icon: '⚠️', label: 'push FAILED to',                 target: id => '#' + id },
+  'notification.email_sent':     { icon: '📧', label: 'email sent to',                  target: id => '#' + id },
+  'notification.email_failed':   { icon: '⚠️', label: 'email FAILED to',                target: id => '#' + id },
+  'notification.inapp_failed':   { icon: '⚠️', label: 'in-app dispatch failed for',     target: id => '#' + id },
+
+  // Coach groups (mentorship_session_groups CRUD)
+  'coach_group.create':         { icon: '👥', label: 'created coach group',            target: id => '#' + id },
+  'coach_group.update':         { icon: '✏️', label: 'updated coach group',            target: id => '#' + id },
+  'coach_group.delete':         { icon: '🗑️', label: 'deleted coach group',           target: id => '#' + id },
+
+  // Notification engagement
+  'notification.read':          { icon: '✔️', label: 'read notification',              target: id => '#' + id },
+
+  // Email automations (template CRUD with diff)
+  'email_automation.create':    { icon: '✉️', label: 'created an automation',          target: id => '#' + id },
+  'email_automation.update':    { icon: '✉️', label: 'edited an automation',           target: id => '#' + id },
+  'email_automation.delete':    { icon: '🗑️', label: 'deleted an automation',         target: id => '#' + id },
+  'email_snippet.create':       { icon: '🧩', label: 'created an email snippet',       target: id => '#' + id },
+  'email_snippet.update':       { icon: '✏️', label: 'updated an email snippet',       target: id => '#' + id },
+  'email_snippet.delete':       { icon: '🗑️', label: 'deleted an email snippet',      target: id => '#' + id },
+  'email_suppression.add':      { icon: '🚫', label: 'added email suppression',        target: id => id },
+  'email_suppression.remove':   { icon: '🔓', label: 'removed email suppression',      target: id => id },
+
+  // Email delivery (Resend webhook)
+  'email.delivered':            { icon: '📨', label: 'email delivered',                target: id => '#' + id },
+  'email.opened':               { icon: '👁',  label: 'email opened',                   target: id => '#' + id },
+  'email.clicked':              { icon: '🖱️', label: 'email link clicked',             target: id => '#' + id },
+  'email.bounced':              { icon: '⚠️', label: 'email bounced',                  target: id => '#' + id },
+  'email.complained':           { icon: '🚫', label: 'email marked spam',              target: id => '#' + id },
+
+  // Rep mappings
+  'rep_mapping.set':            { icon: '🧩', label: 'updated rep mapping',             target: id => 'for ' + id },
+  'rep_mapping.delete':         { icon: '🧩', label: 'deleted rep mapping',             target: id => '#' + id },
+
+  // Dashboards
+  'dashboard.archive':          { icon: '📦', label: 'archived dashboard',              target: id => id },
+  'dashboard.unarchive':        { icon: '📦', label: 'unarchived dashboard',            target: id => id },
+
+  // Mentorship — student lifecycle
+  'mentorship.create':          { icon: '➕', label: 'added a new student',             target: id => '#' + id },
+  'mentorship.update':          { icon: '✏️', label: 'updated student',                 target: id => '#' + id },
+  'mentorship.delete':          { icon: '🗑️', label: 'deleted student',                target: id => '#' + id },
+  'mentorship.bulk_update':     { icon: '✏️', label: 'bulk-updated students',           target: () => '(many)' },
+  'mentorship.merge_duplicates':{ icon: '🔀', label: 'merged duplicate students',       target: id => '→ #' + id },
+  'mentorship.auto_create':     { icon: '🤖', label: 'auto-created student',            target: id => '#' + id },
+  'mentorship.export':          { icon: '📤', label: 'exported students CSV' },
+
+  // Mentorship — pauses
+  'mentorship.pause_add':       { icon: '⏸️', label: 'added a pause on',                target: id => 'student #' + id },
+  'mentorship.pause_update':    { icon: '✏️', label: 'updated a pause on',              target: id => 'student #' + id },
+  'mentorship.pause_delete':    { icon: '🗑️', label: 'removed a pause from',            target: id => 'student #' + id },
+  'mentorship.pause_ended_notify': { icon: '🔔', label: 'notified pause ended',         target: id => 'student #' + id },
+
+  // Mentorship — resigns
+  'mentorship.resign_add':      { icon: '🔁', label: 'logged a resign for',             target: id => 'student #' + id },
+  'mentorship.resign_update':   { icon: '✏️', label: 'updated a resign on',             target: id => '#' + id },
+  'mentorship.resign_delete':   { icon: '🗑️', label: 'removed a resign from',           target: id => '#' + id },
+  'mentorship.auto_resign':     { icon: '🤖', label: 'auto-logged a resign on',         target: id => 'student #' + id },
+
+  // Mentorship — alerts
+  'mentorship.alert_add':       { icon: '⚠️', label: 'opened an alert on',              target: id => 'student #' + id },
+  'mentorship.alert_resolve':   { icon: '✅', label: 'resolved an alert',               target: id => '#' + id },
+  'mentorship.alert_comment':        { icon: '💬', label: 'responded to an alert',           target: id => '#' + id },
+  'mentorship.alert_comment_delete': { icon: '🗑️', label: 'deleted an alert response',       target: id => '#' + id },
+  'mentorship.alert_delete':    { icon: '🗑️', label: 'deleted an alert',                target: id => '#' + id },
+
+  // Mentorship — turnovers
+  'mentorship.turnover_add':    { icon: '↪️', label: 'opened a turnover for',           target: id => 'student #' + id },
+  'mentorship.turnover_result': { icon: '☑️', label: 'logged turnover result',          target: id => '#' + id },
+  'mentorship.turnover_comment':        { icon: '💬', label: 'responded to a turnover',        target: id => '#' + id },
+  'mentorship.turnover_comment_delete': { icon: '🗑️', label: 'deleted a turnover response',    target: id => '#' + id },
+  'mentorship.turnover_delete': { icon: '🗑️', label: 'deleted a turnover',              target: id => '#' + id },
+
+  // Mentorship — wins
+  'mentorship.win_add':         { icon: '🏆', label: 'logged a win for',                target: id => 'student #' + id },
+  'mentorship.win_update':      { icon: '✏️', label: 'updated a win',                   target: id => '#' + id },
+  'mentorship.win_delete':      { icon: '🗑️', label: 'removed a win',                   target: id => '#' + id },
+
+  // Mentorship — notes (coach / rep / I/C)
+  'mentorship.coach_note_add':    { icon: '📝', label: 'added a coach note on',         target: id => 'student #' + id },
+  'mentorship.coach_note_delete': { icon: '🗑️', label: 'deleted a coach note',           target: id => '#' + id },
+  'mentorship.rep_note_add':      { icon: '💼', label: 'added a rep note on',           target: id => 'student #' + id },
+  'mentorship.rep_note_delete':   { icon: '🗑️', label: 'deleted a rep note',             target: id => '#' + id },
+  'mentorship.ic_note_add':       { icon: '🎯', label: 'added an I/C note on',          target: id => 'student #' + id },
+  'mentorship.ic_note_delete':    { icon: '🗑️', label: 'deleted an I/C note',           target: id => '#' + id },
+
+  // Mentorship — activity / surveys / videos / zoom
+  'mentorship.activity_add':    { icon: '📜', label: 'logged activity on',              target: id => 'student #' + id },
+  'mentorship.activity_delete': { icon: '🗑️', label: 'removed an activity',             target: id => '#' + id },
+  'mentorship.survey.received': { icon: '📋', label: 'received a Typeform survey for',  target: id => 'student #' + id },
+  'mentorship.survey_link_add': { icon: '🔗', label: 'added a survey link for',         target: id => 'student #' + id },
+  'mentorship.survey_delete':   { icon: '🗑️', label: 'removed a survey from',           target: id => '#' + id },
+  'mentorship.video.received':  { icon: '🎬', label: 'received a video upload for',     target: id => 'student #' + id },
+  'mentorship.zoom_attendance': { icon: '📹', label: 'logged Zoom attendance',          target: id => '(session)' },
+
+  // Mentorship — intake (Zapier / system)
+  'mentorship.intake.inserted': { icon: '🆕', label: 'auto-onboarded student',          target: id => '#' + id },
+  'mentorship.intake.updated':  { icon: '🔄', label: 'auto-updated student',            target: id => '#' + id },
+
+  // Coach board
+  'coach.bulk_date':            { icon: '📅', label: 'bulk-set dates from coach board', target: () => '(many)' },
+  'coach.add_note':             { icon: '📝', label: 'added a coach-board note on',     target: id => 'student #' + id },
+  'coach.log_assignment':       { icon: '📚', label: 'logged an assignment for',        target: id => 'student #' + id },
+  'coach.log_zoom':             { icon: '📹', label: 'logged a Zoom session for',       target: id => 'student #' + id },
+
+  // Zoom
+  'zoom.create':                { icon: '📹', label: 'scheduled a Zoom call for',       target: id => 'student #' + id },
+  'zoom.reschedule':            { icon: '🔄', label: 'rescheduled a Zoom call for',     target: id => 'student #' + id },
+  'zoom.cancel':                { icon: '❌', label: 'cancelled a Zoom call for',       target: id => 'student #' + id },
+
+  // Email automations
+  'email_automation.create':    { icon: '✉️', label: 'created an automation',           target: id => '#' + id },
+  'email_automation.update':    { icon: '✉️', label: 'edited an automation',            target: id => '#' + id },
+  'email_automation.delete':    { icon: '🗑️', label: 'deleted an automation',           target: id => '#' + id },
+  'email_automation.broadcast': { icon: '📣', label: 'broadcast an automation',         target: id => '#' + id },
+  'email_automation.test_fire': { icon: '🧪', label: 'test-fired an automation',        target: id => '#' + id },
+
+  // Org
+  'org.division_create':        { icon: '🏛', label: 'created division',                target: id => id },
+  'org.division_update':        { icon: '✏️', label: 'updated division',                target: id => id },
+  'org.division_delete':        { icon: '🗑️', label: 'deleted division',                target: id => id },
+  'org.department_create':      { icon: '📂', label: 'created department',              target: id => id },
+  'org.department_update':      { icon: '✏️', label: 'updated department',              target: id => id },
+  'org.department_delete':      { icon: '🗑️', label: 'deleted department',              target: id => id },
+  'org.post_create':            { icon: '➕', label: 'created post',                    target: id => id },
+  'org.post_update':            { icon: '✏️', label: 'updated post',                    target: id => id },
+  'org.post_delete':            { icon: '🗑️', label: 'deleted post',                    target: id => id },
+  'org.post_assign':            { icon: '🪪', label: 'assigned a holder to post',       target: id => id },
+};
+
+// Format an activity-log row into a friendly text representation.
+// Returns { icon, verb, target, when, diff, content }.
+// `diff`    = HTML for field-level changes when an update has changes[]
+// `content` = HTML block describing the action's content (note text, deleted
+//             row, alert title/desc, turnover result, etc.) so every kind of
+//             activity has a real record, not just an action code + id.
+function _formatActivity(r) {
+  const meta = ACT_LABELS[r.action] || { icon: '•', label: r.action };
+  const d = (r.details && typeof r.details === 'object') ? r.details : {};
+  // Build a friendly target. If the entry carries a `name`, prefer "Name (#id)".
+  let target = '';
+  if (r.target_id) {
+    const idPart = meta.target ? meta.target(String(r.target_id)) : String(r.target_id);
+    target = d.name ? `${d.name} (${idPart})` : idPart;
+  } else if (d.name) {
+    target = String(d.name);
+  } else if (d.email && r.action.startsWith('user.')) {
+    target = String(d.email);
+  } else if (d.field) {
+    target = String(d.field);
+  }
+
+  // Field-level diff (mentorship.update / pause_update / resign_update / win_update)
+  let diff = null;
+  if (Array.isArray(d.changes) && d.changes.length) {
+    diff = d.changes.slice(0, 8).map(c => {
+      return `<span class="act-diff-item"><span class="act-diff-field">${escapeHtml(_humanField(c.field))}</span>` +
+             `<span class="act-diff-before">${_fmtVal(c.before)}</span>` +
+             `<span class="act-diff-arrow">→</span>` +
+             `<span class="act-diff-after">${_fmtVal(c.after)}</span></span>`;
+    }).join('') + (d.changes.length > 8 ? `<span class="act-diff-more">+${d.changes.length - 8} more</span>` : '');
+  } else if (Array.isArray(d.fields) && d.fields.length) {
+    diff = `<span class="act-diff-fallback">changed: ${d.fields.slice(0, 8).map(f => `<span class="act-diff-field">${escapeHtml(_humanField(f))}</span>`).join(', ')}${d.fields.length > 8 ? ` (+${d.fields.length - 8} more)` : ''}</span>`;
+  }
+
+  // Content block — the actual stuff that happened. Pick the most useful
+  // shape from the details object based on the action.
+  let content = null;
+  const parts = [];
+  const pushKV = (k, v) => { if (v !== null && v !== undefined && v !== '') parts.push(`<span class="act-content-kv"><span class="act-content-k">${escapeHtml(k)}</span><span class="act-content-v">${_fmtVal(v)}</span></span>`); };
+  // ─ Notes (coach / rep / IC) — show the actual text + date
+  if ((/_note_add$/.test(r.action) || /_note_delete$/.test(r.action))) {
+    const txt = d.text || d.deleted?.text;
+    const date = d.note_date || d.deleted?.note_date;
+    if (txt) pushKV('Note', txt);
+    if (date) pushKV('Date', date);
+  }
+  // ─ Alert add / resolve — title + description + resolution note
+  if (r.action === 'mentorship.alert_add')      { pushKV('Title', d.title); pushKV('Details', d.description); if (d.recipients_count) pushKV('Notified', d.recipients_count + ' user' + (d.recipients_count === 1 ? '' : 's')); }
+  if (r.action === 'mentorship.alert_resolve')  { pushKV('Title', d.alert_title); pushKV('Resolution', d.resolution_note); if (d.recipients_count) pushKV('Notified', d.recipients_count + ' user' + (d.recipients_count === 1 ? '' : 's')); }
+  if (r.action === 'mentorship.alert_comment')  { if (d.name) pushKV('Student', d.name); pushKV('Response', d.body); if (d.recipients_count) pushKV('Notified', d.recipients_count + ' user' + (d.recipients_count === 1 ? '' : 's')); }
+  // ─ Generic *_delete — show snapshot of the deleted row (already captured server-side)
+  if (/_delete$/.test(r.action) && d.deleted && typeof d.deleted === 'object') {
+    for (const [k, v] of Object.entries(d.deleted)) {
+      if (k === 'student_id') continue;
+      pushKV(_humanField(k), v);
+    }
+  }
+  // ─ Win add — text + date
+  if (r.action === 'mentorship.win_add') { pushKV('Win', d.text); if (d.win_date) pushKV('Date', d.win_date); }
+  // ─ Pause / resign add — start, end, months, amount, notes
+  if (r.action === 'mentorship.pause_add')  { pushKV('From', d.start_date); pushKV('To', d.end_date); pushKV('Notes', d.notes); }
+  if (r.action === 'mentorship.resign_add') { pushKV('Date', d.resign_date); pushKV('Months added', d.months_added); pushKV('Amount', d.amount); pushKV('Notes', d.notes); }
+  if (r.action === 'mentorship.auto_resign') { pushKV('Months added', d.months_added); pushKV('Amount', d.amount); if (d.effective_status) pushKV('Effective status', d.effective_status); if (d.sales_log_id) pushKV('Sales log row', '#' + d.sales_log_id); }
+  // ─ Turnover add / result — rep, note, result
+  if (r.action === 'mentorship.turnover_add')    { pushKV('Handed to', d.rep_name); pushKV('Note', d.note); pushKV('Date', d.turnover_date); if (d.recipients_count) pushKV('Notified', d.recipients_count + ' user' + (d.recipients_count === 1 ? '' : 's')); }
+  if (r.action === 'mentorship.turnover_result') { pushKV('Rep', d.rep_name); pushKV('Result', d.result || '(cleared)'); if (d.previous_result) pushKV('Previous result', d.previous_result); }
+  if (r.action === 'mentorship.turnover_comment') { if (d.name) pushKV('Student', d.name); pushKV('Rep', d.rep_name); pushKV('Response', d.body); if (d.recipients_count) pushKV('Notified', d.recipients_count + ' user' + (d.recipients_count === 1 ? '' : 's')); }
+  // ─ Activity log add — kind, date, notes
+  if (r.action === 'mentorship.activity_add') { pushKV('Kind', d.kind); pushKV('Date', d.activity_date); pushKV('Notes', d.notes); }
+  // ─ Survey link add — url + title
+  if (r.action === 'mentorship.survey_link_add') { pushKV('URL', d.url); pushKV('Title', d.title); }
+  // ─ Bulk-update — show which field + value applied + how many rows
+  if (r.action === 'mentorship.bulk_update') {
+    if (d.field)   pushKV('Field',         _humanField(d.field));
+    if (d.value !== undefined) pushKV('New value', d.value);
+    if (Array.isArray(d.ids)) pushKV('Students', d.ids.length + ' student' + (d.ids.length === 1 ? '' : 's'));
+    if (d.updated !== undefined) pushKV('Rows updated', d.updated);
+    if (Array.isArray(d.before_values) && d.before_values.length) {
+      const sample = d.before_values.slice(0, 5).map(b => (b.name || '#' + b.id) + ': ' + (b.before == null || b.before === '' ? '(empty)' : b.before)).join('; ');
+      pushKV('Before (per student)', sample + (d.before_values.length > 5 ? ` · +${d.before_values.length - 5} more` : ''));
+    }
+  }
+  // ─ Merge duplicates — source/target + per-field merges
+  if (r.action === 'mentorship.merge_duplicates') {
+    if (Array.isArray(d.source_ids)) pushKV('Merged from', d.source_ids.join(', '));
+    if (d.target_id) pushKV('Into', '#' + d.target_id);
+    if (d.fields_merged) pushKV('Fields merged', Array.isArray(d.fields_merged) ? d.fields_merged.join(', ') : d.fields_merged);
+  }
+  // ─ Typeform survey received — form + question count + extracted fields
+  if (r.action === 'mentorship.survey.received') {
+    if (d.form_id) pushKV('Form', d.form_id);
+    if (d.qa_count != null) pushKV('Questions answered', d.qa_count);
+    if (Array.isArray(d.fields_extracted) && d.fields_extracted.length) pushKV('Fields auto-filled', d.fields_extracted.join(', '));
+    if (d.action) pushKV('Outcome', d.action);
+  }
+  // ─ Video received from Dropbox — file + date
+  if (r.action === 'mentorship.video.received') {
+    if (d.file) pushKV('File', d.file);
+    if (d.earliest_date) pushKV('Submission date', d.earliest_date);
+    if (d.path) pushKV('Path', d.path);
+  }
+  // ─ Intake — show which fields were populated + outcome
+  if (r.action === 'mentorship.intake.inserted' || r.action === 'mentorship.intake.updated') {
+    if (d.event)  pushKV('Event', d.event);
+    if (d.source) pushKV('Source', d.source);
+    if (Array.isArray(d.fields)) pushKV('Fields set', d.fields.join(', '));
+  }
+  // ─ Zoom attendance — meeting metadata + match outcome
+  if (r.action === 'mentorship.zoom_attendance') {
+    if (d.topic)        pushKV('Topic', d.topic);
+    if (d.meeting_id)   pushKV('Meeting id', d.meeting_id);
+    if (d.host_email)   pushKV('Host', d.host_email);
+    if (d.participants_count != null) pushKV('Participants', d.participants_count);
+    if (d.matched != null)   pushKV('Matched students', d.matched);
+    if (d.unmatched != null) pushKV('Unmatched', d.unmatched);
+    if (d.newly_logged != null) pushKV('Activities logged', d.newly_logged);
+    if (d.duration_minutes != null) pushKV('Duration', d.duration_minutes + ' min');
+  }
+  // ─ Pause-ended notification — student + recipients
+  if (r.action === 'mentorship.pause_ended_notify') {
+    if (d.pause_end) pushKV('Pause ended on', d.pause_end);
+    if (d.recipients_count) pushKV('Notified', d.recipients_count + ' user' + (d.recipients_count === 1 ? '' : 's'));
+  }
+  // ─ Declaration auto-import / create — money trail
+  if (r.action === 'declaration.auto_import' || r.action === 'declaration.create') {
+    if (d.type)     pushKV('Type', d.type);
+    if (d.amount != null) pushKV('Amount', '$' + d.amount);
+    if (d.rep_name) pushKV('Rep', d.rep_name);
+    if (d.email)    pushKV('Email', d.email);
+    if (d.source)   pushKV('Source', d.source);
+  }
+  // ─ User permissions change — new perm set
+  if (r.action === 'user.permissions_change') {
+    if (Array.isArray(d.permissions)) pushKV('Permissions', d.permissions.join(', '));
+    if (d.is_admin !== undefined) pushKV('Admin', d.is_admin);
+    if (d.first_name) pushKV('First name', d.first_name);
+  }
+  // ─ User invite — email + admin flag
+  if (r.action === 'user.invite') {
+    pushKV('Email', d.email);
+    if (d.is_admin) pushKV('Admin', true);
+    if (Array.isArray(d.permissions) && d.permissions.length) pushKV('Permissions', d.permissions.join(', '));
+  }
+  // ─ Rep mapping set
+  if (r.action === 'rep_mapping.set') {
+    pushKV('Calls name', d.callsName);
+    if (Array.isArray(d.salesAffiliates)) pushKV('Affiliates', d.salesAffiliates.join(', ') || '(none)');
+    if (d.userId) pushKV('Linked user', d.userId);
+  }
+  // ─ Email automation edit — show before/after of subject + body
+  if (r.action === 'email_automation.update') {
+    if (d.name)   pushKV('Automation', d.name);
+    if (d.key)    pushKV('Event key', d.key);
+    // changes[] handled by diff block above; if not present, show fields list
+    if (d.changes_count != null && (!Array.isArray(d.changes) || !d.changes.length)) pushKV('Fields changed', d.changes_count);
+  }
+  if (r.action === 'email_automation.broadcast') {
+    if (d.name)         pushKV('Automation', d.name);
+    if (d.recipients_count != null) pushKV('Recipients', d.recipients_count);
+    if (d.sent != null) pushKV('Sent', d.sent);
+    if (d.failed)       pushKV('Failed', d.failed);
+  }
+  if (r.action === 'email_automation.test_fire') {
+    if (d.name)            pushKV('Automation', d.name);
+    if (d.recipient_email) pushKV('Test recipient', d.recipient_email);
+  }
+  // ─ Org division / department / post — name + parent + sort changes
+  if (/^org\.(division|department|post)_(create|update|delete)$/.test(r.action)) {
+    if (d.name)        pushKV('Name', d.name);
+    if (d.slug)        pushKV('Slug', d.slug);
+    if (d.division_id) pushKV('Division', '#' + d.division_id);
+    if (d.department_id) pushKV('Department', '#' + d.department_id);
+    if (d.sort_order != null) pushKV('Sort order', d.sort_order);
+    if (d.default_role_id) pushKV('Default role', '#' + d.default_role_id);
+  }
+  if (r.action === 'org.post_assign' || r.action === 'org.exec_post_assign') {
+    if (d.post_name) pushKV('Post', d.post_name);
+    if (d.user_email) pushKV('Holder', d.user_email);
+    if (d.removed) pushKV('Action', 'removed');
+  }
+  // ─ Auth events: signin / signout / failed signin / impersonation
+  if (r.action === 'user.signin' || r.action === 'user.signin_failed') {
+    if (d.email) pushKV('Email', d.email);
+    if (d.user_agent) pushKV('Device', d.user_agent);
+    if (d.reason) pushKV('Reason', d.reason);
+  }
+  if (r.action === 'user.impersonate_start' || r.action === 'user.impersonate_stop') {
+    if (d.target_email) pushKV('Target', d.target_email);
+    if (d.target_is_admin) pushKV('Target is admin', true);
+    if (Array.isArray(d.target_permissions) && d.target_permissions.length) pushKV('Target permissions', d.target_permissions.join(', '));
+  }
+  if (r.action === 'user.admin_change') {
+    if (d.target_email) pushKV('Target', d.target_email);
+    if (d.before !== undefined && d.after !== undefined) pushKV('Admin', (d.before ? 'Yes' : 'No') + ' → ' + (d.after ? 'Yes' : 'No'));
+  }
+  // ─ RBAC: roles + grants + policies
+  if (r.action === 'role.user_set_roles') {
+    if (d.target_email) pushKV('User', d.target_email);
+    if (Array.isArray(d.added) && d.added.length)   pushKV('Roles added',   d.added.map(x => x.name || x.slug || ('#'+x.id)).join(', '));
+    if (Array.isArray(d.removed) && d.removed.length) pushKV('Roles removed', d.removed.map(x => x.name || x.slug || ('#'+x.id)).join(', '));
+  }
+  if (r.action === 'permission.user_set_grants') {
+    if (d.target_email) pushKV('User', d.target_email);
+    if (Array.isArray(d.grants_added) && d.grants_added.length)     pushKV('Direct grants added',   d.grants_added.join(', '));
+    if (Array.isArray(d.grants_removed) && d.grants_removed.length) pushKV('Direct grants removed', d.grants_removed.join(', '));
+    if (Array.isArray(d.revokes_added) && d.revokes_added.length)   pushKV('Revokes added',         d.revokes_added.join(', '));
+    if (Array.isArray(d.revokes_removed) && d.revokes_removed.length) pushKV('Revokes removed',     d.revokes_removed.join(', '));
+  }
+  if (r.action === 'role.create') {
+    if (d.name) pushKV('Name', d.name);
+    if (d.slug) pushKV('Slug', d.slug);
+    if (Array.isArray(d.permission_keys) && d.permission_keys.length) pushKV('Permissions', d.permission_keys.join(', '));
+  }
+  if (r.action === 'role.update') {
+    if (d.name) pushKV('Role', d.name);
+    if (Array.isArray(d.permissions_added) && d.permissions_added.length)     pushKV('Permissions added',   d.permissions_added.join(', '));
+    if (Array.isArray(d.permissions_removed) && d.permissions_removed.length) pushKV('Permissions removed', d.permissions_removed.join(', '));
+  }
+  if (r.action === 'org.policy_create') {
+    if (d.title) pushKV('Title', d.title);
+    if (d.kind)  pushKV('Kind', d.kind);
+    if (d.scope_type) pushKV('Scope', d.scope_type + (d.scope_id ? ' #' + d.scope_id : ''));
+  }
+  if (r.action === 'org.division_editor_add' || r.action === 'org.division_editor_remove') {
+    if (d.division_name) pushKV('Division', d.division_name);
+    if (d.user_email)    pushKV('Editor',  d.user_email);
+  }
+  if (r.action === 'org.reorder') {
+    if (d.kind)  pushKV('Kind', d.kind);
+    if (d.count != null) pushKV('Items reordered', d.count);
+  }
+  // ─ Email delivery events
+  if (/^email\.(delivered|opened|clicked|bounced|complained)$/.test(r.action)) {
+    if (d.recipient) pushKV('Recipient', d.recipient);
+    if (d.subject)   pushKV('Subject', d.subject);
+    if (d.link)      pushKV('Link', d.link);
+    if (d.reason)    pushKV('Reason', d.reason);
+    if (d.automation_id) pushKV('Automation', '#' + d.automation_id);
+  }
+  // ─ Coach groups (DB trigger writes name/description/student_count + diff)
+  if (r.action === 'coach_group.create' || r.action === 'coach_group.update' || r.action === 'coach_group.delete') {
+    if (d.name) pushKV('Name', d.name);
+    if (d.description) pushKV('Description', d.description);
+    if (d.student_count != null) pushKV('Students', d.student_count);
+    if (d.previous_student_count != null && d.previous_student_count !== d.student_count) pushKV('Was', d.previous_student_count + ' students');
+  }
+  // ─ Notification reads — capture the original notification context
+  if (r.action === 'notification.read') {
+    if (d.title) pushKV('Notification', d.title);
+    if (d.kind)  pushKV('Kind', d.kind);
+    if (d.student_id) pushKV('Student', '#' + d.student_id);
+  }
+  // ─ Email automation create / update (with subject/body length diffs)
+  if (r.action === 'email_automation.create') {
+    if (d.name) pushKV('Name', d.name);
+    if (d.trigger_event) pushKV('Trigger', d.trigger_event);
+    if (d.is_template) pushKV('Template', 'yes');
+    if (d.enabled !== undefined) pushKV('Enabled', d.enabled);
+  }
+  if (r.action === 'email_automation.update' && Array.isArray(d.changes)) {
+    // The changes[] block already renders via the auto-diff path above. Here
+    // we surface the name + count so the row is scannable.
+    if (d.name) pushKV('Automation', d.name);
+    if (d.changes_count != null) pushKV('Fields changed', d.changes_count);
+  }
+  // ─ Email snippet / suppression
+  if (r.action === 'email_snippet.create' || r.action === 'email_snippet.update' || r.action === 'email_snippet.delete') {
+    if (d.name) pushKV('Name', d.name);
+    if (d.kind) pushKV('Kind', d.kind);
+    if (d.description) pushKV('Description', d.description);
+  }
+  if (r.action === 'email_suppression.add' || r.action === 'email_suppression.remove') {
+    if (d.email)  pushKV('Email', d.email);
+    if (d.reason) pushKV('Reason', d.reason);
+    if (d.source) pushKV('Source', d.source);
+    if (d.previous_reason) pushKV('Previously', d.previous_reason);
+  }
+  // ─ Student lifecycle transitions
+  if (r.action === 'mentorship.coach_assigned') {
+    if (d.coach) pushKV('Coach', d.coach);
+  }
+  if (r.action === 'mentorship.coach_changed') {
+    if (d.before && d.after) pushKV('Reassigned', d.before + ' → ' + d.after);
+  }
+  if (r.action === 'mentorship.refund_processed') {
+    if (d.refunded_date)  pushKV('Refund date', d.refunded_date);
+    if (d.refunded_amount != null) pushKV('Amount', '$' + d.refunded_amount);
+  }
+  if (r.action === 'mentorship.refund_reversed') {
+    if (d.previous_refunded_date) pushKV('Previous refund date', d.previous_refunded_date);
+  }
+  if (r.action === 'mentorship.graduated') {
+    if (d.graduated_at) pushKV('Graduated on', d.graduated_at);
+  }
+  if (r.action === 'mentorship.status_change') {
+    if (d.before && d.after) pushKV('Status', d.before + ' → ' + d.after);
+  }
+  // ─ Coach board pins
+  if (r.action === 'coach_board.pin' || r.action === 'coach_board.unpin') {
+    if (d.name) pushKV('Student', d.name);
+    if (d.pinned_at) pushKV('Pinned at', d.pinned_at);
+  }
+  // ─ External webhooks
+  if (r.action === 'webhook.calendly_booking') {
+    if (d.first_name) pushKV('Name', d.first_name);
+    if (d.email)      pushKV('Email', d.email);
+    if (d.date_time)  pushKV('When', d.date_time);
+    if (d.appointment) pushKV('Appointment', d.appointment);
+    if (d.rep)         pushKV('Rep', d.rep);
+  }
+  if (r.action === 'webhook.sales_log') {
+    if (d.name)    pushKV('Name', d.name);
+    if (d.email)   pushKV('Email', d.email);
+    if (d.product) pushKV('Product', d.product);
+    if (d.price != null) pushKV('Price', '$' + d.price);
+    if (d.status)  pushKV('Status', d.status);
+    if (d.effective_status && d.effective_status !== d.status) pushKV('Effective status', d.effective_status);
+    if (d.affiliate) pushKV('Affiliate', d.affiliate);
+    if (d.platform)  pushKV('Platform', d.platform);
+    if (d.fanbasis_transaction_id) pushKV('Fanbasis tx', d.fanbasis_transaction_id);
+  }
+  if (r.action === 'webhook.fanbasis' || r.action === 'webhook.fanbasis_invalid_signature') {
+    if (d.event_type)   pushKV('Event', d.event_type);
+    if (d.event_id)     pushKV('Event id', d.event_id);
+    if (d.signature_ok === false) pushKV('Signature', 'INVALID');
+    if (d.sales_log_id) pushKV('Sales log', '#' + d.sales_log_id);
+    if (d.notes)        pushKV('Notes', d.notes);
+  }
+  // ─ Page views + failed actions (frontend telemetry)
+  if (r.action === 'page.view') {
+    if (d.page)     pushKV('Page', d.page);
+    if (d.referrer) pushKV('Came from', d.referrer);
+  }
+  if (r.action === 'action.failed') {
+    if (d.slug)   pushKV('Endpoint', d.slug + (d.api ? '?api=' + d.api : ''));
+    if (d.status) pushKV('HTTP status', d.status);
+    if (d.method) pushKV('Method', d.method);
+  }
+  // ─ Push subscription lifecycle
+  if (r.action === 'push.subscribed' || r.action === 'push.unsubscribed') {
+    if (d.platform)   pushKV('Platform', d.platform);
+    if (d.user_email) pushKV('User', d.user_email);
+    if (d.user_agent) pushKV('Device', d.user_agent);
+    if (d.reason)     pushKV('Reason', d.reason);
+    if (d.backfilled) pushKV('Backfilled', 'yes (existed before tracking)');
+  }
+  // ─ Notification delivery results (per-device, per-channel)
+  if (/^notification\.(push|email|inapp)_(sent|failed)$/.test(r.action)) {
+    if (d.recipient_user_email || d.recipient_email) pushKV('To', d.recipient_user_email || d.recipient_email);
+    if (d.notif_kind)  pushKV('Kind', d.notif_kind);
+    if (d.notif_title) pushKV('Notification', d.notif_title);
+    if (d.channel)     pushKV('Channel', d.channel);
+    if (r.action.endsWith('_failed') && d.error) pushKV('Error', d.error);
+    if (d.notif_alert_id)   pushKV('Alert', '#' + d.notif_alert_id);
+    if (d.notif_student_id) pushKV('Student', '#' + d.notif_student_id);
+  }
+  // ─ Zoom session create/reschedule/cancel (DB trigger output)
+  if (r.action === 'zoom.create' || r.action === 'zoom.cancel') {
+    const row = (r.action === 'zoom.create' ? d : d.deleted) || {};
+    if (row.topic) pushKV('Topic', row.topic);
+    if (row.start_time) pushKV('Start', row.start_time);
+    if (row.join_url) pushKV('Join URL', row.join_url);
+  }
+  if (r.action === 'zoom.reschedule') {
+    if (d.topic) pushKV('Topic', d.topic);
+    if (d.old_start_time && d.new_start_time) pushKV('Reschedule', d.old_start_time + ' → ' + d.new_start_time);
+    if (d.join_url) pushKV('Join URL', d.join_url);
+  }
+
+  if (parts.length) content = `<div class="act-content">${parts.join('')}</div>`;
+
+  const when = r.ts || r.created_at;
+  return { icon: meta.icon, verb: meta.label, target, when, diff, content };
+}
+
+// Format a single before/after value for inline display.
+function _fmtVal(v) {
+  if (v === null || v === undefined || v === '') return '<em class="act-diff-empty">empty</em>';
+  if (v === true) return 'Yes';
+  if (v === false) return 'No';
+  if (typeof v === 'number') return String(v);
+  if (typeof v === 'string') {
+    // Truncate long values
+    const s = v.length > 60 ? v.slice(0, 60) + '…' : v;
+    return escapeHtml(s);
+  }
+  try { return escapeHtml(JSON.stringify(v).slice(0, 60)); } catch { return '?'; }
+}
+
+// Make snake_case field names human-readable.
+function _humanField(f) {
+  return String(f || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+// v285 visual refresh helpers ─────────────────────────────────────────
+// Email → "First" (everything before @ → before . or _ → capitalize).
+function _actFirstName(email) {
+  if (!email) return '';
+  const local = String(email).split('@')[0] || '';
+  const part = local.split(/[._-]/)[0] || local;
+  if (!part) return '';
+  return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+}
+// Deterministic hue per email (so each user keeps the same avatar colour).
+function _actAvatarColor(email) {
+  if (!email) return 'linear-gradient(135deg, #4b5570, #2a3041)';
+  let h = 0;
+  for (const c of String(email)) h = ((h << 5) - h + c.charCodeAt(0)) >>> 0;
+  const hue = h % 360;
+  return `linear-gradient(135deg, hsl(${hue},65%,55%), hsl(${(hue+30)%360},65%,42%))`;
+}
+// Map an action to a category class (drives the left-border accent).
+function _actCategory(action) {
+  if (!action) return 'act-cat-routine';
+  if (action.startsWith('action.failed') || action.endsWith('signin_failed') || /invalid_signature/.test(action) || /notification\.(push|email|inapp)_failed/.test(action)) return 'act-cat-warning';
+  if (/(alert_add|alert_opened|_delete|status_change.*Cancel|cancel|denied|forbidden|bounced|complained|refund_reversed)/.test(action)) return 'act-cat-alert';
+  if (/^notification\.(push|email|inapp)_/.test(action)) return 'act-cat-email';
+  if (/(refund_processed|sales_log|auto_resign|auto_import|resign|declaration\.create|webhook\.sales)/.test(action)) return 'act-cat-money';
+  if (/(win_add|alert_resolve|graduated|intake|onboarded|signin\b|signup|activate|pause_ended)/.test(action)) return 'act-cat-positive';
+  if (action.startsWith('user.') || action.startsWith('role.') || action.startsWith('permission.') || action.startsWith('org.') || action.startsWith('rep_mapping')) return 'act-cat-access';
+  if (action.startsWith('email.')) return 'act-cat-email';
+  if (/system|@system|^webhook|^calendly|cron|sync|reorder/.test(action)) return 'act-cat-system';
+  return 'act-cat-routine';
+}
+// Friendly day bucket label for grouping ("Today" / "Yesterday" / weekday / date).
+function _actDayBucket(iso) {
+  if (!iso) return 'Unknown';
+  const d = new Date(iso); if (isNaN(d.getTime())) return 'Unknown';
+  const now = new Date();
+  const dayStart = (x) => { const c = new Date(x); c.setHours(0,0,0,0); return c.getTime(); };
+  const todayMs = dayStart(now);
+  const rowMs = dayStart(d);
+  const diffDays = Math.round((todayMs - rowMs) / 86400000);
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7)   return d.toLocaleDateString('en-US', { weekday: 'long' });
+  if (now.getFullYear() === d.getFullYear()) return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+// Build a click-through href for the activity target so users can jump
+// straight to the affected student / alert / etc.
+function _actTargetHref(r) {
+  const d = r.details || {};
+  const tt = r.target_type || '';
+  const tid = r.target_id || '';
+  if (tt === 'mentorship_student' && tid) return '/students.html?student=' + encodeURIComponent(tid);
+  if (tt === 'mentorship_alert' && tid)   return '/students.html?openAlert=' + encodeURIComponent(tid);
+  if (tt === 'mentorship_turnover' && tid && d.student_id) return '/students.html?student=' + encodeURIComponent(d.student_id) + '&openTurnover=' + encodeURIComponent(tid);
+  // Notes/wins/pauses live under a student — use details.student_id when present
+  if ((tt === 'mentorship_win' || tt === 'mentorship_pause' || tt === 'mentorship_resign') && d.deleted?.student_id) return '/students.html?student=' + encodeURIComponent(d.deleted.student_id);
+  if (tt === 'email_automation' && tid) return '/email-automations.html?id=' + encodeURIComponent(tid);
+  return null;
+}
+// Plain-English one-line summary for the most common actions. Returns HTML
+// or null (in which case the existing diff/content blocks render as before).
+function _actSummary(r) {
+  const d = r.details || {};
+  const A = (s) => '<b>' + escapeHtml(String(s)) + '</b>';
+  const before = (s) => '<span class="act-from">' + escapeHtml(String(s == null || s === '' ? '(empty)' : s)) + '</span>';
+  const after  = (s) => '<span class="act-to">'   + escapeHtml(String(s == null || s === '' ? '(empty)' : s)) + '</span>';
+  const arrow = ' <span class="act-arrow">→</span> ';
+  switch (r.action) {
+    case 'mentorship.coach_changed':   return 'Reassigned coach from ' + before(d.before) + arrow + after(d.after);
+    case 'mentorship.coach_assigned':  return 'Assigned coach ' + after(d.coach);
+    case 'mentorship.refund_processed': return 'Refund of ' + A('$' + (d.refunded_amount ?? '?')) + ' processed on ' + A(d.refunded_date || '?');
+    case 'mentorship.refund_reversed':  return 'Refund <b>reversed</b> (was ' + escapeHtml(d.previous_refunded_date || '?') + ')';
+    case 'mentorship.graduated':       return 'Marked graduated on ' + A(d.graduated_at);
+    case 'mentorship.status_change':   return 'Status ' + before(d.before) + arrow + after(d.after);
+    case 'user.admin_change':          return (d.target_email ? A(d.target_email) + ' ' : '') + 'admin ' + before(d.before ? 'Yes' : 'No') + arrow + after(d.after ? 'Yes' : 'No');
+    case 'coach_board.pin':            return 'Pinned ' + A(d.name || 'student');
+    case 'coach_board.unpin':          return 'Unpinned ' + A(d.name || 'student');
+    case 'webhook.sales_log':          return 'New sale: ' + A(d.name || d.email) + ' · ' + A(d.product || '?') + ' · ' + A('$' + (d.price ?? '?'));
+    case 'webhook.calendly_booking':   return A(d.first_name || d.email || 'Lead') + ' booked ' + A(d.appointment || 'an appointment') + (d.rep ? ' with ' + A(d.rep) : '');
+    case 'action.failed':              return 'Endpoint ' + A((d.slug || '?') + (d.api ? '?api=' + d.api : '')) + ' returned ' + A('HTTP ' + d.status);
+    case 'page.view':                  return 'Opened ' + A(d.page || '?');
+    case 'role.user_set_roles': {
+      const added = (d.added || []).map(x => x.name || x.slug).filter(Boolean);
+      const removed = (d.removed || []).map(x => x.name || x.slug).filter(Boolean);
+      if (!added.length && !removed.length) return null;
+      const bits = [];
+      if (added.length)   bits.push('added ' + added.map(A).join(', '));
+      if (removed.length) bits.push('removed ' + removed.map(A).join(', '));
+      return (d.target_email ? 'For ' + A(d.target_email) + ': ' : '') + bits.join('; ');
+    }
+    case 'user.signin':                return 'Signed in' + (d.user_agent ? ' from ' + escapeHtml((d.user_agent.match(/iPhone|iPad|Mac|Android|Windows|Linux/)?.[0]) || 'desktop') : '');
+    case 'user.signin_failed':         return 'Failed sign-in for ' + A(d.email || '?') + (d.reason ? ' — ' + escapeHtml(d.reason) : '');
+    case 'user.impersonate_start':     return 'Started <b>viewing as</b> ' + A(d.target_email || r.target_id);
+    case 'user.impersonate_stop':      return 'Stopped <b>viewing as</b> ' + A(d.target_email || r.target_id);
+    case 'email.bounced':              return 'Bounced to ' + A(d.recipient) + (d.reason ? ' — ' + escapeHtml(d.reason) : '');
+    case 'email.complained':           return A(d.recipient) + ' marked email as spam';
+    case 'notification.push_sent':     return 'Push <b>delivered</b> to ' + A(d.recipient_first_name || d.recipient_user_email || d.recipient_email) + (d.notif_title ? ' · ' + escapeHtml(d.notif_title) : '');
+    case 'notification.push_failed':   return 'Push <b>FAILED</b> to ' + A(d.recipient_first_name || d.recipient_user_email || d.recipient_email) + (d.error ? ' — ' + escapeHtml(d.error.slice(0, 80)) : '');
+    case 'notification.email_sent':    return 'Email sent to ' + A(d.recipient_email || d.recipient_user_email) + (d.notif_title ? ' · ' + escapeHtml(d.notif_title) : '');
+    case 'notification.email_failed':  return 'Email <b>FAILED</b> to ' + A(d.recipient_email || d.recipient_user_email) + (d.error ? ' — ' + escapeHtml(d.error.slice(0, 80)) : '');
+    case 'notification.inapp_failed':  return 'In-app dispatch failed for ' + A(d.recipient_first_name || d.recipient_user_email);
+    case 'push.subscribed':            return 'Enabled push notifications on ' + A(d.platform || 'a device') + (d.first_name ? ' (' + A(d.first_name) + ')' : '');
+    case 'push.unsubscribed':          return 'Disabled push notifications on ' + A(d.platform || 'a device');
+  }
+  return null;
+}
+
+// v286: quick-filter chip state + noise filter + smart aggregation.
+// v347: mentorship.zoom_attendance removed from noise — Zoom attendance
+// is the highest-signal record of "student showed up to a session" and
+// the team needs it visible by default.
+const ACT_NOISE_KEYS = new Set([
+  'page.view', 'notification.read', 'email.delivered', 'email.opened',
+  'webhook.fanbasis',
+  // Successful delivery rows fan out per-recipient/per-device — collapse by
+  // default so an alert with 4 recipients doesn't add 12 rows to the feed.
+  // Failures (notification.push_failed / email_failed) stay visible.
+  'notification.push_sent', 'notification.email_sent',
+]);
+const ACT_IMPORTANT_PREFIXES = ['mentorship.alert_', 'mentorship.turnover_', 'mentorship.refund_', 'mentorship.graduated', 'mentorship.status_change', 'mentorship.delete', 'user.signin_failed', 'action.failed', 'role.', 'permission.', 'org.policy_', 'org.exec_post_', 'email_automation.delete', 'webhook.fanbasis_invalid_signature'];
+const ACT_MONEY_PREFIXES   = ['declaration.', 'webhook.sales_log', 'mentorship.refund_', 'mentorship.auto_resign', 'mentorship.resign_'];
+const ACT_ALERT_PREFIXES   = ['mentorship.alert_', 'mentorship.turnover_'];
+const ACT_FAILURE_KEYS     = new Set(['action.failed', 'user.signin_failed', 'email.bounced', 'email.complained', 'webhook.fanbasis_invalid_signature', 'notification.push_failed', 'notification.email_failed', 'notification.inapp_failed']);
+
+let _actChipState = 'all';
+let _actHideNoise = true;
+let _actLiveTail = false;
+let _actLiveTailTimer = null;
+let _actCurrentRows = [];
+let _actCurrentUserEmail = null;
+const _actExpandedClusters = new Set();
+const _actExpandedNoise = new Set();
+
+function _actRowImportant(action) {
+  if (!action) return false;
+  return ACT_IMPORTANT_PREFIXES.some(p => action.startsWith(p));
+}
+function _actRowMatchesChip(r, chip, myEmail) {
+  if (chip === 'all') return true;
+  if (chip === 'today') {
+    const ts = r.ts || r.created_at; if (!ts) return false;
+    return new Date(ts).toDateString() === new Date().toDateString();
+  }
+  if (chip === 'mine') return !!myEmail && r.actor_email === myEmail;
+  if (chip === 'important') return _actRowImportant(r.action);
+  if (chip === 'failures')  return ACT_FAILURE_KEYS.has(r.action);
+  if (chip === 'money')     return ACT_MONEY_PREFIXES.some(p => (r.action || '').startsWith(p));
+  if (chip === 'alerts')    return ACT_ALERT_PREFIXES.some(p => (r.action || '').startsWith(p));
+  return true;
+}
+
+// Build the daily-summary banner content from today's rows.
+function _actBuildSummary(rows) {
+  const today = new Date().toDateString();
+  const t = rows.filter(r => new Date(r.ts || r.created_at).toDateString() === today);
+  if (!t.length) return null;
+  const distinctStudents = new Set();
+  const distinctActors   = new Set();
+  let alerts = 0, refunds = 0, sales = 0, salesTotal = 0, failures = 0, wins = 0;
+  for (const r of t) {
+    if (r.actor_email) distinctActors.add(r.actor_email);
+    const d = r.details || {};
+    const sid = (r.target_type === 'mentorship_student' ? r.target_id : null) || d.student_id || d.deleted?.student_id;
+    if (sid) distinctStudents.add(String(sid));
+    if (r.action === 'mentorship.alert_add')         alerts++;
+    if (r.action === 'mentorship.refund_processed')  refunds++;
+    if (r.action === 'webhook.sales_log')           { sales++; salesTotal += Number(d.price) || 0; }
+    if (r.action === 'mentorship.win_add')           wins++;
+    if (ACT_FAILURE_KEYS.has(r.action))              failures++;
+  }
+  return { total: t.length, students: distinctStudents.size, actors: distinctActors.size, alerts, refunds, sales, salesTotal, failures, wins };
+}
+
+// Build anomaly callouts that should appear at the top of the feed.
+function _actBuildAnomalies(rows) {
+  const out = [];
+  const oneHourAgo = Date.now() - 3600 * 1000;
+  const failures1h = rows.filter(r => ACT_FAILURE_KEYS.has(r.action) && new Date(r.ts || r.created_at).getTime() >= oneHourAgo);
+  if (failures1h.length >= 5) {
+    const byActor = {};
+    for (const r of failures1h) { const k = (r.actor_email || 'system'); byActor[k] = (byActor[k] || 0) + 1; }
+    const top = Object.entries(byActor).sort((a,b)=>b[1]-a[1]).slice(0, 3).map(([e,n]) => `${_actFirstName(e) || e} × ${n}`).join(', ');
+    out.push({ severity: 'alert', icon: '⚠️', body: `<b>${failures1h.length} failed actions</b> in the last hour — ${top}`, action: { label: 'Show', chip: 'failures' } });
+  }
+  const todayStr = new Date().toDateString();
+  const badSigToday = rows.filter(r => r.action === 'webhook.fanbasis_invalid_signature' && new Date(r.ts || r.created_at).toDateString() === todayStr);
+  if (badSigToday.length) {
+    out.push({ severity: 'alert', icon: '🛑', body: `<b>${badSigToday.length} Fanbasis webhooks with bad signatures</b> today — possible secret rotation or tampering`, action: null });
+  }
+  // Spike detection: 3× yesterday for refunds or sales.
+  const oneDay = 86400 * 1000;
+  const startToday = new Date(); startToday.setHours(0,0,0,0); const startTodayMs = startToday.getTime();
+  const startYesterdayMs = startTodayMs - oneDay;
+  const countOn = (action, sinceMs, untilMs) => rows.filter(r => r.action === action && new Date(r.ts || r.created_at).getTime() >= sinceMs && new Date(r.ts || r.created_at).getTime() < untilMs).length;
+  const refundsToday = countOn('mentorship.refund_processed', startTodayMs, Date.now());
+  const refundsYday  = countOn('mentorship.refund_processed', startYesterdayMs, startTodayMs);
+  if (refundsToday >= 3 && refundsToday >= refundsYday * 3 && refundsYday > 0) {
+    out.push({ severity: 'warn', icon: '📈', body: `<b>Refund volume ${refundsToday} today</b> vs ${refundsYday} yesterday — ${Math.round(refundsToday/refundsYday)}× spike`, action: { label: 'Show', chip: 'money' } });
+  }
+  return out;
+}
+
+// Apply smart aggregation: when 3+ consecutive rows have the same actor +
+// action prefix, collapse into a single cluster row that can be expanded.
+function _actAggregate(rows) {
+  const out = []; let i = 0;
+  while (i < rows.length) {
+    const r = rows[i];
+    let j = i + 1;
+    while (j < rows.length && rows[j].actor_email === r.actor_email && rows[j].action === r.action) j++;
+    const run = j - i;
+    if (run >= 3) {
+      out.push({ kind: 'cluster', actor_email: r.actor_email, action: r.action, count: run, rows: rows.slice(i, j) });
+    } else {
+      for (let k = i; k < j; k++) out.push({ kind: 'row', row: rows[k] });
+    }
+    i = j;
+  }
+  return out;
+}
+
+// Apply hide-noise collapsing: replace runs of "noisy" actions (page views,
+// notification reads, etc.) with a hourly summary line.
+function _actCollapseNoise(items) {
+  if (!_actHideNoise) return items;
+  const out = []; let bucket = null;
+  for (const it of items) {
+    const r = it.kind === 'row' ? it.row : null;
+    const action = r?.action || (it.kind === 'cluster' ? it.action : '');
+    const isNoise = ACT_NOISE_KEYS.has(action);
+    if (isNoise && r) {
+      const hourKey = new Date(r.ts || r.created_at).toISOString().slice(0, 13);
+      if (!bucket || bucket.hourKey !== hourKey) {
+        if (bucket) out.push({ kind: 'noise', count: bucket.count, hourKey: bucket.hourKey, ts: bucket.firstTs });
+        bucket = { hourKey, count: 0, firstTs: r.ts || r.created_at };
+      }
+      bucket.count++;
+      continue;
+    }
+    if (bucket) { out.push({ kind: 'noise', count: bucket.count, hourKey: bucket.hourKey, ts: bucket.firstTs }); bucket = null; }
+    out.push(it);
+  }
+  if (bucket) out.push({ kind: 'noise', count: bucket.count, hourKey: bucket.hourKey, ts: bucket.firstTs });
+  return out;
+}
+
+function _actRenderRowHtml(r) {
+  const f = _formatActivity(r);
+  const whenAbs = f.when ? new Date(f.when) : null;
+  const whenStr = whenAbs && !isNaN(whenAbs.getTime()) ? whenAbs.toLocaleString() : '';
+  const ago = _ago(f.when);
+  const actorEmail = r.actor_email || '';
+  const isSystem = !actorEmail || /@system$/.test(actorEmail) || /^(system|cron|sales-log|zoom-system|calendly|fanbasis|resend-webhook|dropbox-webhook|typeform-survey|zapier-intake)/.test(actorEmail);
+  const firstName = isSystem ? '' : _actFirstName(actorEmail);
+  const initial   = firstName ? firstName[0] : '·';
+  const avatarStyle = isSystem ? '' : ('background:' + _actAvatarColor(actorEmail) + ';');
+  const avatarClass = isSystem ? 'act-avatar act-avatar-system' : 'act-avatar';
+  const actorDisplay = isSystem ? (actorEmail.replace(/@system$/, '') || 'system') : (firstName || actorEmail);
+  const cat = _actCategory(r.action);
+  const href = _actTargetHref(r);
+  const target = f.target
+    ? (href
+        ? `<a class="act-target act-target-link" href="${href}">${escapeHtml(f.target)}</a>`
+        : `<span class="act-target">${escapeHtml(f.target)}</span>`)
+    : '';
+  const summary = _actSummary(r);
+  return `<div class="act-row ${cat}" title="${escapeHtml(whenStr + ' · ' + (actorEmail || 'system'))}">
+    <div class="${avatarClass}" style="${avatarStyle}">${escapeHtml(initial)}</div>
+    <span class="act-icon">${f.icon}</span>
+    <div class="act-body">
+      <div>
+        <span class="act-actor">${escapeHtml(actorDisplay)}</span>
+        <span class="act-verb">${escapeHtml(f.verb)}</span>
+        ${target}
+      </div>
+      ${summary ? `<div class="act-summary">${summary}</div>` : ''}
+      ${(!summary && f.diff) ? `<div class="act-diff">${f.diff}</div>` : ''}
+      ${f.content || ''}
+    </div>
+    <span class="act-when">${escapeHtml(ago || whenStr)}</span>
+  </div>`;
+}
+
+async function loadActivityTab() {
+  const list = document.getElementById('activityList');
+  list.innerHTML = '<div style="padding:14px;color:var(--text-dim);font-size:0.84rem;">Loading…</div>';
+  const action = document.getElementById('actActionFilter').value;
+  const search = document.getElementById('actSearch').value.trim();
+  const params = new URLSearchParams({ api: 'activity', limit: '200' });
+  if (action) params.set('action', action);
+  if (search) params.set('q', search);
+  try {
+    if (!_actCurrentUserEmail) {
+      const { data: { session } } = await supa.auth.getSession();
+      _actCurrentUserEmail = session?.user?.email || null;
+    }
+    const j = await adminApi('?' + params.toString());
+    const rows = j.rows || [];
+    _actCurrentRows = rows;
+    _actRenderActivityFeed();
+  } catch (e) { list.innerHTML = `<div style="padding:14px;color:var(--red);font-size:0.84rem;">${escapeHtml(e.message)}</div>`; }
+}
+
+// v286: render the activity feed from _actCurrentRows applying the chip
+// filter, hide-noise toggle, and smart aggregation. Pulled into its own
+// function so chip clicks / toggle changes can re-render without re-fetching.
+function _actRenderActivityFeed() {
+  const list = document.getElementById('activityList');
+  const summaryEl   = document.getElementById('actSummary');
+  const anomaliesEl = document.getElementById('actAnomalies');
+  const rows = _actCurrentRows;
+
+  // 1) Summary banner (always built from the full row set, not the chip-filtered set).
+  if (summaryEl) {
+    const s = _actBuildSummary(rows);
+    summaryEl.innerHTML = s ? `<div class="act-summary-banner">
+      <div class="act-summary-stat"><span class="v">${s.total}</span><span class="l">events today</span></div>
+      <div class="act-summary-stat"><span class="v">${s.actors}</span><span class="l">people</span></div>
+      <div class="act-summary-stat"><span class="v">${s.students}</span><span class="l">students touched</span></div>
+      ${s.alerts ? `<div class="act-summary-stat alert"><span class="v">${s.alerts}</span><span class="l">alerts opened</span></div>` : ''}
+      ${s.refunds ? `<div class="act-summary-stat alert"><span class="v">${s.refunds}</span><span class="l">refunds</span></div>` : ''}
+      ${s.sales ? `<div class="act-summary-stat money"><span class="v">${s.sales}</span><span class="l">sales · $${s.salesTotal.toLocaleString()}</span></div>` : ''}
+      ${s.wins ? `<div class="act-summary-stat good"><span class="v">${s.wins}</span><span class="l">wins</span></div>` : ''}
+      ${s.failures ? `<div class="act-summary-stat warn"><span class="v">${s.failures}</span><span class="l">failures</span></div>` : ''}
+    </div>` : '';
+  }
+
+  // 2) Anomaly callouts.
+  if (anomaliesEl) {
+    const anoms = _actBuildAnomalies(rows);
+    anomaliesEl.innerHTML = anoms.map((a, i) => `<div class="act-anomaly ${a.severity}">
+      <span class="act-anomaly-icon">${a.icon}</span>
+      <div class="act-anomaly-body">${a.body}</div>
+      ${a.action ? `<button class="act-anomaly-action" data-anom-chip="${escapeHtml(a.action.chip)}">${escapeHtml(a.action.label)}</button>` : ''}
+    </div>`).join('');
+    anomaliesEl.querySelectorAll('[data-anom-chip]').forEach(b => b.addEventListener('click', () => {
+      _actChipState = b.dataset.anomChip; _actSyncChips(); _actRenderActivityFeed();
+    }));
+  }
+
+  // 3) Filter rows by active chip.
+  const filtered = rows.filter(r => _actRowMatchesChip(r, _actChipState, _actCurrentUserEmail));
+  if (!filtered.length) {
+    list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-dim);font-size:0.84rem;">No activity matches this filter.</div>';
+    return;
+  }
+
+  // 4) Aggregate consecutive identical actions, then collapse noise.
+  const aggregated = _actAggregate(filtered);
+  const collapsed  = _actCollapseNoise(aggregated);
+
+  // 5) Group by friendly day bucket and render.
+  const buckets = []; const byLabel = new Map();
+  for (const it of collapsed) {
+    const ts = it.kind === 'row' ? (it.row.ts || it.row.created_at) :
+               it.kind === 'cluster' ? (it.rows[0].ts || it.rows[0].created_at) :
+               it.ts;
+    const lbl = _actDayBucket(ts);
+    if (!byLabel.has(lbl)) { byLabel.set(lbl, []); buckets.push(lbl); }
+    byLabel.get(lbl).push(it);
+  }
+
+  const parts = [];
+  for (const lbl of buckets) {
+    const group = byLabel.get(lbl);
+    // Count visible items in this group, weighted: clusters count their rows,
+    // noise lines count their underlying events.
+    const groupCount = group.reduce((n, it) => n + (it.kind === 'cluster' ? it.count : it.kind === 'noise' ? it.count : 1), 0);
+    parts.push(`<div class="act-day-header"><span>${escapeHtml(lbl)}</span><span class="act-day-count">${groupCount}</span></div>`);
+    for (const it of group) {
+      if (it.kind === 'row') {
+        parts.push(_actRenderRowHtml(it.row));
+      } else if (it.kind === 'cluster') {
+        const clusterId = (it.rows[0].id || 'c') + ':' + it.count;
+        const expanded = _actExpandedClusters.has(clusterId);
+        if (expanded) {
+          for (const r of it.rows) parts.push(_actRenderRowHtml(r));
+          parts.push(`<div class="act-cluster expanded" data-cluster-id="${escapeHtml(clusterId)}"><span class="act-cluster-count">${it.count}</span> · click to collapse</div>`);
+        } else {
+          const meta = ACT_LABELS[it.action] || { icon: '•', label: it.action };
+          const firstName = _actFirstName(it.actor_email) || (it.actor_email || 'system');
+          // Count distinct targets when possible.
+          const distinctTargets = new Set(it.rows.map(r => r.target_id || (r.details && r.details.name))).size;
+          parts.push(`<div class="act-cluster" data-cluster-id="${escapeHtml(clusterId)}" title="Click to expand">
+            <span>${meta.icon}</span>
+            <span><b style="color:var(--text);">${escapeHtml(firstName)}</b> ${escapeHtml(meta.label)} · </span>
+            <span class="act-cluster-count">${it.count}× across ${distinctTargets} target${distinctTargets===1?'':'s'}</span>
+          </div>`);
+        }
+      } else if (it.kind === 'noise') {
+        const noiseKey = it.hourKey;
+        if (_actExpandedNoise.has(noiseKey)) {
+          // Render the underlying noisy rows when this bucket is expanded.
+          const noisyRows = _actCurrentRows.filter(r => ACT_NOISE_KEYS.has(r.action) && new Date(r.ts || r.created_at).toISOString().slice(0,13) === it.hourKey);
+          for (const r of noisyRows) parts.push(_actRenderRowHtml(r));
+          parts.push(`<div class="act-noise-summary" data-noise-key="${escapeHtml(noiseKey)}" style="cursor:pointer;">— collapse routine events for ${escapeHtml(it.hourKey.replace('T', ' '))}h —</div>`);
+        } else {
+          parts.push(`<div class="act-noise-summary" data-noise-key="${escapeHtml(noiseKey)}" style="cursor:pointer;">+${it.count} routine event${it.count===1?'':'s'} hidden · click to show</div>`);
+        }
+      }
+    }
+  }
+  list.innerHTML = parts.join('');
+
+  // Cluster expand/collapse wiring.
+  list.querySelectorAll('[data-cluster-id]').forEach(el => el.addEventListener('click', () => {
+    const cid = el.dataset.clusterId;
+    if (_actExpandedClusters.has(cid)) _actExpandedClusters.delete(cid); else _actExpandedClusters.add(cid);
+    _actRenderActivityFeed();
+  }));
+  list.querySelectorAll('[data-noise-key]').forEach(el => el.addEventListener('click', () => {
+    const k = el.dataset.noiseKey;
+    if (_actExpandedNoise.has(k)) _actExpandedNoise.delete(k); else _actExpandedNoise.add(k);
+    _actRenderActivityFeed();
+  }));
+}
+
+function _actSyncChips() {
+  document.querySelectorAll('#actChips .act-chip').forEach(c => {
+    if (c.dataset.chip) c.classList.toggle('active', c.dataset.chip === _actChipState);
+  });
+}
+
+document.getElementById('activityRefreshBtn')?.addEventListener('click', loadActivityTab);
+document.getElementById('actActionFilter')?.addEventListener('change', loadActivityTab);
+let _actSearchTimer;
+document.getElementById('actSearch')?.addEventListener('input', () => {
+  clearTimeout(_actSearchTimer); _actSearchTimer = setTimeout(loadActivityTab, 350);
+});
+
+// Chip clicks → re-render without re-fetching.
+document.querySelectorAll('#actChips .act-chip[data-chip]').forEach(c => c.addEventListener('click', () => {
+  _actChipState = c.dataset.chip; _actSyncChips(); _actRenderActivityFeed();
+}));
+document.getElementById('actHideNoise')?.addEventListener('change', (e) => {
+  _actHideNoise = e.target.checked;
+  _actRenderActivityFeed();
+});
+
+// Live tail — 30-second polling. Off by default; stored per session.
+document.getElementById('actLiveTail')?.addEventListener('change', (e) => {
+  _actLiveTail = e.target.checked;
+  if (_actLiveTailTimer) { clearInterval(_actLiveTailTimer); _actLiveTailTimer = null; }
+  if (_actLiveTail) _actLiveTailTimer = setInterval(() => { if (document.body.dataset.tab === 'activity') loadActivityTab(); }, 30000);
+});
+
+// Keyboard shortcuts: only when the Activity tab is active and we're not
+// typing in another input. `/` focuses search; `f` cycles chips; Esc clears.
+document.addEventListener('keydown', (e) => {
+  if (document.body.dataset.tab !== 'activity') return;
+  const tag = (e.target.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'textarea' || tag === 'select') {
+    if (e.key === 'Escape') { e.target.blur(); }
+    return;
+  }
+  if (e.key === '/') { e.preventDefault(); document.getElementById('actSearch')?.focus(); return; }
+  if (e.key === 'f') {
+    const chips = ['all', 'today', 'mine', 'important', 'failures', 'money', 'alerts'];
+    const i = chips.indexOf(_actChipState);
+    _actChipState = chips[(i + 1) % chips.length]; _actSyncChips(); _actRenderActivityFeed();
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// SESSIONS TAB — rich view: live presence, status, devices, activity counts
+// ═══════════════════════════════════════════════════════════════════════
+let sessionsRaw = [];           // server rows (from admin-api ?api=sessions)
+let sessionsActivityByUser = {}; // email → count of recent actions (last 7d)
+let sessionsActivityRecentByUser = {}; // email → [last 5 rows]
+let sessionsFilter = 'all';     // all | live | today | week | stale | never | admin
+let sessionsSearchQuery = '';
+let sessionsSortKey = 'activity'; // activity | name | joined
+let sessionsExpanded = new Set(); // user ids currently expanded
+
+// Friendly time-ago formatter for the session rows
+function _ago(iso) {
+  if (!iso) return null;
+  const t = Date.parse(iso); if (isNaN(t)) return null;
+  const s = Math.max(0, Math.round((Date.now() - t) / 1000));
+  if (s < 60)        return s + 's ago';
+  if (s < 3600)      return Math.round(s / 60) + ' min ago';
+  if (s < 86400)     return Math.round(s / 3600) + 'h ago';
+  if (s < 604800)    return Math.round(s / 86400) + 'd ago';
+  if (s < 2592000)   return Math.round(s / 604800) + 'w ago';
+  if (s < 31536000)  return Math.round(s / 2592000) + 'mo ago';
+  return Math.round(s / 31536000) + 'y ago';
+}
+// Parse a User-Agent string into something humans can read.
+function _device(ua) {
+  if (!ua) return null;
+  const s = String(ua);
+  let browser = 'Browser';
+  if (/Edg\//.test(s))                browser = 'Edge';
+  else if (/Chrome\//.test(s))        browser = 'Chrome';
+  else if (/Firefox\//.test(s))       browser = 'Firefox';
+  else if (/Safari\//.test(s) && !/Chrome\//.test(s)) browser = 'Safari';
+  let os = '';
+  if (/iPhone|iPad|iPod/.test(s))     os = /iPad/.test(s) ? 'iPad' : 'iPhone';
+  else if (/Android/.test(s))         os = 'Android';
+  else if (/Mac OS X|Macintosh/.test(s)) os = 'macOS';
+  else if (/Windows/.test(s))         os = 'Windows';
+  else if (/Linux/.test(s))           os = 'Linux';
+  return os ? `${browser} on ${os}` : browser;
+}
+// Derive a status label for one user row. Live = green, today = blue,
+// week = yellow, stale = grey, never = purple.
+function _sessStatus(s) {
+  if (s.is_live)               return { key: 'live',  label: 'Online now',     dot: '#34d399', color: '#34d399' };
+  const last = s.last_seen || s.last_sign_in_at;
+  if (!last) {
+    const joined = s.created_at ? Math.round((Date.now() - Date.parse(s.created_at)) / 86400000) : null;
+    return { key: 'never', label: joined != null ? `Never signed in · joined ${joined}d ago` : 'Never signed in', dot: '#a78bfa', color: '#a78bfa' };
+  }
+  const minutes = Math.round((Date.now() - Date.parse(last)) / 60000);
+  if (minutes < 60)            return { key: 'today', label: 'Active recently',   dot: '#6b9eff', color: '#6b9eff' };
+  if (minutes < 1440)          return { key: 'today', label: 'Active today',      dot: '#6b9eff', color: '#6b9eff' };
+  if (minutes < 1440 * 7)      return { key: 'week',  label: 'Active this week',  dot: '#fbbf24', color: '#fbbf24' };
+  return { key: 'stale', label: `Idle ${Math.round(minutes / 1440)}d`, dot: 'var(--text-dim)', color: 'var(--text-dim)' };
+}
+
+async function loadSessionsTab() {
+  const list = document.getElementById('sessionsList');
+  if (!list) return;
+  if (!sessionsRaw.length) list.innerHTML = '<div style="padding:14px;color:var(--text-dim);font-size:0.84rem;">Loading…</div>';
+  try {
+    const [sj, aj] = await Promise.all([
+      adminApi('?api=sessions'),
+      adminApi('?api=activity&limit=500').catch(() => ({ rows: [] })),
+    ]);
+    sessionsRaw = sj.rows || [];
+    // Build per-user activity index (last 7d count + last 5 rows).
+    sessionsActivityByUser = {};
+    sessionsActivityRecentByUser = {};
+    const weekAgo = Date.now() - 7 * 86400000;
+    for (const r of (aj.rows || [])) {
+      const key = (r.actor_email || r.actor_id || '').toLowerCase();
+      if (!key) continue;
+      const ts = r.ts ? Date.parse(r.ts) : (r.created_at ? Date.parse(r.created_at) : 0);
+      if (ts > weekAgo) sessionsActivityByUser[key] = (sessionsActivityByUser[key] || 0) + 1;
+      const arr = (sessionsActivityRecentByUser[key] ||= []);
+      if (arr.length < 5) arr.push(r);
+    }
+    renderSessions();
+    _maybeStartSessionsPoll();
+  } catch (e) {
+    list.innerHTML = `<div style="padding:14px;color:var(--red);font-size:0.84rem;">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function renderSessions() {
+  const list = document.getElementById('sessionsList');
+  if (!list) return;
+  const rows = sessionsRaw.slice();
+
+  // Filter
+  const q = sessionsSearchQuery.toLowerCase();
+  const filtered = rows.filter(s => {
+    const status = _sessStatus(s);
+    if (sessionsFilter === 'live'   && !s.is_live) return false;
+    if (sessionsFilter === 'today'  && !(status.key === 'today' || status.key === 'live')) return false;
+    if (sessionsFilter === 'week'   && !(status.key === 'week' || status.key === 'today' || status.key === 'live')) return false;
+    if (sessionsFilter === 'stale'  && status.key !== 'stale') return false;
+    if (sessionsFilter === 'never'  && status.key !== 'never') return false;
+    if (sessionsFilter === 'admin'  && !s.is_admin) return false;
+    if (q) {
+      const hay = [s.email, s.first_name].filter(Boolean).join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  // Sort
+  filtered.sort((a, b) => {
+    if (sessionsSortKey === 'name') {
+      return (_displayOf(a.id) || a.email || '').localeCompare(_displayOf(b.id) || b.email || '');
+    }
+    if (sessionsSortKey === 'joined') {
+      return (Date.parse(b.created_at || 0) - Date.parse(a.created_at || 0));
+    }
+    // default: activity (live first, then by most-recent)
+    if (a.is_live !== b.is_live) return a.is_live ? -1 : 1;
+    const ta = Date.parse(a.last_seen || a.last_sign_in_at || 0);
+    const tb = Date.parse(b.last_seen || b.last_sign_in_at || 0);
+    return tb - ta;
+  });
+
+  // Top stats (computed over the WHOLE set, ignoring current filter)
+  const stats = { total: rows.length, live: 0, today: 0, week: 0, stale: 0, never: 0, admin: 0 };
+  for (const s of rows) {
+    const st = _sessStatus(s);
+    if (s.is_live) stats.live++;
+    else if (st.key === 'today') stats.today++;
+    else if (st.key === 'week')  stats.week++;
+    else if (st.key === 'stale') stats.stale++;
+    else if (st.key === 'never') stats.never++;
+    if (s.is_admin) stats.admin++;
+  }
+
+  // Render stats bar
+  document.getElementById('sessStats').innerHTML = `
+    <button class="sess-stat ${sessionsFilter === 'all' ? 'on' : ''}" data-f="all">
+      <span class="sess-stat-n">${stats.total}</span><span class="sess-stat-l">Total</span>
+    </button>
+    <button class="sess-stat ${sessionsFilter === 'live' ? 'on' : ''}" data-f="live">
+      <span class="sess-stat-n" style="color:#34d399;">🟢 ${stats.live}</span><span class="sess-stat-l">Online now</span>
+    </button>
+    <button class="sess-stat ${sessionsFilter === 'today' ? 'on' : ''}" data-f="today">
+      <span class="sess-stat-n" style="color:#6b9eff;">${stats.today}</span><span class="sess-stat-l">Active today</span>
+    </button>
+    <button class="sess-stat ${sessionsFilter === 'week' ? 'on' : ''}" data-f="week">
+      <span class="sess-stat-n" style="color:#fbbf24;">${stats.week}</span><span class="sess-stat-l">This week</span>
+    </button>
+    <button class="sess-stat ${sessionsFilter === 'stale' ? 'on' : ''}" data-f="stale">
+      <span class="sess-stat-n">${stats.stale}</span><span class="sess-stat-l">Idle 7d+</span>
+    </button>
+    <button class="sess-stat ${sessionsFilter === 'never' ? 'on' : ''}" data-f="never">
+      <span class="sess-stat-n" style="color:#a78bfa;">${stats.never}</span><span class="sess-stat-l">Never signed in</span>
+    </button>
+    <button class="sess-stat ${sessionsFilter === 'admin' ? 'on' : ''}" data-f="admin">
+      <span class="sess-stat-n" style="color:#fbbf24;">${stats.admin}</span><span class="sess-stat-l">Admins</span>
+    </button>`;
+  document.querySelectorAll('.sess-stat').forEach(b => b.addEventListener('click', () => {
+    sessionsFilter = b.dataset.f;
+    renderSessions();
+  }));
+
+  if (!filtered.length) {
+    list.innerHTML = `<div style="padding:30px;text-align:center;color:var(--text-dim);font-size:0.84rem;">No users match this filter.</div>`;
+    return;
+  }
+
+  list.innerHTML = filtered.map(s => {
+    const display = (s.first_name && s.first_name.trim()) ? s.first_name.trim() : (s.email || '?');
+    const initial = display.slice(0, 1).toUpperCase();
+    const status = _sessStatus(s);
+    const lastActive = _ago(s.last_seen || s.last_sign_in_at);
+    const lastSignIn = _ago(s.last_sign_in_at);
+    const joined = _ago(s.created_at);
+    const device = _device(s.user_agent);
+    const activityCount = sessionsActivityByUser[(s.email || '').toLowerCase()] || 0;
+    const isExpanded = sessionsExpanded.has(s.id);
+
+    // Build a richer detail panel when the row is expanded.
+    const recent = sessionsActivityRecentByUser[(s.email || '').toLowerCase()] || [];
+    const detailsHtml = !isExpanded ? '' : `
+      <div class="sess-details">
+        <div class="sess-detail-grid">
+          <div><span class="sess-k">Email</span><span class="sess-v">${escapeHtml(s.email || '')}</span></div>
+          ${s.zoom_host_email ? `<div><span class="sess-k">Zoom host email</span><span class="sess-v">${escapeHtml(s.zoom_host_email)}</span></div>` : ''}
+          <div><span class="sess-k">Joined</span><span class="sess-v">${escapeHtml(joined || '—')}</span></div>
+          <div><span class="sess-k">Last sign-in</span><span class="sess-v">${escapeHtml(lastSignIn || 'never')}</span></div>
+          <div><span class="sess-k">Last presence</span><span class="sess-v">${escapeHtml(s.last_seen ? _ago(s.last_seen) : 'never')}</span></div>
+          <div><span class="sess-k">Device</span><span class="sess-v">${escapeHtml(device || '—')}</span></div>
+          <div><span class="sess-k">Activity (7d)</span><span class="sess-v">${activityCount} action${activityCount === 1 ? '' : 's'}</span></div>
+          <div><span class="sess-k">User ID</span><span class="sess-v" style="font-family:monospace;font-size:0.66rem;">${escapeHtml(s.id || '')}</span></div>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;">
+          <button class="small-btn sess-activity" data-uid="${s.id}">📜 Activity history${activityCount ? ` (${activityCount} in 7d)` : ''}</button>
+          <button class="small-btn sess-view-as"   data-uid="${s.id}" data-email="${escapeHtml(s.email || '')}" data-admin="${s.is_admin ? 1 : 0}" data-perms="${(s.permissions || []).join(',')}">👁 View as</button>
+          <button class="small-btn sess-reset-pw"  data-email="${escapeHtml(s.email || '')}">📧 Send password reset</button>
+          <button class="small-btn sess-open-user" data-uid="${s.id}">✏️ Open in Users</button>
+          ${s.is_live ? `<button class="small-btn sess-logout" data-uid="${s.id}" data-email="${escapeHtml(s.email || '')}" style="color:var(--red);border-color:rgba(248,113,113,.3);margin-left:auto;">🚪 Force logout</button>` : ''}
+        </div>
+      </div>`;
+
+    return `<div class="sess-row ${isExpanded ? 'expanded' : ''}" data-uid="${s.id}">
+      <span class="sess-av" style="position:relative;">
+        ${escapeHtml(initial)}
+        <span class="sess-dot" style="background:${status.dot};" title="${escapeHtml(status.label)}"></span>
+      </span>
+      <div class="sess-info">
+        <div class="sess-name">${escapeHtml(display)}${s.is_admin ? ' <span class="pill pill-admin">Admin</span>' : ''}</div>
+        <div class="sess-meta">
+          <span style="color:${status.color};font-weight:600;">${escapeHtml(status.label)}</span>
+          ${device ? `<span class="sess-sep">·</span><span title="${escapeHtml(s.user_agent || '')}">💻 ${escapeHtml(device)}</span>` : ''}
+          ${activityCount ? `<span class="sess-sep">·</span><span title="Audit log actions in the last 7 days">📜 ${activityCount} action${activityCount === 1 ? '' : 's'} (7d)</span>` : ''}
+        </div>
+      </div>
+      <div class="sess-times">
+        ${lastActive ? `<div class="sess-when-line"><span class="sess-when-k">Last seen</span><span class="sess-when-v">${escapeHtml(lastActive)}</span></div>` : ''}
+        ${joined ? `<div class="sess-when-line"><span class="sess-when-k">Joined</span><span class="sess-when-v">${escapeHtml(joined)}</span></div>` : ''}
+      </div>
+      <button class="sess-expand" data-uid="${s.id}" title="${isExpanded ? 'Collapse' : 'Expand'}">${isExpanded ? '▴' : '▾'}</button>
+      ${detailsHtml}
+    </div>`;
+  }).join('');
+
+  // Wire expand toggles
+  list.querySelectorAll('.sess-expand').forEach(btn => btn.addEventListener('click', e => {
+    e.stopPropagation();
+    const uid = btn.dataset.uid;
+    if (sessionsExpanded.has(uid)) sessionsExpanded.delete(uid); else sessionsExpanded.add(uid);
+    renderSessions();
+  }));
+  // Click row header (avatar / info area) also toggles expand
+  list.querySelectorAll('.sess-row').forEach(row => row.addEventListener('click', e => {
+    if (e.target.closest('button')) return;
+    const uid = row.dataset.uid;
+    if (sessionsExpanded.has(uid)) sessionsExpanded.delete(uid); else sessionsExpanded.add(uid);
+    renderSessions();
+  }));
+  // Action buttons inside the detail panel
+  list.querySelectorAll('.sess-logout').forEach(btn => btn.addEventListener('click', e => { e.stopPropagation(); forceLogoutUser(btn); }));
+  list.querySelectorAll('.sess-activity').forEach(btn => btn.addEventListener('click', e => {
+    e.stopPropagation();
+    openUserActivityModal(btn.dataset.uid);
+  }));
+  list.querySelectorAll('.sess-view-as').forEach(btn => btn.addEventListener('click', e => {
+    e.stopPropagation();
+    if (btn.dataset.uid === session?.user?.id) { toast("That's already you.", 'info'); return; }
+    if (typeof window.uxImpersonate !== 'function') { toast('Impersonation helper not loaded.', 'err'); return; }
+    const perms = btn.dataset.perms ? btn.dataset.perms.split(',').filter(Boolean) : [];
+    window.uxImpersonate({ id: btn.dataset.uid, email: btn.dataset.email, is_admin: btn.dataset.admin === '1', permissions: perms });
+  }));
+  list.querySelectorAll('.sess-reset-pw').forEach(btn => btn.addEventListener('click', async e => {
+    e.stopPropagation();
+    const email = btn.dataset.email;
+    if (!confirm('Send a password-reset email to ' + email + '?')) return;
+    try {
+      const { error } = await supa.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + '/forgot-password' });
+      if (error) throw error;
+      toast('Password reset sent to ' + email, 'ok');
+    } catch (e2) { toast(e2.message, 'err'); }
+  }));
+  list.querySelectorAll('.sess-open-user').forEach(btn => btn.addEventListener('click', e => {
+    e.stopPropagation();
+    activeTab = 'users';
+    applyTabChrome('users');
+    loadUsersTab().then(() => openUserEditor(btn.dataset.uid));
+  }));
+}
+
+async function forceLogoutUser(btn) {
+  if (!confirm(`Force ${btn.dataset.email} to sign out? Their refresh tokens will be revoked.`)) return;
+  btn.disabled = true; btn.textContent = 'Revoking…';
+  try {
+    await adminApi('?api=force-logout', { method: 'POST', body: { userId: btn.dataset.uid } });
+    toast('Signed out ' + btn.dataset.email, 'ok');
+    loadSessionsTab();
+  } catch (e) { toast(e.message, 'err'); btn.disabled = false; btn.textContent = '🚪 Force logout'; }
+}
+
+document.getElementById('sessionsRefreshBtn')?.addEventListener('click', () => { sessionsRaw = []; loadSessionsTab(); });
+document.getElementById('sessSearch')?.addEventListener('input', e => { sessionsSearchQuery = e.target.value.trim(); renderSessions(); });
+document.getElementById('sessSort')?.addEventListener('change', e => { sessionsSortKey = e.target.value; renderSessions(); });
+
+// Auto-refresh while the Sessions tab is open so "Online now" stays
+// accurate. Polls every 20 s; stops when the tab changes away.
+let _sessPoll;
+function _maybeStartSessionsPoll() {
+  clearInterval(_sessPoll);
+  if (activeTab !== 'sessions') return;
+  _sessPoll = setInterval(() => { if (activeTab === 'sessions') loadSessionsTab(); else clearInterval(_sessPoll); }, 20000);
+}

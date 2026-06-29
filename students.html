@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg?v=303">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=303">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=303">
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mentorship Students</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="permissions.js"></script>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#000000">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Ridleyacademy">
+<link rel="apple-touch-icon" href="apple-touch-icon.png?v=303">
+<link rel="stylesheet" href="mobile.css">
+
+<style>
+  :root {
+    --bg: #080a14;
+    --surface: #0f1120; --surface2: #141728; --surface3: #191e30;
+    --border: #1f2438; --border-light: #272d45;
+    --text: #eaecf8; --text-muted: #7880a8; --text-dim: #3e4668;
+    --blue: #6b9eff; --blue-glow: rgba(107,158,255,0.3); --blue-bg: rgba(107,158,255,0.1);
+    --green: #34d399; --green-glow: rgba(52,211,153,0.3); --green-bg: rgba(52,211,153,0.1);
+    --gold: #fbbf24; --gold-bg: rgba(251,191,36,0.1);
+    --red: #f87171; --red-bg: rgba(248,113,113,0.1);
+    --purple: #a78bfa; --purple-bg: rgba(167,139,250,0.1);
+  }
+  body.light {
+    --bg: #f0f2fa; --surface: #ffffff; --surface2: #f5f6fc; --surface3: #eceef8;
+    --border: #dde1f2; --border-light: #ccd1e8;
+    --text: #0f1220; --text-muted: #525b82; --text-dim: #9099be;
+  }
+  body.light .topbar { background: rgba(255,255,255,0.9); }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg); color: var(--text); min-height: 100vh; -webkit-font-smoothing: antialiased;
+    position: relative; overflow-x: hidden;
+  }
+
+  body[data-state="loading"] #app, body[data-state="loading"] #login, body[data-state="loading"] #denied,
+  body[data-state="dashboard"] #login, body[data-state="dashboard"] #boot, body[data-state="dashboard"] #denied,
+  body[data-state="login"] #app, body[data-state="login"] #boot, body[data-state="login"] #denied,
+  body[data-state="denied"] #app, body[data-state="denied"] #boot, body[data-state="denied"] #login { display: none; }
+  body[data-state="loading"] #boot { display: flex; }
+  body[data-state="login"] #login { display: flex; }
+  body[data-state="denied"] #denied { display: flex; }
+  body[data-state="dashboard"] #app { display: block; }
+
+  .full-center { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .login-wrap { width: 100%; max-width: 420px; }
+  .login-logo { width: 56px; height: 56px; border-radius: 16px; margin: 0 auto 24px; background: linear-gradient(135deg,#34d399,#10b981); display: flex; align-items: center; justify-content: center; }
+  .login-card { background: var(--surface); border: 1px solid var(--border); border-radius: 24px; padding: 40px 36px; box-shadow: 0 32px 80px rgba(0,0,0,0.6); }
+  .login-card h1 { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.03em; text-align: center; margin-bottom: 4px; }
+  .login-card .sub { color: var(--text-muted); font-size: 0.84rem; text-align: center; margin-bottom: 28px; }
+  .input-group { margin-bottom: 12px; }
+  .input-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-muted); margin-bottom: 6px; display: block; }
+  .auth-input { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 13px 16px; color: var(--text); font-size: 0.92rem; outline: none; }
+  .auth-input:focus { border-color: var(--green); box-shadow: 0 0 0 3px var(--green-bg); }
+  .auth-btn { width: 100%; margin-top: 8px; background: linear-gradient(135deg,#34d399,#10b981); border: none; border-radius: 12px; padding: 14px; color: #0b0c14; font-size: 0.92rem; font-weight: 800; cursor: pointer; }
+  .auth-error { color: var(--red); font-size: 0.78rem; margin-top: 10px; min-height: 1em; text-align: center; }
+  .spinner { width: 40px; height: 40px; border: 3px solid var(--border); border-top-color: var(--green); border-radius: 50%; animation: spin 0.7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Date Range Picker (matches the other dashboards) */
+  .daterange-wrap { position: relative; }
+  .daterange-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 6px 11px; font-size: 0.74rem; color: var(--text-muted); cursor: pointer;
+    transition: all 0.15s; white-space: nowrap; font-weight: 600; font-family: inherit;
+  }
+  .daterange-btn:hover { border-color: var(--border-light); color: var(--text); }
+  .daterange-popup {
+    display: none; position: absolute; top: calc(100% + 8px); right: 0;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+    padding: 14px; min-width: 270px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.03) inset;
+    z-index: 500;
+  }
+  .daterange-popup.open { display: block; }
+  .dr-presets { display: flex; flex-direction: column; gap: 2px; }
+  .dr-preset {
+    display: block; width: 100%; text-align: left; background: none; border: none;
+    padding: 9px 12px; border-radius: 9px; font-size: 0.8rem; font-weight: 600;
+    color: var(--text-muted); cursor: pointer; transition: all 0.12s; font-family: inherit;
+  }
+  .dr-preset:hover { background: var(--surface2); color: var(--text); }
+  .dr-preset.active { background: var(--green-bg); color: var(--green); }
+  .dr-divider { height: 1px; background: var(--border); margin: 10px 0; }
+  .dr-custom-label { font-size: 0.64rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-dim); margin-bottom: 8px; }
+  .dr-custom-row { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
+  .dr-date-input { flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 7px 8px; color: var(--text); font-size: 0.73rem; outline: none; color-scheme: dark; min-width: 0; }
+  .dr-date-input:focus { border-color: var(--green); }
+  body.light .dr-date-input { color-scheme: light; }
+  .dr-sep { color: var(--text-dim); font-size: 0.7rem; flex-shrink: 0; }
+  .dr-apply { width: 100%; background: linear-gradient(135deg,#34d399,#10b981); border: none; border-radius: 8px; padding: 8px; color: #0b0c14; font-size: 0.78rem; font-weight: 800; cursor: pointer; }
+  .dr-apply:hover { opacity: 0.9; }
+
+  /* Topbar */
+  .topbar {
+    display: flex; align-items: center; gap: 10px; padding: 12px 32px;
+    background: rgba(8,10,20,0.85); backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100;
+    flex-wrap: wrap;
+  }
+  .topbar-logo { width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0; background: linear-gradient(135deg,#34d399,#10b981); display: flex; align-items: center; justify-content: center; }
+  .topbar-brand { font-size: 0.9rem; font-weight: 700; letter-spacing: -0.02em; }
+  .topbar-spacer { flex: 1; }
+  .tbtn { border: none; border-radius: 8px; padding: 6px 12px; font-size: 0.74rem; font-weight: 600; cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 5px; }
+  .tbtn-ghost { background: var(--surface2); color: var(--text-muted); border: 1px solid var(--border); }
+  .tbtn-ghost:hover { color: var(--text); border-color: var(--border-light); }
+  .tbtn-primary { background: linear-gradient(135deg,#34d399,#10b981); color: #0b0c14; }
+  .user-pill { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 4px 14px 4px 4px; }
+  .user-pill-av { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; background: linear-gradient(135deg,#34d399,#10b981); color: #0b0c14; font-size: 0.62rem; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+  .user-pill-email { font-size: 0.73rem; color: var(--text-muted); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* Page */
+  .page { padding: 28px 32px; max-width: 1400px; margin: 0 auto; }
+  .sec-label { display: flex; align-items: center; gap: 14px; margin: 24px 0 14px; }
+  .sec-label-text { font-size: 0.66rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-dim); }
+  .sec-label-line { flex: 1; height: 1px; background: var(--border); }
+
+  /* Layout: 320px sidebar + content */
+  .crm-layout { display: grid; grid-template-columns: 340px 1fr; gap: 18px; }
+  @media(max-width:880px) { .crm-layout { grid-template-columns: 1fr; } }
+
+  .student-list-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    overflow: hidden; display: flex; flex-direction: column; max-height: 80vh;
+  }
+  .student-list-head { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+  .student-list-filterbar {
+    display: flex; gap: 6px; flex-wrap: wrap; padding: 10px 14px 0; border-bottom: 0;
+  }
+  .list-filter-chip {
+    background: var(--surface2); border: 1px solid var(--border); color: var(--text-muted);
+    border-radius: 999px; padding: 4px 10px; font-size: 0.7rem; font-weight: 700; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 5px; user-select: none;
+    transition: border-color 0.12s, color 0.12s;
+  }
+  .list-filter-chip:hover { color: var(--text); border-color: var(--border-light); }
+  .list-filter-chip.active { background: rgba(52,211,153,0.15); border-color: #34d399; color: #34d399; }
+  .list-filter-chip .chip-count {
+    background: rgba(255,255,255,0.10); color: var(--text);
+    border-radius: 999px; padding: 1px 8px; font-size: 0.66rem; font-weight: 800;
+    min-width: 18px; text-align: center;
+  }
+  .list-filter-chip:hover .chip-count { background: rgba(255,255,255,0.16); color: #fff; }
+  .list-filter-chip.active .chip-count { background: rgba(52,211,153,0.35); color: #0b0c14; }
+  body.light .list-filter-chip .chip-count { background: rgba(0,0,0,0.08); color: var(--text); }
+  body.light .list-filter-chip:hover .chip-count { background: rgba(0,0,0,0.14); }
+
+  /* Advanced filter panel */
+  .adv-filter-panel {
+    border-bottom: 1px solid var(--border); padding: 10px 14px;
+    background: var(--surface2); display: none; flex-direction: column; gap: 10px;
+    max-height: min(60vh, 500px); overflow-y: auto;
+    scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+  }
+  .adv-filter-panel.open { display: flex; }
+  .adv-filter-panel::-webkit-scrollbar { width: 8px; }
+  .adv-filter-panel::-webkit-scrollbar-track { background: transparent; }
+  .adv-filter-panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  .adv-filter-panel::-webkit-scrollbar-thumb:hover { background: var(--border-light); }
+  .adv-filter-section { display: flex; flex-direction: column; gap: 6px; }
+  .adv-filter-label { font-size: 0.65rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-dim); }
+  .adv-filter-options { display: flex; flex-wrap: wrap; gap: 4px; }
+  .adv-filter-opt {
+    background: var(--surface); border: 1px solid var(--border); color: var(--text-muted);
+    border-radius: 6px; padding: 3px 9px; font-size: 0.72rem; cursor: pointer; user-select: none;
+    transition: border-color 0.1s, color 0.1s, background 0.1s;
+  }
+  .adv-filter-opt:hover { color: var(--text); border-color: var(--border-light); }
+  .adv-filter-opt.active { background: rgba(52,211,153,0.18); border-color: #34d399; color: #34d399; }
+  .adv-filter-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media (max-width: 720px) { .adv-filter-grid { grid-template-columns: 1fr; } }
+  .adv-filter-actions { display: flex; gap: 8px; align-items: center; padding-top: 4px; border-top: 1px dashed var(--border); }
+  .adv-filter-clearall {
+    background: transparent; border: none; color: #fb7185; font-size: 0.75rem; font-weight: 700;
+    cursor: pointer; padding: 4px 8px; margin-left: auto;
+  }
+  .adv-filter-clearall:hover { text-decoration: underline; }
+  .active-filters-bar {
+    display: none; flex-wrap: wrap; gap: 5px; padding: 8px 14px 0;
+    align-items: center;
+  }
+  .active-filters-bar.has-active { display: flex; }
+  .active-filter-chip {
+    background: rgba(52,211,153,0.15); border: 1px solid #34d399; color: #34d399;
+    border-radius: 999px; padding: 2px 8px 2px 9px; font-size: 0.68rem; font-weight: 700;
+    display: inline-flex; align-items: center; gap: 5px; cursor: default;
+  }
+  .active-filter-chip .x {
+    background: transparent; border: none; color: inherit; cursor: pointer;
+    padding: 0; font-size: 0.85rem; line-height: 1; opacity: 0.7;
+  }
+  .active-filter-chip .x:hover { opacity: 1; }
+
+  /* Overview pane (replaces profile when toggled on) */
+  .overview-pane {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px;
+    display: flex; flex-direction: column; min-height: 0; overflow: hidden;
+  }
+  .overview-head {
+    display: flex; align-items: center; gap: 10px; padding-bottom: 14px; border-bottom: 1px solid var(--border); margin-bottom: 12px;
+  }
+  .overview-title { font-size: 1.05rem; font-weight: 800; letter-spacing: -0.02em; flex: 1; }
+  .overview-table-wrap { overflow: auto; flex: 1; }
+  table.overview-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  table.overview-table th {
+    text-align: left; padding: 8px 10px; font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--text-dim); background: var(--surface2); position: sticky; top: 0; border-bottom: 1px solid var(--border);
+  }
+  table.overview-table td { padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  table.overview-table tr.row-clickable { cursor: pointer; }
+  table.overview-table tr.row-clickable:hover { background: var(--surface2); }
+  .ov-pill { font-size: 0.68rem; padding: 1px 8px; border-radius: 999px; font-weight: 700; }
+  .ov-recency-fresh { background: rgba(52,211,153,0.18); color: #34d399; }
+  .ov-recency-warn  { background: rgba(251,191,36,0.18); color: #fbbf24; }
+  .ov-recency-stale { background: rgba(248,113,113,0.18); color: #f87171; }
+  .ov-recency-none  { background: rgba(120,128,168,0.18); color: var(--text-dim); }
+  .student-list-search {
+    flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 9px;
+    padding: 8px 12px; font-size: 0.84rem; color: var(--text); outline: none;
+  }
+  .student-list-search:focus { border-color: var(--green); }
+  .student-list-add {
+    background: linear-gradient(135deg,#34d399,#10b981); color: #0b0c14;
+    border: none; border-radius: 9px; padding: 8px 12px; font-weight: 800; cursor: pointer; font-size: 0.84rem;
+  }
+  .student-list-body { overflow-y: auto; flex: 1; }
+  .student-row {
+    padding: 12px 16px; border-bottom: 1px solid var(--border); cursor: pointer;
+    display: flex; align-items: center; gap: 12px; transition: background 0.1s;
+  }
+  .student-row:hover { background: var(--surface2); }
+  .student-row.active { background: rgba(52,211,153,0.08); border-left: 3px solid var(--green); padding-left: 13px; }
+  .student-av { width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0; background: var(--surface2); color: var(--text); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.84rem; }
+  .student-row.active .student-av { background: linear-gradient(135deg,#34d399,#10b981); color: #0b0c14; }
+  .student-row-info { flex: 1; min-width: 0; }
+  .student-row-name { font-size: 0.88rem; font-weight: 600; color: var(--text); display: flex; flex-wrap: wrap; align-items: center; gap: 3px 2px; row-gap: 4px; }
+  .student-row-meta { font-size: 0.7rem; color: var(--text-muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; flex-shrink: 0; }
+  /* Driven by derived_status (computed lifecycle), not by the free-text status field. */
+  .status-derived-Active        { background: #34d399; }                         /* green   */
+  .status-derived-Expiringsoon  { background: #fbbf24; }                         /* amber   */
+  .status-derived-Expired       { background: #f87171; }                         /* red     */
+  .status-derived-Paused        { background: #a78bfa; }                         /* purple  */
+  .status-derived-Notonboarded  { background: #f59e0b; box-shadow: 0 0 0 2px rgba(245,158,11,0.18); } /* orange */
+  .status-derived-Delayedstart  { background: #60a5fa; box-shadow: 0 0 0 2px rgba(96,165,250,0.18); } /* blue */
+
+  .student-list-empty { padding: 32px 16px; color: var(--text-muted); font-size: 0.84rem; text-align: center; }
+
+  /* Profile */
+  .profile-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    padding: 24px 24px;
+  }
+  .profile-empty { padding: 60px 30px; text-align: center; color: var(--text-muted); font-size: 0.92rem; }
+  .profile-empty-icon { width: 56px; height: 56px; margin: 0 auto 14px; border-radius: 16px; background: var(--surface2); display: flex; align-items: center; justify-content: center; color: var(--text-dim); }
+  .profile-head { display: flex; align-items: center; gap: 16px; margin-bottom: 22px; padding-bottom: 18px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .profile-av { width: 56px; height: 56px; border-radius: 16px; background: linear-gradient(135deg,#34d399,#10b981); color: #0b0c14; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; font-weight: 900; flex-shrink: 0; }
+  .profile-title { flex: 1; min-width: 200px; }
+  .profile-name { font-size: 1.4rem; font-weight: 800; letter-spacing: -0.02em; }
+  .profile-sub { color: var(--text-muted); font-size: 0.82rem; margin-top: 3px; }
+  .profile-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .profile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 18px; }
+  @media(max-width:600px) { .profile-grid { grid-template-columns: 1fr; } }
+  .field { }
+  .field-label { font-size: 0.66rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); margin-bottom: 6px; }
+  .field-input, .field-select, .field-textarea {
+    width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 9px 12px; color: var(--text); font-size: 0.88rem; outline: none; font-family: inherit;
+  }
+  .field-input:focus, .field-select:focus, .field-textarea:focus { border-color: var(--green); }
+  .field-textarea { min-height: 110px; resize: vertical; }
+  .field-full { grid-column: 1 / -1; }
+
+  .profile-save {
+    background: linear-gradient(135deg,#34d399,#10b981); color: #0b0c14;
+    border: none; border-radius: 10px; padding: 10px 22px; font-weight: 800; cursor: pointer;
+  }
+  .profile-save:disabled { opacity: 0.5; cursor: not-allowed; }
+  .profile-delete {
+    background: rgba(248,113,113,0.1); border: 1px solid rgba(248,113,113,0.3);
+    color: var(--red); border-radius: 10px; padding: 10px 16px; font-weight: 700; cursor: pointer;
+  }
+  .profile-delete:hover { background: rgba(248,113,113,0.18); }
+  .profile-msg { font-size: 0.78rem; min-height: 1em; margin-left: 8px; align-self: center; }
+
+  /* Alert buttons (top of profile card) */
+  .alert-btn-add {
+    background: rgba(248,113,113,0.12); border: 1px solid rgba(248,113,113,0.3);
+    color: #f87171; border-radius: 10px; padding: 9px 14px; font-weight: 700; cursor: pointer; font-size: 0.82rem;
+  }
+  .alert-btn-add:hover { background: rgba(248,113,113,0.2); border-color: rgba(248,113,113,0.5); }
+  .alert-btn-list {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text-muted); border-radius: 10px; padding: 9px 14px; font-weight: 700; cursor: pointer; font-size: 0.82rem;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .alert-btn-list:hover { color: var(--text); border-color: var(--border-light); }
+  .alert-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 18px; height: 18px; padding: 0 5px; font-size: 0.68rem; font-weight: 800;
+    border-radius: 999px; background: var(--surface3); color: var(--text-dim);
+  }
+  .alert-badge.has-open { background: #f87171; color: #0b0c14; }
+
+  .win-btn-list {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text-muted); border-radius: 10px; padding: 9px 14px; font-weight: 700; cursor: pointer; font-size: 0.82rem;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .win-btn-list:hover { color: var(--text); border-color: var(--border-light); }
+  .win-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 18px; height: 18px; padding: 0 5px; font-size: 0.68rem; font-weight: 800;
+    border-radius: 999px; background: var(--surface3); color: var(--text-dim);
+  }
+  .win-badge.has-any { background: #fbbf24; color: #0b0c14; }
+
+  .note-btn-list {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text-muted); border-radius: 10px; padding: 9px 14px; font-weight: 700; cursor: pointer; font-size: 0.82rem;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .note-btn-list:hover { color: var(--text); border-color: var(--border-light); }
+  .note-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 18px; height: 18px; padding: 0 5px; font-size: 0.68rem; font-weight: 800;
+    border-radius: 999px; background: var(--surface3); color: var(--text-dim);
+  }
+  .note-badge.has-any { background: #a78bfa; color: #0b0c14; }
+
+  .turn-btn-list {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text-muted); border-radius: 10px; padding: 9px 14px; font-weight: 700; cursor: pointer; font-size: 0.82rem;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .turn-btn-list:hover { color: var(--text); border-color: var(--border-light); }
+  .turn-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 18px; height: 18px; padding: 0 5px; font-size: 0.68rem; font-weight: 800;
+    border-radius: 999px; background: var(--surface3); color: var(--text-dim);
+  }
+  .turn-badge.has-any { background: #34d399; color: #0b0c14; }
+
+  .profile-section { margin-top: 22px; }
+  /* Collapsible: each section is a <details>. Click the head to toggle. */
+  details.profile-section > summary {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 10px;
+    padding-bottom: 6px; border-bottom: 1px solid var(--border);
+    cursor: pointer; list-style: none; user-select: none;
+    transition: opacity 0.12s;
+  }
+  details.profile-section > summary::-webkit-details-marker { display: none; }
+  details.profile-section > summary:hover { opacity: 0.85; }
+  .profile-section-title { font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--green); }
+  .profile-section-line { flex: 1; }
+  .profile-section-caret {
+    color: var(--text-dim); font-size: 0.7rem;
+    transition: transform 0.15s; flex-shrink: 0;
+  }
+  details.profile-section[open] > summary .profile-section-caret { transform: rotate(180deg); }
+  details.profile-section:not([open]) > summary { margin-bottom: 0; }
+  /* Match for the legacy non-details rendering used elsewhere if any */
+  .profile-section-head {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 10px;
+    padding-bottom: 6px; border-bottom: 1px solid var(--border);
+  }
+
+  .field-checkbox {
+    display: flex; align-items: center; gap: 9px;
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 9px 12px; font-size: 0.84rem; cursor: pointer; user-select: none;
+  }
+  .field-checkbox input { width: 16px; height: 16px; accent-color: var(--green); cursor: pointer; flex-shrink: 0; }
+  .field-checkbox.checked { border-color: var(--green); background: rgba(52,211,153,0.08); }
+
+  .badges { display: inline-flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+  .badge { font-size: 0.62rem; padding: 2px 8px; border-radius: 999px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+  .badge.win  { background: rgba(251,191,36,0.18); color: #fbbf24; }
+  .badge.ver  { background: rgba(52,211,153,0.18); color: #34d399; }
+  .badge.exp  { background: rgba(248,113,113,0.18); color: #f87171; }
+</style>
+</head>
+<body data-state="loading">
+
+<!-- Boot -->
+<div id="boot" class="full-center"><div class="spinner"></div></div>
+
+<!-- Login -->
+<div id="login" class="full-center">
+  <div class="login-wrap">
+    <div class="login-logo">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0b0c14" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    </div>
+    <div class="login-card">
+      <h1>Welcome back</h1>
+      <p class="sub">Sign in to access the mentorship CRM</p>
+      <form id="loginForm">
+        <div class="input-group">
+          <label class="input-label" for="email">Email</label>
+          <input class="auth-input" type="email" id="email" required autocomplete="email">
+        </div>
+        <div class="input-group">
+          <label class="input-label" for="password">Password</label>
+          <input class="auth-input" type="password" id="password" required autocomplete="current-password">
+        </div>
+        <button type="submit" class="auth-btn" id="sendBtn">Sign In</button>
+        <div class="auth-error" id="loginError"></div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Denied -->
+<div id="denied" class="full-center">
+  <div style="text-align:center;max-width:420px;">
+    <h2 style="font-size:1.4rem;margin-bottom:8px;">Access Denied</h2>
+    <p style="color:var(--text-muted);margin-bottom:18px;">You don't have permission to view the Mentorship CRM.</p>
+    <button class="tbtn tbtn-ghost" id="deniedSignOutBtn">Sign Out</button>
+  </div>
+</div>
+
+<!-- App -->
+<div id="app">
+  <header class="topbar">
+    <div class="topbar-logo" style="order:0;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0b0c14" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+    </div>
+    <div class="topbar-brand" style="order:1;">Mentorship CRM</div>
+
+    <div class="daterange-wrap" id="daterangeWrap" style="order:10;">
+      <button class="daterange-btn" id="daterangeBtn">
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <span id="drLabel">All Time</span>
+        <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="daterange-popup" id="daterangePopup">
+        <div class="dr-custom-label" style="margin-top:0;">Filter on which date</div>
+        <select id="drField" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 9px;color:var(--text);font-size:0.83rem;margin-bottom:8px;outline:none;">
+          <option value="joined_at">Joined date</option>
+          <option value="student_onboarded_date">Onboarded date</option>
+          <option value="first_purchase_date">First purchase date</option>
+          <option value="end_date">Term end date</option>
+          <option value="refunded_date">Refunded date</option>
+          <option value="last_activity_date">Last activity date</option>
+        </select>
+        <div class="dr-divider"></div>
+        <div class="dr-presets">
+          <button class="dr-preset active" data-preset="all">All Time</button>
+          <button class="dr-preset" data-preset="last-30">Last 30 Days</button>
+          <button class="dr-preset" data-preset="this-week">This Week (Thu – Wed)</button>
+          <button class="dr-preset" data-preset="last-week">Last Week (Thu – Wed)</button>
+          <button class="dr-preset" data-preset="mtd">Month to Date</button>
+        </div>
+        <div class="dr-divider"></div>
+        <div class="dr-custom-label">Custom range</div>
+        <div class="dr-custom-row">
+          <input type="date" class="dr-date-input" id="dateFrom">
+          <span class="dr-sep">→</span>
+          <input type="date" class="dr-date-input" id="dateTo">
+        </div>
+        <button class="dr-apply" id="drApply">Apply</button>
+      </div>
+    </div>
+
+    <button class="tbtn tbtn-ghost" id="refreshBtn" style="order:20;" title="Refresh data">
+      <svg id="refreshIcon" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+      Refresh
+    </button>
+    <button class="tbtn tbtn-ghost" id="themeBtn" style="order:30;font-size:1rem;padding:5px 10px;" title="Toggle theme"></button>
+
+    <div class="nav-dropdown" id="navDropdown" style="order:40;position:relative;">
+      <button class="tbtn tbtn-ghost" id="navDropdownBtn">Dashboards ▾</button>
+      <div class="nav-dropdown-menu" id="navDropMenu" style="display:none;position:absolute;top:100%;right:0;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:6px;margin-top:6px;min-width:200px;z-index:200;"></div>
+    </div>
+
+    <div class="user-pill" style="order:50;">
+      <div class="user-pill-av" id="userAvatar">U</div>
+      <div class="user-pill-email" id="userEmail">…</div>
+    </div>
+    <button class="tbtn tbtn-ghost" id="signOutBtn" style="order:60;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      Sign Out
+    </button>
+  </header>
+
+  <div class="page">
+    <div class="ms-queue-bar" id="msQueueBar" style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
+      <button id="globalAlertsBtn" type="button" style="display:inline-flex;align-items:center;gap:8px;background:rgba(248,113,113,0.10);border:1px solid rgba(248,113,113,0.40);color:#f87171;border-radius:10px;padding:9px 16px;font-weight:800;font-size:0.85rem;cursor:pointer;font-family:inherit;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        Alerts <span id="globalAlertsCount" style="background:rgba(248,113,113,0.25);border-radius:999px;padding:0 8px;font-size:0.72rem;min-width:18px;text-align:center;">·</span>
+      </button>
+      <button id="globalTurnoversBtn" type="button" style="display:inline-flex;align-items:center;gap:8px;background:rgba(52,211,153,0.10);border:1px solid rgba(52,211,153,0.40);color:#34d399;border-radius:10px;padding:9px 16px;font-weight:800;font-size:0.85rem;cursor:pointer;font-family:inherit;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+        Turn Over <span id="globalTurnoversCount" style="background:rgba(52,211,153,0.25);border-radius:999px;padding:0 8px;font-size:0.72rem;min-width:18px;text-align:center;">·</span>
+      </button>
+      <button id="globalContactsBtn" type="button" style="display:none;align-items:center;gap:8px;background:rgba(96,165,250,0.10);border:1px solid rgba(96,165,250,0.40);color:#60a5fa;border-radius:10px;padding:9px 16px;font-weight:800;font-size:0.85rem;cursor:pointer;font-family:inherit;" title="Rep contact log">
+        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+        Contacts <span id="globalContactsCount" style="background:rgba(96,165,250,0.25);border-radius:999px;padding:0 8px;font-size:0.72rem;min-width:18px;text-align:center;">·</span>
+      </button>
+    </div>
+    <div class="sec-label">
+      <span class="sec-label-text">Students</span>
+      <div class="sec-label-line"></div>
+      <span style="font-size:0.72rem;color:var(--text-muted);" id="studentTotalCount">—</span>
+    </div>
+
+    <!-- Mobile-only back bar shown when a student is open. Hidden on desktop via mobile.css. -->
+    <div class="crm-back-bar" id="crmBackBar">
+      <button id="crmBackBtn" type="button"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg> Back</button>
+      <div class="crm-back-name" id="crmBackName"></div>
+    </div>
+    <div class="crm-layout">
+      <!-- List -->
+      <div class="student-list-card">
+        <div class="student-list-filterbar" id="listFilterBar">
+          <button class="list-filter-chip active" data-filter="all">All <span class="chip-count" id="cnt-all">0</span></button>
+          <button class="list-filter-chip" data-filter="mine" id="chip-mine">Mine <span class="chip-count" id="cnt-mine">0</span></button>
+          <button class="list-filter-chip" data-filter="stale">Stale <span class="chip-count" id="cnt-stale">0</span></button>
+          <button class="list-filter-chip" data-filter="duplicates">Duplicates <span class="chip-count" id="cnt-duplicates">0</span></button>
+          <button class="list-filter-chip" id="advFilterToggleBtn" title="Advanced filters: coach, rep, status, level, etc." style="display:inline-flex;align-items:center;gap:6px;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;flex-shrink:0;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Filters <span class="chip-count" id="cnt-active-filters" style="display:none;">0</span></button>
+          <button class="list-filter-chip" id="overviewToggleBtn" style="margin-left:auto;display:inline-flex;align-items:center;gap:6px;" title="Coach overview — table view"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;flex-shrink:0;"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> Overview</button>
+        </div>
+        <div class="active-filters-bar" id="activeFiltersBar"></div>
+        <div class="adv-filter-panel" id="advFilterPanel"></div>
+        <div class="student-list-head">
+          <input class="student-list-search" id="studentSearch" type="search" placeholder="Search name, email, mentor…">
+          <button class="student-list-add" id="addStudentBtn">+ New</button>
+        </div>
+        <div class="student-list-body" id="studentList">
+          <div class="student-list-empty">Loading…</div>
+        </div>
+      </div>
+
+      <!-- Profile -->
+      <div class="profile-card" id="profileCard">
+        <div class="profile-empty">
+          <div class="profile-empty-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          </div>
+          <div>Pick a student from the list to see their profile.</div>
+          <div style="font-size:0.78rem;color:var(--text-dim);margin-top:6px;">Or click <strong>+ New</strong> to add one.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="students.js"></script>
+
+<script src="forgot-password.js"></script>
+<script src="access-guard.js"></script>
+<script src="loading-states.js"></script>
+<script src="theme.js"></script>
+<script src="changelog.js"></script>
+<script src="notifications.js"></script>
+<script src="pwa.js"></script>
+<script src="ux.js"></script>
+<script src="filters.js"></script>
+<script src="nav-menu.js"></script>
+</body>
+</html>

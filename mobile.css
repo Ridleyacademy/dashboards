@@ -1,0 +1,998 @@
+/* Shared mobile responsiveness for dashboard pages.
+   At <768px, wide tables collapse into card-stack views and topbars wrap. */
+
+/* CRM mobile back-bar — hidden on every screen by default. The mobile
+   media query toggles it on only on phones in profile view. */
+.crm-back-bar { display: none; }
+
+/* ── Unified topbar logo + user pill colors ───────────────────────
+   Every dashboard must show the SAME gradient on the topbar logo and the
+   user-pill avatar. Per-page overrides used to vary by theme; this rule
+   applies on every page (mobile.css is loaded everywhere). The shadow
+   matches the blue half of the gradient. */
+.topbar .topbar-logo,
+.topbar-logo {
+  background: linear-gradient(135deg, #6b9eff, #a78bfa) !important;
+  box-shadow: 0 0 14px rgba(107,158,255,0.35) !important;
+}
+.topbar .user-pill-av,
+.user-pill-av {
+  background: linear-gradient(135deg, #6b9eff, #a78bfa) !important;
+  color: #fff !important;
+}
+
+
+@media (max-width: 768px) {
+
+  /* Prevent any element from causing horizontal page scroll */
+  html, body { overflow-x: hidden !important; max-width: 100vw; }
+
+  /* Pill tabs / product picker — wrap rows on mobile so they don't overflow */
+  .pill-tabs {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    width: 100% !important;
+    overflow-x: visible !important;
+  }
+  .pill-tab {
+    flex: 0 1 auto;
+    font-size: 0.72rem !important;
+    padding: 6px 10px !important;
+  }
+  .platform-select {
+    width: 100% !important;
+    margin-top: 8px;
+  }
+
+  /* Admin tabs (Invite / Manage Access / Rep Mapping / Activity)
+     — wrap to a 2x2 grid so all 4 are visible without horizontal scrolling */
+  .admin-tabs {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0 !important;
+  }
+  .admin-tab {
+    flex: 1 1 auto !important;
+    padding: 12px 8px !important;
+    font-size: 0.72rem !important;
+    gap: 5px !important;
+    border-right: 1px solid var(--border, #1f2438);
+    border-bottom: 2px solid transparent !important;
+  }
+  .admin-tab:nth-child(2n) { border-right: none; }
+  .admin-tab:nth-child(-n+2) { border-bottom: 1px solid var(--border, #1f2438); }
+  .admin-tab.active { border-bottom-color: var(--blue, #6b9eff) !important; }
+  .admin-tab-icon { width: 14px !important; height: 14px !important; }
+  .admin-pane { padding: 18px 14px !important; }
+
+  /* Topbar wraps to 2 rows so buttons are reachable.
+     Add iPhone notch / Dynamic Island clearance via safe-area-inset-top so the
+     sticky topbar does not slide under the system status bar. */
+  .topbar {
+    flex-wrap: wrap !important;
+    height: auto !important;
+    padding: calc(8px + env(safe-area-inset-top)) 14px 8px !important;
+    gap: 6px !important;
+    row-gap: 6px;
+  }
+  .topbar > * { flex-shrink: 0; }
+  .topbar-spacer { flex: 1 1 100%; min-width: 0; height: 0; }
+  .user-pill .user-pill-email { max-width: 110px !important; }
+  .tbtn { padding: 5px 9px !important; font-size: 0.7rem !important; }
+
+  /* Page padding tighter */
+  .main, .page { padding: 16px 12px 60px !important; }
+
+  /* KPI grid: 2 columns max on phones */
+  .kpi-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 10px !important; }
+
+  /* Generic data tables → card-stack layout
+     Each row becomes a card; each cell stacks with a label from data-label or the th text */
+  .data-table {
+    width: 100% !important;
+    min-width: 0 !important;
+    table-layout: auto !important;
+    border-collapse: separate !important;
+    border-spacing: 0 8px !important;
+  }
+  .data-table colgroup { display: none !important; }
+  .data-table thead { display: none !important; }
+  .data-table, .data-table tbody, .data-table tr, .data-table td {
+    display: block !important;
+    width: 100% !important;
+  }
+  .data-table tr {
+    background: var(--surface2, #141728) !important;
+    border: 1px solid var(--border, #1f2438) !important;
+    border-radius: 12px !important;
+    padding: 10px 12px !important;
+    margin-bottom: 8px !important;
+  }
+  .data-table tr:hover td { background: transparent !important; }
+  .data-table td {
+    padding: 5px 0 !important;
+    border: none !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: flex-start !important;
+    gap: 10px !important;
+    text-align: right !important;
+    font-size: 0.78rem !important;
+  }
+  .data-table td::before {
+    content: attr(data-label);
+    color: var(--text-dim, #3e4668);
+    font-size: 0.66rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    flex-shrink: 0;
+    align-self: center;
+  }
+  .data-table td.col-actions {
+    position: static !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    justify-content: flex-end !important;
+    padding-top: 8px !important;
+    border-top: 1px solid var(--border, #1f2438) !important;
+    margin-top: 6px !important;
+  }
+  .data-table td.col-actions::before { display: none; }
+  /* Hide the rep column on mobile cards (label already implicit in admin context) */
+
+  /* Charts: shorter on mobile */
+  .chart-wrap { height: 200px !important; }
+
+  /* Filter bars: stack vertically */
+  .filter-bar { flex-direction: column !important; align-items: stretch !important; }
+  .filter-bar > * { width: 100% !important; }
+
+  /* Modals: bottom-sheet style — slide from the bottom of the screen,
+     full width, drag-handle pill at the top, rounded top corners. */
+  .modal-bg {
+    align-items: flex-end !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+  }
+  .modal-card {
+    max-width: 100% !important;
+    width: 100% !important;
+    max-height: 92vh !important;
+    border-radius: 18px 18px 0 0 !important;
+    padding: 18px 18px 0 !important;
+    margin: 0 !important;
+    /* Block layout on mobile, NOT flex — flexbox children can clip on iOS so
+       the modal footer becomes unreachable. With block + overflow-y:auto the
+       inner content scrolls naturally and the sticky footer stays pinned. */
+    display: block !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch;
+    position: relative;
+  }
+  .modal-card::before {
+    content: ''; display: block;
+    width: 40px; height: 4px;
+    background: var(--text-dim, #3e4668);
+    border-radius: 2px;
+    margin: 0 auto 12px; opacity: 0.5;
+  }
+  .modal-head {
+    padding: 0 !important;
+    margin-bottom: 14px !important;
+    gap: 8px !important;
+    flex-wrap: wrap !important;
+    align-items: flex-start !important;
+  }
+  .modal-head h2 {
+    font-size: 1.1rem !important;
+    line-height: 1.25 !important;
+    flex: 1 1 100% !important;
+    padding-right: 32px !important;
+    /* Reserve space for the absolutely-positioned close button */
+  }
+  /* Close button — tucked into top-right corner of the sheet */
+  .modal-head .close {
+    position: absolute !important;
+    top: 14px; right: 14px;
+    width: 36px; height: 36px;
+    background: var(--surface2, #141728) !important;
+    border-radius: 50% !important;
+    font-size: 1.4rem !important;
+    line-height: 1 !important;
+    padding: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    color: var(--text, #e9ecf5) !important;
+  }
+  /* Secondary actions (e.g. "Full profile ↗", "+ Add students") drop to their
+     own row below the title — applies to ANY button/link inside modal-head. */
+  .modal-head a.btn-ghost,
+  .modal-head a.btn-primary,
+  .modal-head .btn-ghost,
+  .modal-head .btn-primary,
+  .modal-head .btn-secondary,
+  .modal-head > button:not(.close),
+  .modal-head > a:not(.close) {
+    flex: 1 1 100% !important;
+    text-align: center !important;
+    margin-top: 4px !important;
+    padding: 11px 14px !important;
+    font-size: 0.85rem !important;
+    border-radius: 10px !important;
+    min-height: 44px !important;
+    box-sizing: border-box !important;
+  }
+  /* Body: single column, with REAL spacing between fields. Don't let it
+     create its own scroll — modal-card scrolls instead so the bottom-sheet
+     drag handle and footer don't compete with inner scrolling. */
+  .modal-body {
+    padding: 0 !important;
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+    row-gap: 16px !important;
+    overflow: visible !important;
+    flex: 0 0 auto !important;
+  }
+  .modal-body > div { display: block; }
+  .modal-body .full { grid-column: 1 / -1 !important; }
+  .modal-body label { display: block !important; font-size: 0.7rem !important; margin-bottom: 8px !important; }
+  .modal-body input:not([type="checkbox"]):not([type="radio"]),
+  .modal-body select,
+  .modal-body textarea {
+    padding: 12px 14px !important;
+    font-size: 0.95rem !important;
+    min-height: 46px !important;
+    border-radius: 12px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  /* Checkboxes and radios stay native-sized — never force them to the
+     46px min-height meant for text fields. */
+  .modal-body input[type="checkbox"],
+  .modal-body input[type="radio"] {
+    width: 16px !important;
+    height: 16px !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    flex-shrink: 0;
+  }
+  /* iOS gives datetime-local + date a hefty intrinsic width — shrink it. */
+  .modal-body input[type="datetime-local"],
+  .modal-body input[type="date"],
+  .modal-body input[type="time"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+  .modal-body textarea { min-height: 96px !important; }
+  .modal-foot {
+    padding: 14px 0 calc(14px + env(safe-area-inset-bottom)) !important;
+    margin-top: 12px !important;
+    border-top: 1px solid var(--border, #1f2438);
+    flex-wrap: wrap !important;
+    gap: 10px !important;
+    position: sticky;
+    bottom: 0;
+    background: var(--surface, #0f1120);
+    z-index: 2;
+  }
+  .modal-foot .msg { flex: 1 1 100% !important; order: -1; }
+  .modal-foot button {
+    min-height: 48px !important;
+    flex: 1 1 calc(50% - 6px) !important;
+    padding: 12px 16px !important;
+    font-size: 0.92rem !important;
+    border-radius: 12px !important;
+  }
+  /* Primary action (Save / Apply / Schedule) goes on the right and pops */
+  .modal-foot .btn-primary { order: 1; }
+
+  /* Hide admin-only column on mobile */
+  body:not(.can-see-all) .admin-col { display: none !important; }
+
+  /* ── MS CRM (students.html) — show profile OR list, never both ── */
+  body[data-crm-view="profile"] .student-list-card { display: none !important; }
+  body[data-crm-view="profile"] .crm-back-bar { display: flex !important; }
+  body:not([data-crm-view="profile"]) .profile-card { display: none !important; }
+  body:not([data-crm-view="profile"]) .crm-back-bar { display: none !important; }
+  /* When in list view, the layout's single column is the list, full-width */
+  .crm-layout { gap: 12px !important; padding: 12px !important; }
+  .student-list-card { padding: 0 !important; }
+  /* Bigger, easier-to-tap student rows */
+  .student-row { padding: 12px 14px !important; min-height: 56px; }
+  /* Filter chips wrap and are larger */
+  .student-list-filterbar { flex-wrap: wrap !important; gap: 6px !important; padding: 10px !important; }
+  .list-filter-chip { font-size: 0.74rem !important; padding: 6px 12px !important; }
+  /* Profile sections stack tightly */
+  .profile-card { padding: 0 !important; }
+  .profile-actions { flex-wrap: wrap !important; gap: 6px !important; }
+  .profile-actions button { font-size: 0.75rem !important; padding: 7px 10px !important; min-height: 36px; }
+  /* Top section header (name + status badges) cleaner */
+  .profile-header { flex-direction: column !important; align-items: flex-start !important; gap: 8px !important; }
+
+  /* The new mobile-only "Back to list" bar that we'll inject from students.html */
+  .crm-back-bar {
+    display: none; position: sticky; top: 0; z-index: 50;
+    background: var(--surface, #13141f); border-bottom: 1px solid var(--border, #1f2438);
+    padding: 10px 14px; align-items: center; gap: 10px; margin: -12px -12px 12px;
+  }
+  .crm-back-bar button {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: transparent; border: 1px solid var(--border, #1f2438);
+    color: var(--text, #eaecf8); border-radius: 8px; padding: 6px 12px;
+    font-size: 0.82rem; font-weight: 600; cursor: pointer;
+  }
+  .crm-back-bar .crm-back-name { font-weight: 700; font-size: 0.9rem; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+  /* ── Schedule Zoom modal (#szModal) — make every grid/flex row stack ── */
+  #szModal .modal-body { gap: 14px !important; }
+  /* Start time + Duration: stack instead of 2:1 grid */
+  #szModal .modal-body > div[style*="grid-template-columns:2fr 1fr"] {
+    grid-template-columns: 1fr !important;
+    display: grid !important;
+    gap: 12px !important;
+  }
+  /* Search row: search bar full-width on row 1, then Filters + Group split row 2 */
+  #szModal #sz-search { flex: 1 1 100% !important; min-height: 44px !important; font-size: 0.92rem !important; }
+  #szModal #sz-filters-btn { flex: 1 1 calc(50% - 4px) !important; justify-content: center; min-height: 40px !important; }
+  #szModal #sz-group { flex: 1 1 calc(50% - 4px) !important; min-width: 0 !important; max-width: none !important; min-height: 40px !important; }
+  #szModal .sz-students { max-height: 36vh !important; }
+  #szModal .sz-students label {
+    padding: 10px 8px !important;
+    font-size: 0.92rem !important;
+    border-bottom: 1px solid var(--border, #1f2438);
+    align-items: flex-start !important;
+  }
+  #szModal .sz-students label:last-child { border-bottom: none; }
+  #szModal .sz-students label input[type="checkbox"] {
+    width: 16px !important; height: 16px !important;
+    min-height: 0 !important;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  #szModal .sz-students label > span { font-size: 0.78rem; }
+  /* Recurring end-after sub-row stacks */
+  #szModal #sz-recurrence-end > div[style*="display:flex"] {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+  #szModal #sz-rec-end-type { flex: 1 1 100% !important; }
+  /* Advanced settings toggles: full-width labels */
+  #szModal .sz-adv-toggles { display: grid !important; grid-template-columns: 1fr !important; gap: 6px !important; }
+  #szModal .sz-adv-toggle { padding: 10px 6px !important; }
+
+  /* ── Coach Dashboard upcoming-meetings cards — wrap actions to next row ── */
+  .upcoming-card {
+    flex-wrap: wrap !important;
+    gap: 8px 12px !important;
+    padding: 12px 14px !important;
+  }
+  .upcoming-when {
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
+    font-size: 0.82rem !important;
+  }
+  .upcoming-topic {
+    flex: 1 1 100% !important;
+    order: 2;
+    font-size: 0.92rem;
+    line-height: 1.3;
+  }
+  .upcoming-topic small { font-size: 0.78rem !important; }
+  .upcoming-actions {
+    flex: 1 1 100% !important;
+    order: 3;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+    margin-top: 4px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border, #1f2438);
+  }
+  .upcoming-actions button {
+    flex: 1 1 calc(50% - 4px) !important;
+    min-height: 38px !important;
+    padding: 8px 10px !important;
+    font-size: 0.78rem !important;
+    white-space: nowrap;
+  }
+
+  /* ── Coach Dashboard (coach.html) — card-stack layout, no horizontal scroll ── */
+  .tablewrap { padding: 8px 12px 30px !important; overflow-x: hidden !important; }
+  table.students {
+    width: 100% !important;
+    min-width: 0 !important;
+    font-size: 0.82rem !important;
+    border-collapse: separate !important;
+    border-spacing: 0 8px !important;
+  }
+  table.students thead { display: none !important; }
+  table.students, table.students tbody, table.students tr, table.students td {
+    display: block !important;
+    width: 100% !important;
+  }
+  table.students tr {
+    background: var(--surface, #0f1120) !important;
+    border: 1px solid var(--border, #1f2438) !important;
+    border-radius: 14px !important;
+    padding: 12px 14px !important;
+    margin-bottom: 8px !important;
+    position: relative;
+  }
+  table.students tr.pinned {
+    border-left: 3px solid var(--gold, #fbbf24) !important;
+  }
+  table.students td {
+    padding: 6px 0 !important;
+    border: none !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    gap: 12px !important;
+    text-align: right !important;
+    min-height: 0 !important;
+  }
+  table.students td::before {
+    content: attr(data-label);
+    color: var(--text-dim, #3e4668);
+    font-size: 0.66rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    flex-shrink: 0;
+    text-align: left;
+  }
+  /* Hide the empty data-label rows (checkbox/actions) ::before pseudo */
+  table.students td.col-check::before,
+  table.students td.col-actions::before { display: none !important; }
+  /* Checkbox cell — top-right corner of the card */
+  table.students td.col-check {
+    position: absolute !important;
+    top: 10px; right: 12px;
+    width: auto !important;
+    padding: 0 !important;
+    justify-content: flex-end !important;
+  }
+  /* Actions row — pin + note buttons, full-width below */
+  table.students td.col-actions {
+    border-top: 1px solid var(--border, #1f2438) !important;
+    margin-top: 8px !important;
+    padding-top: 10px !important;
+    justify-content: flex-end !important;
+  }
+  /* Name cell — bigger, left-aligned, no label prefix */
+  table.students td.col-name {
+    text-align: left !important;
+    padding: 4px 36px 10px 0 !important;
+    border-bottom: 1px solid var(--border, #1f2438) !important;
+    margin-bottom: 6px !important;
+  }
+  table.students td.col-name::before { display: none !important; }
+  table.students td.col-name strong {
+    font-size: 0.95rem;
+    color: var(--text, #e9ecf5);
+    display: block;
+    margin-bottom: 2px;
+  }
+  /* Right-side values nudged smaller so labels don't crowd */
+  table.students td .pill { font-size: 0.7rem; }
+  /* KPIs tighter */
+  .kpis { padding: 12px !important; gap: 10px !important; }
+  .kpi-card { padding: 12px !important; }
+  .kpi-card .kpi-value { font-size: 1.4rem !important; }
+  .kpi-card .kpi-label { font-size: 0.65rem !important; }
+  /* Filter bar: full-width controls, wrap nicely */
+  .filterbar {
+    flex-wrap: wrap !important; gap: 8px !important; padding: 10px 12px !important;
+    align-items: stretch !important;
+  }
+  .filterbar > select, .filterbar > input[type="search"] {
+    flex: 1 1 100% !important; min-width: 0 !important;
+  }
+  .filterbar .chip { padding: 6px 10px !important; font-size: 0.75rem !important; }
+  .filterbar > button#scheduleZoomTopBtn,
+  .filterbar > button#manageGroupsBtn,
+  .filterbar > button#filtersBtn {
+    flex: 1 1 auto !important; margin: 0 !important; min-height: 40px;
+  }
+  /* Charts: stack one per row on phones, shorter */
+  .charts { grid-template-columns: 1fr !important; gap: 10px !important; padding: 0 12px !important; }
+  .chart-card { padding: 12px !important; }
+  .chart-wrap { height: 220px !important; }
+  /* Bulk action bar: wraps */
+  .bulkbar { flex-wrap: wrap !important; gap: 8px !important; padding: 10px 12px !important; }
+  .bulkbar button { font-size: 0.78rem !important; padding: 8px 12px !important; }
+
+  /* Topbar header on the dashboards: shrink the title + tighten controls */
+  .brand-title, .brand h1 { font-size: 0.92rem !important; }
+
+  /* Student profile (CRM) — single column with proper breathing room */
+  .profile-card { padding: 16px 14px !important; }
+  .profile-grid { grid-template-columns: 1fr !important; gap: 16px !important; padding: 4px 0 !important; }
+  .field { margin-bottom: 0 !important; }
+  .field-label { font-size: 0.7rem !important; margin-bottom: 8px !important; display: block !important; }
+  .field-input, .field-select, .field-textarea {
+    padding: 12px 14px !important;
+    font-size: 0.95rem !important;
+    min-height: 46px !important;
+    border-radius: 12px !important;
+  }
+  .field-textarea { min-height: 96px !important; }
+
+  /* Profile sections (Lifecycle, Resources, Coach, etc.) */
+  .profile-section { margin-top: 22px !important; padding-top: 14px !important; border-top: 1px solid var(--border, #1f2438); }
+  .profile-section-head { gap: 8px !important; }
+  details.profile-section > summary { margin-bottom: 14px !important; padding: 4px 0 !important; }
+
+  /* Header — profile name + status pill stack with space */
+  .profile-header { gap: 12px !important; padding: 4px 0 18px !important; border-bottom: 1px solid var(--border, #1f2438); margin-bottom: 18px !important; }
+  .profile-name { font-size: 1.3rem !important; line-height: 1.2 !important; }
+  .profile-sub { font-size: 0.84rem !important; }
+  .badges { gap: 6px !important; flex-wrap: wrap !important; }
+
+  /* Action row spacing */
+  .profile-actions { padding: 10px 0 0 !important; gap: 8px !important; row-gap: 10px !important; border-top: 1px solid var(--border, #1f2438); margin-top: 16px; }
+
+  /* Profile sub-record tables (pauses, resigns) — they're <table> elements
+     with inline styles; on phones we card-stack them so nothing runs off
+     the screen. Inputs become full-width, header row is hidden, each row
+     becomes a small surface card with stacked fields. */
+  .profile-card table {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+  }
+  .profile-card table thead { display: none !important; }
+  .profile-card table tbody, .profile-card table tr, .profile-card table td {
+    display: block !important;
+    width: 100% !important;
+  }
+  .profile-card table tr {
+    background: var(--surface2, #141728) !important;
+    border: 1px solid var(--border, #1f2438) !important;
+    border-radius: 10px !important;
+    padding: 12px !important;
+    margin-bottom: 10px !important;
+  }
+  .profile-card table td {
+    padding: 6px 0 !important;
+    border: none !important;
+    text-align: left !important;
+  }
+  .profile-card table td input,
+  .profile-card table td select,
+  .profile-card table td textarea {
+    width: 100% !important;
+    box-sizing: border-box !important;
+    font-size: 0.92rem !important;
+    min-height: 44px !important;
+  }
+  /* Use the existing per-cell classes to label fields above their inputs */
+  .profile-card table td:has(.pause-start)::before    { content: 'START DATE'; }
+  .profile-card table td:has(.pause-end)::before      { content: 'END DATE (blank = ongoing)'; }
+  .profile-card table td:has(.pause-notes)::before    { content: 'NOTES'; }
+  .profile-card table td:has(.resign-date)::before    { content: 'RESIGN DATE'; }
+  .profile-card table td:has(.resign-months)::before  { content: 'MONTHS ADDED'; }
+  .profile-card table td:has(.resign-amount)::before  { content: 'AMOUNT (optional)'; }
+  .profile-card table td:has(.resign-notes)::before   { content: 'NOTES'; }
+  .profile-card table td::before {
+    display: block;
+    font-size: 0.62rem;
+    color: var(--text-dim, #3e4668);
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+  }
+  /* The 5th column on each row is usually the action button (delete, etc.) */
+  .profile-card table tr td:last-child {
+    padding-top: 10px !important;
+    border-top: 1px solid var(--border, #1f2438) !important;
+    margin-top: 6px !important;
+  }
+  .profile-card table tr td:last-child::before { display: none !important; }
+  .profile-card table tr td:last-child > * {
+    width: auto !important;
+    min-width: 0 !important;
+  }
+
+  /* Lengths / inline read-only spans inside table cells (the "12d" length) */
+  .profile-card table td span { font-size: 0.86rem; color: var(--text); }
+
+  /* Card-stack panels for alerts / wins / notes / surveys / videos / turnovers
+     — these aren't <table> but nested divs that often have inline horizontal
+     layouts. Force them to wrap. */
+  .profile-card .alert-row, .profile-card .win-row, .profile-card .turnover-row,
+  .profile-card .note-row, .profile-card .survey-row, .profile-card .video-row {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+  .profile-card .alert-row > *, .profile-card .win-row > *, .profile-card .turnover-row > *,
+  .profile-card .note-row > *, .profile-card .survey-row > *, .profile-card .video-row > * {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  /* Anything inside the profile that is rendered with inline-styled
+     `display:flex` and forgets to wrap — coerce wrap on phones. */
+  .profile-card div[style*="display:flex"]:not([style*="flex-wrap"]):not([style*="flex-direction:column"]) {
+    flex-wrap: wrap !important;
+  }
+
+  /* Long inline labels that have width set in a pixel value: cap to 100% */
+  .profile-card [style*="width:"][style*="px"]:not([style*="height"]) {
+    max-width: 100% !important;
+  }
+
+  /* Buttons inside the profile breathe better */
+  .profile-card button, .profile-card .btn-ghost, .profile-card .btn-primary {
+    min-height: 42px;
+  }
+
+  /* Generic helper: hide on phones */
+  .hide-on-mobile { display: none !important; }
+}
+
+/* Slightly smaller tweaks for tablet */
+@media (max-width: 1100px) and (min-width: 769px) {
+  .data-table { min-width: 900px !important; }
+  .kpi-grid { grid-template-columns: repeat(3, 1fr) !important; }
+}
+
+/* Date range popup on desktop/laptop — anchor to the LEFT of the
+   daterange-wrap (the button is on the left of the topbar's second row,
+   so right:0 from the per-page CSS would push the popup off-screen left
+   on smaller laptops). Clamp to viewport with max-width. */
+@media (min-width: 769px) {
+  .topbar .daterange-popup,
+  header.topbar .daterange-popup,
+  #daterangePopup {
+    left: 0 !important;
+    right: auto !important;
+    max-width: calc(100vw - 24px) !important;
+  }
+}
+
+/* Date range popup on mobile — full-width, anchored under the topbar */
+@media (max-width: 768px) {
+  .topbar .daterange-popup,
+  header.topbar .daterange-popup,
+  #daterangePopup {
+    position: fixed !important;
+    top: auto !important;
+    left: 12px !important;
+    right: 12px !important;
+    width: auto !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+    margin: 0 !important;
+    padding: 14px !important;
+  }
+  .dr-presets, .dr-presets-vert { display: flex !important; flex-direction: column !important; gap: 4px !important; }
+  .dr-preset, .dr-preset-item {
+    width: 100% !important;
+    text-align: left !important;
+    padding: 11px 12px !important;
+    font-size: 0.84rem !important;
+  }
+  .dr-custom-row { flex-wrap: wrap !important; }
+  .dr-date-input { font-size: 0.86rem !important; padding: 10px 8px !important; }
+  .dr-apply { padding: 11px !important; font-size: 0.86rem !important; }
+}
+
+/* Dashboard picker dropdown — universally fix overflow on narrow viewports.
+   Catches the variants used across pages: .nav-dropdown-menu (class),
+   #navDropMenu / #navDropdownMenu (ids) and meta-ads's inline-styled menu. */
+@media (max-width: 768px) {
+  #navDropdown, .nav-dropdown { position: static !important; }
+  .nav-dropdown-menu,
+  #navDropMenu,
+  #navDropdownMenu {
+    position: fixed !important;
+    top: 70px !important;
+    bottom: auto !important;
+    left: 12px !important;
+    right: 12px !important;
+    max-width: none !important;
+    width: auto !important;
+    box-sizing: border-box;
+    margin: 0 !important;
+  }
+  .nav-dropdown-item,
+  .nav-drop-item,
+  #navDropMenu a,
+  #navDropdownMenu a {
+    padding: 12px 14px !important;
+    font-size: 0.86rem !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+  }
+}
+
+/* ────────────────────────────────────────────────────────────
+   Uniform topbar across all dashboards.
+   Sticky, identical padding/height, and identical right-cluster position
+   regardless of brand text length.
+   ──────────────────────────────────────────────────────────── */
+.topbar {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 100 !important;
+  background: rgba(8,10,20,0.92) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  /* Always reserve space for the iPhone notch / Dynamic Island in PWA standalone
+     mode. On non-PWA / desktop, env(safe-area-inset-top) is 0 so this is a no-op. */
+  padding: calc(12px + env(safe-area-inset-top)) 32px 12px !important;
+  height: auto !important;
+  min-height: 56px;
+}
+body.light .topbar {
+  background: rgba(255,255,255,0.92) !important;
+}
+
+/* Brand cluster — logo + brand title always alone on row 1.
+   We use a CSS pseudo-element `.topbar::after` as an invisible flex
+   item with `flex-basis: 100%` and `order: 5` (between brand at 1 and
+   the first action at 10). This forces a row break, so action buttons
+   ALWAYS appear on row 2 regardless of brand text length. */
+.topbar > .topbar-logo,
+header.topbar > .topbar-logo { flex: 0 0 auto !important; order: 0 !important; }
+.topbar > .topbar-brand,
+header.topbar > .topbar-brand {
+  flex: 1 0 auto !important;
+  min-width: 0;
+  max-width: none !important;
+  width: calc(100% - 60px) !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  order: 1 !important;
+}
+
+/* The spacer takes 0 width — order is enforced via CSS `order` below. */
+.topbar .topbar-spacer,
+header.topbar .topbar-spacer { flex: 0 0 0 !important; min-width: 0 !important; display: none; }
+
+/* CANONICAL ORDER OF TOPBAR ITEMS (regardless of HTML source order):
+   logo (0) → brand (1) → daterange (10) → refresh (20) → theme (30) →
+   picker (40) → user pill (50) → sign out (60).
+   Every dashboard now has the exact same button positions. */
+.topbar > .topbar-logo,    header.topbar > .topbar-logo    { order: 0 !important; }
+.topbar > .topbar-brand,   header.topbar > .topbar-brand   { order: 1 !important; }
+.topbar > .daterange-wrap,
+.topbar > #daterangeWrap,  header.topbar > .daterange-wrap,
+header.topbar > #daterangeWrap                              { order: 10 !important; margin-left: 0 !important; }
+.topbar > #refreshBtn, .topbar > #refetchBtn,
+header.topbar > #refreshBtn, header.topbar > #refetchBtn   { order: 20 !important; }
+.topbar > #themeBtn,       header.topbar > #themeBtn       { order: 30 !important; }
+.topbar > .nav-dropdown, .topbar > #navDropdown,
+header.topbar > .nav-dropdown, header.topbar > #navDropdown { order: 40 !important; }
+.topbar > .user-pill,      header.topbar > .user-pill      { order: 50 !important; }
+.topbar > #signOutBtn,     header.topbar > #signOutBtn     { order: 60 !important; }
+/* Catch any other tbtn-ghost we don't know about — sit at order 25 (between refresh and theme) */
+.topbar > [data-pwa-install], header.topbar > [data-pwa-install] { order: 25 !important; }
+
+/* Treat all topbar buttons identically regardless of class (.btn vs .tbtn).
+   Performance, meta-ads, sales use .btn-ghost; calls/income/decl use .tbtn-ghost. */
+.topbar .btn,
+.topbar .btn-ghost,
+header.topbar .btn,
+header.topbar .btn-ghost {
+  line-height: 1 !important;
+  height: 32px !important;
+  box-sizing: border-box !important;
+  padding: 6px 10px !important;
+  font-size: 0.74rem !important;
+  font-weight: 600 !important;
+  border-radius: 8px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  white-space: nowrap !important;
+  background: var(--surface2, #141728) !important;
+  color: var(--text-muted, #7880a8) !important;
+  border: 1px solid var(--border, #1f2438) !important;
+  cursor: pointer;
+}
+.topbar .btn:hover,
+.topbar .btn-ghost:hover,
+header.topbar .btn:hover,
+header.topbar .btn-ghost:hover {
+  color: var(--text, #eaecf8) !important;
+  border-color: var(--border-light, #272d45) !important;
+}
+
+/* All topbar buttons render at the same height for visual alignment */
+.topbar .tbtn,
+header.topbar .tbtn {
+  line-height: 1 !important;
+  height: 32px !important;
+  box-sizing: border-box !important;
+  padding: 6px 10px !important;
+  font-size: 0.74rem !important;
+  font-weight: 600 !important;
+  border-radius: 8px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  white-space: nowrap !important;
+}
+.topbar .user-pill,
+header.topbar .user-pill {
+  height: 32px !important;
+  padding: 0 10px 0 4px !important;
+  margin-left: 0 !important;
+  flex-shrink: 0;
+}
+.topbar .user-pill-email,
+header.topbar .user-pill-email {
+  max-width: 140px !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Prevent ANY page content from causing horizontal scroll/overflow */
+html, body { max-width: 100vw; overflow-x: hidden !important; }
+.main, .page { max-width: 100% !important; box-sizing: border-box; }
+/* Charts and tables in scroll containers — never overflow viewport */
+.chart-card, .chart-wrap, .table-card { max-width: 100%; }
+.chart-wrap canvas { max-width: 100% !important; }
+
+/* Topbar must never overflow its container.
+   Items wrap to a 2nd row if the viewport can't fit them — better than items
+   disappearing off the right side. */
+.topbar,
+header.topbar {
+  flex-wrap: wrap !important;
+  overflow: visible;
+  row-gap: 6px;
+  max-width: 100% !important;
+  box-sizing: border-box;
+}
+
+/* All right-cluster items have fixed natural size — no grow, no shrink.
+   They sit on row 2 always, in the canonical order, never moving. */
+.topbar > .daterange-wrap, .topbar > #daterangeWrap,
+.topbar > #refreshBtn, .topbar > #refetchBtn,
+.topbar > #themeBtn,
+.topbar > .nav-dropdown, .topbar > #navDropdown,
+.topbar > .user-pill,
+.topbar > #signOutBtn,
+.topbar > [data-pwa-install],
+header.topbar > .daterange-wrap, header.topbar > #daterangeWrap,
+header.topbar > #refreshBtn, header.topbar > #refetchBtn,
+header.topbar > #themeBtn,
+header.topbar > .nav-dropdown, header.topbar > #navDropdown,
+header.topbar > .user-pill,
+header.topbar > #signOutBtn,
+header.topbar > [data-pwa-install] {
+  flex: 0 0 auto !important;
+}
+
+/* Below 700px (phone), hide the user-pill email text — keep just the avatar */
+@media (max-width: 700px) {
+  .topbar .user-pill-email,
+  header.topbar .user-pill-email {
+    display: none !important;
+  }
+  .topbar .user-pill,
+  header.topbar .user-pill {
+    padding: 0 4px !important;
+  }
+}
+
+/* Standardize the dashboard picker dropdown across all pages.
+   Use VERY high specificity (chained ids/classes) so per-page CSS can't win. */
+.topbar #navDropMenu,
+.topbar #navDropdownMenu,
+.topbar .nav-dropdown-menu,
+header.topbar #navDropMenu,
+header.topbar #navDropdownMenu,
+header.topbar .nav-dropdown-menu {
+  position: absolute !important;
+  top: calc(100% + 8px) !important;
+  right: 0 !important;
+  left: auto !important;
+  bottom: auto !important;
+  background: var(--surface, #0f1120) !important;
+  border: 1px solid var(--border-light, #272d45) !important;
+  border-radius: 12px !important;
+  padding: 6px !important;
+  min-width: 220px !important;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.5) !important;
+  z-index: 200 !important;
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif !important;
+}
+.topbar #navDropMenu a,
+.topbar #navDropdownMenu a,
+.topbar .nav-dropdown-item,
+.topbar .nav-drop-item,
+header.topbar #navDropMenu a,
+header.topbar #navDropdownMenu a,
+header.topbar .nav-dropdown-item,
+header.topbar .nav-drop-item {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  padding: 10px 12px !important;
+  border-radius: 8px !important;
+  font-size: 0.8rem !important;
+  font-weight: 600 !important;
+  color: var(--text-muted, #7880a8) !important;
+  background: transparent !important;
+  text-decoration: none !important;
+  transition: background 0.12s, color 0.12s !important;
+}
+.topbar #navDropMenu a:hover,
+.topbar #navDropdownMenu a:hover,
+.topbar .nav-dropdown-item:hover,
+.topbar .nav-drop-item:hover,
+.topbar .nav-menu-link:hover {
+  background: var(--surface2, #141728) !important;
+  color: var(--text, #eaecf8) !important;
+}
+.topbar .nav-dropdown-item.active,
+.topbar #navDropMenu a.active,
+.topbar #navDropdownMenu a.active,
+.topbar .nav-menu-link.active {
+  background: var(--blue-bg, rgba(107,158,255,0.1)) !important;
+  color: var(--blue, #6b9eff) !important;
+}
+/* Standard menu link with SVG icon + label (rendered by nav-menu.js) */
+.topbar .nav-menu-link {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  padding: 10px 12px !important;
+  border-radius: 8px !important;
+  font-size: 0.8rem !important;
+  font-weight: 600 !important;
+  color: var(--text-muted, #7880a8) !important;
+  text-decoration: none !important;
+  transition: background 0.12s, color 0.12s !important;
+}
+.topbar .nav-menu-link svg { flex-shrink: 0; }
+
+/* ── Skeleton loaders (used by loading-states.js) ───────────────── */
+.skel {
+  background: linear-gradient(90deg, var(--surface2,#1a1d2e) 0%, var(--surface3,#252939) 50%, var(--surface2,#1a1d2e) 100%);
+  background-size: 200% 100%;
+  animation: skel-shimmer 1.4s infinite;
+  border-radius: 6px;
+  display: inline-block;
+}
+@keyframes skel-shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+.skel-row  { height: 14px; }
+.skel-kpi  { height: 32px; width: 80%; margin-bottom: 6px; }
+.skel-sub  { height: 11px; width: 60%; }
+.skel-bar  { height: 220px; border-radius: 12px; }
+.skel-table-row { display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:12px; padding:12px 16px; border-bottom: 1px solid var(--border,#1f2438); }
+.skel-table-row .skel { height: 14px; }
+
+/* When running as an installed PWA (added to Home Screen), hide the Install
+   button and any iOS install hint — they're irrelevant inside the app.
+   The .pwa-standalone class is set by pwa.js (covers iOS where the
+   display-mode:standalone media query may not match). */
+@media (display-mode: standalone) {
+  [data-pwa-install], #pwaIOSHint { display: none !important; }
+}
+html.pwa-standalone [data-pwa-install],
+html.pwa-standalone #pwaIOSHint {
+  display: none !important;
+}

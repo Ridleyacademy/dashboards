@@ -32,6 +32,13 @@
   button:hover{ background:var(--red-dark); }
   button:disabled{ opacity:.6; cursor:default; }
   .err{ display:none; color:var(--red-dark); font-size:.85rem; margin-top:12px; }
+  .coach-list{ display:flex; flex-direction:column; gap:10px; margin-top:6px; }
+  .coach-btn{ width:100%; padding:14px 16px; background:#fff; color:var(--ink); border:1px solid var(--line);
+    border-radius:12px; font-size:1rem; font-weight:600; cursor:pointer; text-align:left; display:flex;
+    align-items:center; justify-content:space-between; transition:border-color .15s, box-shadow .15s, transform .05s; }
+  .coach-btn:hover{ border-color:var(--red); box-shadow:0 4px 14px rgba(220,38,38,.10); }
+  .coach-btn:active{ transform:translateY(1px); }
+  .coach-btn .chev{ color:var(--red); font-weight:700; }
   .foot{ margin-top:18px; font-size:.74rem; color:var(--muted); }
 </style>
 </head>
@@ -70,6 +77,12 @@
       <p class="sub" id="fail-msg">Please try again in a moment.</p>
     </div>
 
+    <div id="directory" style="display:none">
+      <h1>Join a mentorship class</h1>
+      <p class="sub">Choose your coach to enter their room.</p>
+      <div id="coach-list" class="coach-list"></div>
+    </div>
+
     <div class="foot">Ridley Academy · Mentorship</div>
   </div>
 
@@ -80,12 +93,33 @@
   var S = (q.get('s') || '').trim();
   var T = (q.get('t') || '').trim();
 
-  function show(id){ ['loading','register','notready','failed'].forEach(function(x){ document.getElementById(x).style.display = (x===id?'block':'none'); }); }
+  function show(id){ ['loading','register','notready','failed','directory'].forEach(function(x){ document.getElementById(x).style.display = (x===id?'block':'none'); }); }
+
+  function showDirectory(){
+    fetch(RESOLVER + '?api=coaches', { cache:'no-store' })
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        var list = document.getElementById('coach-list');
+        var coaches = (d && d.coaches) || [];
+        if(!coaches.length){ fail('No coaches are available right now.'); return; }
+        list.innerHTML = '';
+        coaches.forEach(function(co){
+          var b = document.createElement('button');
+          b.className = 'coach-btn';
+          b.innerHTML = '<span></span><span class="chev">&rsaquo;</span>';
+          b.firstChild.textContent = co.coachName;
+          b.addEventListener('click', function(){ window.location.href = '?c=' + encodeURIComponent(co.c); });
+          list.appendChild(b);
+        });
+        show('directory');
+      })
+      .catch(function(){ fail('We could not load the coach list. Please try again.'); });
+  }
   function goTo(url){ document.getElementById('loading').querySelector('h1').textContent = 'Opening Zoom…'; show('loading'); window.location.replace(url); }
   function fail(msg){ if(msg) document.getElementById('fail-msg').textContent = msg; show('failed'); }
 
   function resolve(){
-    if(!C){ fail('This link is missing its class code.'); return; }
+    if(!C){ showDirectory(); return; }
     fetch(RESOLVER + '?api=resolve&c=' + encodeURIComponent(C) + '&s=' + encodeURIComponent(S) + '&t=' + encodeURIComponent(T), { cache:'no-store' })
       .then(function(r){ return r.json(); })
       .then(function(d){

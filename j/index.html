@@ -135,15 +135,21 @@
     // Robustness: the bare resolver URL does the redirect SERVER-SIDE (302), bypassing this
     // page's fetch and any service worker. If the client resolve is slow/blocked (e.g. a stale
     // SW in some browsers), reveal a manual link so the user is never stuck on the spinner.
+    var fbUrl = RESOLVER + (window.location.search || '');
     var ml = document.getElementById('manual-link');
-    if(ml){ ml.href = RESOLVER + (window.location.search || ''); }
+    if(ml){ ml.href = fbUrl; }
     setTimeout(function(){
       var mw = document.getElementById('manual-wrap');
       if(mw && getComputedStyle(document.getElementById('loading')).display !== 'none') mw.style.display = 'block';
     }, 3500);
+    // Auto server-side fallback: if the client resolve stalls (blocked by a stale service worker
+    // or a browser extension), navigate the whole page to the resolver, which redirects server-side
+    // (302) with nothing in the path. Only for a class/host link (never the directory) to avoid loops.
+    var autoFb = (S || H) ? setTimeout(function(){ window.location.replace(fbUrl); }, 2500) : null;
     fetch(RESOLVER + '?api=resolve&c=' + encodeURIComponent(C) + '&s=' + encodeURIComponent(S) + '&t=' + encodeURIComponent(T) + '&n=' + encodeURIComponent(getNonce()) + (H ? '&host=' + encodeURIComponent(H) : ''), { cache:'no-store' })
       .then(function(r){ return r.json(); })
       .then(function(d){
+        if(autoFb) clearTimeout(autoFb);
         if(d.status === 'go' && d.url){ if(d.nonce) setNonce(d.nonce); goTo(d.url); return; }
         if(d.status === 'not_ready'){ show('notready'); return; }
         if(d.status === 'register'){
@@ -154,7 +160,11 @@
         }
         fail('Something went wrong opening your class.');
       })
-      .catch(function(){ fail('We could not reach the server. Check your connection and try again.'); });
+      .catch(function(){
+        if(autoFb) clearTimeout(autoFb);
+        if(S || H){ window.location.replace(fbUrl); return; }
+        fail('We could not reach the server. Check your connection and try again.');
+      });
   }
 
   document.getElementById('reg-form').addEventListener('submit', function(e){

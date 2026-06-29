@@ -93,6 +93,13 @@
   var S = (q.get('s') || '').trim();
   var T = (q.get('t') || '').trim();
 
+  // Private per-link claim nonce (kept in this browser) so the device that first
+  // opened the link can rejoin freely, while a shared copy on another device is
+  // routed to self-registration instead of colliding on the Zoom join.
+  var NKEY = 'raj_n_' + C + '_' + S;
+  function getNonce(){ try { return localStorage.getItem(NKEY) || ''; } catch(e){ return ''; } }
+  function setNonce(v){ try { if(v) localStorage.setItem(NKEY, v); } catch(e){} }
+
   function show(id){ ['loading','register','notready','failed','directory'].forEach(function(x){ document.getElementById(x).style.display = (x===id?'block':'none'); }); }
 
   function showDirectory(){
@@ -120,10 +127,10 @@
 
   function resolve(){
     if(!C){ showDirectory(); return; }
-    fetch(RESOLVER + '?api=resolve&c=' + encodeURIComponent(C) + '&s=' + encodeURIComponent(S) + '&t=' + encodeURIComponent(T), { cache:'no-store' })
+    fetch(RESOLVER + '?api=resolve&c=' + encodeURIComponent(C) + '&s=' + encodeURIComponent(S) + '&t=' + encodeURIComponent(T) + '&n=' + encodeURIComponent(getNonce()), { cache:'no-store' })
       .then(function(r){ return r.json(); })
       .then(function(d){
-        if(d.status === 'go' && d.url){ goTo(d.url); return; }
+        if(d.status === 'go' && d.url){ if(d.nonce) setNonce(d.nonce); goTo(d.url); return; }
         if(d.status === 'not_ready'){ show('notready'); return; }
         if(d.status === 'register'){
           if(d.coachName){ document.getElementById('reg-title').textContent = "Join " + d.coachName + "'s class"; }

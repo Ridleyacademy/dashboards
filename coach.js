@@ -2383,10 +2383,10 @@ function _meetingCardHtml(m, opts) {
       <div class="upcoming-when">${escapeHtml(t.time)}<small>${escapeHtml(t.date)} · ${m.scheduled_duration_minutes||60} min</small></div>
       <div class="upcoming-topic">${escapeHtml(m.topic || 'Meeting')}${sourceTag}${hostLine}</div>
       <div class="upcoming-actions">
-        ${m.join_url ? `<button data-zm-open="${m.id}" title="Open the Zoom meeting">Open Zoom</button>` : ''}
+        ${m.host_email ? `<button data-zm-open="${m.id}" title="Open the class link">Open Zoom</button>` : ''}
         <button data-zm-invitees="${m.id}" title="See invited students">Invitees</button>
-        ${m.join_url ? `<button data-zm-copy="${m.id}" title="Copy join link">Copy link</button>` : ''}
-        ${m.start_url ? `<button data-zm-start="${m.id}" title="Open host start URL">Start as host</button>` : ''}
+        ${m.host_email ? `<button data-zm-copy="${m.id}" title="Copy the permanent class link">Copy link</button>` : ''}
+        ${m.host_email ? `<button data-zm-start="${m.id}" title="Start as host (permanent host link)">Start as host</button>` : ''}
         ${!isZoomOnly ? `<button data-zm-edit="${m.id}" title="Edit meeting (topic, time, recurrence, settings)">Edit</button>` : ''}
         <button class="danger" data-zm-cancel="${m.id}">Cancel</button>
       </div>
@@ -2435,10 +2435,10 @@ function renderUpcomingMeetings() {
           ${hostLine}
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          ${next.start_url ? `<button data-zm-start="${next.id}" class="btn-primary" style="padding:9px 16px;font-size:0.85rem;">Start as host →</button>` : ''}
-          ${next.join_url ? `<button data-zm-open="${next.id}" class="btn-ghost" style="padding:9px 16px;font-size:0.85rem;">Open Zoom</button>` : ''}
+          ${next.host_email ? `<button data-zm-start="${next.id}" class="btn-primary" style="padding:9px 16px;font-size:0.85rem;">Start as host →</button>` : ''}
+          ${next.host_email ? `<button data-zm-open="${next.id}" class="btn-ghost" style="padding:9px 16px;font-size:0.85rem;">Open Zoom</button>` : ''}
           <button data-zm-invitees="${next.id}" class="btn-ghost" style="padding:9px 16px;font-size:0.85rem;">Invitees (${invited})</button>
-          ${next.join_url ? `<button data-zm-copy="${next.id}" class="btn-ghost" style="padding:9px 16px;font-size:0.85rem;" title="Copy host join link">Copy link</button>` : ''}
+          ${next.host_email ? `<button data-zm-copy="${next.id}" class="btn-ghost" style="padding:9px 16px;font-size:0.85rem;" title="Copy the permanent class link">Copy link</button>` : ''}
           ${!(typeof next.id === 'string' && String(next.id).startsWith('zoom-')) ? `<button data-zm-edit="${next.id}" class="btn-ghost" style="padding:9px 16px;font-size:0.85rem;" title="Edit topic, date/time, recurrence, settings">Edit</button>` : ''}
           <button data-zm-cancel="${next.id}" class="btn-ghost" style="padding:9px 16px;font-size:0.85rem;color:#f87171;border-color:rgba(248,113,113,0.4);">Cancel</button>
         </div>

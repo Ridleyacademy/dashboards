@@ -3,7 +3,32 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const STUDENTS_BASE = SUPABASE_URL + '/functions/v1/students';
 const ZOOM_MEETINGS_BASE = SUPABASE_URL + '/functions/v1/zoom-meetings';
 const COACH_HOURS_BASE = SUPABASE_URL + '/functions/v1/coach-hours';
+const ZOOM_JOIN_BASE = SUPABASE_URL + '/functions/v1/zoom-join';
+const PERMA_BASE = 'https://ridleyacademy.team/j/';
 const supa = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: true, detectSessionInUrl: true, autoRefreshToken: true }});
+
+// ── Permanent links (the /j/ indirection) ─────────────────────────────────
+// Everything the dashboard surfaces now points at the stable ridleyacademy.team/j/
+// link (resolved live to the right room), never the raw Zoom URL.
+function coachSlug(hostEmail) { return String(hostEmail || '').split('@')[0].toLowerCase(); }
+// Base class link for a coach — no token needed, buildable client-side.
+function permaBaseLink(m) { const c = coachSlug(m && m.host_email); return c ? PERMA_BASE + '?c=' + encodeURIComponent(c) : ((m && m.join_url) || ''); }
+// Cache of { coachSlug: {base, host, students:{id:link}} } from the authenticated links endpoint.
+const _permaLinks = {};
+async function fetchPermaLinks(hostEmail, studentIds) {
+  const c = coachSlug(hostEmail); if (!c) return null;
+  try {
+    const r = await fetch(ZOOM_JOIN_BASE + '?api=links', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
+      body: JSON.stringify({ c, student_ids: studentIds || [] }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.ok) return null;
+    _permaLinks[c] = j;
+    return j;
+  } catch (e) { return null; }
+}
 
 let currentSession = null;
 let allStudents = [];
@@ -2436,15 +2461,25 @@ function renderUpcomingMeetings() {
   list.querySelectorAll('[data-zm-edit]').forEach(b => b.addEventListener('click', () => openEditMeetingModal(parseInt(b.dataset.zmEdit,10))));
   list.querySelectorAll('[data-zm-copy]').forEach(b => b.addEventListener('click', () => {
     const m = upcomingMeetings.find(x => x.id == b.dataset.zmCopy);
-    if (m?.join_url) { navigator.clipboard.writeText(m.join_url); b.textContent='Copied!'; setTimeout(()=>b.textContent='Copy link',1200); }
+    const link = permaBaseLink(m);
+    if (link) { navigator.clipboard.writeText(link); b.textContent='Copied!'; setTimeout(()=>b.textContent='Copy link',1200); }
   }));
   list.querySelectorAll('[data-zm-open]').forEach(b => b.addEventListener('click', () => {
     const m = upcomingMeetings.find(x => x.id == b.dataset.zmOpen);
-    if (m?.join_url) window.open(m.join_url, '_blank');
+    const link = permaBaseLink(m);
+    if (link) window.open(link, '_blank');
   }));
-  list.querySelectorAll('[data-zm-start]').forEach(b => b.addEventListener('click', () => {
+  list.querySelectorAll('[data-zm-start]').forEach(b => b.addEventListener('click', async () => {
     const m = upcomingMeetings.find(x => x.id == b.dataset.zmStart);
-    if (m?.start_url) window.open(m.start_url, '_blank');
+    if (!m) return;
+    // Start-as-host opens the permanent host link (carries a code so the resolver
+    // hands back the host start-URL). Open the tab synchronously to dodge popup blockers.
+    const w = window.open('', '_blank');
+    const cached = _permaLinks[coachSlug(m.host_email)];
+    const links = cached || await fetchPermaLinks(m.host_email);
+    const url = (links && links.host) || m.start_url;
+    if (url) { if (w) w.location.href = url; else window.open(url, '_blank'); }
+    else if (w) w.close();
   }));
   list.querySelectorAll('[data-zm-invitees]').forEach(b => b.addEventListener('click', () => {
     const m = upcomingMeetings.find(x => x.id == b.dataset.zmInvitees);
@@ -2655,7 +2690,7 @@ function openInviteesModal(meeting) {
                 <div style="font-size:0.74rem;color:var(--text-dim);">${escapeHtml(r.email||'(no email)')}</div>
               </div>
               <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">${status}
-                ${r.join_url ? `<button data-copy-link="${escapeHtml(r.join_url)}" style="background:transparent;border:1px solid var(--border);color:var(--text-dim);border-radius:6px;padding:3px 8px;font-size:0.7rem;cursor:pointer;">Copy personal link</button>` : ''}
+                ${r.student_id != null ? `<button data-copy-sid="${escapeHtml(String(r.student_id))}" style="background:transparent;border:1px solid var(--border);color:var(--text-dim);border-radius:6px;padding:3px 8px;font-size:0.7rem;cursor:pointer;">Copy personal link</button>` : (r.join_url ? `<button data-copy-link="${escapeHtml(permaBaseLink(meeting))}" style="background:transparent;border:1px solid var(--border);color:var(--text-dim);border-radius:6px;padding:3px 8px;font-size:0.7rem;cursor:pointer;">Copy link</button>` : '')}
               </div>
               ${r.email ? `<button data-remove-reg="${escapeHtml(r.email)}" data-remove-name="${escapeHtml(name)}" title="Un-invite this student (cancels their Zoom registration + stops reminders)" style="background:transparent;border:none;color:#f87171;cursor:pointer;font-size:1.1rem;padding:4px 6px;border-radius:6px;line-height:1;">×</button>` : ''}
             </div>`;
@@ -2674,6 +2709,15 @@ function openInviteesModal(meeting) {
   m.querySelectorAll('[data-copy-link]').forEach(b => b.addEventListener('click', () => {
     navigator.clipboard.writeText(b.dataset.copyLink);
     const orig = b.textContent; b.textContent = 'Copied!'; setTimeout(() => b.textContent = orig, 1200);
+  }));
+  // Per-student "Copy personal link" → the student's permanent /j/ link (fetched + cached, signed for the right coach).
+  m.querySelectorAll('[data-copy-sid]').forEach(b => b.addEventListener('click', async () => {
+    const sid = b.dataset.copySid; const orig = b.textContent; b.textContent = 'Copying…';
+    let links = _permaLinks[coachSlug(meeting.host_email)];
+    if (!links || !links.students || !links.students[sid]) links = await fetchPermaLinks(meeting.host_email, [sid]);
+    const url = links && links.students && links.students[sid];
+    if (url) { navigator.clipboard.writeText(url); b.textContent = 'Copied!'; } else { b.textContent = 'Error'; }
+    setTimeout(() => b.textContent = orig, 1400);
   }));
   document.getElementById('inv-add-btn')?.addEventListener('click', () => { close(); openAddInviteesModal(meeting); });
   document.getElementById('inv-edit-btn')?.addEventListener('click', () => { close(); openEditMeetingModal(meeting.id); });

@@ -92,6 +92,7 @@
   var C = (q.get('c') || '').trim();
   var S = (q.get('s') || '').trim();
   var T = (q.get('t') || '').trim();
+  var H = (q.get('host') || '').trim();
 
   // Private per-link claim nonce (kept in this browser) so the device that first
   // opened the link can rejoin freely, while a shared copy on another device is
@@ -127,7 +128,8 @@
 
   function resolve(){
     if(!C){ showDirectory(); return; }
-    fetch(RESOLVER + '?api=resolve&c=' + encodeURIComponent(C) + '&s=' + encodeURIComponent(S) + '&t=' + encodeURIComponent(T) + '&n=' + encodeURIComponent(getNonce()), { cache:'no-store' })
+    if(H){ document.getElementById('loading').querySelector('h1').textContent = 'Starting your room…'; }
+    fetch(RESOLVER + '?api=resolve&c=' + encodeURIComponent(C) + '&s=' + encodeURIComponent(S) + '&t=' + encodeURIComponent(T) + '&n=' + encodeURIComponent(getNonce()) + (H ? '&host=' + encodeURIComponent(H) : ''), { cache:'no-store' })
       .then(function(r){ return r.json(); })
       .then(function(d){
         if(d.status === 'go' && d.url){ if(d.nonce) setNonce(d.nonce); goTo(d.url); return; }

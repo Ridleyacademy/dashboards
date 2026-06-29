@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v285-coach-invite-done-status';
+const CACHE_NAME = 'ridley-v286-coach-permalinks';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [

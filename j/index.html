@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Joining your class…</title>
+<style>
+  html,body{margin:0;height:100%}
+  body{font-family:-apple-system,BlinkMacSystemFont,Inter,"Segoe UI",Roboto,sans-serif;background:#0b0c14;color:#eaecf8;display:flex;align-items:center;justify-content:center;text-align:center}
+  .box{max-width:440px;padding:32px 24px}
+  img{max-width:170px;width:60%;height:auto;margin:0 auto 22px;display:block}
+  a{color:#7cc4ff}
+  .sp{width:26px;height:26px;border:3px solid rgba(255,255,255,.2);border-top-color:#7cc4ff;border-radius:50%;margin:18px auto 0;animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+</style>
+<script>
+  // Permanent class link. Forwards the (?c=&s=&t=) params to the resolver,
+  // which redirects to the student's CURRENT personal Zoom link. The URL the
+  // student bookmarks/keeps never changes, no matter what happens to the room.
+  (function () {
+    var RESOLVER = "https://pojqljrhhtnigyrtzdzz.supabase.co/functions/v1/zoom-join";
+    var dest = RESOLVER + (window.location.search || "");
+    try { window.location.replace(dest); } catch (e) { window.location.href = dest; }
+  })();
+</script>
+</head>
+<body>
+  <div class="box">
+    <img src="https://cdn.accelonline.io/qyO8Dzdk80CWcn0r5CiEPA/images/eR97N7wyk0aQHAjZbTCuBw.webp" alt="Ridley Academy">
+    <div style="font-size:1.05rem;font-weight:800;">Taking you to your class…</div>
+    <div class="sp"></div>
+    <div style="margin-top:18px;font-size:0.9rem;color:#b9c0e0;">If you’re not redirected, <a id="m" href="https://pojqljrhhtnigyrtzdzz.supabase.co/functions/v1/zoom-join">tap here to join</a>.</div>
+  </div>
+  <script>
+    var m=document.getElementById('m'); if(m) m.href="https://pojqljrhhtnigyrtzdzz.supabase.co/functions/v1/zoom-join"+(window.location.search||"");
+  </script>
+</body>
+</html>

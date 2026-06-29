@@ -2,37 +2,135 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Joining your class…</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Join your Ridley Academy class</title>
 <style>
-  html,body{margin:0;height:100%}
-  body{font-family:-apple-system,BlinkMacSystemFont,Inter,"Segoe UI",Roboto,sans-serif;background:#0b0c14;color:#eaecf8;display:flex;align-items:center;justify-content:center;text-align:center}
-  .box{max-width:440px;padding:32px 24px}
-  img{max-width:170px;width:60%;height:auto;margin:0 auto 22px;display:block}
-  a{color:#7cc4ff}
-  .sp{width:26px;height:26px;border:3px solid rgba(255,255,255,.2);border-top-color:#7cc4ff;border-radius:50%;margin:18px auto 0;animation:spin .8s linear infinite}
-  @keyframes spin{to{transform:rotate(360deg)}}
+  :root{ --red:#DC2626; --red-dark:#B91C1C; --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; --bg:#f1f5f9; }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; height:100%; }
+  body{ font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; background:
+    radial-gradient(1200px 600px at 50% -10%, #fff 0%, var(--bg) 60%); color:var(--ink);
+    display:flex; align-items:center; justify-content:center; padding:24px; }
+  .card{ width:100%; max-width:420px; background:#fff; border:1px solid var(--line); border-radius:18px;
+    box-shadow:0 18px 50px rgba(15,23,42,.10); padding:32px 28px; text-align:center; }
+  .logo{ height:46px; margin:0 auto 18px; display:block; }
+  h1{ font-size:1.25rem; margin:0 0 6px; letter-spacing:-.01em; }
+  p.sub{ color:var(--muted); font-size:.92rem; margin:0 0 22px; line-height:1.5; }
+  .spinner{ width:34px; height:34px; border:3px solid var(--line); border-top-color:var(--red);
+    border-radius:50%; margin:10px auto 4px; animation:spin .8s linear infinite; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  form{ text-align:left; }
+  label{ display:block; font-size:.78rem; font-weight:600; color:var(--ink); margin:14px 0 5px; }
+  .row{ display:flex; gap:10px; }
+  .row > div{ flex:1; }
+  input{ width:100%; padding:11px 12px; border:1px solid var(--line); border-radius:10px; font-size:.95rem;
+    outline:none; transition:border-color .15s, box-shadow .15s; }
+  input:focus{ border-color:var(--red); box-shadow:0 0 0 3px rgba(220,38,38,.12); }
+  button{ width:100%; margin-top:20px; padding:13px; background:var(--red); color:#fff; border:0;
+    border-radius:11px; font-size:1rem; font-weight:600; cursor:pointer; transition:background .15s; }
+  button:hover{ background:var(--red-dark); }
+  button:disabled{ opacity:.6; cursor:default; }
+  .err{ display:none; color:var(--red-dark); font-size:.85rem; margin-top:12px; }
+  .foot{ margin-top:18px; font-size:.74rem; color:var(--muted); }
 </style>
-<script>
-  // Permanent class link. Forwards the (?c=&s=&t=) params to the resolver,
-  // which redirects to the student's CURRENT personal Zoom link. The URL the
-  // student bookmarks/keeps never changes, no matter what happens to the room.
-  (function () {
-    var RESOLVER = "https://pojqljrhhtnigyrtzdzz.supabase.co/functions/v1/zoom-join";
-    var dest = RESOLVER + (window.location.search || "");
-    try { window.location.replace(dest); } catch (e) { window.location.href = dest; }
-  })();
-</script>
 </head>
 <body>
-  <div class="box">
-    <img src="https://cdn.accelonline.io/qyO8Dzdk80CWcn0r5CiEPA/images/eR97N7wyk0aQHAjZbTCuBw.webp" alt="Ridley Academy">
-    <div style="font-size:1.05rem;font-weight:800;">Taking you to your class…</div>
-    <div class="sp"></div>
-    <div style="margin-top:18px;font-size:0.9rem;color:#b9c0e0;">If you’re not redirected, <a id="m" href="https://pojqljrhhtnigyrtzdzz.supabase.co/functions/v1/zoom-join">tap here to join</a>.</div>
+  <div class="card">
+    <img class="logo" src="https://cdn.accelonline.io/qyO8Dzdk80CWcn0r5CiEPA/images/eR97N7wyk0aQHAjZbTCuBw.webp" alt="Ridley Academy" onerror="this.style.display='none'">
+
+    <div id="loading">
+      <div class="spinner"></div>
+      <h1>Connecting you to class…</h1>
+      <p class="sub">One moment while we open your mentorship room.</p>
+    </div>
+
+    <div id="register" style="display:none">
+      <h1 id="reg-title">Join your mentorship class</h1>
+      <p class="sub">Enter your details once and we'll take you straight into the room — and remember you for next time.</p>
+      <form id="reg-form">
+        <div class="row">
+          <div><label for="fn">First name</label><input id="fn" autocomplete="given-name" required></div>
+          <div><label for="ln">Last name</label><input id="ln" autocomplete="family-name"></div>
+        </div>
+        <label for="em">Email</label>
+        <input id="em" type="email" autocomplete="email" inputmode="email" required>
+        <button type="submit" id="go">Enter class</button>
+        <div class="err" id="reg-err"></div>
+      </form>
+    </div>
+
+    <div id="notready" style="display:none">
+      <h1>Your room is being set up</h1>
+      <p class="sub">Your coach's room isn't live just yet. Please use the link in your reminder email a little closer to class time — this same link will work once it's ready.</p>
+    </div>
+
+    <div id="failed" style="display:none">
+      <h1>We couldn't open the room automatically</h1>
+      <p class="sub" id="fail-msg">Please try again in a moment.</p>
+    </div>
+
+    <div class="foot">Ridley Academy · Mentorship</div>
   </div>
-  <script>
-    var m=document.getElementById('m'); if(m) m.href="https://pojqljrhhtnigyrtzdzz.supabase.co/functions/v1/zoom-join"+(window.location.search||"");
-  </script>
+
+<script>
+  var RESOLVER = "https://pojqljrhhtnigyrtzdzz.supabase.co/functions/v1/zoom-join";
+  var q = new URLSearchParams(window.location.search);
+  var C = (q.get('c') || '').trim();
+  var S = (q.get('s') || '').trim();
+  var T = (q.get('t') || '').trim();
+
+  function show(id){ ['loading','register','notready','failed'].forEach(function(x){ document.getElementById(x).style.display = (x===id?'block':'none'); }); }
+  function goTo(url){ document.getElementById('loading').querySelector('h1').textContent = 'Opening Zoom…'; show('loading'); window.location.replace(url); }
+  function fail(msg){ if(msg) document.getElementById('fail-msg').textContent = msg; show('failed'); }
+
+  function resolve(){
+    if(!C){ fail('This link is missing its class code.'); return; }
+    fetch(RESOLVER + '?api=resolve&c=' + encodeURIComponent(C) + '&s=' + encodeURIComponent(S) + '&t=' + encodeURIComponent(T), { cache:'no-store' })
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if(d.status === 'go' && d.url){ goTo(d.url); return; }
+        if(d.status === 'not_ready'){ show('notready'); return; }
+        if(d.status === 'register'){
+          if(d.coachName){ document.getElementById('reg-title').textContent = "Join " + d.coachName + "'s class"; }
+          show('register');
+          setTimeout(function(){ document.getElementById('fn').focus(); }, 60);
+          return;
+        }
+        fail('Something went wrong opening your class.');
+      })
+      .catch(function(){ fail('We could not reach the server. Check your connection and try again.'); });
+  }
+
+  document.getElementById('reg-form').addEventListener('submit', function(e){
+    e.preventDefault();
+    var fn = document.getElementById('fn').value.trim();
+    var ln = document.getElementById('ln').value.trim();
+    var em = document.getElementById('em').value.trim();
+    var errEl = document.getElementById('reg-err');
+    errEl.style.display = 'none';
+    if(!fn || !em){ errEl.textContent = 'Please enter your name and email.'; errEl.style.display = 'block'; return; }
+    var btn = document.getElementById('go');
+    btn.disabled = true; btn.textContent = 'Setting you up…';
+    fetch(RESOLVER + '?api=register', {
+      method:'POST', headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({ c:C, first_name:fn, last_name:ln, email:em })
+    })
+      .then(function(r){ return r.json().then(function(j){ return { ok:r.ok, j:j }; }); })
+      .then(function(res){
+        if(res.ok && res.j.status === 'go' && res.j.url){ goTo(res.j.url); return; }
+        if(res.j && res.j.status === 'not_ready'){ show('notready'); return; }
+        btn.disabled = false; btn.textContent = 'Enter class';
+        errEl.textContent = (res.j && res.j.error) ? res.j.error : 'We could not register you. Please try again.';
+        errEl.style.display = 'block';
+      })
+      .catch(function(){
+        btn.disabled = false; btn.textContent = 'Enter class';
+        errEl.textContent = 'Network error. Please try again.'; errEl.style.display = 'block';
+      });
+  });
+
+  resolve();
+</script>
 </body>
 </html>

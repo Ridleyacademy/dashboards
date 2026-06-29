@@ -50,6 +50,9 @@
       <div class="spinner"></div>
       <h1>Connecting you to class…</h1>
       <p class="sub">One moment while we open your mentorship room.</p>
+      <div id="manual-wrap" style="display:none;margin-top:14px;font-size:.85rem;">
+        Taking too long? <a id="manual-link" style="color:var(--red);font-weight:600;text-decoration:none;">Tap here to join &rsaquo;</a>
+      </div>
     </div>
 
     <div id="register" style="display:none">
@@ -129,6 +132,15 @@
   function resolve(){
     if(!C){ showDirectory(); return; }
     if(H){ document.getElementById('loading').querySelector('h1').textContent = 'Starting your room…'; }
+    // Robustness: the bare resolver URL does the redirect SERVER-SIDE (302), bypassing this
+    // page's fetch and any service worker. If the client resolve is slow/blocked (e.g. a stale
+    // SW in some browsers), reveal a manual link so the user is never stuck on the spinner.
+    var ml = document.getElementById('manual-link');
+    if(ml){ ml.href = RESOLVER + (window.location.search || ''); }
+    setTimeout(function(){
+      var mw = document.getElementById('manual-wrap');
+      if(mw && getComputedStyle(document.getElementById('loading')).display !== 'none') mw.style.display = 'block';
+    }, 3500);
     fetch(RESOLVER + '?api=resolve&c=' + encodeURIComponent(C) + '&s=' + encodeURIComponent(S) + '&t=' + encodeURIComponent(T) + '&n=' + encodeURIComponent(getNonce()) + (H ? '&host=' + encodeURIComponent(H) : ''), { cache:'no-store' })
       .then(function(r){ return r.json(); })
       .then(function(d){

@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v289-invitee-count-fix';
+const CACHE_NAME = 'ridley-v290-j-page-passthrough';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [
@@ -187,6 +187,10 @@ self.addEventListener('fetch', (event) => {
 
   // Never cache live Supabase / edge function calls.
   if (isApiRequest(url)) return;
+
+  // Never intercept the student class-link page (/j/) — it must always be fresh and resolve
+  // without the SW in the path (a stale SW was hanging the redirect in some browsers).
+  if (url.origin === location.origin && url.pathname.startsWith('/j/')) return;
 
   // HTML — network first with short timeout, fall back to cache offline.
   if (isHTML(request)) {

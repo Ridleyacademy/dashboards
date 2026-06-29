@@ -13,6 +13,19 @@ the structural map lives in the knowledge graph (`/graphify`). Format:
 
 ---
 
+## 2026-06-29 — Zoom-op audit + shared-room safety (zoom-meetings v51 + coach UI)
+**Audit of every Zoom op under the shared-room model, with fixes for the ones that misbehaved:**
+- **create** ✓ (v50) — attaches class to room, local occurrences, no Zoom touch but registration.
+- **add-students** ✓ — registers to room (room-wide roster), invites next occurrence. (Sends email — gated only by the scheduler pause; manual add still emails.)
+- **reschedule** ✓ (v50) — shared room → moves OUR occurrence only, no Zoom PATCH.
+- **update** — FIXED v51: NEVER PATCHes the room's time/recurrence (per-class + local; re-expands occurrences). Advanced **settings** now DO apply to the room (were silently skipped on shared rooms in v50) and are ROOM-LEVEL → affect ALL the coach's classes. UI shows an amber warning + the edit note clarifies topic/date/time are this-class-only.
+- **cancel** ✓ (v48 guard) — shared room → cancels just this row, never deletes the Zoom room. UI button relabeled **"Cancel this class"**.
+- **cancel-occurrence** ✓ (v50) — shared room → marks OUR occurrence cancelled, Zoom series untouched.
+- **remove-student** — FIXED v51: a Zoom registration is room-wide; un-inviting from one class no longer cancels the student's registration for the coach's OTHER classes (only cancels on the room's last scheduled class). Returns `room_registration_kept`.
+- **sync-occurrences** — FIXED v51: REFUSES on shared rooms (would overwrite the local class schedule with the keep-alive recurrence). UI **"Sync from Zoom" button removed**.
+- create-modal **Advanced settings**: now noted as belonging to the permanent room (only used on first room creation; use Edit→Advanced to change a live room).
+**Touched:** zoom-meetings v51 (deployed ACTIVE, sha 08b73a3f…), coach.js (Cancel-this-class label, advanced room-level warnings, removed Sync button, edit-note reworded), sw v287. Email sends from these ops remain gated by the paused scheduler / the user's go-ahead.
+
 ## 2026-06-29 — Dashboard buttons use the permanent /j/ links (+ host links)
 **What:** Coach dashboard no longer surfaces raw Zoom URLs. zoom-join v6 adds HOST links (`/j/?c=&host=<hostToken>`, hostToken = HMAC(`host:${c}`) → resolver returns the room's `start_url`, no claim) and an authenticated `?api=links` endpoint (POST, coach/admin JWT → `{base, host, students:{id:link}}`, tokens signed server-side). coach.js: **Open Zoom** + **Copy link** (meeting cards + next-session card) now use `permaBaseLink(m)` = `ridleyacademy.team/j/?c=<slug>` (slug = host_email local-part, no token needed). **Start as host** opens the host link (fetched via `?api=links`, synchronous `window.open('')` first to dodge popup blockers; falls back to raw start_url). Invitees popup **Copy personal link** now copies that student's `/j/?c=&s=&t=` link (per-student token from `?api=links`, cached per coach); registrants without a student_id fall back to the base link. sw.js cache bumped v285→v286.
 **Why:** The /j/ links are the only thing that should ever be shared/opened now; raw Zoom URLs break when a room is rebuilt.

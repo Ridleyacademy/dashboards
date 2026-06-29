@@ -2549,7 +2549,7 @@ function openInviteesModal(meeting) {
           <div style="font-size:0.82rem;font-weight:600;color:var(--text);">Recurring schedule</div>
           <div style="font-size:0.72rem;color:var(--text-dim);">${futureOccs.length} upcoming · auto-sends 4 days before each class</div>
         </div>
-        <button id="inv-sync-occ-btn" class="btn-ghost" style="padding:5px 10px;font-size:0.72rem;" title="Re-fetch occurrence list from Zoom (in case the host rescheduled).">↻ Sync from Zoom</button>
+<!-- "Sync from Zoom" removed: class dates are managed here, not synced from the shared room (syncing would overwrite the real schedule). -->
       </div>
       <div style="max-height:240px;overflow-y:auto;">
         ${futureOccs.slice(0, 20).map((occ, i) => {
@@ -2699,7 +2699,7 @@ function openInviteesModal(meeting) {
         ${occurrencesPane}
       </div>
       <div class="modal-foot">
-        ${isSystemMeeting ? `<button id="inv-cancel-btn" class="btn-ghost" style="color:#f87171;border-color:rgba(248,113,113,0.4);">Cancel meeting</button>` : ''}
+        ${isSystemMeeting ? `<button id="inv-cancel-btn" class="btn-ghost" style="color:#f87171;border-color:rgba(248,113,113,0.4);" title="Cancels just this class. The coach's room + other classes are unaffected.">Cancel this class</button>` : ''}
         <button class="btn-ghost" data-x style="margin-left:auto;">Close</button>
       </div>
     </div>`;
@@ -3061,6 +3061,7 @@ async function openScheduleZoomModal(prefilledIds) {
             <span>Advanced Zoom settings</span>
             <span class="sz-adv-hint">click to expand</span>
           </summary>
+          <div style="margin:8px 0;padding:8px 10px;background:rgba(251,191,36,0.12);border:1px solid rgba(251,191,36,0.4);border-radius:8px;font-size:0.74rem;color:#b45309;">⚠ These belong to the coach's <strong>permanent room</strong>, which already exists — settings chosen here only take effect the first time a coach's room is created. To change a live coach's room settings, use <strong>Edit → Advanced</strong> on a class (it applies room-wide).</div>
           <div class="sz-adv-body">
             <div class="sz-adv-toggles">
               <label class="sz-adv-toggle"><input type="checkbox" id="sz-waiting" checked><span>Waiting room</span></label>
@@ -3441,6 +3442,7 @@ function openEditMeetingModal(idOrMeeting) {
         </div>
         <details id="ed-advanced" style="border:1px solid var(--border);border-radius:8px;padding:8px 10px;">
           <summary style="cursor:pointer;font-size:0.84rem;font-weight:600;">Advanced settings <span id="ed-adv-hint" style="color:var(--text-dim);font-weight:400;font-size:0.74rem;">(loading current settings…)</span></summary>
+          <div style="margin-top:8px;padding:8px 10px;background:rgba(251,191,36,0.12);border:1px solid rgba(251,191,36,0.4);border-radius:8px;font-size:0.74rem;color:#b45309;">⚠ These are <strong>room-level</strong> settings — saving them changes Zoom settings for <strong>every class this coach runs</strong>, not just this one.</div>
           <div style="display:flex;flex-direction:column;gap:6px;margin-top:10px;font-size:0.82rem;">
             <label><input type="checkbox" id="ed-waiting" checked> Waiting room</label>
             <label><input type="checkbox" id="ed-jbh"> Allow join before host</label>
@@ -3458,7 +3460,7 @@ function openEditMeetingModal(idOrMeeting) {
           </div>
         </details>
         <div style="font-size:0.74rem;color:var(--text-dim);">
-          Material changes (topic / time / duration / recurrence) send a single "meeting updated" email + fresh calendar attachment to existing invitees.
+          Topic / date / time / recurrence changes apply to <strong>this class only</strong> (the coach's permanent room is never moved) and send a single "updated" email + fresh calendar attachment to its invitees. Advanced settings are room-level (see warning above).
         </div>
         <div id="ed-result-wrap"></div>
       </div>

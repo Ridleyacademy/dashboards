@@ -2629,6 +2629,7 @@ function openInviteesModal(meeting) {
               ${pill(occ.reminder_24h_sent_at,  '24h',    'reminder_24h')}
               ${pill(occ.reminder_1h_sent_at,   '1h',     'reminder_1h')}
               ${pill(occ.reminder_live_sent_at, 'live',   'reminder_live')}
+              <button data-edit-occ="${escapeHtml(occId)}" data-edit-start="${escapeHtml(occ.start_time||'')}" data-edit-dur="${occ.duration_minutes||meeting.scheduled_duration_minutes||60}" title="Move just this date/time — invitees get an 'updated' email and the reminders shift to the new time (any that no longer make sense are skipped). The rest of the recurring schedule is untouched." style="margin-left:6px;background:transparent;border:1px solid var(--border);color:var(--text-dim);cursor:pointer;font-size:0.66rem;font-weight:700;padding:3px 8px;border-radius:5px;line-height:1;white-space:nowrap;">Edit date</button>
               <button data-cancel-occ="${escapeHtml(occId)}" data-cancel-start="${escapeHtml(occ.start_time||'')}" title="Cancel just this date — invitees get a cancellation email; the rest of the recurring schedule is untouched." style="margin-left:6px;background:transparent;border:1px solid rgba(248,113,113,0.4);color:#f87171;cursor:pointer;font-size:0.66rem;font-weight:700;padding:3px 8px;border-radius:5px;line-height:1;white-space:nowrap;">Cancel date</button>
             </div>`}
           </div>`;
@@ -2816,6 +2817,60 @@ function openInviteesModal(meeting) {
       btn.disabled = false; btn.textContent = orig;
       alert('Cancel failed: ' + (e2.message || e2));
     }
+  }));
+  // Edit a SINGLE occurrence's date/time (one date of a recurring meeting). Moves just that
+  // session, emails its invitees the new time, and the scheduler re-shifts/skips its reminders.
+  m.querySelectorAll('[data-edit-occ]').forEach(b => b.addEventListener('click', () => {
+    const occId = b.dataset.editOcc || '';
+    const occStart = b.dataset.editStart || '';
+    const occDur = parseInt(b.dataset.editDur, 10) || 60;
+    // Prefill the picker with the occurrence's current time, in US Eastern wall-clock.
+    const pre = (function(){ const d = new Date(occStart); if (isNaN(d.getTime())) return '';
+      const p = new Intl.DateTimeFormat('en-US', { timeZone: MEETING_TZ, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hour12:false }).formatToParts(d);
+      const mm = {}; for (const x of p) if (x.type !== 'literal') mm[x.type] = x.value; if (mm.hour === '24') mm.hour = '00';
+      return `${mm.year}-${mm.month}-${mm.day}T${mm.hour}:${mm.minute}`; })();
+    const em = document.createElement('div'); em.className = 'modal-bg'; em.style.zIndex = '10001';
+    em.innerHTML = `<div class="modal-card" style="max-width:430px;">
+      <div class="modal-head"><h2>Edit this date</h2><button class="close" data-x>×</button></div>
+      <div class="modal-body" style="display:block;">
+        <p style="font-size:0.82rem;color:var(--text-dim);margin:0 0 14px;line-height:1.45;">Move just this one session to a new date/time. Invitees for this date get an "updated" email with their same permanent link, and the reminders shift to the new time (any that no longer make sense, like a 24-hour reminder for a class that's now sooner, are skipped). The rest of the recurring schedule is untouched.</p>
+        <label style="display:block;font-size:0.72rem;font-weight:700;color:var(--text-dim);margin-bottom:4px;">New start (US Eastern)</label>
+        <input id="eo-start" type="datetime-local" value="${pre}" style="width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:7px;background:var(--bg);color:var(--text);font-size:0.9rem;margin-bottom:12px;">
+        <label style="display:block;font-size:0.72rem;font-weight:700;color:var(--text-dim);margin-bottom:4px;">Duration (minutes)</label>
+        <input id="eo-dur" type="number" min="15" step="15" value="${occDur}" style="width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:7px;background:var(--bg);color:var(--text);font-size:0.9rem;">
+        <div id="eo-result" style="margin-top:12px;font-size:0.82rem;"></div>
+      </div>
+      <div class="modal-foot" style="display:flex;gap:8px;justify-content:flex-end;padding:14px 20px;border-top:1px solid var(--border);">
+        <button class="btn-ghost" data-x style="padding:8px 14px;border-radius:7px;border:1px solid var(--border);background:transparent;color:var(--text);cursor:pointer;font-weight:600;">Cancel</button>
+        <button id="eo-save" style="padding:8px 16px;border-radius:7px;border:0;background:var(--accent,#DC2626);color:#fff;cursor:pointer;font-weight:700;">Save new date</button>
+      </div></div>`;
+    document.body.appendChild(em);
+    const closeEm = () => em.remove();
+    em.addEventListener('click', ev => { if (ev.target === em || ev.target.closest('[data-x]')) closeEm(); });
+    em.querySelector('#eo-save').addEventListener('click', async () => {
+      const sb = em.querySelector('#eo-save'); const wrap = em.querySelector('#eo-result');
+      const localStart = em.querySelector('#eo-start').value;
+      const dur = parseInt(em.querySelector('#eo-dur').value, 10);
+      if (!localStart || !dur) { wrap.innerHTML = '<span style="color:#f87171;">Pick a date/time and duration.</span>'; return; }
+      const newIso = _meetingLocalToUTC(localStart);
+      if (!newIso) { wrap.innerHTML = '<span style="color:#f87171;">That date/time looks invalid.</span>'; return; }
+      sb.disabled = true; sb.textContent = 'Saving…'; wrap.innerHTML = '';
+      try {
+        const base = (typeof meeting.id === 'string' && meeting.id.startsWith('zoom-'))
+          ? { zoom_meeting_id: meeting.id.slice(5) }
+          : { id: Number(meeting.id) };
+        const body = { ...base, ...(occId ? { occurrence_id: occId } : {}), ...(occStart ? { start_time: occStart } : {}), new_start_time: newIso, new_duration: dur };
+        const j = await _zoomFetch('reschedule-occurrence', { method: 'POST', body });
+        wrap.innerHTML = `<span style="color:#34d399;">✓ Moved · ${j.notified || 0} notified · reminders updated.</span>`;
+        await loadUpcomingMeetings();
+        const refreshed = (upcomingMeetings || []).find(x => String(x.id) === String(meeting.id));
+        setTimeout(() => { closeEm(); close(); if (refreshed) openInviteesModal(refreshed); }, 1200);
+      } catch (e2) {
+        sb.disabled = false; sb.textContent = 'Save new date';
+        wrap.innerHTML = `<span style="color:#f87171;">Failed: ${escapeHtml(e2.message || String(e2))}</span>`;
+      }
+    });
+    setTimeout(() => { em.querySelector('#eo-start')?.focus(); }, 60);
   }));
   document.getElementById('inv-cancel-btn')?.addEventListener('click', async () => {
     if (!confirm(`Cancel "${meeting.topic || 'this meeting'}"? Registered students will be notified.`)) return;

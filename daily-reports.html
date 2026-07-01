@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg?v=303">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=303">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=303">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Daily Reports</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="permissions.js"></script>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#000000">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Ridleyacademy">
+<link rel="stylesheet" href="mobile.css">
+<style>
+  :root {
+    --bg: #080a14; --surface: #0f1120; --surface2: #141728; --surface3: #191e30;
+    --border: #1f2438; --border-light: #272d45;
+    --text: #eaecf8; --text-muted: #7880a8; --text-dim: #3e4668;
+    --blue: #6b9eff; --blue-glow: rgba(107,158,255,0.3); --blue-bg: rgba(107,158,255,0.1);
+    --green: #34d399; --green-bg: rgba(52,211,153,0.1);
+    --purple: #a78bfa; --purple-bg: rgba(167,139,250,0.1);
+    --red: #f87171; --red-bg: rgba(248,113,113,0.1);
+    --gold: #fbbf24; --gold-bg: rgba(251,191,36,0.1);
+  }
+  body.light {
+    --bg: #f0f2fa; --surface: #ffffff; --surface2: #f5f6fc; --surface3: #eceef8;
+    --border: #dde1f2; --border-light: #ccd1e8;
+    --text: #0f1220; --text-muted: #525b82; --text-dim: #9099be;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+    background: var(--bg); color: var(--text); min-height: 100vh; -webkit-font-smoothing: antialiased; }
+  body::before { content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
+    background: radial-gradient(ellipse at 15% 15%, rgba(107,158,255,0.07) 0%, transparent 55%),
+                radial-gradient(ellipse at 85% 85%, rgba(167,139,250,0.05) 0%, transparent 55%); }
+  .full-center { min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; position:relative; z-index:1; }
+  body[data-state="loading"] #app, body[data-state="loading"] #login, body[data-state="loading"] #denied, body[data-state="loading"] #forgot, body[data-state="loading"] #setPw { display:none; }
+  body[data-state="login"]   #app, body[data-state="login"]   #boot,  body[data-state="login"]   #denied, body[data-state="login"]   #forgot, body[data-state="login"]   #setPw { display:none; }
+  body[data-state="denied"]  #app, body[data-state="denied"]  #boot,  body[data-state="denied"]  #login,  body[data-state="denied"]  #forgot, body[data-state="denied"]  #setPw { display:none; }
+  body[data-state="app"]     #boot,body[data-state="app"]     #login, body[data-state="app"]     #denied, body[data-state="app"]     #forgot, body[data-state="app"]     #setPw { display:none; }
+  body[data-state="forgot"]  #app, body[data-state="forgot"]  #boot,  body[data-state="forgot"]  #login,  body[data-state="forgot"]  #denied, body[data-state="forgot"]  #setPw { display:none; }
+  body[data-state="setPw"]   #app, body[data-state="setPw"]   #boot,  body[data-state="setPw"]   #login,  body[data-state="setPw"]   #denied, body[data-state="setPw"]   #forgot { display:none; }
+  .spinner { width:40px; height:40px; border:3px solid var(--border); border-top-color:var(--blue); border-radius:50%; animation:spin .7s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .login-wrap { width:100%; max-width:420px; }
+  .login-logo { width:56px; height:56px; border-radius:16px; margin:0 auto 24px; background:linear-gradient(135deg,#34d399,#6b9eff); display:flex; align-items:center; justify-content:center; box-shadow:0 8px 32px rgba(52,211,153,0.4); }
+  .login-card { background:var(--surface); border:1px solid var(--border); border-radius:24px; padding:40px 36px; box-shadow:0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.03) inset; }
+  .login-card h1 { font-size:1.5rem; font-weight:800; letter-spacing:-0.03em; text-align:center; margin-bottom:4px; }
+  .login-card .sub { color:var(--text-muted); font-size:0.84rem; text-align:center; margin-bottom:28px; }
+  .input-group { margin-bottom:12px; }
+  .input-label { font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-muted); margin-bottom:6px; display:block; }
+  .auth-input { width:100%; background:var(--surface2); border:1px solid var(--border); border-radius:12px; padding:13px 16px; color:var(--text); font-size:0.92rem; outline:none; transition:border-color 0.15s,box-shadow 0.15s; }
+  .auth-input:focus { border-color:var(--blue); box-shadow:0 0 0 3px var(--blue-bg); }
+  .auth-btn { width:100%; margin-top:8px; background:linear-gradient(135deg,#6b9eff,#4a7de0); border:none; border-radius:12px; padding:14px; color:#fff; font-size:0.92rem; font-weight:700; cursor:pointer; transition:transform 0.12s,box-shadow 0.12s; box-shadow:0 4px 16px rgba(107,158,255,0.35); }
+  .auth-btn:hover { transform:translateY(-1px); }
+  .auth-btn:disabled { opacity:0.6; cursor:not-allowed; transform:none; }
+  .auth-error { color:var(--red); font-size:0.78rem; margin-top:10px; min-height:1em; text-align:center; }
+  .topbar { position:sticky; top:0; z-index:100; background:rgba(8,10,20,0.85); backdrop-filter:blur(16px); border-bottom:1px solid var(--border); padding:0 24px; height:56px; display:flex; align-items:center; gap:10px; }
+  body.light .topbar { background:rgba(255,255,255,0.85); }
+  .topbar-brand { font-size:0.82rem; font-weight:800; letter-spacing:-0.01em; color:var(--text); margin-right:4px; }
+  .tbtn { border:none; border-radius:8px; padding:6px 12px; font-size:0.74rem; font-weight:600; cursor:pointer; transition:all 0.15s; display:inline-flex; align-items:center; gap:5px; }
+  .tbtn-ghost { background:var(--surface2); color:var(--text-muted); border:1px solid var(--border); }
+  .tbtn-ghost:hover { color:var(--text); border-color:var(--border-light); }
+  .user-pill { display:flex; align-items:center; gap:7px; background:var(--surface2); border:1px solid var(--border); border-radius:20px; padding:4px 12px 4px 4px; margin-left:auto; }
+  .user-pill-av { width:26px; height:26px; border-radius:50%; background:linear-gradient(135deg,#34d399,#6b9eff); display:flex; align-items:center; justify-content:center; font-size:0.72rem; font-weight:800; color:#fff; }
+  .user-pill-email { font-size:0.72rem; color:var(--text-muted); max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .nav-dropdown { position:relative; }
+  .nav-dropdown-menu { display:none; position:absolute; top:calc(100% + 8px); left:0; background:var(--surface); border:1px solid var(--border-light); border-radius:12px; padding:6px; min-width:180px; z-index:200; box-shadow:0 8px 32px rgba(0,0,0,0.5); }
+  .nav-dropdown-menu.open { display:block; }
+  .nav-dropdown-item { display:block; padding:8px 12px; border-radius:8px; font-size:0.78rem; color:var(--text-muted); text-decoration:none; transition:background 0.12s,color 0.12s; white-space:nowrap; }
+  .nav-dropdown-item:hover { background:var(--surface2); color:var(--text); }
+  .nav-dropdown-item.active { color:var(--green); }
+  #app { position:relative; z-index:1; }
+  .main { max-width:1100px; margin:0 auto; padding:28px 24px 60px; }
+  .dr-tabs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:22px; border-bottom:1px solid var(--border); padding-bottom:0; }
+  .dr-tab { background:none; border:none; border-bottom:2px solid transparent; padding:10px 14px; font-size:0.82rem; font-weight:700; color:var(--text-muted); cursor:pointer; transition:all 0.12s; font-family:inherit; }
+  .dr-tab:hover { color:var(--text); }
+  .dr-tab.active { color:var(--green); border-bottom-color:var(--green); }
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:22px 24px; margin-bottom:16px; }
+  .card h2 { font-size:1rem; font-weight:800; letter-spacing:-0.02em; margin-bottom:4px; }
+  .card .card-sub { font-size:0.8rem; color:var(--text-muted); margin-bottom:18px; }
+  .q-block { margin-bottom:18px; }
+  .q-label { font-size:0.84rem; font-weight:700; color:var(--text); margin-bottom:7px; display:block; }
+  .q-input { width:100%; background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:11px 13px; color:var(--text); font-size:0.9rem; outline:none; resize:vertical; min-height:70px; font-family:inherit; transition:border-color 0.15s,box-shadow 0.15s; }
+  .q-input:focus { border-color:var(--blue); box-shadow:0 0 0 3px var(--blue-bg); }
+  .btn-primary { background:linear-gradient(135deg,#34d399,#22b07d); color:#fff; border:none; border-radius:10px; padding:11px 22px; font-size:0.88rem; font-weight:700; cursor:pointer; box-shadow:0 4px 14px rgba(52,211,153,0.3); transition:transform 0.1s; }
+  .btn-primary:hover { transform:translateY(-1px); }
+  .btn-primary:disabled { opacity:0.55; cursor:not-allowed; transform:none; }
+  .btn-ghost { background:var(--surface2); color:var(--text-muted); border:1px solid var(--border); border-radius:10px; padding:9px 16px; font-size:0.82rem; font-weight:600; cursor:pointer; }
+  .btn-ghost:hover { color:var(--text); border-color:var(--border-light); }
+  .dr-row { display:flex; align-items:center; gap:12px; padding:13px 16px; border:1px solid var(--border); border-radius:12px; margin-bottom:8px; background:var(--surface); cursor:pointer; transition:border-color 0.12s,background 0.12s; }
+  .dr-row:hover { border-color:var(--border-light); background:var(--surface2); }
+  .dr-row .dr-date { font-weight:700; font-size:0.84rem; min-width:130px; }
+  .dr-row .dr-who { font-size:0.82rem; color:var(--text); min-width:130px; }
+  .dr-row .dr-snip { flex:1; font-size:0.78rem; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pill { display:inline-flex; align-items:center; gap:4px; padding:2px 9px; border-radius:20px; font-size:0.68rem; font-weight:700; }
+  .pill-green { background:var(--green-bg); color:var(--green); }
+  .pill-gold { background:var(--gold-bg); color:var(--gold); }
+  .pill-dim { background:var(--surface3); color:var(--text-dim); }
+  .empty-state { text-align:center; color:var(--text-dim); font-size:0.82rem; padding:40px 20px; }
+  .wk-days { display:flex; gap:5px; flex-wrap:wrap; }
+  .wk-day { padding:6px 10px; border:1px solid var(--border); border-radius:8px; font-size:0.74rem; font-weight:700; color:var(--text-muted); cursor:pointer; user-select:none; background:var(--surface2); }
+  .wk-day.on { background:var(--green-bg); color:var(--green); border-color:var(--green); }
+  .modal-overlay { display:none; position:fixed; inset:0; z-index:1000; background:rgba(0,0,0,0.65); backdrop-filter:blur(4px); align-items:center; justify-content:center; padding:24px; }
+  .modal-overlay.open { display:flex; }
+  .modal-card { background:var(--surface); border:1px solid var(--border-light); border-radius:20px; padding:26px 24px; width:100%; max-width:620px; box-shadow:0 32px 80px rgba(0,0,0,0.7); max-height:90vh; overflow-y:auto; }
+  .modal-title { font-size:1rem; font-weight:800; letter-spacing:-0.02em; margin-bottom:4px; }
+  .modal-sub { font-size:0.78rem; color:var(--text-muted); margin-bottom:16px; }
+  .qa-block { margin-bottom:14px; }
+  .qa-q { font-size:0.78rem; font-weight:700; color:var(--text-muted); margin-bottom:3px; }
+  .qa-a { font-size:0.88rem; color:var(--text); white-space:pre-wrap; word-break:break-word; line-height:1.45; }
+  .thread { border:1px solid var(--border); border-radius:12px; background:var(--surface2); padding:12px 14px; margin:14px 0; max-height:260px; overflow-y:auto; }
+  .msg { padding:9px 0; border-bottom:1px solid var(--border); }
+  .msg:last-child { border-bottom:none; }
+  .msg-head { font-size:0.7rem; color:var(--text-dim); margin-bottom:3px; }
+  .msg-body { font-size:0.86rem; color:var(--text); white-space:pre-wrap; word-break:break-word; line-height:1.4; }
+  .msg.admin .msg-head { color:var(--purple); }
+  .sec-line { height:1px; background:var(--border); margin:8px 0 18px; }
+</style>
+</head>
+<body data-state="loading">
+
+<div id="boot" class="full-center">
+  <div style="text-align:center;"><div class="spinner" style="margin:0 auto 16px;"></div><div style="color:var(--text-muted);font-size:0.84rem;">Loading…</div></div>
+</div>
+
+<div id="login" class="full-center">
+  <div class="login-wrap">
+    <div class="login-logo"><svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
+    <div class="login-card">
+      <h1>Daily Reports</h1>
+      <p class="sub">Sign in to submit and review daily reports</p>
+      <form id="loginForm">
+        <div class="input-group"><label class="input-label">Email address</label><input class="auth-input" type="email" id="loginEmail" placeholder="you@company.com" required autocomplete="email"></div>
+        <div class="input-group"><label class="input-label">Password</label><input class="auth-input" type="password" id="loginPassword" placeholder="••••••••" required autocomplete="current-password"></div>
+        <button type="submit" class="auth-btn" id="loginBtn">Sign In</button>
+        <div class="auth-error" id="loginError"></div>
+        <div style="text-align:center;margin-top:14px;"><a href="#" id="forgotLink" style="color:var(--blue);font-size:0.78rem;text-decoration:none;">Forgot password?</a></div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div id="forgot" class="full-center">
+  <div class="login-wrap"><div class="login-card">
+    <h1>Reset password</h1><p class="sub">Enter your email — we'll send you a reset link.</p>
+    <form id="forgotForm">
+      <div class="input-group"><label class="input-label">Email address</label><input class="auth-input" type="email" id="forgotEmail" placeholder="you@company.com" required autocomplete="email"></div>
+      <button type="submit" class="auth-btn" id="forgotBtn">Send reset link</button>
+      <div class="auth-error" id="forgotError"></div>
+      <div id="forgotSuccess" style="color:var(--green);font-size:0.78rem;margin-top:10px;text-align:center;display:none;"></div>
+      <div style="text-align:center;margin-top:14px;"><a href="#" id="backToLoginLink" style="color:var(--text-muted);font-size:0.78rem;text-decoration:none;">← Back to sign in</a></div>
+    </form>
+  </div></div>
+</div>
+
+<div id="setPw" class="full-center">
+  <div class="login-wrap"><div class="login-card">
+    <h1>Choose a new password</h1><p class="sub">Pick a strong password to secure your account.</p>
+    <form id="setPwForm">
+      <div class="input-group"><label class="input-label">New password</label><input class="auth-input" type="password" id="newPw" placeholder="Min 8 characters" required autocomplete="new-password"></div>
+      <div class="input-group"><label class="input-label">Confirm password</label><input class="auth-input" type="password" id="newPw2" placeholder="Confirm password" required autocomplete="new-password"></div>
+      <button type="submit" class="auth-btn" id="setPwBtn">Update password</button>
+      <div class="auth-error" id="setPwError"></div>
+    </form>
+  </div></div>
+</div>
+
+<div id="denied" class="full-center">
+  <div class="login-wrap">
+    <div class="login-logo" style="background:linear-gradient(135deg,#f87171,#ef4444);box-shadow:0 8px 32px rgba(248,113,113,0.4);"><svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+    <div class="login-card" style="text-align:center;"><h1 style="color:var(--red);">Access Denied</h1><p class="sub" style="margin-bottom:20px;">Your account doesn't have access to Daily Reports.</p><button class="auth-btn" id="deniedSignOutBtn">Sign Out</button></div>
+  </div>
+</div>
+
+<div id="app">
+  <header class="topbar">
+    <div class="topbar-logo" style="width:32px;height:32px;border-radius:9px;flex-shrink:0;background:linear-gradient(135deg,#34d399,#6b9eff);display:flex;align-items:center;justify-content:center;box-shadow:0 0 14px rgba(52,211,153,0.35);"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
+    <span class="topbar-brand">Daily Reports</span>
+    <div class="topbar-spacer" style="flex:1;"></div>
+    <button class="tbtn tbtn-ghost" id="refreshBtn" title="Refresh"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> Refresh</button>
+    <button class="tbtn tbtn-ghost" id="themeBtn" style="font-size:1rem;padding:5px 10px;" title="Toggle theme"></button>
+    <div class="nav-dropdown" id="navDropdown">
+      <button class="tbtn tbtn-ghost" id="navDropdownBtn">Dashboards <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+      <div class="nav-dropdown-menu" id="navDropdownMenu">
+        <a class="nav-dropdown-item" href="home.html">🏠 Home</a>
+        <a class="nav-dropdown-item active" href="daily-reports.html">📝 Daily Reports</a>
+      </div>
+    </div>
+    <div class="user-pill"><div class="user-pill-av" id="userAvatar">U</div><span class="user-pill-email" id="userEmail"></span></div>
+    <button class="tbtn tbtn-ghost" id="signOutBtn"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg> Sign Out</button>
+  </header>
+
+  <div class="main">
+    <div class="dr-tabs" id="drTabs"></div>
+    <div id="drContent"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="threadModal">
+  <div class="modal-card" id="threadCard"></div>
+</div>
+
+<script>
+const SUPABASE_URL      = 'https://pojqljrhhtnigyrtzdzz.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBvanFsanJoaHRuaWd5cnR6ZHp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTA3ODMsImV4cCI6MjA5MTM4Njc4M30.PcSBDqOzbiZxZ7IAs5efqx0gsAlAG0cj3GqUOkAmxos';
+const REPORTS_BASE      = SUPABASE_URL + '/functions/v1/daily-reports';
+const supa = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: true, detectSessionInUrl: true, autoRefreshToken: true } });
+
+const WEEKDAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+let currentSession = null;
+let boot = null;         // bootstrap payload
+let activeTab = null;
+let assignEditWeekdays = new Set();
+
+function setState(s){ document.body.dataset.state = s; }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function fmtDate(d){ if(!d) return ''; const dt = new Date(String(d).length===10 ? d+'T12:00:00Z' : d); return dt.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'}); }
+function fmtTs(t){ if(!t) return ''; return new Date(t).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}); }
+
+async function drFetch(path, opts={}) {
+  const { data:{session} } = await supa.auth.getSession();
+  const r = await fetch(REPORTS_BASE + path, { ...opts, headers: { 'Content-Type':'application/json', Authorization:'Bearer '+(session?.access_token||''), ...(opts.headers||{}) } });
+  const j = await r.json().catch(()=>({}));
+  if (!r.ok) throw new Error(j.error || ('HTTP '+r.status));
+  return j;
+}
+
+// ── Auth ──
+const _hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+const _queryParams = new URLSearchParams(window.location.search);
+function _authType(){ return _hashParams.get('type') || _queryParams.get('type') || ''; }
+const isInviteLink = _authType()==='invite'||_authType()==='signup';
+const isRecoveryLink = _authType()==='recovery';
+
+async function initAuth() {
+  if (isInviteLink || isRecoveryLink) {
+    setState('setPw');
+    supa.auth.onAuthStateChange((_e,sess)=>{ if(document.body.dataset.state==='setPw')return; if(sess)onAuthed(sess); else setState('login'); });
+    setTimeout(()=>{ if(document.body.dataset.state==='loading')setState('login'); },12000); return;
+  }
+  const timeout = setTimeout(()=>setState('login'),8000);
+  try {
+    const { data:{session}, error } = await supa.auth.getSession();
+    clearTimeout(timeout); if(error)throw error;
+    if(session){ await onAuthed(session); return; } setState('login');
+  } catch(e){ clearTimeout(timeout); setState('login'); }
+  supa.auth.onAuthStateChange(async (_e,sess)=>{ if(sess)await onAuthed(sess); else setState('login'); });
+}
+
+async function onAuthed(session) {
+  currentSession = session;
+  if (!window.RidleyPerms.canOpen('daily-reports.html', session.user)) { setState('denied'); return; }
+  const em = session.user.email || '';
+  document.getElementById('userEmail').textContent = em;
+  document.getElementById('userAvatar').textContent = (em[0]||'U').toUpperCase();
+  setState('app');
+  try { await loadBootstrap(); } catch(e){ document.getElementById('drContent').innerHTML = `<div class="empty-state">${esc(e.message)}</div>`; }
+  const rep = _queryParams.get('report');
+  if (rep) openThread(Number(rep));
+}
+
+document.getElementById('loginForm').addEventListener('submit', async (e)=>{
+  e.preventDefault(); const btn=document.getElementById('loginBtn'); const err=document.getElementById('loginError');
+  err.textContent=''; btn.disabled=true; btn.textContent='Signing in…';
+  const { error } = await supa.auth.signInWithPassword({ email:document.getElementById('loginEmail').value.trim(), password:document.getElementById('loginPassword').value });
+  if(error){ err.textContent=error.message; btn.disabled=false; btn.textContent='Sign In'; }
+});
+document.getElementById('forgotLink').addEventListener('click', e=>{ e.preventDefault(); setState('forgot'); });
+document.getElementById('backToLoginLink').addEventListener('click', e=>{ e.preventDefault(); setState('login'); });
+document.getElementById('forgotForm').addEventListener('submit', async (e)=>{
+  e.preventDefault(); const btn=document.getElementById('forgotBtn'); const err=document.getElementById('forgotError'); const ok=document.getElementById('forgotSuccess');
+  err.textContent=''; ok.style.display='none'; btn.disabled=true; btn.textContent='Sending…';
+  const { error } = await supa.auth.resetPasswordForEmail(document.getElementById('forgotEmail').value.trim(), { redirectTo: window.location.origin+'/daily-reports.html' });
+  if(error){ err.textContent=error.message; } else { ok.textContent='Check your email for the reset link.'; ok.style.display='block'; }
+  btn.disabled=false; btn.textContent='Send reset link';
+});
+document.getElementById('setPwForm').addEventListener('submit', async (e)=>{
+  e.preventDefault(); const btn=document.getElementById('setPwBtn'); const err=document.getElementById('setPwError');
+  err.textContent=''; const p1=document.getElementById('newPw').value, p2=document.getElementById('newPw2').value;
+  if(p1.length<8){ err.textContent='Password must be at least 8 characters.'; return; }
+  if(p1!==p2){ err.textContent='Passwords do not match.'; return; }
+  btn.disabled=true; btn.textContent='Updating…';
+  const { error } = await supa.auth.updateUser({ password:p1 });
+  if(error){ err.textContent=error.message; btn.disabled=false; btn.textContent='Update password'; }
+  else { const { data:{session} } = await supa.auth.getSession(); if(session) onAuthed(session); }
+});
+document.getElementById('signOutBtn').addEventListener('click', ()=>supa.auth.signOut());
+document.getElementById('deniedSignOutBtn').addEventListener('click', ()=>supa.auth.signOut());
+document.getElementById('refreshBtn').addEventListener('click', ()=>loadBootstrap());
+document.getElementById('navDropdownBtn').addEventListener('click', ()=>document.getElementById('navDropdownMenu').classList.toggle('open'));
+
+// ── Data + render ──
+async function loadBootstrap() {
+  boot = await drFetch('?api=bootstrap');
+  if (!activeTab) activeTab = boot.assignment ? 'today' : (boot.isManager ? 'all' : 'mine');
+  renderTabs(); renderTab();
+}
+function renderTabs() {
+  const tabs = [];
+  if (boot.assignment) tabs.push(['today','Today'],['mine','My reports']);
+  if (boot.isManager) tabs.push(['all','All reports'],['assign','Assignments'],['questions','Questions']);
+  document.getElementById('drTabs').innerHTML = tabs.map(([k,l])=>`<button class="dr-tab ${activeTab===k?'active':''}" data-tab="${k}">${l}</button>`).join('');
+  document.querySelectorAll('.dr-tab').forEach(b=>b.addEventListener('click',()=>{ activeTab=b.dataset.tab; renderTabs(); renderTab(); }));
+}
+function renderTab() {
+  const c = document.getElementById('drContent');
+  if (activeTab==='today') return renderToday(c);
+  if (activeTab==='mine') return renderMine(c);
+  if (activeTab==='all') return renderAll(c);
+  if (activeTab==='assign') return renderAssign(c);
+  if (activeTab==='questions') return renderQuestions(c);
+}
+
+function renderToday(c) {
+  const qs = boot.questions || [];
+  const existing = boot.todayReport;
+  const amap = {}; if (existing && Array.isArray(existing.answers)) existing.answers.forEach(a=>{ amap[String(a.question_id)] = a.answer; });
+  const statusPill = existing ? '<span class="pill pill-green">Submitted</span>' : (boot.dueToday ? '<span class="pill pill-gold">Due today</span>' : '<span class="pill pill-dim">Not due today</span>');
+  c.innerHTML = `<div class="card">
+    <h2>Today's report ${statusPill}</h2>
+    <div class="card-sub">${esc(fmtDate(boot.today))} · answers save as one report for today. You can update it any time.</div>
+    <form id="todayForm">
+      ${qs.map(q=>`<div class="q-block"><label class="q-label">${esc(q.text)}</label><textarea class="q-input" data-qid="${q.id}" placeholder="Type your answer…">${esc(amap[String(q.id)]||'')}</textarea></div>`).join('')}
+      <div style="display:flex;align-items:center;gap:12px;"><button class="btn-primary" id="todaySubmit" type="submit">${existing?'Update report':'Submit report'}</button><span id="todayMsg" style="font-size:0.8rem;color:var(--text-muted);"></span></div>
+    </form>
+    ${existing?`<div style="margin-top:12px;"><button class="btn-ghost" id="openTodayThread">Open replies / thread →</button></div>`:''}
+  </div>`;
+  document.getElementById('todayForm').addEventListener('submit', async (e)=>{
+    e.preventDefault(); const btn=document.getElementById('todaySubmit'); const msg=document.getElementById('todayMsg');
+    const answers = [...c.querySelectorAll('textarea[data-qid]')].map(t=>({ question_id:Number(t.dataset.qid), answer:t.value }));
+    btn.disabled=true; msg.textContent='Saving…';
+    try { await drFetch('?api=submit',{ method:'POST', body:JSON.stringify({ answers }) }); msg.textContent='✓ Saved.'; await loadBootstrap(); }
+    catch(e2){ msg.textContent=''; alert('Save failed: '+e2.message); btn.disabled=false; }
+  });
+  document.getElementById('openTodayThread')?.addEventListener('click',()=>openThread(existing.id));
+}
+
+async function renderMine(c) {
+  c.innerHTML = '<div class="empty-state">Loading…</div>';
+  const j = await drFetch('?api=my-reports');
+  const rows = j.rows||[];
+  if (!rows.length) { c.innerHTML='<div class="empty-state">No reports yet.</div>'; return; }
+  c.innerHTML = rows.map(r=>rowHtml(r,false)).join('');
+  wireRows(c);
+}
+
+async function renderAll(c) {
+  c.innerHTML = '<div class="empty-state">Loading…</div>';
+  const j = await drFetch('?api=all-reports');
+  const rows = j.rows||[];
+  if (!rows.length) { c.innerHTML='<div class="empty-state">No reports submitted yet.</div>'; return; }
+  c.innerHTML = `<div class="card-sub" style="margin-bottom:12px;">${rows.length} report${rows.length===1?'':'s'} — newest first. Click any to read and reply.</div>` + rows.map(r=>rowHtml(r,true)).join('');
+  wireRows(c);
+}
+function rowHtml(r, showWho) {
+  const first = Array.isArray(r.answers) && r.answers[0] ? r.answers[0].answer : '';
+  return `<div class="dr-row" data-report="${r.id}">
+    <span class="dr-date">${esc(fmtDate(r.report_date))}</span>
+    ${showWho?`<span class="dr-who">${esc(r.name||r.email||'')}</span>`:''}
+    <span class="dr-snip">${esc(first||'—')}</span>
+    <span class="pill pill-green">Submitted</span>
+  </div>`;
+}
+function wireRows(c){ c.querySelectorAll('.dr-row').forEach(el=>el.addEventListener('click',()=>openThread(Number(el.dataset.report)))); }
+
+// ── Thread modal ──
+async function openThread(reportId) {
+  const overlay = document.getElementById('threadModal'); const card = document.getElementById('threadCard');
+  overlay.classList.add('open'); card.innerHTML = '<div class="empty-state">Loading…</div>';
+  let j; try { j = await drFetch('?api=thread&report_id='+reportId); } catch(e){ card.innerHTML=`<div class="empty-state">${esc(e.message)}</div>`; return; }
+  const rep = j.report; const msgs = j.messages||[];
+  const canReply = boot.isManager || rep.user_id === boot.me.user_id;
+  card.innerHTML = `
+    <div class="modal-title">Daily report — ${esc(fmtDate(rep.report_date))}</div>
+    <div class="modal-sub">${esc(rep.name||rep.email||'')} · submitted ${esc(fmtTs(rep.submitted_at))}</div>
+    ${(rep.answers||[]).map(a=>`<div class="qa-block"><div class="qa-q">${esc(a.question)}</div><div class="qa-a">${esc(a.answer)||'—'}</div></div>`).join('')}
+    <div class="sec-line"></div>
+    <div style="font-size:0.72rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-dim);">Replies</div>
+    <div class="thread" id="threadMsgs">${msgs.length?msgs.map(m=>`<div class="msg ${m.author_role==='admin'?'admin':''}"><div class="msg-head">${esc(m.author_name||m.author_email||'')} · ${esc(fmtTs(m.created_at))}</div><div class="msg-body">${esc(m.body)}</div></div>`).join(''):'<div class="rf-empty" style="color:var(--text-dim);font-size:0.82rem;text-align:center;padding:10px 0;">No replies yet.</div>'}</div>
+    ${canReply?`<div style="display:flex;gap:8px;align-items:flex-start;"><textarea class="q-input" id="replyBody" style="min-height:52px;" placeholder="Write a reply…"></textarea><button class="btn-primary" id="replySend" style="white-space:nowrap;">Send</button></div>`:''}
+    <div style="display:flex;justify-content:flex-end;margin-top:14px;"><button class="btn-ghost" id="threadClose">Close</button></div>`;
+  document.getElementById('threadClose').addEventListener('click',()=>overlay.classList.remove('open'));
+  overlay.addEventListener('click', ev=>{ if(ev.target===overlay) overlay.classList.remove('open'); }, { once:true });
+  document.getElementById('replySend')?.addEventListener('click', async ()=>{
+    const body = document.getElementById('replyBody').value.trim(); if(!body) return;
+    const btn=document.getElementById('replySend'); btn.disabled=true; btn.textContent='…';
+    try { await drFetch('?api=reply',{ method:'POST', body:JSON.stringify({ report_id:reportId, body }) }); openThread(reportId); }
+    catch(e){ alert('Reply failed: '+e.message); btn.disabled=false; btn.textContent='Send'; }
+  });
+}
+
+// ── Assignments (managers) ──
+async function renderAssign(c) {
+  c.innerHTML = '<div class="empty-state">Loading…</div>';
+  const j = await drFetch('?api=assignments');
+  const rows = j.rows||[]; const users = j.users||[];
+  const byId = {}; rows.forEach(r=>byId[r.user_id]=r);
+  c.innerHTML = `
+    <div class="card">
+      <h2>Assign a daily report</h2>
+      <div class="card-sub">Pick a person and which weekdays they owe a report. They get dashboard access + a daily nudge at ~5 PM ET on due days if they haven't submitted.</div>
+      <div class="q-block"><label class="q-label">Person</label>
+        <select class="q-input" id="asgUser" style="min-height:auto;height:42px;">
+          <option value="">Select a person…</option>
+          ${users.map(u=>`<option value="${u.id}" data-email="${esc(u.email)}" data-name="${esc(u.name)}">${esc(u.name)} — ${esc(u.email)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="q-block"><label class="q-label">Days due</label><div class="wk-days" id="asgDays"></div></div>
+      <button class="btn-primary" id="asgSave">Assign</button> <span id="asgMsg" style="font-size:0.8rem;color:var(--text-muted);margin-left:8px;"></span>
+    </div>
+    <div class="card">
+      <h2>Current assignments</h2>
+      <div class="card-sub">${rows.filter(r=>r.active).length} active.</div>
+      <div id="asgList"></div>
+    </div>`;
+  assignEditWeekdays = new Set([1,2,3,4,5]);
+  const daysEl = document.getElementById('asgDays');
+  const paintDays = ()=>{ daysEl.innerHTML = WEEKDAYS.map((d,i)=>`<span class="wk-day ${assignEditWeekdays.has(i)?'on':''}" data-d="${i}">${d}</span>`).join(''); daysEl.querySelectorAll('.wk-day').forEach(el=>el.addEventListener('click',()=>{ const i=Number(el.dataset.d); assignEditWeekdays.has(i)?assignEditWeekdays.delete(i):assignEditWeekdays.add(i); paintDays(); })); };
+  paintDays();
+  document.getElementById('asgUser').addEventListener('change', (e)=>{ const uid=e.target.value; const ex=byId[uid]; assignEditWeekdays = new Set(ex && Array.isArray(ex.weekdays)?ex.weekdays:[1,2,3,4,5]); paintDays(); });
+  document.getElementById('asgSave').addEventListener('click', async ()=>{
+    const sel = document.getElementById('asgUser'); const uid = sel.value; if(!uid){ document.getElementById('asgMsg').textContent='Pick a person.'; return; }
+    const opt = sel.selectedOptions[0]; const btn=document.getElementById('asgSave'); btn.disabled=true; document.getElementById('asgMsg').textContent='Saving…';
+    try { await drFetch('?api=assign',{ method:'POST', body:JSON.stringify({ user_id:uid, email:opt.dataset.email, name:opt.dataset.name, weekdays:[...assignEditWeekdays], active:true }) }); document.getElementById('asgMsg').textContent='✓ Assigned.'; renderAssign(c); }
+    catch(e){ document.getElementById('asgMsg').textContent=''; alert('Failed: '+e.message); btn.disabled=false; }
+  });
+  const list = document.getElementById('asgList');
+  const active = rows.filter(r=>r.active);
+  list.innerHTML = active.length ? active.map(r=>`<div class="dr-row" style="cursor:default;">
+      <span class="dr-who" style="min-width:150px;">${esc(r.name||r.email)}</span>
+      <span class="dr-snip">${(r.weekdays||[]).slice().sort().map(i=>WEEKDAYS[i]).join(', ')||'—'}</span>
+      <button class="btn-ghost" data-unassign="${r.user_id}" style="padding:5px 12px;">Unassign</button>
+    </div>`).join('') : '<div class="empty-state">No active assignments.</div>';
+  list.querySelectorAll('[data-unassign]').forEach(b=>b.addEventListener('click', async ()=>{
+    if(!confirm('Unassign this person? They stop receiving daily reminders and lose dashboard access.')) return;
+    try { await drFetch('?api=unassign',{ method:'POST', body:JSON.stringify({ user_id:b.dataset.unassign }) }); renderAssign(c); } catch(e){ alert('Failed: '+e.message); }
+  }));
+}
+
+// ── Questions editor (managers) ──
+async function renderQuestions(c) {
+  c.innerHTML = '<div class="empty-state">Loading…</div>';
+  const j = await drFetch('?api=questions');
+  let qs = (j.questions||[]).map(q=>({ id:q.id, text:q.text }));
+  const draw = ()=>{
+    c.innerHTML = `<div class="card">
+      <h2>Report questions</h2>
+      <div class="card-sub">These are the questions every assignee answers. Edit, reorder by editing text, add or remove — changes apply to new submissions.</div>
+      <div id="qList"></div>
+      <button class="btn-ghost" id="qAdd" style="margin-top:6px;">+ Add question</button>
+      <div style="margin-top:16px;"><button class="btn-primary" id="qSave">Save questions</button> <span id="qMsg" style="font-size:0.8rem;color:var(--text-muted);margin-left:8px;"></span></div>
+    </div>`;
+    document.getElementById('qList').innerHTML = qs.map((q,i)=>`<div class="q-block" style="display:flex;gap:8px;align-items:flex-start;"><textarea class="q-input" data-i="${i}" style="min-height:52px;">${esc(q.text)}</textarea><button class="btn-ghost" data-del="${i}" style="padding:6px 10px;">✕</button></div>`).join('');
+    c.querySelectorAll('textarea[data-i]').forEach(t=>t.addEventListener('input',()=>{ qs[Number(t.dataset.i)].text = t.value; }));
+    c.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',()=>{ qs.splice(Number(b.dataset.del),1); draw(); }));
+    document.getElementById('qAdd').addEventListener('click',()=>{ qs.push({ text:'' }); draw(); });
+    document.getElementById('qSave').addEventListener('click', async ()=>{
+      const clean = qs.map(q=>({ id:q.id, text:(q.text||'').trim() })).filter(q=>q.text);
+      document.getElementById('qMsg').textContent='Saving…';
+      try { const res = await drFetch('?api=save-questions',{ method:'POST', body:JSON.stringify({ questions:clean }) }); qs = (res.questions||[]).map(q=>({ id:q.id, text:q.text })); boot.questions = res.questions||[]; document.getElementById('qMsg').textContent='✓ Saved.'; }
+      catch(e){ document.getElementById('qMsg').textContent=''; alert('Failed: '+e.message); }
+    });
+  };
+  draw();
+}
+
+setState('loading');
+initAuth().catch(()=>setState('login'));
+</script>
+<script src="access-guard.js"></script>
+<script src="loading-states.js"></script>
+<script src="theme.js"></script>
+<script src="changelog.js"></script>
+<script src="notifications.js"></script>
+<script src="pwa.js"></script>
+<script src="ux.js"></script>
+<script src="nav-menu.js"></script>
+</body>
+</html>

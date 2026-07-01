@@ -4,7 +4,7 @@
 // Adding a new role or page = edit ONLY this file. Per-page guards just call
 // RidleyPerms.canOpen(href, user) and trust the result.
 (function () {
-  const AVAILABLE_PERMS = ['sales', 'marketing', 'finance', 'calls', 'rep', 'sales_manager', 'mentorship', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep', 'weekly_stats', 'collector', 'collections', 'treasury_ic', 'refunds_view', 'support', 'subscriptions'];
+  const AVAILABLE_PERMS = ['sales', 'marketing', 'finance', 'calls', 'rep', 'sales_manager', 'mentorship', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep', 'weekly_stats', 'collector', 'collections', 'treasury_ic', 'refunds_view', 'support', 'subscriptions', 'daily_reports'];
 
   // Page → which roles grant access. `is_admin: true` always wins.
   // `roles: '*'` means anyone signed in.
@@ -31,6 +31,10 @@
     // Support can manage it (the support role grants subscriptions.*); also a
     // standalone `subscriptions` bucket for non-support users.
     { href: 'subscriptions.html', id: 'subscriptions', roles: ['subscriptions', 'support'], granular: 'subscriptions.view' },
+    // Daily Reports — assignees submit a daily report; admins/managers assign,
+    // review, and reply. Access is granted per-person on assignment
+    // (daily_reports.view), plus the daily_reports role / admins.
+    { href: 'daily-reports.html', id: 'daily_reports', roles: ['daily_reports'], granular: 'daily_reports.view' },
     { href: 'students.html',     id: 'students',     roles: ['students', 'mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'], granular: 'students.view' },
     // Coach Dashboard: only true editors. Primary gate is the GRANULAR
     // `coach.edit` permission. Legacy fallback includes `coach` /

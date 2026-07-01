@@ -15,7 +15,7 @@
     { href: 'performance.html',  id: 'performance',  roles: ['marketing', 'sales', 'sales_manager'] },
     { href: 'income.html',       id: 'income',       roles: ['finance'] },
     { href: 'calls.html',        id: 'calls',        roles: ['calls', 'sales_manager', 'rep'] },
-    { href: 'declarations.html', id: 'declarations', roles: ['rep', 'sales_manager'] },
+    { href: 'declarations.html', id: 'declarations', roles: ['rep', 'sales_manager', 'declarations'], granular: 'declarations.view' },
     // Collections dashboard — chasing missed/disputed rebills. Lives in a
     // separate table so it never mixes into rep declaration stats. Gated by
     // the new `collector` role (legacy bucket) or collections.view granular.

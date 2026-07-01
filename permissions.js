@@ -15,7 +15,7 @@
     { href: 'performance.html',  id: 'performance',  roles: ['marketing', 'sales', 'sales_manager'] },
     { href: 'income.html',       id: 'income',       roles: ['finance'] },
     { href: 'calls.html',        id: 'calls',        roles: ['calls', 'sales_manager', 'rep'] },
-    { href: 'declarations.html', id: 'declarations', roles: ['rep', 'sales_manager', 'declarations'], granular: 'declarations.view' },
+    { href: 'declarations.html', id: 'declarations', roles: ['rep', 'sales_manager', 'declarations'], granular: ['declarations.view', 'declarations.view_all'] },
     // Collections dashboard — chasing missed/disputed rebills. Lives in a
     // separate table so it never mixes into rep declaration stats. Gated by
     // the new `collector` role (legacy bucket) or collections.view granular.
@@ -117,9 +117,10 @@
     if (def.adminOnly) return false; // admin short-circuit handled by callers
     if (!_passesExclude(def, eff)) return false;
     if (def.roles === '*') return true;
-    const granularHit = def.granular
+    const granularKeys = Array.isArray(def.granular) ? def.granular : (def.granular ? [def.granular] : []);
+    const granularHit = granularKeys.length > 0
       && Array.isArray(eff.permissions_v2)
-      && eff.permissions_v2.includes(def.granular);
+      && granularKeys.some(k => eff.permissions_v2.includes(k));
     const roleHit = Array.isArray(def.roles)
       && def.roles.length > 0
       && def.roles.some(r => eff.permissions.includes(r));

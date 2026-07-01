@@ -221,6 +221,7 @@
   .action-btn-edit { background:var(--blue-bg);  color:var(--blue); } .action-btn-edit:hover { background:rgba(107,158,255,0.2); }
   .action-btn-del  { background:var(--red-bg);   color:var(--red);  } .action-btn-del:hover  { background:rgba(248,113,113,0.2); }
   .action-btn:disabled { opacity:0.4; cursor:not-allowed; }
+  body:not(.can-edit) #addBtn, body:not(.can-edit) .action-btn { display:none !important; }
 
   /* ── Modal ──────────────────────────────────────── */
   .modal-overlay { display:none; position:fixed; inset:0; z-index:1000; background:rgba(0,0,0,0.65); backdrop-filter:blur(4px); align-items:center; justify-content:center; padding:24px; }
@@ -654,6 +655,7 @@ const supa = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 let currentSession = null;
 let declData       = [];
 let canSeeAll      = false;
+let canEdit        = false;
 let editRow        = null;
 let repsList       = [];
 let sortCol        = 'date_closed';
@@ -712,7 +714,12 @@ async function onAuthed(session) {
   // Page-specific UX: managers + admins see every rep's declarations,
   // rep-only users only their own.
   const eff = window.RidleyPerms.effective(session.user);
-  canSeeAll = eff.is_admin || eff.permissions.includes('sales_manager');
+  const ev2 = Array.isArray(eff.permissions_v2) ? eff.permissions_v2 : [];
+  // "view all" (Delivery-IC oversight, sales_manager, admin) sees every rep's rows read-only.
+  canSeeAll = eff.is_admin || eff.permissions.includes('sales_manager') || ev2.includes('sales.view_others') || ev2.includes('declarations.view_all');
+  // Only reps (own), sales_manager/admin, or an explicit declarations.edit grant can add/edit/delete.
+  canEdit = eff.is_admin || eff.permissions.includes('rep') || eff.permissions.includes('sales_manager') || ev2.includes('declarations.edit');
+  if (canEdit) document.body.classList.add('can-edit');
   // Admin-only: bulk auto-assign from Sales Log (within current date range)
   if (eff.is_admin) {
     document.getElementById('autoAssignBtn').style.display = '';

@@ -38,6 +38,7 @@ let listFilter = 'all';
 let isAdmin = false;
 let isCoach = false;
 let isPrivilegedViewer = false;  // admin / ms_ic / mentorship can pick any coach
+let canFounderCall = false;      // admin / ms_ic / delivery_ic only — Monthly Mentorship Call (never coaches)
 // Coach-picker default: pure coaches start on "My students"; admins and
 // other privileged viewers (ms_ic / mentorship) start on "All coaches".
 // Resolved properly in populateCoachPicker() once perms are known.
@@ -108,6 +109,8 @@ async function onAuthed(session) {
   isAdmin = eff.is_admin === true;
   isCoach = perms.includes('coach');
   isPrivilegedViewer = isAdmin || perms.includes('ms_ic') || perms.includes('delivery_ic') || perms.includes('mentorship');
+  canFounderCall = isAdmin || perms.includes('ms_ic') || perms.includes('delivery_ic');
+  { const b = document.getElementById('monthlyCallTopBtn'); if (b) b.style.display = canFounderCall ? 'inline-flex' : 'none'; }
   if (!isAdmin && !isCoach && !isPrivilegedViewer) {
     document.getElementById('app').innerHTML = '<div style="padding:60px 20px;text-align:center;color:var(--text-dim)">You don\'t have access to the Coach Dashboard. Ask an admin to add the coach permission to your account.</div>';
     setState('dashboard');
@@ -3667,6 +3670,61 @@ document.getElementById('bulkScheduleZoomBtn').addEventListener('click', () => {
   openScheduleZoomModal([...selectedIds]);
 });
 document.getElementById('scheduleZoomTopBtn').addEventListener('click', () => openScheduleZoomModal(null));
+
+// Monthly Mentorship Call with Stephen Ridley — Admin / MS-IC / Delivery-IC only. Academy-wide
+// event on its own permanent room (creatorsecretsads); every active student is invited via the
+// dedicated founder templates. "Preview" does a dry run (creates the room + counts recipients,
+// sends nothing); "Create & schedule" books the call — invites/reminders fire automatically ~4d out.
+function openMonthlyCallModal() {
+  if (!canFounderCall) { alert('Only Admins, MS-ICs, and Delivery-ICs can create the Monthly Mentorship Call.'); return; }
+  document.getElementById('monthlyCallModal')?.remove();
+  const m = document.createElement('div'); m.id = 'monthlyCallModal'; m.className = 'modal-bg'; m.style.zIndex = '10001';
+  m.innerHTML = `<div class="modal-card" style="max-width:460px;">
+    <div class="modal-head"><h2>Monthly Mentorship Call</h2><button class="close" data-x>×</button></div>
+    <div class="modal-body" style="display:block;">
+      <p style="font-size:0.84rem;color:var(--text-dim);margin:0 0 16px;line-height:1.5;">A live call with <strong>Stephen Ridley</strong> for the whole academy. It runs on its own permanent room and its own link (<code>ridleyacademy.team/j/?c=monthly</code>). Every <strong>active</strong> student is invited with the founder-call emails — separate from class emails. Invites and reminders send automatically starting ~4 days before.</p>
+      <label style="display:block;font-size:0.72rem;font-weight:700;color:var(--text-dim);margin-bottom:4px;">Date &amp; time (US Eastern)</label>
+      <input id="mc-start" type="datetime-local" style="width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:7px;background:var(--bg);color:var(--text);font-size:0.9rem;margin-bottom:12px;">
+      <label style="display:block;font-size:0.72rem;font-weight:700;color:var(--text-dim);margin-bottom:4px;">Duration (minutes)</label>
+      <input id="mc-dur" type="number" min="15" step="15" value="60" style="width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:7px;background:var(--bg);color:var(--text);font-size:0.9rem;">
+      <div id="mc-result" style="margin-top:14px;font-size:0.85rem;"></div>
+    </div>
+    <div class="modal-foot" style="display:flex;gap:8px;justify-content:flex-end;padding:14px 20px;border-top:1px solid var(--border);">
+      <button id="mc-preview" class="btn-ghost" style="padding:8px 14px;border-radius:7px;border:1px solid var(--border);background:transparent;color:var(--text);cursor:pointer;font-weight:600;">Preview recipients</button>
+      <button id="mc-create" style="padding:8px 16px;border-radius:7px;border:0;background:#DC2626;color:#fff;cursor:pointer;font-weight:700;">Create &amp; schedule</button>
+    </div></div>`;
+  document.body.appendChild(m);
+  const closeM = () => m.remove();
+  m.addEventListener('click', ev => { if (ev.target === m || ev.target.closest('[data-x]')) closeM(); });
+  const run = async (dryRun) => {
+    const wrap = m.querySelector('#mc-result');
+    const localStart = m.querySelector('#mc-start').value;
+    const dur = parseInt(m.querySelector('#mc-dur').value, 10);
+    if (!localStart || !dur) { wrap.innerHTML = '<span style="color:#f87171;">Pick a date/time and duration.</span>'; return; }
+    const iso = _meetingLocalToUTC(localStart);
+    if (!iso) { wrap.innerHTML = '<span style="color:#f87171;">That date/time looks invalid.</span>'; return; }
+    const pv = m.querySelector('#mc-preview'), cr = m.querySelector('#mc-create');
+    pv.disabled = true; cr.disabled = true; wrap.innerHTML = dryRun ? 'Checking…' : 'Creating…';
+    try {
+      const j = await _zoomFetch('create-mentorship-call', { method: 'POST', body: { start_time: iso, duration: dur, dry_run: dryRun } });
+      if (dryRun) {
+        wrap.innerHTML = `<div style="color:#34d399;">✓ Would invite <strong>${j.recipients}</strong> active students.</div><div style="color:var(--text-dim);font-size:0.8rem;margin-top:4px;">Link: ${escapeHtml(j.monthly_link)}<br>Sample: ${(j.sample||[]).map(escapeHtml).join(', ')}</div><div style="color:var(--text-dim);font-size:0.8rem;margin-top:6px;">Nothing was sent. Click <strong>Create &amp; schedule</strong> to book it.</div>`;
+        pv.disabled = false; cr.disabled = false;
+      } else {
+        wrap.innerHTML = `<div style="color:#34d399;">✓ Scheduled. <strong>${j.recipients}</strong> students will be invited automatically (~4 days before). Link: ${escapeHtml(j.monthly_link)}</div>`;
+        await loadUpcomingMeetings();
+        setTimeout(closeM, 2200);
+      }
+    } catch (e2) {
+      pv.disabled = false; cr.disabled = false;
+      wrap.innerHTML = `<span style="color:#f87171;">Failed: ${escapeHtml(e2.message || String(e2))}</span>`;
+    }
+  };
+  m.querySelector('#mc-preview').addEventListener('click', () => run(true));
+  m.querySelector('#mc-create').addEventListener('click', () => run(false));
+  setTimeout(() => { m.querySelector('#mc-start')?.focus(); }, 60);
+}
+document.getElementById('monthlyCallTopBtn')?.addEventListener('click', openMonthlyCallModal);
 document.getElementById('workHoursTopBtn')?.addEventListener('click', () => openWorkHoursModal());
 
 // ── Session groups (preset student groups for re-use) ───────────

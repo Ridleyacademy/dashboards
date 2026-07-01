@@ -2310,9 +2310,35 @@ async function loadUpcomingMeetings() {
           return ta - tb;
         });
     } else {
-      const fromIso = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-      const j = await _zoomFetch('list&from=' + encodeURIComponent(fromIso));
-      upcomingMeetings = (j.meetings || []).filter(m => m.status === 'scheduled');
+      // Coaches: pull ALL their rows with NO &from filter. Recurring rows store the series'
+      // ORIGINAL (often past) start in scheduled_start_time, so a server-side date filter would
+      // wrongly drop every recurring class once its first date passed — which hid coaches' own
+      // classes from them. Instead compute each row's next upcoming occurrence and keep recurring
+      // meetings always; date-gate only one-offs. _isMyMeeting narrows to the coach's own rows.
+      const j = await _zoomFetch('list');
+      const cutoff = Date.now() - 60 * 60 * 1000;
+      const nextStart = (m) => {
+        const occ = Array.isArray(m.occurrences) ? m.occurrences : [];
+        const futures = occ
+          .map(o => (o && o.start_time) ? Date.parse(o.start_time) : NaN)
+          .filter(t => !isNaN(t) && t > cutoff)
+          .sort((a, b) => a - b);
+        if (futures.length) return new Date(futures[0]).toISOString();
+        return m.scheduled_start_time || null;
+      };
+      upcomingMeetings = (j.meetings || [])
+        .filter(m => m.status === 'scheduled')
+        .map(m => ({ ...m, scheduled_start_time: nextStart(m) }))
+        .filter(m => {
+          if (m.is_recurring) return true;
+          const t = m.scheduled_start_time ? Date.parse(m.scheduled_start_time) : 0;
+          return !t || t > cutoff;
+        })
+        .sort((a, b) => {
+          const ta = a.scheduled_start_time ? Date.parse(a.scheduled_start_time) : Infinity;
+          const tb = b.scheduled_start_time ? Date.parse(b.scheduled_start_time) : Infinity;
+          return ta - tb;
+        });
     }
     renderUpcomingMeetings();
   } catch (e) {

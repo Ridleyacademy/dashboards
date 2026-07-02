@@ -11,12 +11,15 @@ const supa = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { pe
 // Everything the dashboard surfaces now points at the stable ridleyacademy.team/j/
 // link (resolved live to the right room), never the raw Zoom URL.
 function coachSlug(hostEmail) { return String(hostEmail || '').split('@')[0].toLowerCase(); }
-// Base class link for a coach — no token needed, buildable client-side.
-function permaBaseLink(m) { const c = coachSlug(m && m.host_email); return c ? PERMA_BASE + '?c=' + encodeURIComponent(c) : ((m && m.join_url) || ''); }
-// Cache of { coachSlug: {base, host, students:{id:link}} } from the authenticated links endpoint.
+// The /j/ slug for a meeting: the Monthly Mentorship Call resolves via c=monthly (its own founder
+// room on the creatorsecretsads account), everything else via the coach's email slug.
+function meetingSlug(m) { return (m && m.event_type === 'mentorship_call') ? 'monthly' : coachSlug(m && m.host_email); }
+// Base class link for a meeting — no token needed, buildable client-side.
+function permaBaseLink(m) { const c = meetingSlug(m); return c ? PERMA_BASE + '?c=' + encodeURIComponent(c) : ((m && m.join_url) || ''); }
+// Cache of { slug: {base, host, students:{id:link}} } from the authenticated links endpoint.
 const _permaLinks = {};
-async function fetchPermaLinks(hostEmail, studentIds) {
-  const c = coachSlug(hostEmail); if (!c) return null;
+async function fetchPermaLinks(hostEmail, studentIds, slugOverride) {
+  const c = slugOverride || coachSlug(hostEmail); if (!c) return null;
   try {
     const r = await fetch(ZOOM_JOIN_BASE + '?api=links', {
       method: 'POST',
@@ -2507,8 +2510,8 @@ function renderUpcomingMeetings() {
     // Start-as-host opens the permanent host link (carries a code so the resolver
     // hands back the host start-URL). Open the tab synchronously to dodge popup blockers.
     const w = window.open('', '_blank');
-    const cached = _permaLinks[coachSlug(m.host_email)];
-    const links = cached || await fetchPermaLinks(m.host_email);
+    const cached = _permaLinks[meetingSlug(m)];
+    const links = cached || await fetchPermaLinks(m.host_email, null, meetingSlug(m));
     const url = (links && links.host) || m.start_url;
     if (url) { if (w) w.location.href = url; else window.open(url, '_blank'); }
     else if (w) w.close();
@@ -2746,8 +2749,8 @@ function openInviteesModal(meeting) {
   // Per-student "Copy personal link" → the student's permanent /j/ link (fetched + cached, signed for the right coach).
   m.querySelectorAll('[data-copy-sid]').forEach(b => b.addEventListener('click', async () => {
     const sid = b.dataset.copySid; const orig = b.textContent; b.textContent = 'Copying…';
-    let links = _permaLinks[coachSlug(meeting.host_email)];
-    if (!links || !links.students || !links.students[sid]) links = await fetchPermaLinks(meeting.host_email, [sid]);
+    let links = _permaLinks[meetingSlug(meeting)];
+    if (!links || !links.students || !links.students[sid]) links = await fetchPermaLinks(meeting.host_email, [sid], meetingSlug(meeting));
     const url = links && links.students && links.students[sid];
     if (url) { navigator.clipboard.writeText(url); b.textContent = 'Copied!'; } else { b.textContent = 'Error'; }
     setTimeout(() => b.textContent = orig, 1400);

@@ -803,12 +803,20 @@ function _computeDuplicateIds(allStudents) {
 }
 let _dupCache = new Set();
 
+function _isNoVideoOnboarded(s) {
+  // Onboarded (lifecycle has started) but no video on file. Uses the same
+  // "has video" signal as the advanced filter — video_url OR video_submitted_date.
+  return !!s.student_onboarded_date && !(s.video_url || s.video_submitted_date);
+}
+
 function _updateChipCounts() {
   const mineSet = _myCoachIdentities();
   document.getElementById('cnt-all').textContent        = String(students.length);
   document.getElementById('cnt-mine').textContent       = String(students.filter(s => _isMine(s, mineSet)).length);
   document.getElementById('cnt-stale').textContent      = String(students.filter(_isStale).length);
   document.getElementById('cnt-duplicates').textContent = String(_dupCache.size);
+  const nvc = document.getElementById('cnt-novideo');
+  if (nvc) nvc.textContent = String(students.filter(_isNoVideoOnboarded).length);
 }
 
 // A "Not onboarded" student whose purchased term has already lapsed is shown as
@@ -873,6 +881,7 @@ function renderStudentList() {
   if (listFilter === 'mine')       rows = rows.filter(s => _isMine(s, mineSet));
   else if (listFilter === 'stale') rows = rows.filter(_isStale);
   else if (listFilter === 'duplicates') rows = rows.filter(s => _dupCache.has(s.id));
+  else if (listFilter === 'novideo')    rows = rows.filter(_isNoVideoOnboarded);
 
   if (q) rows = rows.filter(s =>
     (s.name || '').toLowerCase().includes(q) ||
@@ -1032,6 +1041,7 @@ function renderOverviewPane() {
   if (listFilter === 'mine')            rows = rows.filter(s => _isMine(s, mineSet));
   else if (listFilter === 'stale')      rows = rows.filter(_isStale);
   else if (listFilter === 'duplicates') rows = rows.filter(s => _dupCache.has(s.id));
+  else if (listFilter === 'novideo')    rows = rows.filter(_isNoVideoOnboarded);
   if (q) rows = rows.filter(s =>
     (s.name||'').toLowerCase().includes(q) || (s.email||'').toLowerCase().includes(q) ||
     (s.coach||'').toLowerCase().includes(q) || (s.product||'').toLowerCase().includes(q));
@@ -1053,7 +1063,7 @@ function renderOverviewPane() {
     return                `<span class="ov-pill ov-recency-stale">${d}d ago</span>`;
   };
 
-  const filterLabel = ({all:'All students',mine:'My students',stale:`Stale (>${STALE_DAYS}d)`,duplicates:'Duplicates'})[listFilter];
+  const filterLabel = ({all:'All students',mine:'My students',stale:`Stale (>${STALE_DAYS}d)`,duplicates:'Duplicates',novideo:'No video (onboarded)'})[listFilter];
 
   card.className = 'overview-pane';
   card.innerHTML = `
@@ -1387,8 +1397,12 @@ async function openStudent(id) {
 const SECTIONS = [
   ['Identity', [
     { k: 'name',    label: 'Name *',          type: 'text',  full: true },
-    { k: 'email',   label: 'Email',           type: 'email' },
-    { k: 'phone',   label: 'Phone',           type: 'tel'   },
+    // Email & phone support multiple values. The FIRST entry is the primary
+    // (stored in the email/phone columns — what Zoom invites, system emails,
+    // dedup and the video finder use); extras live in metadata.alternate_emails
+    // / metadata.alternate_phones.
+    { k: 'email',   label: 'Email',           type: 'multi', inputType: 'email', metaKey: 'alternate_emails', placeholder: 'name@example.com', addLabel: '+ Add email' },
+    { k: 'phone',   label: 'Phone',           type: 'multi', inputType: 'tel',   metaKey: 'alternate_phones', placeholder: 'Phone number',      addLabel: '+ Add phone' },
     // Status is now fully auto-derived in computeLifecycle (Active / Inactive
     // / Expiring / Expired / Paused / Delayed / Refunded / Graduated etc.)
     // and surfaced via the header chip — no manual override field needed.
@@ -1464,6 +1478,17 @@ function _buildField(field, value) {
       <span>${field.label}</span>
     </label>`;
   }
+  if (field.type === 'multi') {
+    // Repeatable inputs. Rows are populated in renderProfile (where the full
+    // student row + metadata alternates are in scope); here we render only the
+    // container + Add button. Row inputs get id="f-<k>__<n>" so the read-only
+    // lockdown (which disables every id^="f-") catches them too.
+    return `<div class="field${field.full ? ' field-full' : ''}">
+      <div class="field-label">${field.label}</div>
+      <div class="multi-field" id="mf-${field.k}" data-key="${field.k}" data-meta="${field.metaKey || ''}" data-input="${field.inputType || 'text'}" data-placeholder="${(field.placeholder || '').replace(/"/g,'&quot;')}"></div>
+      <button type="button" class="multi-add" data-mf="${field.k}" style="margin-top:2px;background:var(--surface2);border:1px dashed var(--border);border-radius:8px;padding:5px 10px;color:var(--text-muted);font-size:0.74rem;font-weight:700;cursor:pointer;">${field.addLabel || '+ Add'}</button>
+    </div>`;
+  }
   let inner = '';
   if (field.type === 'select') {
     const opts = field.opts === 'mentors' ? mentors : (field.opts || []);
@@ -1504,6 +1529,28 @@ function _buildField(field, value) {
   return `<div class="field${field.full ? ' field-full' : ''}">
     <div class="field-label">${field.label}</div>${inner}
   </div>`;
+}
+
+// Append one input row to a .multi-field container. Row 0's remove button is
+// hidden so there's always at least one (empty) row = the primary value.
+// Value is set via .value (never innerHTML) so user data is never interpolated.
+function _addMultiRow(mf, value) {
+  const k = mf.dataset.key;
+  const inputType = mf.dataset.input || 'text';
+  const ph = mf.dataset.placeholder || '';
+  const idx = mf.querySelectorAll('.multi-row').length;
+  const row = document.createElement('div');
+  row.className = 'multi-row';
+  row.style.cssText = 'display:flex;gap:6px;align-items:center;margin-bottom:6px;';
+  const del = idx === 0 ? 'visibility:hidden;' : '';
+  row.innerHTML =
+    `<input class="field-input multi-input" type="${inputType}" id="f-${k}__${idx}" data-key="${k}"${ph ? ` placeholder="${ph}"` : ''} style="flex:1;min-width:0;">` +
+    `<button type="button" class="multi-del" title="Remove" style="${del}background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0 11px;color:var(--text-muted);font-size:1.05rem;line-height:1.9;cursor:pointer;">×</button>`;
+  mf.appendChild(row);
+  const inp = row.querySelector('input');
+  inp.value = value == null ? '' : String(value);
+  row.querySelector('.multi-del').addEventListener('click', () => { row.remove(); profileDirty = true; });
+  return inp;
 }
 
 function _buildPausesPanel(_section, _openAttr) {
@@ -2148,6 +2195,26 @@ function renderProfile() {
   card.querySelectorAll('.field-url-input').forEach(inp => {
     inp.addEventListener('input', () => _syncUrlOpenButton(inp));
   });
+  // Populate multi-value fields (email/phone): primary column value first, then
+  // the metadata alternates. De-duped, always at least one row.
+  card.querySelectorAll('.multi-field').forEach(mf => {
+    const k = mf.dataset.key, metaKey = mf.dataset.meta;
+    const alts = (s.metadata && Array.isArray(s.metadata[metaKey])) ? s.metadata[metaKey] : [];
+    const seen = new Set(); const vals = [];
+    const push = v => { const t = (v == null ? '' : String(v)).trim(); if (t && !seen.has(t.toLowerCase())) { seen.add(t.toLowerCase()); vals.push(t); } };
+    push(s[k]);
+    alts.forEach(push);
+    if (!vals.length) vals.push('');
+    mf.innerHTML = '';
+    vals.forEach(v => _addMultiRow(mf, v));
+  });
+  // Wire "+ Add" buttons for multi fields.
+  card.querySelectorAll('.multi-add').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const mf = document.getElementById('mf-' + btn.dataset.mf);
+      if (mf) { const inp = _addMultiRow(mf, ''); inp.focus(); profileDirty = true; }
+    });
+  });
   // 🎥 History button next to Last Zoom
   card.querySelectorAll('.zoom-history-btn').forEach(btn => {
     btn.addEventListener('click', () => openZoomHistoryModal());
@@ -2226,6 +2293,7 @@ function renderProfile() {
       }
     });
     // Hide Save + Delete; show a small badge instead.
+    card.querySelectorAll('.multi-add, .multi-del').forEach(b => { b.style.display = 'none'; });
     const saveBtn = document.getElementById('prof-save'); if (saveBtn) saveBtn.style.display = 'none';
     const delBtn  = document.getElementById('prof-delete'); if (delBtn)  delBtn.style.display  = 'none';
     const msg = document.getElementById('prof-msg');
@@ -3039,8 +3107,15 @@ async function openDropboxVideosModal() {
     }
   });
 
-  const email = (currentStudent.email || '').toLowerCase().trim();
-  const q = [email, email.replace('@','-'), (currentStudent.name||'').toLowerCase().trim()].filter(Boolean).join(' ');
+  // Search every email on file (primary + metadata alternates) so a clip filed
+  // under any of the student's addresses is found. The proxy matches on the
+  // full email / email-local, so listing them all is safe.
+  const alts = (currentStudent.metadata && Array.isArray(currentStudent.metadata.alternate_emails)) ? currentStudent.metadata.alternate_emails : [];
+  const emails = [currentStudent.email, ...alts].map(e => (e || '').toLowerCase().trim()).filter(Boolean);
+  const qParts = [];
+  for (const e of emails) { qParts.push(e, e.replace('@','-')); }
+  qParts.push((currentStudent.name || '').toLowerCase().trim());
+  const q = [...new Set(qParts.filter(Boolean))].join(' ');
 
   const tok = (await supa.auth.getSession()).data.session?.access_token;
   if (!tok) { document.getElementById('videosBody').innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted);">Not authenticated.</div>'; return; }
@@ -3984,6 +4059,7 @@ async function saveStudent() {
   const payload = { id: currentStudent.id || undefined };
   for (const [, fields] of SECTIONS) {
     for (const f of fields) {
+      if (f.type === 'multi') continue; // handled below
       const el = document.getElementById('f-' + f.k);
       if (!el) continue;
       if (f.type === 'checkbox') {
@@ -3997,6 +4073,20 @@ async function saveStudent() {
       }
     }
   }
+  // Multi-value fields: first non-empty value → primary column; the rest →
+  // metadata alternates. Merge onto existing metadata so nothing else is lost.
+  const _meta = { ...((currentStudent && currentStudent.metadata) || {}) };
+  document.querySelectorAll('.multi-field').forEach(mf => {
+    const k = mf.dataset.key, metaKey = mf.dataset.meta;
+    const seen = new Set(); const vals = [];
+    mf.querySelectorAll('.multi-input').forEach(inp => {
+      const t = (inp.value || '').trim();
+      if (t && !seen.has(t.toLowerCase())) { seen.add(t.toLowerCase()); vals.push(t); }
+    });
+    payload[k] = vals[0] || null;
+    if (metaKey) _meta[metaKey] = vals.slice(1);
+  });
+  payload.metadata = _meta;
   if (!payload.name) {
     msg.textContent = 'Name is required'; msg.style.color = 'var(--red)';
     return false;

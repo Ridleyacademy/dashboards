@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v297-monthly-link-slug';
+const CACHE_NAME = 'ridley-v402-messages';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [
@@ -32,6 +32,7 @@ const PRECACHE = [
   '/refunds.html',
   '/support.html',
   '/daily-reports.html',
+  '/messages.html',
   '/subscriptions.html',
   '/ux.js',
 ];

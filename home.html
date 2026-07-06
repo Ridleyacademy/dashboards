@@ -700,6 +700,13 @@ const AVAILABLE_PERMS = window.RidleyPerms.AVAILABLE_PERMS;
 
 const BOARDS = [
   {
+    id: 'messages', href: 'messages.html', title: 'Messages', permission: '*',
+    color: '#a78bfa', glow: 'rgba(167,139,250,0.18)', bg: 'rgba(167,139,250,0.12)',
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`,
+    desc: 'Internal team chat — direct messages and group conversations. New messages ping your notification bell and phone.',
+    tags: [{ label: 'Chat', bg: 'rgba(167,139,250,0.12)', color: '#a78bfa' }, { label: 'Everyone', bg: 'rgba(52,211,153,0.12)', color: '#34d399' }],
+  },
+  {
     id: 'sales', href: 'index.html', title: 'Sales Dashboard', permission: 'sales',
     color: '#6b9eff', glow: 'rgba(107,158,255,0.18)', bg: 'rgba(107,158,255,0.12)',
     icon: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6b9eff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>`,

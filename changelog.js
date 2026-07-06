@@ -16,6 +16,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v402', title: 'New: Messages — internal team chat', items: [
+      'A new Messages dashboard: direct-message anyone on the team and create group chats — text only, like a simple Slack.',
+      'New messages ping your notification bell and push to your phone (if push is enabled). Open it from the Dashboards menu or the home screen.',
+      'Start a 1:1 with “New message”, or “＋ Group” to make a named group; messages appear live as they’re sent.',
+    ]},
     { version: 'v401', title: 'Push enable — now shows the exact reason if it fails', adminOnly: true, items: [
       'Tapping "Enable push notifications" now pops up a clear success/failure message (with the failure reason) instead of only a tiny button label — added to diagnose an iPhone case where enabling silently didn\'t register.',
     ]},

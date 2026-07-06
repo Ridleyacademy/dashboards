@@ -10,6 +10,8 @@
   // `roles: '*'` means anyone signed in.
   const PAGES = [
     { href: 'home.html',         id: null,           roles: '*' },
+    // Internal messaging (DMs + groups) — available to every logged-in user.
+    { href: 'messages.html',     id: 'messages',     roles: '*' },
     { href: 'index.html',        id: 'sales',        roles: ['sales', 'sales_manager'] },
     { href: 'meta-ads.html',     id: 'meta',         roles: ['marketing'] },
     { href: 'performance.html',  id: 'performance',  roles: ['marketing', 'sales', 'sales_manager'] },

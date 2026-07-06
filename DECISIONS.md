@@ -13,6 +13,11 @@ the structural map lives in the knowledge graph (`/graphify`). Format:
 
 ---
 
+## 2026-07-06 — CRM filter + multi-contact, coach next-session/perf, DR email + per-person questions, iOS push
+**What:** Batch of changes (v400): (1) students "No video" quick-filter chip = onboarded + no video on file. (2) Identity Email/Phone are multi-value; primary stays in the `email`/`phone` columns, extras in `metadata.alternate_emails`/`alternate_phones`; Videos finder searches all emails. (3) `dropbox-proxy` v20 EMAIL-FIRST matching (fixes cross-student video leak, e.g. jackbaron1 getting jack.wenaus's clip). (4) coach.js: a finished recurring series no longer hijacks the "next session" card (drop when no future occurrence); Upcoming Meetings renders from the fast DB `list` and folds in the slow `list-all` (per-user Zoom API) async. (5) `daily-reports` v4→v5: `notify()` now also EMAILS (email_outbox) on every event; per-person custom question sets (`daily_report_assignments.questions` jsonb, `questionsForUser`, `assign-questions` api, Assignments-tab editor). (6) notifications.js: Enable-push now unsubscribes any stale subscription and mints a fresh one (iOS PWA "worked then stopped").
+**Why:** User requests + bug reports during a live session. Push root cause for one user was 0 server-side subscriptions (stale iOS sub); email added to DR because it was in-app+push only. dropbox-proxy stored in `metadata.alternate_emails` reused an existing convention (11 students already had it) to avoid touching the 78 KB students fn.
+**Touched:** students.js, students.html, coach.js, notifications.js, daily-reports.html, changelog.js (v400/400a/400b), version.txt (v400). Edge fns (deploy byte-verified): dropbox-proxy v20 (sha cef0be00 → later email-first 2ff9427…/deployed), daily-reports v5 (sha 38b44f2b). Migration: `daily_report_assignments.questions` jsonb. NOTE: today's 5 frontend pushes had SKIPPED version.txt/changelog — this entry's push (v400) is the first to bump them, so prior changes only reach users' PWAs now.
+
 ## 2026-06-29 — Zoom-op audit + shared-room safety (zoom-meetings v51 + coach UI)
 **Audit of every Zoom op under the shared-room model, with fixes for the ones that misbehaved:**
 - **create** ✓ (v50) — attaches class to room, local occurrences, no Zoom touch but registration.

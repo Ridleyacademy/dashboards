@@ -824,7 +824,7 @@ turnovers have `rep_name + note + result`).
 ### Sidebar filters + Coach overview (v98+)
 
 Above the search input there's a chip row: **All / Mine / Stale /
-Duplicates** with live counts, plus a **📊 Overview** toggle.
+Duplicates / No video** with live counts, plus a **📊 Overview** toggle.
 
 - **Mine** filters by `coach` matching the user's first_name OR email
   (case-insensitive, both compared). Coach-only users (no admin /
@@ -835,6 +835,10 @@ Duplicates** with live counts, plus a **📊 Overview** toggle.
 - **Duplicates** = students sharing the same lowercased email OR name
   with another student. Detected client-side; flagged with a `⎘ dup`
   badge in both sidebar rows AND overview rows.
+- **No video** (v400) = onboarded (`student_onboarded_date` set) AND no
+  video on file (`video_url`/`video_submitted_date` both empty) — the same
+  "has video" signal as the advanced Filters panel (`_isNoVideoOnboarded`).
+  A clip may still exist in Dropbox unlinked; this flags the DB gap.
 - **Overview** swaps the profile pane for a dashboard table (sortable
   visually but actually sorted stalest-first). Click any row to drop
   back to that student's profile. Honors all chip + search + date
@@ -889,6 +893,15 @@ Endpoints (all gated to admin / mentorship / sales_manager / coach):
 `FIELDS` allowlist gates which student columns can be written via
 upsert. Adding a new column? Add it to FIELDS, plus DATE_FIELDS or
 BOOL_FIELDS if needed.
+
+**Multiple emails / phones (v400).** Identity's Email + Phone are repeatable
+(`type:'multi'` fields in `SECTIONS`, rendered by `_addMultiRow`). The FIRST
+value is the primary — it stays in the `email`/`phone` columns, so dedup,
+search, Zoom invites and system emails are unchanged. Extras live in
+`metadata.alternate_emails` / `metadata.alternate_phones` (JSON string arrays)
+and are **merged** onto existing `metadata` on save (nothing else is lost). No
+edge-fn change was needed (metadata already passes through upsert). The Videos
+finder builds its Dropbox query from ALL of a student's emails (primary + alternates).
 
 The Coach picker on the profile is a **datalist** input (free text +
 autocomplete from `?api=coaches`). Users without an account can still
@@ -1778,10 +1791,11 @@ Most public ingest endpoints are authed by a shared `?token=`/`?key=` query secr
 ### dropbox-proxy
 
 - **Purpose:** Read-only Dropbox browser for the dashboard — list files, get a share link, or get a short-lived streaming link.
-- **Trigger:** `GET`/`POST` with `?api=list|share|temp-link` (default `list`). Dual auth: header `x-intake-secret` == `INTAKE_SECRET`, **or** a valid Supabase user (anon client + `getUser()` on the Bearer JWT); 401 if neither. CORS allows `x-intake-secret`.
-- **External:** Dropbox `list_folder`, `sharing/{list_shared_links, create_shared_link_with_settings}`, `files/get_temporary_link`. Refresh-token OAuth; `DROPBOX_FOLDER` default as above.
-- **Modes:** `list` (optional `?q=` token filter, newest first, capped 200); `share` (`?path=` → persistent shared link); `temp-link` (`?path=` → ~4h direct media URL for inline `<video>`, per-call so it isn't logged anywhere persistent).
-- **Tables:** none. Header `// dropbox-proxy v4`.
+- **Trigger:** `GET`/`POST` with `?api=list|share|temp-link|resolve` (default `list`). Triple auth: header `x-intake-secret` == `INTAKE_SECRET`, **or** `x-dispatch-secret` == `DISPATCH_EVENT_SECRET` (so SQL/server callers can query it), **or** a valid Supabase user (anon client + `getUser()` on the Bearer JWT); 401 if none.
+- **External:** Dropbox `list_folder`, `search_v2` (recursive subfolder fallback), `sharing/{list_shared_links, create_shared_link_with_settings, get_shared_link_metadata}`, `files/get_temporary_link`. Refresh-token OAuth; `DROPBOX_FOLDER` default as above.
+- **Modes:** `list` (optional `?q=` filter, newest first, cap 5000); `share`; `temp-link` (~4h direct media URL); `resolve` (`?url=` stale share link → fresh streaming link).
+- **v20 EMAIL-FIRST matching (the student-video finder).** Files are named `<emaillocal>@<domain>-<date>-…`. `list` extracts the email(s) from `q` and matches on the FULL email or WHOLE email-local (never split on `.`, so `jackbaron1` ≠ `jack.wenaus`). Only if no email hit does it fall back to NAME matching with ALL tokens required (AND) — a lone common first name can't pull a stranger's clip. Recursive search re-applies the same strict test. Prior bug: loose ≥3-char OR-token matching leaked other students' videos. `via` reports `email|name|search|list`.
+- **Tables:** none. Header comment says v20 (older lines still cite v4–v7).
 
 ### typeform-help
 
@@ -1790,6 +1804,16 @@ Most public ingest endpoints are authed by a shared `?token=`/`?key=` query secr
 - **🔴 SECURITY — hardcoded secret:** the intake key is a **string literal in source** (`const INTAKE_KEY = 'tfk_4a91c7e6b2d04f38a5e1c9d7b6038f2e'`), not an env var. It is committed to the repo and rotating it requires editing + redeploying the function. **Action: move this to a `Deno.env.get(...)` secret and rotate the leaked value.**
 - **Writes:** all DB work is inside RPC `ms_help_request({ p_email, p_name, p_message })` (service-role client), which creates the alert and fans out notifications.
 - **Gotchas:** Identity fields (email/first/last/full name, phone) are used only for matching/title and are **excluded** from the alert message body; remaining answers join with `  |  ` and cap at 4000 chars (`(no message provided)` if empty). Email/name hidden-field fallbacks supported. Typeform signature header is not verified — security rests entirely on the URL `key`.
+
+### daily-reports (v5; built 2026-07-01, `verify_jwt:false`)
+
+- **Purpose:** Daily Report system. Admins assign people a report on custom weekdays; assignees submit answers to a question set; admins ↔ assignees hold a threaded conversation per report; a ~5 PM ET cron nudges anyone due-today who hasn't submitted.
+- **Auth:** parses the Bearer user JWT itself (`verify_jwt:false`); `?api=run` is secret-gated via `X-Dispatch-Secret`. Service-role DB client. "Manager" = admin OR `daily_reports` role OR `daily_reports.manage`; assignees can always view+submit their own.
+- **Tables:** `daily_report_questions` (global baseline set), `daily_report_assignments` (user_id UNIQUE, weekdays int[], active, assigned_by, **`questions` jsonb** = per-person override), `daily_reports` (user_id+report_date UNIQUE, answers jsonb), `daily_report_messages` (thread). Assigning auto-inserts a `daily_reports.view` grant; unassign deletes it.
+- **APIs:** bootstrap / my-reports / submit / thread / reply / questions / save-questions / all-reports / assignments / assign / **assign-questions** / unassign / run.
+- **Per-person questions (v5).** `questionsForUser(userId)` returns the assignment's `questions` jsonb if non-empty, else the global baseline; used by both `bootstrap` (the form shown) and `submit` (answer→text map). `assign-questions` sets/clears a person's set (empty array → NULL → inherit). `assignments` also returns `baseline` for the editor prefill. Frontend: Assignments tab → per-person **Questions** editor + "Reset to baseline".
+- **Notifications (v4+):** `notify()` does THREE things — in-app `notifications` row + web-push (`push-subscribe?api=dispatch`) + **email** (`enqueueEmails()` → `email_outbox`, resolving each recipient via `auth.admin.getUserById`, `dedupe_key` NULL so every event sends). Fires on submit / replies / assignment / nudge. Routes to the assignment CREATOR (fallback: all managers).
+- **Cron:** pg_cron `daily-reports-evening-nudge` `0 21 * * *` (5 PM EDT) → `?api=run` with the vault dispatch secret.
 
 ---
 

@@ -16,6 +16,22 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v400b', title: 'Notifications — Daily Reports now email you + push fix',
+      items: [
+      'Daily Reports now also send an email (in addition to in-app + push) on everything: submissions, replies, new assignments, and the 5 PM reminder.',
+      'Push notifications: fixed a case (especially on iPhone home-screen apps) where a subscription went stale and quietly stopped delivering — enabling now always registers a fresh one. If push still isn’t arriving, open the 🔔 bell → Enable push notifications → Allow.',
+    ]},
+    { version: 'v400a', title: 'Daily Reports — custom questions per person',
+      roles: ['daily_reports'], items: [
+      'The Questions tab is the shared baseline everyone answers. You can now tailor questions for one person: Assignments → that person → Questions → edit → Save.',
+      'A “custom Q×N” tag marks anyone with their own set; “Reset to baseline” drops the override so they follow the shared questions again.',
+    ]},
+    { version: 'v400', title: 'Student CRM — “No video” filter, multiple emails/phones + coach fixes',
+      roles: ['coach', 'mentorship', 'ms_ic', 'delivery_ic'], items: [
+      'New “No video” quick-filter in the student list: shows onboarded students who have no video on file, so you can chase submissions.',
+      'A student can now have more than one email and phone in Identity (＋ to add, ✕ to remove). The first is the primary; the video finder searches all of a student’s emails.',
+      'Coach dashboard: the highlighted “next session” no longer shows a class that already happened, and the Upcoming Meetings section loads much faster.',
+    ]},
     { version: 'v392', title: 'Student videos — stale Dropbox links now play again',
       roles: ['coach', 'mentorship', 'ms_ic', 'delivery_ic'], items: [
       'Saved Dropbox links go stale over time and stopped playing (a normal .mp4 would even show a false “format not supported”). The player now resolves the saved link to a fresh streaming link, so these videos play inline again.',

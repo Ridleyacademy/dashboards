@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v403', title: 'Messages button in the top bar (everywhere)', items: [
+      'A 💬 Messages button now sits next to the 🔔 bell on every dashboard — click it to pop open your chats without leaving the page.',
+      'The popup has the full messaging: your conversations, DMs, group chats, and a composer. A green count shows unread messages.',
+    ]},
     { version: 'v402', title: 'New: Messages — internal team chat', items: [
       'A new Messages dashboard: direct-message anyone on the team and create group chats — text only, like a simple Slack.',
       'New messages ping your notification bell and push to your phone (if push is enabled). Open it from the Dashboards menu or the home screen.',

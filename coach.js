@@ -2289,6 +2289,12 @@ async function loadUpcomingMeetings() {
           .filter(t => !isNaN(t) && t > cutoff)
           .sort((a, b) => a - b);
         if (futures.length) return new Date(futures[0]).toISOString();
+        // Occurrences are synced but none remain in the future → the (possibly
+        // "recurring") series is finished; it has no next session. Return null so a
+        // stale past start can't sort to the front and hijack the "next session"
+        // highlight. Only fall back to scheduled_start_time when NO occurrences are
+        // synced yet (we genuinely don't know the schedule).
+        if (occ.length) return null;
         return m.scheduled_start_time || null;
       };
       const dbRows = (dbJ.meetings || [])
@@ -2296,8 +2302,15 @@ async function loadUpcomingMeetings() {
         .map(m => ({ ...m, scheduled_start_time: nextStart(m) }))
         // Keep recurring meetings always (they're ongoing); only date-gate one-offs.
         .filter(m => {
-          if (m.is_recurring) return true;
           const t = m.scheduled_start_time ? Date.parse(m.scheduled_start_time) : 0;
+          if (m.is_recurring) {
+            // scheduled_start_time here is the computed nextStart. A recurring series
+            // with synced occurrences is kept only if a FUTURE one exists (finished
+            // series got null → t=0 → dropped). A recurring row not yet synced (no
+            // occurrences) is kept, since we can't know its schedule.
+            const occ = Array.isArray(m.occurrences) ? m.occurrences : [];
+            return occ.length ? (!!t && t > cutoff) : true;
+          }
           return !t || t > cutoff;
         });
       const dbZoomIds = new Set(dbRows.map(m => String(m.zoom_meeting_id || '')).filter(Boolean));
@@ -2327,14 +2340,27 @@ async function loadUpcomingMeetings() {
           .filter(t => !isNaN(t) && t > cutoff)
           .sort((a, b) => a - b);
         if (futures.length) return new Date(futures[0]).toISOString();
+        // Occurrences are synced but none remain in the future → the (possibly
+        // "recurring") series is finished; it has no next session. Return null so a
+        // stale past start can't sort to the front and hijack the "next session"
+        // highlight. Only fall back to scheduled_start_time when NO occurrences are
+        // synced yet (we genuinely don't know the schedule).
+        if (occ.length) return null;
         return m.scheduled_start_time || null;
       };
       upcomingMeetings = (j.meetings || [])
         .filter(m => m.status === 'scheduled')
         .map(m => ({ ...m, scheduled_start_time: nextStart(m) }))
         .filter(m => {
-          if (m.is_recurring) return true;
           const t = m.scheduled_start_time ? Date.parse(m.scheduled_start_time) : 0;
+          if (m.is_recurring) {
+            // scheduled_start_time here is the computed nextStart. A recurring series
+            // with synced occurrences is kept only if a FUTURE one exists (finished
+            // series got null → t=0 → dropped). A recurring row not yet synced (no
+            // occurrences) is kept, since we can't know its schedule.
+            const occ = Array.isArray(m.occurrences) ? m.occurrences : [];
+            return occ.length ? (!!t && t > cutoff) : true;
+          }
           return !t || t > cutoff;
         })
         .sort((a, b) => {

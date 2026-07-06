@@ -16,6 +16,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v411', title: 'Messages — send photos & videos', items: [
+      'Tap the 📎 in any chat (DM or group) to attach photos and videos, with or without a caption.',
+      'Images preview inline (tap to open full-size); videos play right in the chat.',
+      'Media is stored securely and only people in that conversation can view it.',
+    ]},
     { version: 'v410', title: 'Messages — "Send failed" after idle fixed + phone alerts restored', items: [
       'Sending a message after leaving the page open no longer fails with "Load failed" — it now retries automatically with a fresh session.',
       'If a send still can\'t go through, your typed text is restored instead of being lost.',

@@ -127,6 +127,20 @@
       .mw-pfoot button { flex:1; border-radius:9px; padding:9px; font-size:0.8rem; font-weight:700; cursor:pointer; border:none; }
       .mw-cancel { background:#191e30; color:#7880a8; border:1px solid #1f2438 !important; }
       .mw-go { background:linear-gradient(135deg,#34d399,#22b07d); color:#fff; }
+      .mw-attbtn { background:#191e30 !important; border:1px solid #1f2438 !important; color:#7880a8 !important; width:38px !important; height:38px !important; font-size:1.1rem; }
+      .mw-attbtn:hover { color:#eaecf8 !important; }
+      .mw-attbtn:disabled { opacity:0.4; cursor:default; }
+      .mw-attstrip { display:flex; gap:8px; flex-wrap:wrap; padding:8px 12px 0; }
+      .mw-attstrip:empty { display:none; }
+      .mw-thumb { position:relative; width:58px; height:58px; border-radius:9px; overflow:hidden; border:1px solid #272d45; background:#0f1120; flex-shrink:0; }
+      .mw-thumb img, .mw-thumb video { width:100%; height:100%; object-fit:cover; display:block; }
+      .mw-thumb .mw-vico { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:1.2rem; color:#fff; background:rgba(0,0,0,0.3); }
+      .mw-thumb .mw-rm { position:absolute; top:2px; right:2px; width:17px; height:17px; border-radius:50%; background:rgba(0,0,0,0.7); color:#fff; border:none; cursor:pointer; font-size:0.7rem; line-height:17px; padding:0; }
+      .mw-thumb.up::after { content:''; position:absolute; inset:0; background:rgba(15,17,32,0.55) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%2334d399' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M12 2v6M12 22v-4'/%3E%3C/svg%3E") center/20px no-repeat; }
+      .mw-media { display:flex; flex-direction:column; gap:4px; margin-top:3px; max-width:82%; }
+      .mw-row.mine .mw-media { align-items:flex-end; }
+      .mw-media img.mw-mimg, .mw-media video.mw-mvid { max-width:240px; max-height:280px; width:auto; border-radius:12px; border:1px solid #1f2438; cursor:pointer; display:block; background:#0f1120; }
+      .mw-media video.mw-mvid { cursor:default; }
     `;
     document.head.appendChild(css);
   }
@@ -158,7 +172,13 @@
       <div class="mw-thread" id="mwThread">
         <div class="mw-head"><button class="mw-back" id="mwBack">‹</button><div class="mw-title" id="mwThreadTitle" style="font-size:0.88rem;"></div><button class="mw-x" id="mwClose2">×</button></div>
         <div class="mw-msgs" id="mwMsgs"></div>
-        <div class="mw-comp"><textarea id="mwInput" rows="1" placeholder="Message…"></textarea><button id="mwSend"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button></div>
+        <div class="mw-attstrip" id="mwAttStrip"></div>
+        <div class="mw-comp">
+          <input type="file" id="mwFile" accept="image/*,video/*" multiple style="display:none">
+          <button id="mwAttach" class="mw-attbtn" title="Attach photo or video">📎</button>
+          <textarea id="mwInput" rows="1" placeholder="Message…"></textarea>
+          <button id="mwSend"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
+        </div>
       </div>
       <div class="mw-pick" id="mwPick">
         <div class="mw-head"><div class="mw-title" id="mwPickTitle" style="font-size:0.9rem;">New message</div><button class="mw-x" id="mwPickX">×</button></div>
@@ -176,6 +196,13 @@
     p.querySelector('#mwNewDm').addEventListener('click', () => openPicker('dm'));
     p.querySelector('#mwNewGrp').addEventListener('click', () => openPicker('group'));
     p.querySelector('#mwSend').addEventListener('click', send);
+    p.querySelector('#mwAttach').addEventListener('click', () => document.getElementById('mwFile').click());
+    p.querySelector('#mwFile').addEventListener('change', (e) => { handleFiles(e.target.files); e.target.value = ''; });
+    // Tap an image to open it full-size in a new tab.
+    p.querySelector('#mwMsgs').addEventListener('click', (e) => {
+      const img = e.target.closest && e.target.closest('img.mw-mimg'); if (!img) return;
+      const full = img.getAttribute('data-full'); if (full) window.open(full, '_blank', 'noopener');
+    });
     p.querySelector('#mwSearch').addEventListener('input', e => renderPicker(e.target.value));
     p.querySelector('#mwPickGo').addEventListener('click', pickerConfirm);
     const inp = p.querySelector('#mwInput');
@@ -222,6 +249,7 @@
 
   async function openConv(id) {
     curConv = id; const conv = convs.find(c => c.id === id);
+    resetAtts();
     showThread();
     document.getElementById('mwThreadTitle').textContent = conv ? conv.title : 'Conversation';
     const mEl = document.getElementById('mwMsgs'); mEl.innerHTML = '<div class="mw-empty">Loading…</div>';
@@ -232,8 +260,20 @@
     } catch (e) { mEl.innerHTML = `<div class="mw-empty">${esc(e.message)}</div>`; }
     setTimeout(() => document.getElementById('mwInput').focus(), 40);
   }
+  function mediaHtml(atts) {
+    if (!atts || !atts.length) return '';
+    const items = atts.map(a => {
+      const src = a.url || a._localUrl || '';
+      if (!src) return '';
+      if (a.kind === 'video') return `<video class="mw-mvid" src="${esc(src)}" controls preload="metadata"></video>`;
+      return `<img class="mw-mimg" src="${esc(src)}" loading="lazy" data-full="${esc(src)}" alt="${esc(a.name || 'image')}">`;
+    }).join('');
+    return `<div class="mw-media">${items}</div>`;
+  }
   function bubble(m, isG) {
-    return `<div class="mw-row${m.mine ? ' mine' : ''}"${m._tmpId ? ` id="${m._tmpId}"` : ''}>${(!m.mine && isG) ? `<div class="mw-snd">${esc(m.sender_name || nameById[m.sender_id] || '')}</div>` : ''}<div class="mw-bub">${esc(m.body)}</div><div class="mw-bt">${fmtTime(m.created_at)}</div></div>`;
+    const snd = (!m.mine && isG) ? `<div class="mw-snd">${esc(m.sender_name || nameById[m.sender_id] || '')}</div>` : '';
+    const txt = m.body ? `<div class="mw-bub">${esc(m.body)}</div>` : '';
+    return `<div class="mw-row${m.mine ? ' mine' : ''}"${m._tmpId ? ` id="${m._tmpId}"` : ''}>${snd}${mediaHtml(m.attachments)}${txt}<div class="mw-bt">${fmtTime(m.created_at)}</div></div>`;
   }
   function renderMsgs(msgs) {
     const conv = convs.find(c => c.id === curConv); const isG = conv && conv.type === 'group';
@@ -246,20 +286,72 @@
     const el = document.getElementById('mwMsgs'); const e = el.querySelector('.mw-empty'); if (e) el.innerHTML = '';
     el.insertAdjacentHTML('beforeend', bubble(m, isG)); el.scrollTop = el.scrollHeight;
   }
+  // ── Attachments: upload straight to Dropbox via a one-time link ──────────
+  let pendingAtts = [];   // { id, kind, mime, size, name, path, _localUrl, status:'uploading'|'done' }
+  function resetAtts() { pendingAtts.forEach(a => { if (a._localUrl) URL.revokeObjectURL(a._localUrl); }); pendingAtts = []; renderAttStrip(); }
+  function renderAttStrip() {
+    const el = document.getElementById('mwAttStrip'); if (!el) return;
+    el.innerHTML = pendingAtts.map(a => {
+      const inner = a.kind === 'video'
+        ? `<video src="${esc(a._localUrl || '')}" muted></video><div class="mw-vico">🎬</div>`
+        : `<img src="${esc(a._localUrl || '')}" alt="">`;
+      return `<div class="mw-thumb${a.status === 'uploading' ? ' up' : ''}" data-a="${a.id}">${inner}<button class="mw-rm" data-rm="${a.id}">×</button></div>`;
+    }).join('');
+    el.querySelectorAll('[data-rm]').forEach(b => b.addEventListener('click', () => {
+      const id = b.dataset.rm; const i = pendingAtts.findIndex(a => a.id === id);
+      if (i >= 0) { if (pendingAtts[i]._localUrl) URL.revokeObjectURL(pendingAtts[i]._localUrl); pendingAtts.splice(i, 1); renderAttStrip(); }
+    }));
+  }
+  async function handleFiles(files) {
+    if (!curConv || !files || !files.length) return;
+    for (const file of Array.from(files)) {
+      const kind = file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : 'file';
+      if (kind === 'file') { alert('Only photos and videos can be attached.'); continue; }
+      const localId = 'att-' + Date.now() + '-' + Math.round(performance.now());
+      const rec = { id: localId, kind, mime: file.type, size: file.size, name: file.name, path: null, _localUrl: URL.createObjectURL(file), status: 'uploading' };
+      pendingAtts.push(rec); renderAttStrip();
+      try {
+        const init = await chatFetch('?api=attach-init', { method: 'POST', body: JSON.stringify({ conversation_id: curConv, filename: file.name, mime: file.type, size: file.size }) });
+        const put = await fetch(init.upload_url, { method: 'PUT', headers: { 'Content-Type': 'application/octet-stream' }, body: file });
+        if (!put.ok) throw new Error('upload failed (' + put.status + ')');
+        rec.path = init.path; rec.status = 'done'; renderAttStrip();
+      } catch (e) {
+        const i = pendingAtts.indexOf(rec); if (i >= 0) { URL.revokeObjectURL(rec._localUrl); pendingAtts.splice(i, 1); }
+        renderAttStrip(); alert('Could not upload ' + file.name + ': ' + e.message);
+      }
+    }
+  }
+
   async function send() {
-    const inp = document.getElementById('mwInput'); const body = inp.value.trim(); if (!body || !curConv) return;
+    const inp = document.getElementById('mwInput'); const body = inp.value.trim();
+    if (!curConv) return;
+    const uploading = pendingAtts.some(a => a.status === 'uploading');
+    if (uploading) { alert('Hold on — attachments are still uploading.'); return; }
+    const ready = pendingAtts.filter(a => a.status === 'done' && a.path);
+    if (!body && !ready.length) return;
+    return sendWith(body, ready);
+  }
+  async function sendWith(body, ready) {
+    const inp = document.getElementById('mwInput');
     const cid = curConv; inp.value = ''; inp.style.height = 'auto';
     const nowIso = new Date().toISOString();
     const tmpId = 'mw-tmp-' + nowIso.replace(/\D/g, '');
-    appendMsg({ body, created_at: nowIso, mine: true, sender_id: me?.user_id, _tmpId: tmpId });   // optimistic — feels instant
+    // Optimistic bubble reuses the local preview URLs so media shows instantly.
+    const optAtts = ready.map(a => ({ kind: a.kind, mime: a.mime, name: a.name, _localUrl: a._localUrl }));
+    appendMsg({ body, created_at: nowIso, mine: true, sender_id: me?.user_id, _tmpId: tmpId, attachments: optAtts });
+    // The strip's object URLs are now owned by the optimistic bubble — clear the strip
+    // WITHOUT revoking them (revoking would blank the preview we just rendered).
+    pendingAtts = []; renderAttStrip();
+    const payloadAtts = ready.map(a => ({ path: a.path, mime: a.mime, size: a.size, name: a.name }));
+    const preview = body || (ready.some(a => a.kind === 'video') ? '📷 Attachment' : '📷 Attachment');
     const conv = convs.find(c => c.id === cid);
-    if (conv) { conv.last_message = { body, sender_id: me?.user_id, sender_name: me?.name, created_at: nowIso }; conv.last_message_at = nowIso; convs.sort((a, b) => new Date(b.last_message_at) - new Date(a.last_message_at)); renderList(); }
-    try { await chatFetch('?api=send', { method: 'POST', body: JSON.stringify({ conversation_id: cid, body }) }); }
+    if (conv) { conv.last_message = { body: preview, sender_id: me?.user_id, sender_name: me?.name, created_at: nowIso }; conv.last_message_at = nowIso; convs.sort((a, b) => new Date(b.last_message_at) - new Date(a.last_message_at)); renderList(); }
+    try { await chatFetch('?api=send', { method: 'POST', body: JSON.stringify({ conversation_id: cid, body, attachments: payloadAtts }) }); }
     catch (e) {
       // Roll back the optimistic bubble and put the text back so nothing is silently lost.
       const node = document.getElementById(tmpId); if (node) node.remove();
       if (curConv === cid && !inp.value.trim()) { inp.value = body; inp.style.height = 'auto'; }
-      alert('Message not sent: ' + e.message + '\nYour text was restored — tap send to try again.');
+      alert('Message not sent: ' + e.message + (body ? '\nYour text was restored — tap send to try again.' : ''));
     }
   }
 
@@ -303,7 +395,13 @@
     channel = s.channel('msg-widget-rt').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, (payload) => {
       const m = payload.new; if (!m) return;
       if (me && m.sender_id === me.user_id) return;
-      if (panelOpen && m.conversation_id === curConv) { appendMsg({ ...m, sender_name: nameById[m.sender_id] || '', mine: false }); chatFetch('?api=mark-read', { method: 'POST', body: JSON.stringify({ conversation_id: curConv }) }).catch(() => {}); }
+      if (panelOpen && m.conversation_id === curConv) {
+        // The realtime payload carries only the message row, not its attachments — so if
+        // it has media, re-fetch the thread to pull fresh view links; otherwise append.
+        if (m.has_attachments) openConv(curConv);
+        else appendMsg({ ...m, sender_name: nameById[m.sender_id] || '', mine: false });
+        chatFetch('?api=mark-read', { method: 'POST', body: JSON.stringify({ conversation_id: curConv }) }).catch(() => {});
+      }
       refreshSoon();
     }).subscribe();
   }

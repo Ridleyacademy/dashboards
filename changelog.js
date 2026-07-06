@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v415', title: 'Messages — tap media to expand + download', items: [
+      'Tap a photo to open it full-size in a pop-up, or tap a video to play it there — no new tab.',
+      'Each has a Download button to save the file directly.',
+    ]},
     { version: 'v414', title: 'Messages — attachment size limit + lighter background refresh', items: [
       'Photo/video attachments are now capped at 50 MB each.',
       'The messaging background refresh runs a bit less often (live updates are unaffected).',

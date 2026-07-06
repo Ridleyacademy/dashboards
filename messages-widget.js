@@ -139,8 +139,16 @@
       .mw-thumb.up::after { content:''; position:absolute; inset:0; background:rgba(15,17,32,0.55) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%2334d399' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M12 2v6M12 22v-4'/%3E%3C/svg%3E") center/20px no-repeat; }
       .mw-media { display:flex; flex-direction:column; gap:4px; margin-top:3px; max-width:82%; }
       .mw-row.mine .mw-media { align-items:flex-end; }
-      .mw-media img.mw-mimg, .mw-media video.mw-mvid { max-width:240px; max-height:280px; width:auto; border-radius:12px; border:1px solid #1f2438; cursor:pointer; display:block; background:#0f1120; }
-      .mw-media video.mw-mvid { cursor:default; }
+      .mw-media img.mw-mimg, .mw-mtile { max-width:240px; max-height:280px; width:auto; border-radius:12px; border:1px solid #1f2438; cursor:pointer; display:block; background:#0f1120; }
+      .mw-mtile { position:relative; overflow:hidden; }
+      .mw-mtile video.mw-mvid { max-width:240px; max-height:280px; width:auto; display:block; border-radius:12px; }
+      .mw-mtile .mw-play { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:1.6rem; color:#fff; background:rgba(0,0,0,0.28); text-shadow:0 1px 6px rgba(0,0,0,0.6); }
+      .mw-lb { position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:10050; display:none; align-items:center; justify-content:center; }
+      .mw-lb.open { display:flex; }
+      .mw-lb img, .mw-lb video { max-width:92vw; max-height:84vh; border-radius:10px; display:block; }
+      .mw-lb-bar { position:absolute; top:14px; right:14px; display:flex; gap:10px; }
+      .mw-lb-btn { background:rgba(255,255,255,0.16); color:#fff; border:none; border-radius:9px; padding:9px 13px; font-size:0.85rem; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:6px; }
+      .mw-lb-btn:hover { background:rgba(255,255,255,0.3); }
     `;
     document.head.appendChild(css);
   }
@@ -198,11 +206,12 @@
     p.querySelector('#mwSend').addEventListener('click', send);
     p.querySelector('#mwAttach').addEventListener('click', () => document.getElementById('mwFile').click());
     p.querySelector('#mwFile').addEventListener('change', (e) => { handleFiles(e.target.files); e.target.value = ''; });
-    // Tap an image to open it full-size in a new tab.
+    // Tap an image or video tile to expand it in the in-app lightbox.
     p.querySelector('#mwMsgs').addEventListener('click', (e) => {
-      const img = e.target.closest && e.target.closest('img.mw-mimg'); if (!img) return;
-      const full = img.getAttribute('data-full'); if (full) window.open(full, '_blank', 'noopener');
+      const el = e.target.closest && e.target.closest('img.mw-mimg, .mw-mtile'); if (!el) return;
+      const full = el.getAttribute('data-full'); if (full) openLightbox(full, el.getAttribute('data-kind'), el.getAttribute('data-name'));
     });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeLightbox(); });
     p.querySelector('#mwSearch').addEventListener('input', e => renderPicker(e.target.value));
     p.querySelector('#mwPickGo').addEventListener('click', pickerConfirm);
     const inp = p.querySelector('#mwInput');
@@ -265,10 +274,38 @@
     const items = atts.map(a => {
       const src = a.url || a._localUrl || '';
       if (!src) return '';
-      if (a.kind === 'video') return `<video class="mw-mvid" src="${esc(src)}" controls preload="metadata"></video>`;
-      return `<img class="mw-mimg" src="${esc(src)}" loading="lazy" data-full="${esc(src)}" alt="${esc(a.name || 'image')}">`;
+      const nm = esc(a.name || (a.kind === 'video' ? 'video' : 'image'));
+      if (a.kind === 'video') return `<div class="mw-mtile" data-full="${esc(src)}" data-kind="video" data-name="${nm}"><video class="mw-mvid" src="${esc(src)}" preload="metadata" muted playsinline></video><div class="mw-play">▶</div></div>`;
+      return `<img class="mw-mimg" src="${esc(src)}" loading="lazy" data-full="${esc(src)}" data-kind="image" data-name="${nm}" alt="${nm}">`;
     }).join('');
     return `<div class="mw-media">${items}</div>`;
+  }
+  // In-app lightbox: expand an image / play a video over the panel, with a Download
+  // button that saves in place (fetch→blob) instead of opening a new tab.
+  function downloadMedia(url, name) {
+    fetch(url).then(r => r.blob()).then(b => {
+      const u = URL.createObjectURL(b);
+      const a = document.createElement('a'); a.href = u; a.download = name || 'download';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(u), 15000);
+    }).catch(() => { const a = document.createElement('a'); a.href = url; a.download = name || 'download'; a.target = '_blank'; a.rel = 'noopener'; document.body.appendChild(a); a.click(); a.remove(); });
+  }
+  function closeLightbox() { const lb = document.getElementById('mwLb'); if (lb) { lb.classList.remove('open'); lb.querySelector('.mw-lb-stage').innerHTML = ''; } }
+  function openLightbox(url, kind, name) {
+    let lb = document.getElementById('mwLb');
+    if (!lb) {
+      lb = document.createElement('div'); lb.id = 'mwLb'; lb.className = 'mw-lb';
+      lb.innerHTML = `<div class="mw-lb-bar"><button class="mw-lb-btn" id="mwLbDl">⬇ Download</button><button class="mw-lb-btn" id="mwLbX">✕ Close</button></div><div class="mw-lb-stage"></div>`;
+      document.body.appendChild(lb);
+      lb.addEventListener('click', (e) => { if (e.target === lb) closeLightbox(); });
+      lb.querySelector('#mwLbX').addEventListener('click', closeLightbox);
+    }
+    const stage = lb.querySelector('.mw-lb-stage');
+    stage.innerHTML = kind === 'video'
+      ? `<video src="${esc(url)}" controls autoplay playsinline></video>`
+      : `<img src="${esc(url)}" alt="${esc(name || '')}">`;
+    lb.querySelector('#mwLbDl').onclick = () => downloadMedia(url, name);
+    lb.classList.add('open');
   }
   function bubble(m, isG) {
     const snd = (!m.mine && isG) ? `<div class="mw-snd">${esc(m.sender_name || nameById[m.sender_id] || '')}</div>` : '';

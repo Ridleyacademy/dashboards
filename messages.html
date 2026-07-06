@@ -131,8 +131,16 @@
   .att-thumb.up::before { content:'⏳'; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:1.1rem; z-index:1; }
   .msg-media { display:flex; flex-direction:column; gap:5px; margin-top:4px; }
   .bubble-row.mine .msg-media { align-items:flex-end; }
-  .msg-media img.m-img, .msg-media video.m-vid { max-width:300px; max-height:340px; width:auto; border-radius:14px; border:1px solid var(--border); display:block; background:var(--surface2); }
-  .msg-media img.m-img { cursor:pointer; }
+  .msg-media img.m-img, .m-tile { max-width:300px; max-height:340px; width:auto; border-radius:14px; border:1px solid var(--border); display:block; background:var(--surface2); cursor:pointer; }
+  .m-tile { position:relative; overflow:hidden; }
+  .m-tile video.m-vid { max-width:300px; max-height:340px; width:auto; display:block; border-radius:14px; }
+  .m-tile .m-play { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:2rem; color:#fff; background:rgba(0,0,0,0.28); text-shadow:0 1px 6px rgba(0,0,0,0.6); }
+  .media-lb { position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:10050; display:none; align-items:center; justify-content:center; }
+  .media-lb.open { display:flex; }
+  .media-lb img, .media-lb video { max-width:92vw; max-height:84vh; border-radius:10px; display:block; }
+  .lb-bar { position:absolute; top:16px; right:16px; display:flex; gap:10px; }
+  .lb-btn { background:rgba(255,255,255,0.16); color:#fff; border:none; border-radius:9px; padding:10px 15px; font-size:0.9rem; font-weight:700; cursor:pointer; }
+  .lb-btn:hover { background:rgba(255,255,255,0.3); }
   .empty-state { text-align:center; color:var(--text-dim); font-size:0.82rem; padding:40px 20px; }
   .modal-overlay { display:none; position:fixed; inset:0; z-index:1000; background:rgba(0,0,0,0.65); backdrop-filter:blur(4px); align-items:center; justify-content:center; padding:24px; }
   .modal-overlay.open { display:flex; }
@@ -423,10 +431,36 @@ function mediaHtml(atts){
   if(!atts || !atts.length) return '';
   return `<div class="msg-media">`+atts.map(a=>{
     const src = a.url || a._localUrl || ''; if(!src) return '';
-    if(a.kind==='video') return `<video class="m-vid" src="${esc(src)}" controls preload="metadata"></video>`;
-    return `<img class="m-img" src="${esc(src)}" loading="lazy" data-full="${esc(src)}" alt="${esc(a.name||'image')}">`;
+    const nm = esc(a.name||(a.kind==='video'?'video':'image'));
+    if(a.kind==='video') return `<div class="m-tile" data-full="${esc(src)}" data-kind="video" data-name="${nm}"><video class="m-vid" src="${esc(src)}" preload="metadata" muted playsinline></video><div class="m-play">▶</div></div>`;
+    return `<img class="m-img" src="${esc(src)}" loading="lazy" data-full="${esc(src)}" data-kind="image" data-name="${nm}" alt="${nm}">`;
   }).join('')+`</div>`;
 }
+// In-app lightbox: expand image / play video over the page, with a Download button
+// that saves in place (fetch→blob) rather than opening a new tab.
+function downloadMedia(url, name){
+  fetch(url).then(r=>r.blob()).then(b=>{
+    const u=URL.createObjectURL(b); const a=document.createElement('a'); a.href=u; a.download=name||'download';
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(u),15000);
+  }).catch(()=>{ const a=document.createElement('a'); a.href=url; a.download=name||'download'; a.target='_blank'; a.rel='noopener'; document.body.appendChild(a); a.click(); a.remove(); });
+}
+function closeLightbox(){ const lb=document.getElementById('mediaLb'); if(lb){ lb.classList.remove('open'); lb.querySelector('.lb-stage').innerHTML=''; } }
+function openLightbox(url, kind, name){
+  let lb=document.getElementById('mediaLb');
+  if(!lb){
+    lb=document.createElement('div'); lb.id='mediaLb'; lb.className='media-lb';
+    lb.innerHTML=`<div class="lb-bar"><button class="lb-btn" id="lbDl">⬇ Download</button><button class="lb-btn" id="lbX">✕ Close</button></div><div class="lb-stage"></div>`;
+    document.body.appendChild(lb);
+    lb.addEventListener('click', e=>{ if(e.target===lb) closeLightbox(); });
+    lb.querySelector('#lbX').addEventListener('click', closeLightbox);
+  }
+  lb.querySelector('.lb-stage').innerHTML = kind==='video'
+    ? `<video src="${esc(url)}" controls autoplay playsinline></video>`
+    : `<img src="${esc(url)}" alt="${esc(name||'')}">`;
+  lb.querySelector('#lbDl').onclick = ()=>downloadMedia(url, name);
+  lb.classList.add('open');
+}
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeLightbox(); });
 function bubbleHtml(m, showSender){
   const snd = (!m.mine && showSender)?`<div class="bubble-sender">${esc(m.sender_name||nameById[m.sender_id]||'')}</div>`:'';
   const txt = m.body?`<div class="bubble">${esc(m.body)}</div>`:'';
@@ -514,7 +548,7 @@ async function sendMessage(){
 document.getElementById('sendBtn').addEventListener('click', sendMessage);
 document.getElementById('attachBtn').addEventListener('click', ()=>document.getElementById('fileInput').click());
 document.getElementById('fileInput').addEventListener('change', e=>{ handleFiles(e.target.files); e.target.value=''; });
-document.getElementById('msgs').addEventListener('click', e=>{ const img=e.target.closest&&e.target.closest('img.m-img'); if(img){ const f=img.getAttribute('data-full'); if(f) window.open(f,'_blank','noopener'); } });
+document.getElementById('msgs').addEventListener('click', e=>{ const el=e.target.closest&&e.target.closest('img.m-img, .m-tile'); if(el){ const f=el.getAttribute('data-full'); if(f) openLightbox(f, el.getAttribute('data-kind'), el.getAttribute('data-name')); } });
 document.getElementById('composerInput').addEventListener('keydown', e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); sendMessage(); } });
 document.getElementById('composerInput').addEventListener('input', function(){ this.style.height='auto'; this.style.height=Math.min(this.scrollHeight,140)+'px'; });
 document.getElementById('chatBack').addEventListener('click', ()=>{ document.getElementById('app').classList.remove('thread-open'); currentConv=null; renderConvList(); });

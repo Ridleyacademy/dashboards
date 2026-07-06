@@ -2275,10 +2275,6 @@ async function loadUpcomingMeetings() {
       // NOTE: don't pass &from here — recurring meetings store their ORIGINAL
       // (often past) start in scheduled_start_time, so a date filter would drop
       // them. We fetch every row and compute each one's next upcoming occurrence.
-      const [dbJ, allJ] = await Promise.all([
-        _zoomFetch('list'),
-        _zoomFetch('list-all').catch(() => ({ meetings: [] })),
-      ]);
       const cutoff = Date.now() - 60 * 60 * 1000;
       // For recurring rows the real "next" time lives in occurrences[]; the
       // top-level scheduled_start_time is the series' original (past) start.
@@ -2297,7 +2293,12 @@ async function loadUpcomingMeetings() {
         if (occ.length) return null;
         return m.scheduled_start_time || null;
       };
-      const dbRows = (dbJ.meetings || [])
+      const sortByStart = (a, b) => {
+        const ta = a.scheduled_start_time ? Date.parse(a.scheduled_start_time) : Infinity;
+        const tb = b.scheduled_start_time ? Date.parse(b.scheduled_start_time) : Infinity;
+        return ta - tb;
+      };
+      const buildDbRows = (dbJ) => (dbJ.meetings || [])
         .filter(m => m.status === 'scheduled')
         .map(m => ({ ...m, scheduled_start_time: nextStart(m) }))
         // Keep recurring meetings always (they're ongoing); only date-gate one-offs.
@@ -2313,18 +2314,27 @@ async function loadUpcomingMeetings() {
           }
           return !t || t > cutoff;
         });
-      const dbZoomIds = new Set(dbRows.map(m => String(m.zoom_meeting_id || '')).filter(Boolean));
-      const zoomOnly = (allJ.meetings || []).filter(m =>
-        (m.source === 'zoom' || (typeof m.id === 'string' && m.id.startsWith('zoom-'))) &&
-        !dbZoomIds.has(String(m.zoom_meeting_id || ''))
-      );
-      upcomingMeetings = [...dbRows, ...zoomOnly]
-        .filter(m => m.status !== 'cancelled')
-        .sort((a, b) => {
-          const ta = a.scheduled_start_time ? Date.parse(a.scheduled_start_time) : Infinity;
-          const tb = b.scheduled_start_time ? Date.parse(b.scheduled_start_time) : Infinity;
-          return ta - tb;
-        });
+
+      // ?api=list is a plain DB read (fast); ?api=list-all fans out a Zoom API call
+      // PER USER (slow, and occasionally rate-limited → retried). So render the
+      // section immediately from the DB rows, then fold in the rare "zoom-only"
+      // meetings (created directly on zoom.us) in the BACKGROUND when list-all
+      // resolves — instead of blocking the whole section on it.
+      const dbJ = await _zoomFetch('list');
+      const dbRows = buildDbRows(dbJ);
+      upcomingMeetings = dbRows.filter(m => m.status !== 'cancelled').sort(sortByStart);
+      renderUpcomingMeetings();
+
+      _zoomFetch('list-all').then(allJ => {
+        const dbZoomIds = new Set(dbRows.map(m => String(m.zoom_meeting_id || '')).filter(Boolean));
+        const zoomOnly = (allJ.meetings || []).filter(m =>
+          (m.source === 'zoom' || (typeof m.id === 'string' && m.id.startsWith('zoom-'))) &&
+          !dbZoomIds.has(String(m.zoom_meeting_id || ''))
+        );
+        if (!zoomOnly.length) return; // nothing extra to add — keep the fast render
+        upcomingMeetings = [...dbRows, ...zoomOnly].filter(m => m.status !== 'cancelled').sort(sortByStart);
+        renderUpcomingMeetings();
+      }).catch(() => {});
     } else {
       // Coaches: pull ALL their rows with NO &from filter. Recurring rows store the series'
       // ORIGINAL (often past) start in scheduled_start_time, so a server-side date filter would

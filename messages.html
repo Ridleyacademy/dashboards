@@ -267,9 +267,20 @@ function initials(n){ return String(n||'?').trim().split(/\s+/).map(w=>w[0]||'')
 function fmtTime(t){ if(!t) return ''; const d=new Date(t), now=new Date(); const sameDay=d.toDateString()===now.toDateString();
   return sameDay ? d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : d.toLocaleDateString('en-US',{month:'short',day:'numeric'}); }
 
-async function chatFetch(path, opts={}) {
+// Safari drops keep-alive connections when a tab sits idle; the first fetch after that
+// rejects at the network layer with "Load failed" (a TypeError, NOT an HTTP status).
+// Retry once with a refreshed token before surfacing the error.
+function _isNetErr(e){ const m=String(e&&e.message||e||''); return e instanceof TypeError || /load failed|failed to fetch|network|connection/i.test(m); }
+async function chatFetch(path, opts={}, _retried) {
+  if (_retried) { try { await supa.auth.refreshSession(); } catch(_){} }
   const { data:{session} } = await supa.auth.getSession();
-  const r = await fetch(CHAT_BASE + path, { ...opts, headers: { 'Content-Type':'application/json', Authorization:'Bearer '+(session?.access_token||''), ...(opts.headers||{}) } });
+  let r;
+  try {
+    r = await fetch(CHAT_BASE + path, { ...opts, headers: { 'Content-Type':'application/json', Authorization:'Bearer '+(session?.access_token||''), ...(opts.headers||{}) } });
+  } catch(e) {
+    if (!_retried && _isNetErr(e)) { await new Promise(res=>setTimeout(res,400)); return chatFetch(path, opts, true); }
+    throw new Error('Connection lost — check your network and try again.');
+  }
   const j = await r.json().catch(()=>({}));
   if (!r.ok) throw new Error(j.error || ('HTTP '+r.status));
   return j;
@@ -391,7 +402,7 @@ async function openConversation(id){
   setTimeout(()=>document.getElementById('composerInput').focus(),50);
 }
 function bubbleHtml(m, showSender){
-  return `<div class="bubble-row${m.mine?' mine':''}">${(!m.mine && showSender)?`<div class="bubble-sender">${esc(m.sender_name||nameById[m.sender_id]||'')}</div>`:''}<div class="bubble">${esc(m.body)}</div><div class="bubble-time">${fmtTime(m.created_at)}</div></div>`;
+  return `<div class="bubble-row${m.mine?' mine':''}"${m._tmpId?` id="${m._tmpId}"`:''}>${(!m.mine && showSender)?`<div class="bubble-sender">${esc(m.sender_name||nameById[m.sender_id]||'')}</div>`:''}<div class="bubble">${esc(m.body)}</div><div class="bubble-time">${fmtTime(m.created_at)}</div></div>`;
 }
 function renderMessages(msgs){
   const conv = conversations.find(c=>c.id===currentConv); const isG = conv && conv.type==='group';
@@ -412,11 +423,16 @@ async function sendMessage(){
   if(!body || !currentConv) return;
   const cid = currentConv; inp.value=''; inp.style.height='auto';
   const nowIso = new Date().toISOString();
-  appendMessage({ body, created_at: nowIso, mine:true, sender_id: me?.user_id });  // optimistic
+  const tmpId = 'msg-tmp-'+nowIso.replace(/\D/g,'');
+  appendMessage({ body, created_at: nowIso, mine:true, sender_id: me?.user_id, _tmpId: tmpId });  // optimistic
   const conv = conversations.find(c=>c.id===cid);
   if(conv){ conv.last_message={ body, sender_id: me?.user_id, sender_name: me?.name, created_at: nowIso }; conv.last_message_at=nowIso; conversations.sort((a,b)=>new Date(b.last_message_at)-new Date(a.last_message_at)); renderConvList(); }
   try { await chatFetch('?api=send',{method:'POST',body:JSON.stringify({conversation_id:cid, body})}); }
-  catch(e){ alert('Send failed: '+e.message); }
+  catch(e){
+    const node = document.getElementById(tmpId); if(node) node.remove();
+    if(currentConv===cid && !inp.value.trim()){ inp.value = body; inp.style.height='auto'; }
+    alert('Message not sent: '+e.message+'\nYour text was restored — tap send to try again.');
+  }
 }
 document.getElementById('sendBtn').addEventListener('click', sendMessage);
 document.getElementById('composerInput').addEventListener('keydown', e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); sendMessage(); } });

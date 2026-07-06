@@ -37,14 +37,35 @@
     } catch (_) {}
     return null;
   }
-  async function getToken() {
+  async function getToken(forceRefresh) {
     const s = ensureSupa();
-    if (s) { try { const { data } = await s.auth.getSession(); if (data?.session?.access_token) return data.session.access_token; } catch (_) {} }
+    if (s) {
+      try {
+        // On a retry, force a token refresh — Safari can hand back a stale session
+        // after the tab has been idle, and the socket may also need re-establishing.
+        if (forceRefresh) { try { await s.auth.refreshSession(); } catch (_) {} }
+        const { data } = await s.auth.getSession();
+        if (data?.session?.access_token) return data.session.access_token;
+      } catch (_) {}
+    }
     return tokenFromStorage();
   }
-  async function chatFetch(path, opts = {}) {
-    const tok = await getToken(); if (!tok) throw new Error('no auth');
-    const r = await fetch(CHAT_BASE + path, { ...opts, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok, ...(opts.headers || {}) } });
+  // Safari drops keep-alive connections when a tab sits idle; the first fetch after that
+  // rejects at the network layer with "Load failed" (a TypeError, NOT an HTTP status).
+  // Transparently retry those once with a fresh token before surfacing the error.
+  function isNetworkError(e) {
+    const m = String(e && e.message || e || '');
+    return e instanceof TypeError || /load failed|failed to fetch|network|connection/i.test(m);
+  }
+  async function chatFetch(path, opts = {}, _retried) {
+    const tok = await getToken(!!_retried); if (!tok) throw new Error('no auth');
+    let r;
+    try {
+      r = await fetch(CHAT_BASE + path, { ...opts, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok, ...(opts.headers || {}) } });
+    } catch (e) {
+      if (!_retried && isNetworkError(e)) { await new Promise(res => setTimeout(res, 400)); return chatFetch(path, opts, true); }
+      throw new Error('Connection lost — check your network and try again.');
+    }
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
     return j;
@@ -212,7 +233,7 @@
     setTimeout(() => document.getElementById('mwInput').focus(), 40);
   }
   function bubble(m, isG) {
-    return `<div class="mw-row${m.mine ? ' mine' : ''}">${(!m.mine && isG) ? `<div class="mw-snd">${esc(m.sender_name || nameById[m.sender_id] || '')}</div>` : ''}<div class="mw-bub">${esc(m.body)}</div><div class="mw-bt">${fmtTime(m.created_at)}</div></div>`;
+    return `<div class="mw-row${m.mine ? ' mine' : ''}"${m._tmpId ? ` id="${m._tmpId}"` : ''}>${(!m.mine && isG) ? `<div class="mw-snd">${esc(m.sender_name || nameById[m.sender_id] || '')}</div>` : ''}<div class="mw-bub">${esc(m.body)}</div><div class="mw-bt">${fmtTime(m.created_at)}</div></div>`;
   }
   function renderMsgs(msgs) {
     const conv = convs.find(c => c.id === curConv); const isG = conv && conv.type === 'group';
@@ -229,11 +250,17 @@
     const inp = document.getElementById('mwInput'); const body = inp.value.trim(); if (!body || !curConv) return;
     const cid = curConv; inp.value = ''; inp.style.height = 'auto';
     const nowIso = new Date().toISOString();
-    appendMsg({ body, created_at: nowIso, mine: true, sender_id: me?.user_id });   // optimistic — feels instant
+    const tmpId = 'mw-tmp-' + nowIso.replace(/\D/g, '');
+    appendMsg({ body, created_at: nowIso, mine: true, sender_id: me?.user_id, _tmpId: tmpId });   // optimistic — feels instant
     const conv = convs.find(c => c.id === cid);
     if (conv) { conv.last_message = { body, sender_id: me?.user_id, sender_name: me?.name, created_at: nowIso }; conv.last_message_at = nowIso; convs.sort((a, b) => new Date(b.last_message_at) - new Date(a.last_message_at)); renderList(); }
     try { await chatFetch('?api=send', { method: 'POST', body: JSON.stringify({ conversation_id: cid, body }) }); }
-    catch (e) { alert('Send failed: ' + e.message); }
+    catch (e) {
+      // Roll back the optimistic bubble and put the text back so nothing is silently lost.
+      const node = document.getElementById(tmpId); if (node) node.remove();
+      if (curConv === cid && !inp.value.trim()) { inp.value = body; inp.style.height = 'auto'; }
+      alert('Message not sent: ' + e.message + '\nYour text was restored — tap send to try again.');
+    }
   }
 
   // picker

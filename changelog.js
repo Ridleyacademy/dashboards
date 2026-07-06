@@ -16,6 +16,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v410', title: 'Messages — "Send failed" after idle fixed + phone alerts restored', items: [
+      'Sending a message after leaving the page open no longer fails with "Load failed" — it now retries automatically with a fresh session.',
+      'If a send still can\'t go through, your typed text is restored instead of being lost.',
+      'New messages once again send a phone/app notification (they just stay out of the 🔔 bell).',
+    ]},
     { version: 'v409', title: 'Messages stay in Messages (out of the bell) + live unread', items: [
       'New messages no longer show in the 🔔 notification bell — they live in Messages only.',
       'The 💬 button shows a green count of unread messages, and conversations with unseen messages are highlighted in the list.',

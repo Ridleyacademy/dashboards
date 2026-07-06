@@ -16,7 +16,10 @@
   function ensureSupa() {
     if (mSupa) return mSupa;
     if (typeof supabase === 'undefined' || !supabase?.createClient) return null;
-    mSupa = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'sb-msgwidget' } });
+    // Default storage (no custom storageKey) so we share the page's persisted
+    // session (localStorage 'sb-…-auth-token') — otherwise the widget isn't
+    // authed and shows no conversations. Mirrors notifications.js.
+    mSupa = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: true, detectSessionInUrl: false, autoRefreshToken: true } });
     return mSupa;
   }
   async function getToken() { const s = ensureSupa(); if (!s) return null; try { const { data } = await s.auth.getSession(); return data?.session?.access_token || null; } catch { return null; } }

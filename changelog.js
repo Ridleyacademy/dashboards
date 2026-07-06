@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v404', title: 'Fix: top-bar Messages popup now shows your conversations', adminOnly: true, items: [
+      'The 💬 top-bar popup was using a separate login session, so it showed no conversations. It now shares your session — the same DMs and groups as the Messages page appear.',
+    ]},
     { version: 'v403', title: 'Messages button in the top bar (everywhere)', items: [
       'A 💬 Messages button now sits next to the 🔔 bell on every dashboard — click it to pop open your chats without leaving the page.',
       'The popup has the full messaging: your conversations, DMs, group chats, and a composer. A green count shows unread messages.',

@@ -431,15 +431,59 @@ async function renderAssign(c) {
   });
   const list = document.getElementById('asgList');
   const active = rows.filter(r=>r.active);
-  list.innerHTML = active.length ? active.map(r=>`<div class="dr-row" style="cursor:default;">
+  list.innerHTML = active.length ? active.map(r=>{
+      const nCustom = Array.isArray(r.questions) ? r.questions.length : 0;
+      const qTag = nCustom ? ` · <span style="color:var(--accent2,#34d399);font-weight:700;">custom Q&#215;${nCustom}</span>` : '';
+      return `<div class="dr-row" style="cursor:default;">
       <span class="dr-who" style="min-width:150px;">${esc(r.name||r.email)}</span>
-      <span class="dr-snip">${(r.weekdays||[]).slice().sort().map(i=>WEEKDAYS[i]).join(', ')||'—'}</span>
+      <span class="dr-snip">${(r.weekdays||[]).slice().sort().map(i=>WEEKDAYS[i]).join(', ')||'—'}${qTag}</span>
+      <button class="btn-ghost" data-pq="${r.user_id}" style="padding:5px 12px;">Questions</button>
       <button class="btn-ghost" data-unassign="${r.user_id}" style="padding:5px 12px;">Unassign</button>
-    </div>`).join('') : '<div class="empty-state">No active assignments.</div>';
+    </div>`;}).join('') : '<div class="empty-state">No active assignments.</div>';
+  list.querySelectorAll('[data-pq]').forEach(b=>b.addEventListener('click', ()=>{ const r=byId[b.dataset.pq]; renderPersonQuestions(c, r, j.baseline||[]); }));
   list.querySelectorAll('[data-unassign]').forEach(b=>b.addEventListener('click', async ()=>{
     if(!confirm('Unassign this person? They stop receiving daily reminders and lose dashboard access.')) return;
     try { await drFetch('?api=unassign',{ method:'POST', body:JSON.stringify({ user_id:b.dataset.unassign }) }); renderAssign(c); } catch(e){ alert('Failed: '+e.message); }
   }));
+}
+
+// ── Per-person question editor (managers): custom set overrides the baseline ──
+function renderPersonQuestions(c, r, baseline) {
+  const hasCustom = Array.isArray(r.questions) && r.questions.length;
+  let qs = (hasCustom ? r.questions : (baseline||[])).map(q=>({ id:q.id, text:q.text }));
+  const who = r.name || r.email;
+  const draw = ()=>{
+    c.innerHTML = `<div class="card">
+      <button class="btn-ghost" id="pqBack" style="margin-bottom:10px;">← Back to assignments</button>
+      <h2>Questions for ${esc(who)}</h2>
+      <div class="card-sub">${hasCustom ? 'This person has a <b>custom</b> question set.' : 'Currently inheriting the <b>baseline</b> questions.'} Edits here apply <b>only</b> to ${esc(who)}'s reports. Use “Reset to baseline” to drop the custom set and follow the shared Questions again.</div>
+      <div id="pqList"></div>
+      <button class="btn-ghost" id="pqAdd" style="margin-top:6px;">+ Add question</button>
+      <div style="margin-top:16px;">
+        <button class="btn-primary" id="pqSave">Save for ${esc(who)}</button>
+        <button class="btn-ghost" id="pqReset" style="margin-left:8px;">Reset to baseline</button>
+        <span id="pqMsg" style="font-size:0.8rem;color:var(--text-muted);margin-left:8px;"></span>
+      </div>
+    </div>`;
+    document.getElementById('pqList').innerHTML = qs.map((q,i)=>`<div class="q-block" style="display:flex;gap:8px;align-items:flex-start;"><textarea class="q-input" data-i="${i}" style="min-height:52px;">${esc(q.text)}</textarea><button class="btn-ghost" data-del="${i}" style="padding:6px 10px;">✕</button></div>`).join('') || '<div class="empty-state" style="padding:12px;">No questions — add at least one, or reset to baseline.</div>';
+    c.querySelectorAll('textarea[data-i]').forEach(t=>t.addEventListener('input',()=>{ qs[Number(t.dataset.i)].text = t.value; }));
+    c.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',()=>{ qs.splice(Number(b.dataset.del),1); draw(); }));
+    document.getElementById('pqAdd').addEventListener('click',()=>{ qs.push({ text:'' }); draw(); });
+    document.getElementById('pqBack').addEventListener('click',()=>renderAssign(c));
+    document.getElementById('pqSave').addEventListener('click', async ()=>{
+      const clean = qs.map(q=>({ id:q.id, text:(q.text||'').trim() })).filter(q=>q.text);
+      if(!clean.length){ document.getElementById('pqMsg').textContent='Add a question or use Reset to baseline.'; return; }
+      document.getElementById('pqMsg').textContent='Saving…';
+      try { await drFetch('?api=assign-questions',{ method:'POST', body:JSON.stringify({ user_id:r.user_id, questions:clean }) }); document.getElementById('pqMsg').textContent='✓ Saved for '+who+'.'; }
+      catch(e){ document.getElementById('pqMsg').textContent=''; alert('Failed: '+e.message); }
+    });
+    document.getElementById('pqReset').addEventListener('click', async ()=>{
+      if(!confirm('Reset '+who+' to the baseline questions? Their custom set is removed and they follow the shared Questions again.')) return;
+      try { await drFetch('?api=assign-questions',{ method:'POST', body:JSON.stringify({ user_id:r.user_id, questions:[] }) }); renderAssign(c); }
+      catch(e){ alert('Failed: '+e.message); }
+    });
+  };
+  draw();
 }
 
 // ── Questions editor (managers) ──

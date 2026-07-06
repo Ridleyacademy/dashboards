@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v413', title: 'Photo/video attachments now upload reliably', items: [
+      'Fixed attachments failing to upload — media now sends through the server to storage instead of the browser uploading directly (which was being blocked).',
+    ]},
     { version: 'v411', title: 'Messages — send photos & videos', items: [
       'Tap the 📎 in any chat (DM or group) to attach photos and videos, with or without a caption.',
       'Images preview inline (tap to open full-size); videos play right in the chat.',

@@ -311,10 +311,14 @@
       const rec = { id: localId, kind, mime: file.type, size: file.size, name: file.name, path: null, _localUrl: URL.createObjectURL(file), status: 'uploading' };
       pendingAtts.push(rec); renderAttStrip();
       try {
-        const init = await chatFetch('?api=attach-init', { method: 'POST', body: JSON.stringify({ conversation_id: curConv, filename: file.name, mime: file.type, size: file.size }) });
-        const put = await fetch(init.upload_url, { method: 'PUT', headers: { 'Content-Type': 'application/octet-stream' }, body: file });
-        if (!put.ok) throw new Error('upload failed (' + put.status + ')');
-        rec.path = init.path; rec.status = 'done'; renderAttStrip();
+        // Stream the bytes THROUGH our function to Dropbox (browser→Dropbox direct PUT is
+        // blocked by CORS). Query carries the metadata; the body is the raw file.
+        const tok = await getToken(); if (!tok) throw new Error('no auth');
+        const qs = '?api=attach-upload&conversation_id=' + curConv + '&filename=' + encodeURIComponent(file.name) + '&mime=' + encodeURIComponent(file.type || 'application/octet-stream');
+        const r = await fetch(CHAT_BASE + qs, { method: 'POST', headers: { Authorization: 'Bearer ' + tok }, body: file });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+        rec.path = j.path; rec.status = 'done'; renderAttStrip();
       } catch (e) {
         const i = pendingAtts.indexOf(rec); if (i >= 0) { URL.revokeObjectURL(rec._localUrl); pendingAtts.splice(i, 1); }
         renderAttStrip(); alert('Could not upload ' + file.name + ': ' + e.message);

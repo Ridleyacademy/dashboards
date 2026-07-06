@@ -89,6 +89,8 @@
   .conv-row { display:flex; align-items:center; gap:11px; padding:11px 16px; cursor:pointer; border-bottom:1px solid var(--border); }
   .conv-row:hover { background:var(--surface2); }
   .conv-row.active { background:var(--surface2); box-shadow:inset 3px 0 0 var(--green); }
+  .conv-row.unread { background:rgba(52,211,153,0.06); box-shadow:inset 3px 0 0 var(--green); }
+  .conv-row.unread .conv-name { font-weight:800; color:var(--text); }
   .conv-av { width:40px; height:40px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:0.85rem; font-weight:800; color:#fff; background:linear-gradient(135deg,#6b9eff,#a78bfa); }
   .conv-av.group { background:linear-gradient(135deg,#fbbf24,#f59e0b); }
   .conv-mid { flex:1; min-width:0; }
@@ -355,7 +357,7 @@ function renderConvList(){
   el.innerHTML = conversations.map(c=>{
     const isG = c.type==='group';
     const prev = c.last_message ? (isG && c.last_message.sender_name ? c.last_message.sender_name+': ' : '') + c.last_message.body : 'No messages yet';
-    return `<div class="conv-row${c.id===currentConv?' active':''}" data-conv="${c.id}">
+    return `<div class="conv-row${c.id===currentConv?' active':''}${c.unread?' unread':''}" data-conv="${c.id}">
       <div class="conv-av${isG?' group':''}">${isG?'#':esc(initials(c.title))}</div>
       <div class="conv-mid"><div class="conv-name">${esc(c.title)}${isG?` <span style="color:var(--text-dim);font-weight:500;font-size:0.72rem;">· ${c.member_count}</span>`:''}</div><div class="conv-prev">${esc(prev).slice(0,80)}</div></div>
       <div class="conv-right"><span class="conv-time">${fmtTime(c.last_message_at)}</span>${c.unread?`<span class="conv-badge">${c.unread>99?'99+':c.unread}</span>`:''}</div>

@@ -70,6 +70,9 @@
       .mw-scroll { flex:1; overflow-y:auto; }
       .mw-conv { display:flex; align-items:center; gap:10px; padding:10px 14px; cursor:pointer; border-bottom:1px solid #1a1f30; }
       .mw-conv:hover { background:#191e30; }
+      .mw-conv.unread { background:rgba(52,211,153,0.07); box-shadow:inset 3px 0 0 #34d399; }
+      .mw-conv.unread .mw-cn { color:#eaecf8; font-weight:800; }
+      .mw-conv.unread .mw-cp { color:#c3cae6; }
       .mw-av { width:36px; height:36px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:0.78rem; font-weight:800; color:#fff; background:linear-gradient(135deg,#6b9eff,#a78bfa); }
       .mw-av.grp { background:linear-gradient(135deg,#fbbf24,#f59e0b); }
       .mw-cm { flex:1; min-width:0; }
@@ -189,7 +192,7 @@
     el.innerHTML = convs.map(c => {
       const isG = c.type === 'group';
       const prev = c.last_message ? ((isG && c.last_message.sender_name ? c.last_message.sender_name + ': ' : '') + c.last_message.body) : 'No messages yet';
-      return `<div class="mw-conv" data-c="${c.id}"><div class="mw-av${isG ? ' grp' : ''}">${isG ? '#' : esc(initials(c.title))}</div>
+      return `<div class="mw-conv${c.unread ? ' unread' : ''}" data-c="${c.id}"><div class="mw-av${isG ? ' grp' : ''}">${isG ? '#' : esc(initials(c.title))}</div>
         <div class="mw-cm"><div class="mw-cn">${esc(c.title)}</div><div class="mw-cp">${esc(prev).slice(0, 70)}</div></div>
         <div class="mw-cr"><span class="mw-ct">${fmtTime(c.last_message_at)}</span>${c.unread ? `<span class="mw-badge">${c.unread > 99 ? '99+' : c.unread}</span>` : ''}</div></div>`;
     }).join('');
@@ -265,9 +268,11 @@
     catch (e) { alert('Failed: ' + e.message); }
   }
 
-  function startRealtime() {
+  async function startRealtime() {
     const s = ensureSupa(); if (!s || channel) return;
-    getToken().then(tok => { try { s.realtime.setAuth(tok); } catch (_) {} });
+    // Authenticate the realtime socket BEFORE subscribing, else RLS silently drops
+    // events and messages never arrive live.
+    const tok = await getToken(); if (tok) { try { s.realtime.setAuth(tok); } catch (_) {} }
     channel = s.channel('msg-widget-rt').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, (payload) => {
       const m = payload.new; if (!m) return;
       if (me && m.sender_id === me.user_id) return;

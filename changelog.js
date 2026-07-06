@@ -16,6 +16,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v409', title: 'Messages stay in Messages (out of the bell) + live unread', items: [
+      'New messages no longer show in the 🔔 notification bell — they live in Messages only.',
+      'The 💬 button shows a green count of unread messages, and conversations with unseen messages are highlighted in the list.',
+      'Messages now arrive live (fixed a realtime hiccup) — no refresh needed.',
+    ]},
     { version: 'v406', title: 'Messages — cleaner bubbles + snappier sending', items: [
       'Fixed message bubbles that squished short words onto stacked letters — text now wraps normally.',
       'Sending is instant (your message shows immediately) and conversations load faster (no full refresh on every send).',

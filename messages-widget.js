@@ -83,9 +83,9 @@
       .mw-thread.open { display:flex; }
       .mw-back { background:none; border:none; color:#7880a8; font-size:1.2rem; cursor:pointer; padding:0 4px; }
       .mw-msgs { flex:1; overflow-y:auto; padding:12px; display:flex; flex-direction:column; }
-      .mw-row { display:flex; margin-top:7px; }
-      .mw-row.mine { justify-content:flex-end; }
-      .mw-bub { max-width:76%; padding:8px 11px; border-radius:13px; font-size:0.86rem; line-height:1.35; white-space:pre-wrap; word-break:break-word; background:#191e30; border:1px solid #1f2438; }
+      .mw-row { display:flex; flex-direction:column; align-items:flex-start; margin-top:7px; }
+      .mw-row.mine { align-items:flex-end; }
+      .mw-bub { max-width:82%; width:fit-content; padding:8px 11px; border-radius:13px; font-size:0.86rem; line-height:1.35; white-space:pre-wrap; overflow-wrap:anywhere; word-break:normal; background:#191e30; border:1px solid #1f2438; }
       .mw-row.mine .mw-bub { background:linear-gradient(135deg,#2c7a5a,#22b07d); border-color:transparent; color:#eafff5; }
       .mw-snd { font-size:0.66rem; font-weight:700; color:#a78bfa; margin:0 3px 2px; }
       .mw-bt { font-size:0.58rem; color:#3e4668; margin:2px 3px 0; text-align:right; }
@@ -162,7 +162,9 @@
   }
 
   function togglePanel() { panelOpen ? closePanel() : openPanel(); }
-  function openPanel() { panelOpen = true; document.getElementById('msgWidgetPanel').classList.add('open'); showList(); loadConversations(); loadUsers(); }
+  function openPanel() { panelOpen = true; document.getElementById('msgWidgetPanel').classList.add('open'); showList(); loadConversations(); }
+  let _refreshT = null;
+  function refreshSoon() { clearTimeout(_refreshT); _refreshT = setTimeout(loadConversations, 700); }
   function closePanel() { panelOpen = false; const p = document.getElementById('msgWidgetPanel'); if (p) p.classList.remove('open'); document.getElementById('mwPick')?.classList.remove('open'); }
   function showList() { curConv = null; document.getElementById('mwThread').classList.remove('open'); document.getElementById('mwList').style.display = ''; document.getElementById('mwListHead').style.display = 'flex'; }
   function showThread() { document.getElementById('mwList').style.display = 'none'; document.getElementById('mwListHead').style.display = 'none'; document.getElementById('mwThread').classList.add('open'); }
@@ -207,7 +209,7 @@
     setTimeout(() => document.getElementById('mwInput').focus(), 40);
   }
   function bubble(m, isG) {
-    return `<div class="mw-row${m.mine ? ' mine' : ''}"><div style="max-width:76%;">${(!m.mine && isG) ? `<div class="mw-snd">${esc(m.sender_name || nameById[m.sender_id] || '')}</div>` : ''}<div class="mw-bub">${esc(m.body)}</div><div class="mw-bt">${fmtTime(m.created_at)}</div></div></div>`;
+    return `<div class="mw-row${m.mine ? ' mine' : ''}">${(!m.mine && isG) ? `<div class="mw-snd">${esc(m.sender_name || nameById[m.sender_id] || '')}</div>` : ''}<div class="mw-bub">${esc(m.body)}</div><div class="mw-bt">${fmtTime(m.created_at)}</div></div>`;
   }
   function renderMsgs(msgs) {
     const conv = convs.find(c => c.id === curConv); const isG = conv && conv.type === 'group';
@@ -222,9 +224,13 @@
   }
   async function send() {
     const inp = document.getElementById('mwInput'); const body = inp.value.trim(); if (!body || !curConv) return;
-    inp.value = ''; inp.style.height = 'auto';
-    try { const j = await chatFetch('?api=send', { method: 'POST', body: JSON.stringify({ conversation_id: curConv, body }) }); appendMsg(j.message); loadConversations(); }
-    catch (e) { alert('Send failed: ' + e.message); inp.value = body; }
+    const cid = curConv; inp.value = ''; inp.style.height = 'auto';
+    const nowIso = new Date().toISOString();
+    appendMsg({ body, created_at: nowIso, mine: true, sender_id: me?.user_id });   // optimistic — feels instant
+    const conv = convs.find(c => c.id === cid);
+    if (conv) { conv.last_message = { body, sender_id: me?.user_id, sender_name: me?.name, created_at: nowIso }; conv.last_message_at = nowIso; convs.sort((a, b) => new Date(b.last_message_at) - new Date(a.last_message_at)); renderList(); }
+    try { await chatFetch('?api=send', { method: 'POST', body: JSON.stringify({ conversation_id: cid, body }) }); }
+    catch (e) { alert('Send failed: ' + e.message); }
   }
 
   // picker
@@ -237,6 +243,7 @@
     document.getElementById('mwPickFoot').style.display = mode === 'group' ? 'flex' : 'none';
     document.getElementById('mwSearch').value = '';
     renderPicker('');
+    if (!usersCache.length) { document.getElementById('mwPickList').innerHTML = '<div class="mw-empty">Loading…</div>'; loadUsers().then(() => { if (document.getElementById('mwPick').classList.contains('open')) renderPicker(document.getElementById('mwSearch').value); }); }
     document.getElementById('mwPick').classList.add('open');
     setTimeout(() => document.getElementById('mwSearch').focus(), 40);
   }
@@ -265,14 +272,16 @@
       const m = payload.new; if (!m) return;
       if (me && m.sender_id === me.user_id) return;
       if (panelOpen && m.conversation_id === curConv) { appendMsg({ ...m, sender_name: nameById[m.sender_id] || '', mine: false }); chatFetch('?api=mark-read', { method: 'POST', body: JSON.stringify({ conversation_id: curConv }) }).catch(() => {}); }
-      loadConversations();
+      refreshSoon();
     }).subscribe();
   }
 
   function init() {
     if (!mountBtn()) { setTimeout(init, 300); return; }
     const s = ensureSupa(); if (!s) { setTimeout(init, 300); return; }
-    s.auth.getSession().then(({ data }) => { if (data?.session) { loadConversations(); startRealtime(); } });
+    // getToken() falls back to the page's stored session, so kick these off now
+    // (don't gate on our own client's getSession, which may not be hydrated yet).
+    loadConversations(); startRealtime(); loadUsers();
     s.auth.onAuthStateChange((_e, sess) => { if (sess) { loadConversations(); startRealtime(); } });
     // periodic badge refresh as a safety net (realtime is primary)
     setInterval(() => { getToken().then(t => { if (t) loadConversations(); }); }, 60000);

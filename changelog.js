@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v406', title: 'Messages — cleaner bubbles + snappier sending', items: [
+      'Fixed message bubbles that squished short words onto stacked letters — text now wraps normally.',
+      'Sending is instant (your message shows immediately) and conversations load faster (no full refresh on every send).',
+    ]},
     { version: 'v404', title: 'Fix: top-bar Messages popup now shows your conversations', adminOnly: true, items: [
       'The 💬 top-bar popup was using a separate login session, so it showed no conversations. It now shares your session — the same DMs and groups as the Messages page appear.',
     ]},

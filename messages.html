@@ -102,9 +102,9 @@
   .chat-head-sub { font-size:0.72rem; color:var(--text-muted); margin-top:1px; }
   .chat-head-actions { margin-left:auto; display:flex; gap:8px; }
   .msgs { flex:1; overflow-y:auto; padding:18px; display:flex; flex-direction:column; gap:3px; }
-  .bubble-row { display:flex; margin-top:8px; }
-  .bubble-row.mine { justify-content:flex-end; }
-  .bubble { max-width:min(560px,74%); padding:9px 13px; border-radius:14px; font-size:0.9rem; line-height:1.4; white-space:pre-wrap; word-break:break-word; background:var(--surface2); border:1px solid var(--border); }
+  .bubble-row { display:flex; flex-direction:column; align-items:flex-start; margin-top:8px; }
+  .bubble-row.mine { align-items:flex-end; }
+  .bubble { max-width:min(560px,82%); width:fit-content; padding:9px 13px; border-radius:14px; font-size:0.9rem; line-height:1.4; white-space:pre-wrap; overflow-wrap:anywhere; word-break:normal; background:var(--surface2); border:1px solid var(--border); }
   .bubble-row.mine .bubble { background:linear-gradient(135deg,#2c7a5a,#22b07d); border-color:transparent; color:#eafff5; }
   .bubble-sender { font-size:0.7rem; font-weight:700; color:var(--purple); margin:0 4px 3px; }
   .bubble-time { font-size:0.62rem; color:var(--text-dim); margin:2px 4px 0; text-align:right; }
@@ -386,11 +386,7 @@ async function openConversation(id){
   setTimeout(()=>document.getElementById('composerInput').focus(),50);
 }
 function bubbleHtml(m, showSender){
-  return `<div class="bubble-row${m.mine?' mine':''}">
-    <div style="max-width:74%;">${(!m.mine && showSender)?`<div class="bubble-sender">${esc(m.sender_name||nameById[m.sender_id]||'')}</div>`:''}
-      <div class="bubble">${esc(m.body)}</div>
-      <div class="bubble-time">${fmtTime(m.created_at)}</div>
-    </div></div>`;
+  return `<div class="bubble-row${m.mine?' mine':''}">${(!m.mine && showSender)?`<div class="bubble-sender">${esc(m.sender_name||nameById[m.sender_id]||'')}</div>`:''}<div class="bubble">${esc(m.body)}</div><div class="bubble-time">${fmtTime(m.created_at)}</div></div>`;
 }
 function renderMessages(msgs){
   const conv = conversations.find(c=>c.id===currentConv); const isG = conv && conv.type==='group';
@@ -409,12 +405,13 @@ function appendMessage(m){
 async function sendMessage(){
   const inp = document.getElementById('composerInput'); const body = inp.value.trim();
   if(!body || !currentConv) return;
-  inp.value=''; inp.style.height='auto';
-  try {
-    const j = await chatFetch('?api=send',{method:'POST',body:JSON.stringify({conversation_id:currentConv, body})});
-    appendMessage(j.message);
-    await loadConversations();
-  } catch(e){ alert('Send failed: '+e.message); inp.value=body; }
+  const cid = currentConv; inp.value=''; inp.style.height='auto';
+  const nowIso = new Date().toISOString();
+  appendMessage({ body, created_at: nowIso, mine:true, sender_id: me?.user_id });  // optimistic
+  const conv = conversations.find(c=>c.id===cid);
+  if(conv){ conv.last_message={ body, sender_id: me?.user_id, sender_name: me?.name, created_at: nowIso }; conv.last_message_at=nowIso; conversations.sort((a,b)=>new Date(b.last_message_at)-new Date(a.last_message_at)); renderConvList(); }
+  try { await chatFetch('?api=send',{method:'POST',body:JSON.stringify({conversation_id:cid, body})}); }
+  catch(e){ alert('Send failed: '+e.message); }
 }
 document.getElementById('sendBtn').addEventListener('click', sendMessage);
 document.getElementById('composerInput').addEventListener('keydown', e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); sendMessage(); } });

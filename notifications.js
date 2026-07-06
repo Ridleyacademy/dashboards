@@ -567,15 +567,18 @@
       if (p !== 'granted') return { ok: false, reason: p };
     }
     const reg = await getPushReg(); if (!reg) return { ok: false, reason: 'no service worker' };
-    let sub = await reg.pushManager.getSubscription();
-    if (!sub) {
-      try {
-        sub = await reg.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlB64ToUint8(VAPID_PUBLIC_KEY),
-        });
-      } catch (e) { return { ok: false, reason: 'subscribe-failed: ' + (e?.message || e) }; }
-    }
+    // iOS/Safari silently invalidate a PWA's push subscription after OS updates or
+    // long idle, yet the dead object still lingers in getSubscription() — reusing it
+    // means the server never receives a working subscription (push "worked, then
+    // stopped"). So drop any existing subscription and mint a FRESH one on every Enable.
+    try { const old = await reg.pushManager.getSubscription(); if (old) await old.unsubscribe(); } catch (_) {}
+    let sub;
+    try {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlB64ToUint8(VAPID_PUBLIC_KEY),
+      });
+    } catch (e) { return { ok: false, reason: 'subscribe-failed: ' + (e?.message || e) }; }
     // Send to server
     const tok = await getToken(); if (!tok) return { ok: false, reason: 'no auth' };
     const json = sub.toJSON();

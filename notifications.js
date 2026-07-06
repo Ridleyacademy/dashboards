@@ -672,7 +672,8 @@
       if (on) on.addEventListener('click', async () => {
         on.disabled = true; on.textContent = 'Enabling…';
         const res = await ensurePushSubscribed();
-        if (!res.ok) { on.disabled = false; on.textContent = '🔔 Enable push (failed: ' + res.reason + ')'; return; }
+        if (!res.ok) { on.disabled = false; on.textContent = '🔔 Enable push (failed: ' + res.reason + ')'; alert('Push could not be enabled.\n\nReason: ' + res.reason + '\n\n(Screenshot this and send it.)'); return; }
+        alert('Push notifications enabled ✓ — this device is now registered.');
         refreshPushCta();
       });
     }
@@ -720,10 +721,12 @@
         const res = await ensurePushSubscribed();
         if (res.ok) {
           try { localStorage.setItem('push-cta-dismissed-v1', '1'); } catch (_) {}
+          alert('Push notifications enabled ✓ — this device is now registered.');
           dismiss(false); refreshPushCta();
         } else {
           btn.disabled = false; btn.textContent = 'Try again';
           console.warn('[push] subscribe failed:', res.reason);
+          alert('Push could not be enabled.\n\nReason: ' + res.reason + '\n\n(Screenshot this and send it.)');
         }
       });
     }, 3500);

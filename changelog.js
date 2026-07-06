@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v401', title: 'Push enable — now shows the exact reason if it fails', adminOnly: true, items: [
+      'Tapping "Enable push notifications" now pops up a clear success/failure message (with the failure reason) instead of only a tiny button label — added to diagnose an iPhone case where enabling silently didn\'t register.',
+    ]},
     { version: 'v400b', title: 'Notifications — Daily Reports now email you + push fix',
       items: [
       'Daily Reports now also send an email (in addition to in-app + push) on everything: submissions, replies, new assignments, and the 5 PM reminder.',

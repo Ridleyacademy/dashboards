@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v417', title: 'Declarations — New GI stat', items: [
+      'Added a "New GI" card up top: cash sales + payment plans, excluding rebills.',
+    ]},
     { version: 'v416', title: 'Messages — zoom images + smoother media loading', items: [
       'In the expanded view, tap an image to zoom in (and pan); tap again to zoom out.',
       'Media now shows a placeholder while it loads instead of popping in suddenly.',

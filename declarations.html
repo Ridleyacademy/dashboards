@@ -451,6 +451,11 @@
         <div class="kpi-income" id="kpiGI">—</div>
         <div class="kpi-sub" id="kpiGISub">gross income</div>
       </div>
+      <div class="kpi-card kpi-gold">
+        <div class="kpi-label">New GI</div>
+        <div class="kpi-value" id="kpiNewGI">—</div>
+        <div class="kpi-sub" id="kpiNewGISub">cash + PP · excl. rebills</div>
+      </div>
       <div class="kpi-card kpi-green">
         <div class="kpi-label">Cash Sales</div>
         <div class="kpi-value" id="kpiSales">—</div>
@@ -883,6 +888,11 @@ function renderStats(rows) {
   document.getElementById('kpiTotal').textContent       = total;
   document.getElementById('kpiGI').textContent          = fmt(gi);
   document.getElementById('kpiGISub').textContent       = `gross income · ${total} declaration${total !== 1 ? 's' : ''}`;
+
+  // New GI = cash sales + payment plans, excluding rebills (new money only).
+  const newGI = salesGI + ppGI;
+  document.getElementById('kpiNewGI').textContent       = fmt(newGI);
+  document.getElementById('kpiNewGISub').textContent    = `cash + PP · ${fmt(rebillGI)} rebills excluded`;
 
   document.getElementById('kpiSales').textContent       = salesCount;
   document.getElementById('kpiSalesAmt').textContent    = fmt(salesGI);

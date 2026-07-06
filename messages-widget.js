@@ -22,7 +22,26 @@
     mSupa = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: true, detectSessionInUrl: false, autoRefreshToken: true } });
     return mSupa;
   }
-  async function getToken() { const s = ensureSupa(); if (!s) return null; try { const { data } = await s.auth.getSession(); return data?.session?.access_token || null; } catch { return null; } }
+  // Prefer our own client's session; if that's not hydrated (race / separate
+  // GoTrueClient), fall back to the session the PAGE already persisted in
+  // localStorage under sb-<ref>-auth-token — that's always the logged-in user.
+  function tokenFromStorage() {
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k || !k.startsWith('sb-') || !k.endsWith('-auth-token')) continue;
+        const o = JSON.parse(localStorage.getItem(k) || 'null');
+        const tok = o?.access_token || o?.currentSession?.access_token || o?.session?.access_token;
+        if (tok) return tok;
+      }
+    } catch (_) {}
+    return null;
+  }
+  async function getToken() {
+    const s = ensureSupa();
+    if (s) { try { const { data } = await s.auth.getSession(); if (data?.session?.access_token) return data.session.access_token; } catch (_) {} }
+    return tokenFromStorage();
+  }
   async function chatFetch(path, opts = {}) {
     const tok = await getToken(); if (!tok) throw new Error('no auth');
     const r = await fetch(CHAT_BASE + path, { ...opts, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok, ...(opts.headers || {}) } });

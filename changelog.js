@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v414', title: 'Messages — attachment size limit + lighter background refresh', items: [
+      'Photo/video attachments are now capped at 50 MB each.',
+      'The messaging background refresh runs a bit less often (live updates are unaffected).',
+    ]},
     { version: 'v413', title: 'Photo/video attachments now upload reliably', items: [
       'Fixed attachments failing to upload — media now sends through the server to storage instead of the browser uploading directly (which was being blocked).',
     ]},

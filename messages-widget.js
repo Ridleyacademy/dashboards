@@ -418,7 +418,7 @@
     loadConversations(); startRealtime(); loadUsers();
     s.auth.onAuthStateChange((_e, sess) => { if (sess) { loadConversations(); startRealtime(); } });
     // periodic badge refresh as a safety net (realtime is primary)
-    setInterval(() => { getToken().then(t => { if (t) loadConversations(); }); }, 60000);
+    setInterval(() => { getToken().then(t => { if (t) loadConversations(); }); }, 120000);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();

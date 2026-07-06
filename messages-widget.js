@@ -143,10 +143,18 @@
       .mw-mtile { position:relative; overflow:hidden; }
       .mw-mtile video.mw-mvid { max-width:240px; max-height:280px; width:auto; display:block; border-radius:12px; }
       .mw-mtile .mw-play { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:1.6rem; color:#fff; background:rgba(0,0,0,0.28); text-shadow:0 1px 6px rgba(0,0,0,0.6); }
-      .mw-lb { position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:10050; display:none; align-items:center; justify-content:center; }
-      .mw-lb.open { display:flex; }
-      .mw-lb img, .mw-lb video { max-width:92vw; max-height:84vh; border-radius:10px; display:block; }
-      .mw-lb-bar { position:absolute; top:14px; right:14px; display:flex; gap:10px; }
+      /* skeleton while media loads */
+      .mw-mimg.mw-loading, .mw-mtile.mw-loading { min-width:200px; min-height:150px; border-color:transparent; background:linear-gradient(100deg,#141827 30%,#212840 50%,#141827 70%); background-size:300% 100%; animation:mwShimmer 1.25s ease-in-out infinite; }
+      .mw-mtile.mw-loading video, .mw-mtile.mw-loading .mw-play { visibility:hidden; }
+      @keyframes mwShimmer { 0%{background-position:100% 0} 100%{background-position:-100% 0} }
+      .mw-lb { position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:10050; display:none; }
+      .mw-lb.open { display:block; }
+      .mw-lb-stage { position:absolute; inset:0; overflow:auto; display:flex; align-items:center; justify-content:center; -webkit-overflow-scrolling:touch; }
+      .mw-lb-stage img { max-width:94vw; max-height:92vh; border-radius:10px; display:block; cursor:zoom-in; }
+      .mw-lb-stage video { max-width:94vw; max-height:92vh; border-radius:10px; display:block; }
+      .mw-lb-stage.zoomed { align-items:flex-start; justify-content:flex-start; }
+      .mw-lb-stage.zoomed img { max-width:none; max-height:none; margin:auto; cursor:zoom-out; }
+      .mw-lb-bar { position:absolute; top:14px; right:14px; z-index:2; display:flex; gap:10px; }
       .mw-lb-btn { background:rgba(255,255,255,0.16); color:#fff; border:none; border-radius:9px; padding:9px 13px; font-size:0.85rem; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:6px; }
       .mw-lb-btn:hover { background:rgba(255,255,255,0.3); }
     `;
@@ -218,7 +226,7 @@
     inp.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
     inp.addEventListener('input', function () { this.style.height = 'auto'; this.style.height = Math.min(this.scrollHeight, 110) + 'px'; });
     // close on outside click
-    document.addEventListener('click', (e) => { if (!panelOpen) return; const pn = document.getElementById('msgWidgetPanel'); const bt = document.getElementById('msgWidgetBtn'); if (pn && !pn.contains(e.target) && bt && !bt.contains(e.target)) closePanel(); });
+    document.addEventListener('click', (e) => { if (!panelOpen) return; if (lightboxOpen()) return; const lb = document.getElementById('mwLb'); if (lb && lb.contains(e.target)) return; const pn = document.getElementById('msgWidgetPanel'); const bt = document.getElementById('msgWidgetBtn'); if (pn && !pn.contains(e.target) && bt && !bt.contains(e.target)) closePanel(); });
   }
 
   function togglePanel() { panelOpen ? closePanel() : openPanel(); }
@@ -275,10 +283,26 @@
       const src = a.url || a._localUrl || '';
       if (!src) return '';
       const nm = esc(a.name || (a.kind === 'video' ? 'video' : 'image'));
-      if (a.kind === 'video') return `<div class="mw-mtile" data-full="${esc(src)}" data-kind="video" data-name="${nm}"><video class="mw-mvid" src="${esc(src)}" preload="metadata" muted playsinline></video><div class="mw-play">▶</div></div>`;
-      return `<img class="mw-mimg" src="${esc(src)}" loading="lazy" data-full="${esc(src)}" data-kind="image" data-name="${nm}" alt="${nm}">`;
+      if (a.kind === 'video') return `<div class="mw-mtile mw-loading" data-full="${esc(src)}" data-kind="video" data-name="${nm}"><video class="mw-mvid" src="${esc(src)}" preload="metadata" muted playsinline></video><div class="mw-play">▶</div></div>`;
+      return `<img class="mw-mimg mw-loading" src="${esc(src)}" loading="lazy" data-full="${esc(src)}" data-kind="image" data-name="${nm}" alt="${nm}">`;
     }).join('');
     return `<div class="mw-media">${items}</div>`;
+  }
+  // Drop the skeleton once each image/video has actually loaded (so media fades in
+  // instead of popping from nothing).
+  function wireMediaSkeletons(el) {
+    if (!el) return;
+    el.querySelectorAll('img.mw-mimg.mw-loading').forEach((img) => {
+      if (img.complete && img.naturalWidth) { img.classList.remove('mw-loading'); return; }
+      img.addEventListener('load', () => img.classList.remove('mw-loading'), { once: true });
+      img.addEventListener('error', () => img.classList.remove('mw-loading'), { once: true });
+    });
+    el.querySelectorAll('.mw-mtile.mw-loading').forEach((tile) => {
+      const v = tile.querySelector('video'); if (!v) { tile.classList.remove('mw-loading'); return; }
+      if (v.readyState >= 2) { tile.classList.remove('mw-loading'); return; }
+      v.addEventListener('loadeddata', () => tile.classList.remove('mw-loading'), { once: true });
+      v.addEventListener('error', () => tile.classList.remove('mw-loading'), { once: true });
+    });
   }
   // In-app lightbox: expand an image / play a video over the panel, with a Download
   // button that saves in place (fetch→blob) instead of opening a new tab.
@@ -290,17 +314,24 @@
       setTimeout(() => URL.revokeObjectURL(u), 15000);
     }).catch(() => { const a = document.createElement('a'); a.href = url; a.download = name || 'download'; a.target = '_blank'; a.rel = 'noopener'; document.body.appendChild(a); a.click(); a.remove(); });
   }
-  function closeLightbox() { const lb = document.getElementById('mwLb'); if (lb) { lb.classList.remove('open'); lb.querySelector('.mw-lb-stage').innerHTML = ''; } }
+  function closeLightbox() { const lb = document.getElementById('mwLb'); if (lb) { lb.classList.remove('open'); const s = lb.querySelector('.mw-lb-stage'); s.classList.remove('zoomed'); s.innerHTML = ''; } }
+  function lightboxOpen() { const lb = document.getElementById('mwLb'); return !!(lb && lb.classList.contains('open')); }
   function openLightbox(url, kind, name) {
     let lb = document.getElementById('mwLb');
     if (!lb) {
       lb = document.createElement('div'); lb.id = 'mwLb'; lb.className = 'mw-lb';
       lb.innerHTML = `<div class="mw-lb-bar"><button class="mw-lb-btn" id="mwLbDl">⬇ Download</button><button class="mw-lb-btn" id="mwLbX">✕ Close</button></div><div class="mw-lb-stage"></div>`;
       document.body.appendChild(lb);
-      lb.addEventListener('click', (e) => { if (e.target === lb) closeLightbox(); });
+      const stage = lb.querySelector('.mw-lb-stage');
+      // Click empty stage → close; click the image → toggle zoom (fit ↔ actual size, pan by scroll).
+      stage.addEventListener('click', (e) => {
+        if (e.target.tagName === 'IMG') { stage.classList.toggle('zoomed'); stage.scrollTop = 0; stage.scrollLeft = 0; }
+        else if (e.target === stage) closeLightbox();
+      });
       lb.querySelector('#mwLbX').addEventListener('click', closeLightbox);
     }
     const stage = lb.querySelector('.mw-lb-stage');
+    stage.classList.remove('zoomed');
     stage.innerHTML = kind === 'video'
       ? `<video src="${esc(url)}" controls autoplay playsinline></video>`
       : `<img src="${esc(url)}" alt="${esc(name || '')}">`;
@@ -316,12 +347,13 @@
     const conv = convs.find(c => c.id === curConv); const isG = conv && conv.type === 'group';
     const el = document.getElementById('mwMsgs');
     el.innerHTML = msgs.length ? msgs.map(m => bubble(m, isG)).join('') : '<div class="mw-empty">No messages yet — say hi 👋</div>';
+    wireMediaSkeletons(el);
     el.scrollTop = el.scrollHeight;
   }
   function appendMsg(m) {
     const conv = convs.find(c => c.id === curConv); const isG = conv && conv.type === 'group';
     const el = document.getElementById('mwMsgs'); const e = el.querySelector('.mw-empty'); if (e) el.innerHTML = '';
-    el.insertAdjacentHTML('beforeend', bubble(m, isG)); el.scrollTop = el.scrollHeight;
+    el.insertAdjacentHTML('beforeend', bubble(m, isG)); wireMediaSkeletons(el); el.scrollTop = el.scrollHeight;
   }
   // ── Attachments: upload straight to Dropbox via a one-time link ──────────
   let pendingAtts = [];   // { id, kind, mime, size, name, path, _localUrl, status:'uploading'|'done' }

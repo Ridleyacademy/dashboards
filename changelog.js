@@ -16,6 +16,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v416', title: 'Messages — zoom images + smoother media loading', items: [
+      'In the expanded view, tap an image to zoom in (and pan); tap again to zoom out.',
+      'Media now shows a placeholder while it loads instead of popping in suddenly.',
+      'Opening media from the 💬 popup no longer closes the popup behind it.',
+    ]},
     { version: 'v415', title: 'Messages — tap media to expand + download', items: [
       'Tap a photo to open it full-size in a pop-up, or tap a video to play it there — no new tab.',
       'Each has a Download button to save the file directly.',

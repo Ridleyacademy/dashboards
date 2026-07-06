@@ -135,10 +135,17 @@
   .m-tile { position:relative; overflow:hidden; }
   .m-tile video.m-vid { max-width:300px; max-height:340px; width:auto; display:block; border-radius:14px; }
   .m-tile .m-play { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:2rem; color:#fff; background:rgba(0,0,0,0.28); text-shadow:0 1px 6px rgba(0,0,0,0.6); }
-  .media-lb { position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:10050; display:none; align-items:center; justify-content:center; }
-  .media-lb.open { display:flex; }
-  .media-lb img, .media-lb video { max-width:92vw; max-height:84vh; border-radius:10px; display:block; }
-  .lb-bar { position:absolute; top:16px; right:16px; display:flex; gap:10px; }
+  .m-img.m-loading, .m-tile.m-loading { min-width:220px; min-height:160px; border-color:transparent; background:linear-gradient(100deg,var(--surface) 30%,var(--surface2) 50%,var(--surface) 70%); background-size:300% 100%; animation:mLbShimmer 1.25s ease-in-out infinite; }
+  .m-tile.m-loading video, .m-tile.m-loading .m-play { visibility:hidden; }
+  @keyframes mLbShimmer { 0%{background-position:100% 0} 100%{background-position:-100% 0} }
+  .media-lb { position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:10050; display:none; }
+  .media-lb.open { display:block; }
+  .lb-stage { position:absolute; inset:0; overflow:auto; display:flex; align-items:center; justify-content:center; -webkit-overflow-scrolling:touch; }
+  .lb-stage img { max-width:94vw; max-height:92vh; border-radius:10px; display:block; cursor:zoom-in; }
+  .lb-stage video { max-width:94vw; max-height:92vh; border-radius:10px; display:block; }
+  .lb-stage.zoomed { align-items:flex-start; justify-content:flex-start; }
+  .lb-stage.zoomed img { max-width:none; max-height:none; margin:auto; cursor:zoom-out; }
+  .lb-bar { position:absolute; top:16px; right:16px; z-index:2; display:flex; gap:10px; }
   .lb-btn { background:rgba(255,255,255,0.16); color:#fff; border:none; border-radius:9px; padding:10px 15px; font-size:0.9rem; font-weight:700; cursor:pointer; }
   .lb-btn:hover { background:rgba(255,255,255,0.3); }
   .empty-state { text-align:center; color:var(--text-dim); font-size:0.82rem; padding:40px 20px; }
@@ -432,9 +439,24 @@ function mediaHtml(atts){
   return `<div class="msg-media">`+atts.map(a=>{
     const src = a.url || a._localUrl || ''; if(!src) return '';
     const nm = esc(a.name||(a.kind==='video'?'video':'image'));
-    if(a.kind==='video') return `<div class="m-tile" data-full="${esc(src)}" data-kind="video" data-name="${nm}"><video class="m-vid" src="${esc(src)}" preload="metadata" muted playsinline></video><div class="m-play">▶</div></div>`;
-    return `<img class="m-img" src="${esc(src)}" loading="lazy" data-full="${esc(src)}" data-kind="image" data-name="${nm}" alt="${nm}">`;
+    if(a.kind==='video') return `<div class="m-tile m-loading" data-full="${esc(src)}" data-kind="video" data-name="${nm}"><video class="m-vid" src="${esc(src)}" preload="metadata" muted playsinline></video><div class="m-play">▶</div></div>`;
+    return `<img class="m-img m-loading" src="${esc(src)}" loading="lazy" data-full="${esc(src)}" data-kind="image" data-name="${nm}" alt="${nm}">`;
   }).join('')+`</div>`;
+}
+// Drop the skeleton once each image/video has loaded.
+function wireMediaSkeletons(el){
+  if(!el) return;
+  el.querySelectorAll('img.m-img.m-loading').forEach(img=>{
+    if(img.complete && img.naturalWidth){ img.classList.remove('m-loading'); return; }
+    img.addEventListener('load', ()=>img.classList.remove('m-loading'), {once:true});
+    img.addEventListener('error', ()=>img.classList.remove('m-loading'), {once:true});
+  });
+  el.querySelectorAll('.m-tile.m-loading').forEach(tile=>{
+    const v=tile.querySelector('video'); if(!v){ tile.classList.remove('m-loading'); return; }
+    if(v.readyState>=2){ tile.classList.remove('m-loading'); return; }
+    v.addEventListener('loadeddata', ()=>tile.classList.remove('m-loading'), {once:true});
+    v.addEventListener('error', ()=>tile.classList.remove('m-loading'), {once:true});
+  });
 }
 // In-app lightbox: expand image / play video over the page, with a Download button
 // that saves in place (fetch→blob) rather than opening a new tab.
@@ -444,17 +466,23 @@ function downloadMedia(url, name){
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(u),15000);
   }).catch(()=>{ const a=document.createElement('a'); a.href=url; a.download=name||'download'; a.target='_blank'; a.rel='noopener'; document.body.appendChild(a); a.click(); a.remove(); });
 }
-function closeLightbox(){ const lb=document.getElementById('mediaLb'); if(lb){ lb.classList.remove('open'); lb.querySelector('.lb-stage').innerHTML=''; } }
+function closeLightbox(){ const lb=document.getElementById('mediaLb'); if(lb){ lb.classList.remove('open'); const s=lb.querySelector('.lb-stage'); s.classList.remove('zoomed'); s.innerHTML=''; } }
 function openLightbox(url, kind, name){
   let lb=document.getElementById('mediaLb');
   if(!lb){
     lb=document.createElement('div'); lb.id='mediaLb'; lb.className='media-lb';
     lb.innerHTML=`<div class="lb-bar"><button class="lb-btn" id="lbDl">⬇ Download</button><button class="lb-btn" id="lbX">✕ Close</button></div><div class="lb-stage"></div>`;
     document.body.appendChild(lb);
-    lb.addEventListener('click', e=>{ if(e.target===lb) closeLightbox(); });
+    const stage=lb.querySelector('.lb-stage');
+    // Click empty stage → close; click the image → toggle zoom (fit ↔ actual size, pan by scroll).
+    stage.addEventListener('click', e=>{
+      if(e.target.tagName==='IMG'){ stage.classList.toggle('zoomed'); stage.scrollTop=0; stage.scrollLeft=0; }
+      else if(e.target===stage) closeLightbox();
+    });
     lb.querySelector('#lbX').addEventListener('click', closeLightbox);
   }
-  lb.querySelector('.lb-stage').innerHTML = kind==='video'
+  const stage=lb.querySelector('.lb-stage'); stage.classList.remove('zoomed');
+  stage.innerHTML = kind==='video'
     ? `<video src="${esc(url)}" controls autoplay playsinline></video>`
     : `<img src="${esc(url)}" alt="${esc(name||'')}">`;
   lb.querySelector('#lbDl').onclick = ()=>downloadMedia(url, name);
@@ -471,12 +499,14 @@ function renderMessages(msgs){
   const el = document.getElementById('msgs');
   if(!msgs.length){ el.innerHTML='<div class="empty-state">No messages yet — say hi 👋</div>'; return; }
   el.innerHTML = msgs.map(m=>bubbleHtml(m, isG)).join('');
+  wireMediaSkeletons(el);
   el.scrollTop = el.scrollHeight;
 }
 function appendMessage(m){
   const el = document.getElementById('msgs'); const conv = conversations.find(c=>c.id===currentConv); const isG=conv&&conv.type==='group';
   const empty = el.querySelector('.empty-state'); if(empty) el.innerHTML='';
   el.insertAdjacentHTML('beforeend', bubbleHtml(m, isG));
+  wireMediaSkeletons(el);
   el.scrollTop = el.scrollHeight;
 }
 

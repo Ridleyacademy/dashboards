@@ -18,7 +18,7 @@
   let selectedIds = new Set();
   let readCutoff = null;     // caller's last_read_at when the thread was opened (for the unread divider)
   let listQuery = '';        // conversation-list search text
-  let searchResults = [], searchT = null, jumpToMid = null;   // message-content search results + pending scroll target
+  let searchResults = [], searchT = null, jumpToMid = null, searching = false;   // message-content search results + pending scroll target
   let findMatches = [], findIdx = -1;   // in-thread find state
   let typingCh = null, lastTypingSent = 0, typingHideT = null;   // per-conversation typing broadcast
   const mentionPicked = new Map();   // id -> name for @mentions chosen while composing
@@ -276,6 +276,10 @@
       .mw-listsearch:focus { border-color:#2a3350; }
       .mw-seclabel { padding:8px 14px 4px; font-size:0.66rem; font-weight:800; text-transform:uppercase; letter-spacing:0.05em; color:#7880a8; }
       .mw-msghit .mw-cp { white-space:normal; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+      .mw-skel { pointer-events:none; }
+      .mw-skb { background:linear-gradient(90deg,rgba(255,255,255,0.05) 25%,rgba(255,255,255,0.11) 37%,rgba(255,255,255,0.05) 63%); background-size:400% 100%; animation:mwSkel 1.2s ease-in-out infinite; border-radius:6px; }
+      .mw-skl { height:10px; margin:5px 0; }
+      @keyframes mwSkel { 0%{background-position:100% 0} 100%{background-position:0 0} }
       .mw-mk { background:rgba(52,211,153,0.32); color:#eafff5; border-radius:3px; padding:0 1px; }
       /* thread body wrapper (for typing + jump overlays) */
       .mw-msgs-wrap { flex:1; min-height:0; position:relative; display:flex; flex-direction:column; }
@@ -408,10 +412,11 @@
     p.querySelector('#mwMentions').addEventListener('click', (e) => { const r = e.target.closest('.mw-mrow'); if (r) insertMention(r.dataset.mid, r.dataset.name); });
     // Conversation-list search
     p.querySelector('#mwListSearch').addEventListener('input', (e) => {
-      listQuery = e.target.value.trim().toLowerCase(); renderList();
+      listQuery = e.target.value.trim().toLowerCase();
       clearTimeout(searchT);
-      if (listQuery.length >= 2) searchT = setTimeout(runListSearch, 250);
-      else { searchResults = []; }
+      if (listQuery.length >= 2) { searching = true; searchResults = []; searchT = setTimeout(runListSearch, 250); }
+      else { searching = false; searchResults = []; }
+      renderList();
     });
     // In-thread find
     p.querySelector('#mwFindBtn').addEventListener('click', toggleFind);
@@ -483,8 +488,11 @@
     try { return h.replace(new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'ig'), '<mark class="mw-mk">$1</mark>'); } catch (_) { return h; }
   }
   async function runListSearch() {
-    const q = listQuery; if (q.length < 2) { searchResults = []; renderList(); return; }
-    try { const j = await chatFetch('?api=search&q=' + encodeURIComponent(q)); if (listQuery === q) { searchResults = j.results || []; renderList(); } } catch (_) {}
+    const q = listQuery; if (q.length < 2) { searchResults = []; searching = false; renderList(); return; }
+    searching = true; renderList();
+    try { const j = await chatFetch('?api=search&q=' + encodeURIComponent(q)); if (listQuery === q) searchResults = j.results || []; }
+    catch (_) { if (listQuery === q) searchResults = []; }
+    finally { if (listQuery === q) { searching = false; renderList(); } }
   }
   function convRow(c) {
     const isG = c.type === 'group';
@@ -505,7 +513,11 @@
     const chatHits = convs.filter(c => String(c.title || '').toLowerCase().includes(listQuery) || (c.members || []).some(m => String(m.name || '').toLowerCase().includes(listQuery)));
     let html = '';
     if (chatHits.length) html += `<div class="mw-seclabel">Chats</div>` + chatHits.map(convRow).join('');
-    if (searchResults.length) {
+    if (searching) {
+      html += `<div class="mw-seclabel">Messages</div>` + Array.from({ length: 4 }).map(() => `
+        <div class="mw-conv mw-skel"><div class="mw-av mw-skb"></div>
+          <div class="mw-cm"><div class="mw-skb mw-skl" style="width:45%"></div><div class="mw-skb mw-skl" style="width:80%"></div></div></div>`).join('');
+    } else if (searchResults.length) {
       html += `<div class="mw-seclabel">Messages</div>` + searchResults.map(r => `
         <div class="mw-conv mw-msghit" data-c="${r.conversation_id}" data-mid="${r.message_id}">
           <div class="mw-av${''}">${esc(initials(r.conversation_title))}</div>

@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v434', title: 'Messages — loading skeleton while searching', items: [
+      'Searching message content now shows shimmering placeholder rows while results load, instead of looking empty/broken until the server responds.',
+    ]},
     { version: 'v433', title: 'Messages — search box now searches message text', items: [
       'The conversation search box now also searches inside message content (relabeled “Search messages & chats”). If it looked like it only matched chat names, hard-refresh to pick up the new version.',
     ]},

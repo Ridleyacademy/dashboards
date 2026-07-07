@@ -1139,34 +1139,59 @@
   }
 
   // ── Voice notes ──────────────────────────────────────────────────────────
-  let _rec = null, _recChunks = [], _recTimer = null, _recStart = 0, _recStream = null;
+  // Recorded via Web Audio → 16 kHz mono 16-bit WAV. WAV/PCM plays natively in EVERY
+  // browser (unlike MediaRecorder's webm/opus which Safari can't decode), and encoding is
+  // pure client-side — the server just streams the bytes to Dropbox as with any attachment.
+  let _recCtx = null, _recSrc = null, _recProc = null, _recStream = null, _recBuf = [], _recSR = 44100, _recStart = 0, _recTimer = null;
   function fmtRecTime(ms) { const s = Math.floor(ms / 1000); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
-  function stopRecStream() { if (_recStream) { _recStream.getTracks().forEach(t => { try { t.stop(); } catch (_) {} }); _recStream = null; } clearInterval(_recTimer); _recTimer = null; const c = document.querySelector('.mw-comp'); if (c) c.classList.remove('recording'); }
+  function stopRecStream() {
+    try { _recProc && _recProc.disconnect(); } catch (_) {} try { _recSrc && _recSrc.disconnect(); } catch (_) {}
+    _recProc = null; _recSrc = null;
+    if (_recCtx) { try { _recCtx.close(); } catch (_) {} _recCtx = null; }
+    if (_recStream) { _recStream.getTracks().forEach(t => { try { t.stop(); } catch (_) {} }); _recStream = null; }
+    clearInterval(_recTimer); _recTimer = null;
+    const c = document.querySelector('.mw-comp'); if (c) c.classList.remove('recording');
+  }
+  function encodeWavFile(chunks, inRate) {
+    let len = 0; for (const c of chunks) len += c.length;
+    const merged = new Float32Array(len); let o = 0; for (const c of chunks) { merged.set(c, o); o += c.length; }
+    const OUT = 16000; let data = merged;
+    if (inRate > OUT) { const ratio = inRate / OUT, n = Math.floor(merged.length / ratio); data = new Float32Array(n); for (let i = 0; i < n; i++) data[i] = merged[Math.floor(i * ratio)]; }
+    const buffer = new ArrayBuffer(44 + data.length * 2); const view = new DataView(buffer);
+    const wr = (off, s) => { for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i)); };
+    wr(0, 'RIFF'); view.setUint32(4, 36 + data.length * 2, true); wr(8, 'WAVE'); wr(12, 'fmt ');
+    view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+    view.setUint32(24, OUT, true); view.setUint32(28, OUT * 2, true); view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+    wr(36, 'data'); view.setUint32(40, data.length * 2, true);
+    let off = 44; for (let i = 0; i < data.length; i++) { const s = Math.max(-1, Math.min(1, data[i])); view.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7FFF, true); off += 2; }
+    return new File([buffer], 'voice-' + Date.now() + '.wav', { type: 'audio/wav' });
+  }
   async function startVoice() {
     if (!curConv) return;
-    if (!navigator.mediaDevices || !window.MediaRecorder) { alert('Voice recording isn’t supported in this browser.'); return; }
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!navigator.mediaDevices || !AC) { alert('Voice recording isn’t supported in this browser.'); return; }
     try { _recStream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
     catch (_) { alert('Microphone access was blocked.'); return; }
-    const mime = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : (MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : '');
-    _recChunks = [];
-    try { _rec = mime ? new MediaRecorder(_recStream, { mimeType: mime }) : new MediaRecorder(_recStream); } catch (_) { _rec = new MediaRecorder(_recStream); }
-    _rec.ondataavailable = (e) => { if (e.data && e.data.size) _recChunks.push(e.data); };
-    _rec.start(); _recStart = Date.now();
+    _recCtx = new AC(); _recSR = _recCtx.sampleRate; _recBuf = [];
+    try { await _recCtx.resume(); } catch (_) {}
+    _recSrc = _recCtx.createMediaStreamSource(_recStream);
+    _recProc = _recCtx.createScriptProcessor(4096, 1, 1);
+    _recProc.onaudioprocess = (e) => { _recBuf.push(new Float32Array(e.inputBuffer.getChannelData(0))); };
+    const mute = _recCtx.createGain(); mute.gain.value = 0;   // silent sink so onaudioprocess fires without echo
+    _recSrc.connect(_recProc); _recProc.connect(mute); mute.connect(_recCtx.destination);
+    _recStart = Date.now();
     document.querySelector('.mw-comp').classList.add('recording');
     document.getElementById('mwRecTime').textContent = '0:00';
     clearInterval(_recTimer);
     _recTimer = setInterval(() => { document.getElementById('mwRecTime').textContent = fmtRecTime(Date.now() - _recStart); if (Date.now() - _recStart > 5 * 60 * 1000) stopVoiceAndSend(); }, 400);
   }
-  function cancelVoice() { if (_rec && _rec.state !== 'inactive') { _rec.onstop = null; try { _rec.stop(); } catch (_) {} } _rec = null; _recChunks = []; stopRecStream(); }
+  function cancelVoice() { _recBuf = []; stopRecStream(); }
   async function stopVoiceAndSend() {
-    if (!_rec || _rec.state === 'inactive') { stopRecStream(); return; }
-    const dur = Date.now() - _recStart; const rec = _rec; _rec = null;
-    await new Promise((res) => { rec.onstop = res; try { rec.stop(); } catch (_) { res(); } });
+    if (!_recCtx) { stopRecStream(); return; }
+    const dur = Date.now() - _recStart, buf = _recBuf, sr = _recSR; _recBuf = [];
     stopRecStream();
-    if (dur < 700 || !_recChunks.length) { _recChunks = []; return; }   // too short → discard
-    const type = rec.mimeType || 'audio/webm';
-    const ext = /mp4|m4a|aac/.test(type) ? 'm4a' : (/ogg/.test(type) ? 'ogg' : 'webm');
-    const file = new File(_recChunks, 'voice-' + Date.now() + '.' + ext, { type }); _recChunks = [];
+    if (dur < 700 || !buf.length) return;   // too short → discard
+    const file = encodeWavFile(buf, sr);
     await handleFiles([file]);
     await send();   // send the voice note as its own message
   }

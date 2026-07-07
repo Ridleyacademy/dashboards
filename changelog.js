@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v438', title: 'Messages — line-style upload spinner', items: [
+      'The uploading indicator on an attachment is now a spinning line-style loader instead of an hourglass emoji.',
+    ]},
     { version: 'v437', title: 'Messages — consistent attachment icons', items: [
       'Attachment indicators now use the same line-icon style as the rest of the app (video thumbnails, previews) instead of emoji.',
     ]},

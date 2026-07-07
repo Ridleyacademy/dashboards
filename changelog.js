@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v441', title: 'Messages — PDF viewer renders inline', items: [
+      'PDFs now open and render right inside the viewer with page-to-page scrolling (previously showed a blank screen / download prompt).',
+    ]},
     { version: 'v440', title: 'Messages — open PDFs & files in the viewer', items: [
       'Tap a PDF to open it right inside the message viewer (like images) with page-to-page scrolling. Other file types open in the same viewer with an Open / Download option.',
     ]},

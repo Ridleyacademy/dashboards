@@ -149,6 +149,8 @@
   .lb-file .lb-fico { color:var(--blue); } .lb-file .lb-fico svg { width:56px; height:56px; }
   .lb-file .lb-fname { font-weight:700; word-break:break-word; max-width:80vw; }
   .lb-file .lb-fhint { color:var(--text-dim); font-size:0.86rem; }
+  .lb-spin { width:34px; height:34px; border:3px solid rgba(255,255,255,0.25); border-top-color:#fff; border-radius:50%; animation:lbspin 0.7s linear infinite; }
+  @keyframes lbspin { to { transform:rotate(360deg); } }
   .lb-stage.zoomed { align-items:flex-start; justify-content:flex-start; }
   .lb-stage.zoomed img { max-width:none; max-height:none; margin:auto; cursor:zoom-out; }
   .lb-bar { position:absolute; top:16px; right:16px; z-index:2; display:flex; gap:10px; }
@@ -747,7 +749,24 @@ function downloadMedia(url, name){
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(u),15000);
   }).catch(()=>{ const a=document.createElement('a'); a.href=url; a.download=name||'download'; a.target='_blank'; a.rel='noopener'; document.body.appendChild(a); a.click(); a.remove(); });
 }
-function closeLightbox(){ const lb=document.getElementById('mediaLb'); if(lb){ lb.classList.remove('open'); const s=lb.querySelector('.lb-stage'); s.classList.remove('zoomed'); s.innerHTML=''; } }
+let _lbBlobUrl = null;
+function revokeLbBlob(){ if(_lbBlobUrl){ try{ URL.revokeObjectURL(_lbBlobUrl); }catch(_){} _lbBlobUrl=null; } }
+function lightboxOpen(){ const lb=document.getElementById('mediaLb'); return !!(lb && lb.classList.contains('open')); }
+function closeLightbox(){ const lb=document.getElementById('mediaLb'); if(lb){ lb.classList.remove('open'); const s=lb.querySelector('.lb-stage'); s.classList.remove('zoomed'); s.innerHTML=''; } revokeLbBlob(); }
+// Render a PDF inline via a blob URL — Dropbox temp links carry Content-Disposition:
+// attachment, so an <iframe src=link> just downloads. A blob URL always renders in the
+// browser's built-in PDF viewer (with page navigation).
+function renderPdf(stage, url, name){
+  stage.innerHTML = `<div class="lb-file"><div class="lb-spin"></div><div class="lb-fhint">Loading “${esc(name||'document')}”…</div></div>`;
+  revokeLbBlob();
+  fetch(url).then(r=>r.blob()).then(b=>{
+    const blob = b.type==='application/pdf' ? b : new Blob([b], {type:'application/pdf'});
+    _lbBlobUrl = URL.createObjectURL(blob);
+    if(lightboxOpen()) stage.innerHTML = `<iframe class="lb-frame" src="${_lbBlobUrl}" title="${esc(name||'Document')}"></iframe>`;
+  }).catch(()=>{
+    stage.innerHTML = `<div class="lb-file"><div class="lb-fico">${FILE_SVG}</div><div class="lb-fname">${esc(name||'File')}</div><div class="lb-fhint">Couldn’t preview — open or download instead.</div><a class="lb-btn" href="${esc(url)}" target="_blank" rel="noopener">Open in new tab</a></div>`;
+  });
+}
 function openLightbox(url, kind, name, mime){
   let lb=document.getElementById('mediaLb');
   if(!lb){
@@ -767,11 +786,9 @@ function openLightbox(url, kind, name, mime){
     stage.innerHTML = `<video src="${esc(url)}" controls autoplay playsinline></video>`;
   } else if(kind==='file'){
     const isPdf = /pdf/i.test(mime||'') || /\.pdf$/i.test(name||'');
-    // PDFs (and other browser-native types) render in an iframe — the browser's built-in
-    // viewer handles page-to-page navigation. Non-renderable types get an Open/Download card.
-    stage.innerHTML = isPdf
-      ? `<iframe class="lb-frame" src="${esc(url)}" title="${esc(name||'Document')}"></iframe>`
-      : `<div class="lb-file"><div class="lb-fico">${FILE_SVG}</div><div class="lb-fname">${esc(name||'File')}</div><div class="lb-fhint">This file type can’t be previewed here.</div><a class="lb-btn" href="${esc(url)}" target="_blank" rel="noopener">Open in new tab</a></div>`;
+    // PDFs render inline via a blob URL (see renderPdf). Non-renderable types get a card.
+    if(isPdf){ renderPdf(stage, url, name); }
+    else stage.innerHTML = `<div class="lb-file"><div class="lb-fico">${FILE_SVG}</div><div class="lb-fname">${esc(name||'File')}</div><div class="lb-fhint">This file type can’t be previewed here.</div><a class="lb-btn" href="${esc(url)}" target="_blank" rel="noopener">Open in new tab</a></div>`;
   } else {
     stage.innerHTML = `<img src="${esc(url)}" alt="${esc(name||'')}">`;
   }

@@ -196,6 +196,8 @@
       .mw-lb-file .mw-lb-fico { color:#8ea2ff; } .mw-lb-file .mw-lb-fico svg { width:56px; height:56px; }
       .mw-lb-file .mw-lb-fname { font-weight:700; word-break:break-word; max-width:80vw; }
       .mw-lb-file .mw-lb-fhint { color:#9aa2c8; font-size:0.84rem; }
+      .mw-lb-spin { width:34px; height:34px; border:3px solid rgba(255,255,255,0.25); border-top-color:#fff; border-radius:50%; animation:attspin2 0.7s linear infinite; }
+      @keyframes attspin2 { to { transform:rotate(360deg); } }
       .mw-lb-stage.zoomed { align-items:flex-start; justify-content:flex-start; }
       .mw-lb-stage.zoomed img { max-width:none; max-height:none; margin:auto; cursor:zoom-out; }
       .mw-lb-bar { position:absolute; top:14px; right:14px; z-index:2; display:flex; gap:10px; }
@@ -666,7 +668,23 @@
       setTimeout(() => URL.revokeObjectURL(u), 15000);
     }).catch(() => { const a = document.createElement('a'); a.href = url; a.download = name || 'download'; a.target = '_blank'; a.rel = 'noopener'; document.body.appendChild(a); a.click(); a.remove(); });
   }
-  function closeLightbox() { const lb = document.getElementById('mwLb'); if (lb) { lb.classList.remove('open'); const s = lb.querySelector('.mw-lb-stage'); s.classList.remove('zoomed'); s.innerHTML = ''; } }
+  let _lbBlobUrl = null;
+  function revokeLbBlob() { if (_lbBlobUrl) { try { URL.revokeObjectURL(_lbBlobUrl); } catch (_) {} _lbBlobUrl = null; } }
+  function closeLightbox() { const lb = document.getElementById('mwLb'); if (lb) { lb.classList.remove('open'); const s = lb.querySelector('.mw-lb-stage'); s.classList.remove('zoomed'); s.innerHTML = ''; } revokeLbBlob(); }
+  // Render a PDF inline: Dropbox temp links come back with Content-Disposition: attachment,
+  // so an <iframe src=link> just downloads. Fetch the bytes and hand the iframe a blob URL,
+  // which the browser's built-in PDF viewer always renders (with page navigation).
+  function renderPdf(stage, url, name) {
+    stage.innerHTML = `<div class="mw-lb-file"><div class="mw-lb-spin"></div><div class="mw-lb-fhint">Loading “${esc(name || 'document')}”…</div></div>`;
+    revokeLbBlob();
+    fetch(url).then((r) => r.blob()).then((b) => {
+      const blob = b.type === 'application/pdf' ? b : new Blob([b], { type: 'application/pdf' });
+      _lbBlobUrl = URL.createObjectURL(blob);
+      if (lightboxOpen()) stage.innerHTML = `<iframe class="mw-lb-frame" src="${_lbBlobUrl}" title="${esc(name || 'Document')}"></iframe>`;
+    }).catch(() => {
+      stage.innerHTML = `<div class="mw-lb-file"><div class="mw-lb-fico">${FILE_SVG}</div><div class="mw-lb-fname">${esc(name || 'File')}</div><div class="mw-lb-fhint">Couldn’t preview — open or download instead.</div><a class="mw-lb-btn" href="${esc(url)}" target="_blank" rel="noopener">Open in new tab</a></div>`;
+    });
+  }
   function lightboxOpen() { const lb = document.getElementById('mwLb'); return !!(lb && lb.classList.contains('open')); }
   function openLightbox(url, kind, name, mime) {
     let lb = document.getElementById('mwLb');
@@ -688,12 +706,10 @@
       stage.innerHTML = `<video src="${esc(url)}" controls autoplay playsinline></video>`;
     } else if (kind === 'file') {
       const isPdf = /pdf/i.test(mime || '') || /\.pdf$/i.test(name || '');
-      // PDFs (and other browser-native types) render in an iframe — the browser's built-in
-      // viewer provides page-to-page navigation. Types the browser can't render fall back to
-      // a card with Open / Download.
-      stage.innerHTML = isPdf
-        ? `<iframe class="mw-lb-frame" src="${esc(url)}" title="${esc(name || 'Document')}"></iframe>`
-        : `<div class="mw-lb-file"><div class="mw-lb-fico">${FILE_SVG}</div><div class="mw-lb-fname">${esc(name || 'File')}</div><div class="mw-lb-fhint">This file type can’t be previewed here.</div><a class="mw-lb-btn" href="${esc(url)}" target="_blank" rel="noopener">Open in new tab</a></div>`;
+      // PDFs render inline via a blob URL (see renderPdf). Types the browser can't render
+      // fall back to a card with Open / Download.
+      if (isPdf) { renderPdf(stage, url, name); }
+      else stage.innerHTML = `<div class="mw-lb-file"><div class="mw-lb-fico">${FILE_SVG}</div><div class="mw-lb-fname">${esc(name || 'File')}</div><div class="mw-lb-fhint">This file type can’t be previewed here.</div><a class="mw-lb-btn" href="${esc(url)}" target="_blank" rel="noopener">Open in new tab</a></div>`;
     } else {
       stage.innerHTML = `<img src="${esc(url)}" alt="${esc(name || '')}">`;
     }

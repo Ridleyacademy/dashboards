@@ -249,7 +249,7 @@
       .mw-cn-pin { color:#8ea2ff; margin-right:4px; vertical-align:-1px; flex-shrink:0; }
       .mw-lp { display:flex; margin-top:7px; border-radius:10px; overflow:hidden; text-decoration:none; background:rgba(0,0,0,0.22); border:1px solid rgba(255,255,255,0.12); max-width:260px; }
       .mw-lp:hover { background:rgba(0,0,0,0.30); }
-      .mw-lp-img { width:100%; height:120px; background-size:cover; background-position:center; background-color:#0f1120; }
+      .mw-lp-img { width:100%; height:auto; max-height:240px; object-fit:contain; display:block; background:#0f1120; }
       .mw-lp { flex-direction:column; }
       .mw-lp-tx { padding:8px 10px; min-width:0; }
       .mw-lp-site { font-size:0.68rem; text-transform:uppercase; letter-spacing:0.03em; color:#8ea2ff; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -776,7 +776,7 @@
   }
   function unfurlCard(url, d) {
     const href = esc(d.url || url);
-    const img = d.image ? `<div class="mw-lp-img" style="background-image:url('${esc(String(d.image).replace(/'/g, '%27'))}')"></div>` : '';
+    const img = d.image ? `<img class="mw-lp-img" src="${esc(d.image)}" alt="" loading="lazy" onerror="this.style.display='none'">` : '';
     const site = d.site ? `<div class="mw-lp-site">${esc(d.site)}</div>` : '';
     const title = `<div class="mw-lp-title">${esc(d.title || d.url || url)}</div>`;
     const desc = d.description ? `<div class="mw-lp-desc">${esc(d.description)}</div>` : '';

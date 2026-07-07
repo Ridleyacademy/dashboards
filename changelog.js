@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v445', title: 'Messages — link preview image fits', items: [
+      'Link preview thumbnails now show the whole image instead of a cropped strip.',
+    ]},
     { version: 'v444', title: 'Messages — link previews', items: [
       'Links you send now show a preview card with the page’s title, description, and thumbnail (fetched securely on the server).',
     ]},

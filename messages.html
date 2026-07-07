@@ -721,7 +721,7 @@ function mediaHtml(atts){
   return `<div class="msg-media">`+atts.map(a=>{
     const src = a.url || a._localUrl || ''; if(!src) return '';
     const nm = esc(a.name||(a.kind==='video'?'video':'image'));
-    if(a.kind==='video') return `<div class="m-tile m-loading" data-full="${esc(src)}" data-kind="video" data-name="${nm}"><video class="m-vid" src="${esc(src)}" preload="metadata" muted playsinline></video><div class="m-play">▶</div></div>`;
+    if(a.kind==='video') return `<div class="m-tile m-loading" data-full="${esc(src)}" data-kind="video" data-name="${nm}"><video class="m-vid" src="${esc(src)}#t=0.1" preload="metadata" muted playsinline></video><div class="m-play">▶</div></div>`;
     if(a.kind==='file'){ const sz=fmtBytes(a.size); return `<div class="msg-file" data-full="${esc(src)}" data-kind="file" data-name="${nm}" data-mime="${esc(a.mime||'')}"><span class="mf-ico">${FILE_SVG}</span><span class="mf-meta"><span class="mf-name">${nm}</span>${sz?`<span class="mf-sz">${sz}</span>`:''}</span></div>`; }
     return `<img class="m-img m-loading" src="${esc(src)}" loading="lazy" data-full="${esc(src)}" data-kind="image" data-name="${nm}" alt="${nm}">`;
   }).join('')+`</div>`;
@@ -736,6 +736,9 @@ function wireMediaSkeletons(el){
   });
   el.querySelectorAll('.m-tile.m-loading').forEach(tile=>{
     const v=tile.querySelector('video'); if(!v){ tile.classList.remove('m-loading'); return; }
+    // Nudge a seek to ~0.1s so the browser paints the first frame as the poster thumbnail.
+    const seekFirstFrame=()=>{ try{ if(v.currentTime<0.05) v.currentTime=0.1; }catch(_){} };
+    if(v.readyState>=1) seekFirstFrame(); else v.addEventListener('loadedmetadata', seekFirstFrame, {once:true});
     if(v.readyState>=2){ tile.classList.remove('m-loading'); return; }
     v.addEventListener('loadeddata', ()=>tile.classList.remove('m-loading'), {once:true});
     v.addEventListener('error', ()=>tile.classList.remove('m-loading'), {once:true});

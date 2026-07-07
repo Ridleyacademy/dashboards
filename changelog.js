@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v442', title: 'Messages — video thumbnails', items: [
+      'Videos in a chat now show a preview of their first frame (with the play button) instead of a blank tile.',
+    ]},
     { version: 'v441', title: 'Messages — PDF viewer renders inline', items: [
       'PDFs now open and render right inside the viewer with page-to-page scrolling (previously showed a blank screen / download prompt).',
     ]},

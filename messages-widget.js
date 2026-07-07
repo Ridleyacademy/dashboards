@@ -636,7 +636,7 @@
       const src = a.url || a._localUrl || '';
       if (!src) return '';
       const nm = esc(a.name || (a.kind === 'video' ? 'video' : 'image'));
-      if (a.kind === 'video') return `<div class="mw-mtile mw-loading" data-full="${esc(src)}" data-kind="video" data-name="${nm}"><video class="mw-mvid" src="${esc(src)}" preload="metadata" muted playsinline></video><div class="mw-play">▶</div></div>`;
+      if (a.kind === 'video') return `<div class="mw-mtile mw-loading" data-full="${esc(src)}" data-kind="video" data-name="${nm}"><video class="mw-mvid" src="${esc(src)}#t=0.1" preload="metadata" muted playsinline></video><div class="mw-play">▶</div></div>`;
       if (a.kind === 'file') { const sz = fmtBytes(a.size); return `<div class="mw-file" data-full="${esc(src)}" data-kind="file" data-name="${nm}" data-mime="${esc(a.mime || '')}"><span class="mw-fico">${FILE_SVG}</span><span class="mw-fmeta"><span class="mw-fname">${nm}</span>${sz ? `<span class="mw-fsz">${sz}</span>` : ''}</span></div>`; }
       return `<img class="mw-mimg mw-loading" src="${esc(src)}" loading="lazy" data-full="${esc(src)}" data-kind="image" data-name="${nm}" alt="${nm}">`;
     }).join('');
@@ -653,6 +653,10 @@
     });
     el.querySelectorAll('.mw-mtile.mw-loading').forEach((tile) => {
       const v = tile.querySelector('video'); if (!v) { tile.classList.remove('mw-loading'); return; }
+      // Nudge a seek to ~0.1s so the browser paints the first frame as the poster thumbnail
+      // (some browsers show a blank frame with only metadata loaded).
+      const seekFirstFrame = () => { try { if (v.currentTime < 0.05) v.currentTime = 0.1; } catch (_) {} };
+      if (v.readyState >= 1) seekFirstFrame(); else v.addEventListener('loadedmetadata', seekFirstFrame, { once: true });
       if (v.readyState >= 2) { tile.classList.remove('mw-loading'); return; }
       v.addEventListener('loadeddata', () => tile.classList.remove('mw-loading'), { once: true });
       v.addEventListener('error', () => tile.classList.remove('mw-loading'), { once: true });

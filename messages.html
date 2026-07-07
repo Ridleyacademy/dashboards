@@ -622,9 +622,9 @@ function bubbleHtml(m, showSender){
   const idAttr = m.id?` data-mid="${m.id}"`:'';
   const selCls = (selectMode?' selecting':'')+(m.id && selectedIds.has(m.id)?' selected':'');
   const chk = (selectMode && m.id)?'<span class="msg-check"></span>':'';
-  // Deleted → a compact, muted system line (no bubble, no footer, no emoji).
+  // Deleted → a compact, muted system line (not selectable, no checkbox).
   if(m.deleted){
-    return `<div class="bubble-row${m.mine?' mine':''} deleted${selCls}"${m._tmpId?` id="${m._tmpId}"`:''}${idAttr}>${chk}<span class="msg-deleted">${SLASH_SVG}This message was deleted</span></div>`;
+    return `<div class="bubble-row${m.mine?' mine':''} deleted"${m._tmpId?` id="${m._tmpId}"`:''}${idAttr}><span class="msg-deleted">${SLASH_SVG}This message was deleted</span></div>`;
   }
   const snd = (!m.mine && showSender)?`<div class="bubble-sender">${esc(m.sender_name||nameById[m.sender_id]||'')}</div>`:'';
   const fwd = m.forwarded?'<div class="msg-fwd">↪ Forwarded</div>':'';
@@ -877,7 +877,7 @@ document.getElementById('attachBtn').addEventListener('click', ()=>document.getE
 document.getElementById('fileInput').addEventListener('change', e=>{ handleFiles(e.target.files); e.target.value=''; });
 document.getElementById('msgs').addEventListener('click', e=>{
   const row = e.target.closest && e.target.closest('.bubble-row'); const mid = row && row.dataset.mid ? Number(row.dataset.mid) : 0;
-  if(selectMode){ if(mid) toggleSelect(mid); return; }
+  if(selectMode){ const m = mid && currentMsgs.find(x=>x.id===mid); if(m && !m.deleted) toggleSelect(mid); return; }
   const media = e.target.closest && e.target.closest('img.m-img, .m-tile');
   if(media){ const f=media.getAttribute('data-full'); if(f) openLightbox(f, media.getAttribute('data-kind'), media.getAttribute('data-name')); return; }
   const jump = e.target.closest && e.target.closest('.msg-quote');

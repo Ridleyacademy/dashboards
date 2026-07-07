@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v429', title: 'Messages — deleted messages can’t be selected', items: [
+      'Deleted messages no longer show a checkbox and can’t be picked when selecting to forward.',
+    ]},
     { version: 'v428', title: 'Messages — readable reply quote + smoother select', items: [
       'Redesigned the “replying to” quote: dark panel, teal name, and up to two readable lines of the original — clear on every message.',
       'Fixed flicker when checking messages in Select/Forward mode (rows now toggle in place instead of re-rendering the whole thread).',

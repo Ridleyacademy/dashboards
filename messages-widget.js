@@ -336,7 +336,7 @@
     // Thread click: selection toggle, media lightbox, reply-jump, reaction chips, tool buttons.
     p.querySelector('#mwMsgs').addEventListener('click', (e) => {
       const row = e.target.closest && e.target.closest('.mw-row'); const mid = row && row.dataset.mid ? Number(row.dataset.mid) : 0;
-      if (selectMode) { if (mid) toggleSelect(mid); return; }   // in select mode, tapping a message (de)selects it
+      if (selectMode) { const m = mid && curMsgs.find(x => x.id === mid); if (m && !m.deleted) toggleSelect(mid); return; }   // tap to (de)select; deleted msgs aren't selectable
       const media = e.target.closest && e.target.closest('img.mw-mimg, .mw-mtile');
       if (media) { const full = media.getAttribute('data-full'); if (full) openLightbox(full, media.getAttribute('data-kind'), media.getAttribute('data-name')); return; }
       const jump = e.target.closest && e.target.closest('.mw-quote');
@@ -534,9 +534,9 @@
     const idAttr = m.id ? ` data-mid="${m.id}"` : '';
     const selCls = (selectMode ? ' selecting' : '') + (m.id && selectedIds.has(m.id) ? ' selected' : '');
     const chk = (selectMode && m.id) ? '<span class="mw-check"></span>' : '';
-    // Deleted → a compact, muted system line (no bubble, no footer, no emoji).
+    // Deleted → a compact, muted system line (not selectable, no checkbox).
     if (m.deleted) {
-      return `<div class="mw-row${m.mine ? ' mine' : ''} deleted${selCls}"${m._tmpId ? ` id="${m._tmpId}"` : ''}${idAttr}>${chk}<span class="mw-deleted">${SLASH_SVG}This message was deleted</span></div>`;
+      return `<div class="mw-row${m.mine ? ' mine' : ''} deleted"${m._tmpId ? ` id="${m._tmpId}"` : ''}${idAttr}><span class="mw-deleted">${SLASH_SVG}This message was deleted</span></div>`;
     }
     const snd = (!m.mine && isG) ? `<div class="mw-snd">${esc(m.sender_name || nameById[m.sender_id] || '')}</div>` : '';
     const fwd = m.forwarded ? '<div class="mw-fwd">↪ Forwarded</div>' : '';

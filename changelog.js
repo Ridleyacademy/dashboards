@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v425', title: 'Messages — cleaner “deleted” look', items: [
+      'A deleted message now shows as a small, muted “This message was deleted” line instead of a full bubble with an emoji.',
+    ]},
     { version: 'v424', title: 'Messages — fix delete + in-app confirm dialog', items: [
       'Fixed a bug where using Edit/Delete from the topbar messages popup could close the whole panel.',
       'Delete now asks with a styled in-app confirmation instead of the browser’s default popup.',

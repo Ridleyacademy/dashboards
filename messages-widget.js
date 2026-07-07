@@ -260,6 +260,17 @@
       .mw-drop-inner { display:flex; flex-direction:column; align-items:center; gap:8px; color:#8ea2ff; font-weight:700; pointer-events:none; }
       .mw-drop-inner svg { width:38px; height:38px; }
       .mw-iconbtn.on { color:#8ea2ff !important; background:#1a2140 !important; }
+      .mw-cn-mute { color:#7880a8; vertical-align:-2px; }
+      .mw-aud { width:230px; max-width:60vw; height:38px; margin-top:2px; }
+      .mw-recbar { display:none; flex:1; align-items:center; gap:9px; padding:4px 4px 4px 10px; }
+      .mw-comp.recording .mw-attbtn, .mw-comp.recording #mwMic, .mw-comp.recording #mwInput, .mw-comp.recording #mwSend { display:none; }
+      .mw-comp.recording .mw-recbar { display:flex; }
+      .mw-rec-dot { width:10px; height:10px; border-radius:50%; background:#ff5d5d; animation:mwRecPulse 1s ease-in-out infinite; flex-shrink:0; }
+      @keyframes mwRecPulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+      .mw-rec-time { font-variant-numeric:tabular-nums; color:#eaecf8; font-size:0.85rem; }
+      .mw-rec-lbl { color:#7880a8; font-size:0.8rem; flex:1; }
+      .mw-rec-cancel { background:none; border:none; color:#ff9a9a; font-size:0.82rem; cursor:pointer; padding:6px 8px; }
+      .mw-rec-send { background:#34d399; border:none; color:#04120c; width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; }
       .mw-confirm { position:fixed; inset:0; z-index:10070; background:rgba(0,0,0,0.55); display:flex; align-items:center; justify-content:center; padding:20px; }
       .mw-confirm-card { background:#1a1f30; border:1px solid #2a3150; border-radius:14px; padding:18px; max-width:300px; width:100%; box-shadow:0 20px 50px rgba(0,0,0,0.6); }
       .mw-confirm-msg { font-size:0.9rem; color:#eaecf8; margin-bottom:16px; line-height:1.4; }
@@ -380,7 +391,7 @@
       <div class="mw-scroll" id="mwList"><div class="mw-empty">Loading…</div></div>
       <div class="mw-thread" id="mwThread">
         <div class="mw-drop" id="mwDrop"><div class="mw-drop-inner">${FILE_SVG}<span>Drop to attach</span></div></div>
-        <div class="mw-head"><button class="mw-back" id="mwBack">‹</button><div class="mw-title" id="mwThreadTitle" style="font-size:0.88rem;flex:1;"></div><button class="mw-hbtn mw-iconbtn" id="mwPinBtn" title="Pin conversation" aria-label="Pin"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14l-1.6-2.6a2 2 0 0 1-.4-1.2V8a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2v5.2a2 2 0 0 1-.4 1.2L5 17z"/></svg></button><button class="mw-hbtn mw-iconbtn" id="mwFindBtn" title="Search in conversation" aria-label="Search"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button><button class="mw-x" id="mwClose2">×</button></div>
+        <div class="mw-head"><button class="mw-back" id="mwBack">‹</button><div class="mw-title" id="mwThreadTitle" style="font-size:0.88rem;flex:1;"></div><button class="mw-hbtn mw-iconbtn" id="mwPinBtn" title="Pin conversation" aria-label="Pin"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14l-1.6-2.6a2 2 0 0 1-.4-1.2V8a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2v5.2a2 2 0 0 1-.4 1.2L5 17z"/></svg></button><button class="mw-hbtn mw-iconbtn" id="mwMuteBtn" title="Mute notifications" aria-label="Mute"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></button><button class="mw-hbtn mw-iconbtn" id="mwFindBtn" title="Search in conversation" aria-label="Search"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button><button class="mw-x" id="mwClose2">×</button></div>
         <div class="mw-findbar" id="mwFindBar"><input id="mwFindInput" placeholder="Search this conversation…"><span class="mw-find-n" id="mwFindN"></span><button class="mw-find-nav" id="mwFindPrev">↑</button><button class="mw-find-nav" id="mwFindNext">↓</button><button class="mw-find-x" id="mwFindClose">✕</button></div>
         <div class="mw-msgs-wrap">
           <div class="mw-msgs" id="mwMsgs"></div>
@@ -395,8 +406,10 @@
           <div class="mw-mentions" id="mwMentions"></div>
           <input type="file" id="mwFile" multiple style="display:none">
           <button id="mwAttach" class="mw-attbtn" title="Attach a file"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></button>
+          <button id="mwMic" class="mw-attbtn" title="Record voice message"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg></button>
           <textarea id="mwInput" rows="1" placeholder="Message…"></textarea>
           <button id="mwSend"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
+          <div class="mw-recbar" id="mwRecBar"><span class="mw-rec-dot"></span><span class="mw-rec-time" id="mwRecTime">0:00</span><span class="mw-rec-lbl">Recording…</span><button class="mw-rec-cancel" id="mwRecCancel">Cancel</button><button class="mw-rec-send" id="mwRecStop" title="Send"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button></div>
         </div>
       </div>
       <div class="mw-pick" id="mwPick">
@@ -473,6 +486,10 @@
       thread.addEventListener('drop', (e) => { if (!curConv || !hasFiles(e)) return; e.preventDefault(); depth = 0; drop.classList.remove('show'); if (e.dataTransfer.files && e.dataTransfer.files.length) handleFiles(e.dataTransfer.files); });
     })();
     p.querySelector('#mwPinBtn').addEventListener('click', togglePin);
+    p.querySelector('#mwMuteBtn').addEventListener('click', toggleMute);
+    p.querySelector('#mwMic').addEventListener('click', startVoice);
+    p.querySelector('#mwRecCancel').addEventListener('click', cancelVoice);
+    p.querySelector('#mwRecStop').addEventListener('click', stopVoiceAndSend);
     p.querySelector('#mwFindBtn').addEventListener('click', toggleFind);
     p.querySelector('#mwFindClose').addEventListener('click', closeFind);
     p.querySelector('#mwFindInput').addEventListener('input', (e) => runFind(e.target.value));
@@ -557,7 +574,7 @@
     const prev = c.last_message ? ((isG && c.last_message.sender_name ? c.last_message.sender_name + ': ' : '') + c.last_message.body) : 'No messages yet';
     return `<div class="mw-conv${c.unread ? ' unread' : ''}" data-c="${c.id}"><div class="mw-av${isG ? ' grp' : ''}">${isG ? '#' : esc(initials(c.title))}</div>
       <div class="mw-cm"><div class="mw-cn">${c.pinned ? PIN_MINI_SVG : ''}${esc(c.title)}</div><div class="mw-cp">${esc(prev).slice(0, 70)}</div></div>
-      <div class="mw-cr"><span class="mw-ct">${fmtTime(c.last_message_at)}</span>${c.unread ? `<span class="mw-badge">${c.unread > 99 ? '99+' : c.unread}</span>` : ''}</div></div>`;
+      <div class="mw-cr"><span class="mw-ct">${fmtTime(c.last_message_at)}</span>${c.muted ? '<svg class="mw-cn-mute" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/></svg>' : ''}${c.unread ? `<span class="mw-badge">${c.unread > 99 ? '99+' : c.unread}</span>` : ''}</div></div>`;
   }
   function renderList() {
     const el = document.getElementById('mwList'); if (!el) return;
@@ -596,7 +613,7 @@
     subscribeTyping(id); hideTyping();
     showThread();
     document.getElementById('mwThreadTitle').textContent = conv ? conv.title : 'Conversation';
-    updatePinBtn();
+    updatePinBtn(); updateMuteBtn(); cancelVoice();
     const mEl = document.getElementById('mwMsgs'); mEl.innerHTML = threadSkeleton();
     try {
       const j = await chatFetch('?api=messages&conversation_id=' + id);
@@ -662,6 +679,7 @@
       if (!src) return '';
       const nm = esc(a.name || (a.kind === 'video' ? 'video' : 'image'));
       if (a.kind === 'video') return `<div class="mw-mtile mw-loading" data-full="${esc(src)}" data-kind="video" data-name="${nm}"><video class="mw-mvid" src="${esc(src)}#t=0.1" preload="metadata" muted playsinline></video><div class="mw-play">▶</div></div>`;
+      if (a.kind === 'audio' || (a.mime || '').startsWith('audio/')) return `<audio class="mw-aud" controls preload="metadata" src="${esc(src)}"></audio>`;
       if (a.kind === 'file') { const sz = fmtBytes(a.size); return `<div class="mw-file" data-full="${esc(src)}" data-kind="file" data-name="${nm}" data-mime="${esc(a.mime || '')}"><span class="mw-fico">${FILE_SVG}</span><span class="mw-fmeta"><span class="mw-fname">${nm}</span>${sz ? `<span class="mw-fsz">${sz}</span>` : ''}</span></div>`; }
       return `<img class="mw-mimg mw-loading" src="${esc(src)}" loading="lazy" data-full="${esc(src)}" data-kind="image" data-name="${nm}" alt="${nm}">`;
     }).join('');
@@ -761,6 +779,7 @@
     const names = [...(conv && conv.members || []).map(mm => mm.name), me && me.name].filter(Boolean);
     names.sort((a, b) => b.length - a.length);   // longest first so "Ann Marie" beats "Ann"
     for (const nm of names) { const e = esc(nm); h = h.split('@' + e).join(`<span class="mw-mention">@${e}</span>`); }
+    h = h.replace(/@(everyone|all)\b/gi, (m) => `<span class="mw-mention">${m}</span>`);
     return linkify(h);
   }
   // ── Link previews (unfurl) ──────────────────────────────────────────────
@@ -900,6 +919,19 @@
       return new Date(b.last_message_at || 0) - new Date(a.last_message_at || 0);
     });
   }
+  function updateMuteBtn() {
+    const btn = document.getElementById('mwMuteBtn'); if (!btn) return;
+    const conv = convs.find(c => c.id === curConv);
+    const on = !!(conv && conv.muted);
+    btn.classList.toggle('on', on);
+    btn.title = on ? 'Unmute notifications' : 'Mute notifications';
+  }
+  async function toggleMute() {
+    const conv = convs.find(c => c.id === curConv); if (!conv) return;
+    const next = !conv.muted; conv.muted = next; updateMuteBtn(); renderList();
+    try { await chatFetch('?api=mute', { method: 'POST', body: JSON.stringify({ conversation_id: conv.id, muted: next }) }); toast(next ? 'Muted' : 'Unmuted'); }
+    catch (_) { conv.muted = !next; updateMuteBtn(); renderList(); toast('Could not update'); }
+  }
   let toastT = null;
   function toast(msg) {
     let t = document.getElementById('mwToast');
@@ -1009,7 +1041,9 @@
   // ── @mention autocomplete ────────────────────────────────────────────────
   function mentionCandidates() {
     const conv = convs.find(c => c.id === curConv);
-    return (conv && conv.members || []).filter(mm => !me || mm.id !== me.user_id);
+    const base = (conv && conv.members || []).filter(mm => !me || mm.id !== me.user_id);
+    // In groups offer an "everyone" option that pings all members.
+    return (conv && conv.type === 'group') ? [{ id: '__everyone__', name: 'everyone' }, ...base] : base;
   }
   function updateMentionBox() {
     const inp = document.getElementById('mwInput'); const box = document.getElementById('mwMentions');
@@ -1090,6 +1124,38 @@
     }
   }
 
+  // ── Voice notes ──────────────────────────────────────────────────────────
+  let _rec = null, _recChunks = [], _recTimer = null, _recStart = 0, _recStream = null;
+  function fmtRecTime(ms) { const s = Math.floor(ms / 1000); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
+  function stopRecStream() { if (_recStream) { _recStream.getTracks().forEach(t => { try { t.stop(); } catch (_) {} }); _recStream = null; } clearInterval(_recTimer); _recTimer = null; const c = document.querySelector('.mw-comp'); if (c) c.classList.remove('recording'); }
+  async function startVoice() {
+    if (!curConv) return;
+    if (!navigator.mediaDevices || !window.MediaRecorder) { alert('Voice recording isn’t supported in this browser.'); return; }
+    try { _recStream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    catch (_) { alert('Microphone access was blocked.'); return; }
+    const mime = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : (MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : '');
+    _recChunks = [];
+    try { _rec = mime ? new MediaRecorder(_recStream, { mimeType: mime }) : new MediaRecorder(_recStream); } catch (_) { _rec = new MediaRecorder(_recStream); }
+    _rec.ondataavailable = (e) => { if (e.data && e.data.size) _recChunks.push(e.data); };
+    _rec.start(); _recStart = Date.now();
+    document.querySelector('.mw-comp').classList.add('recording');
+    document.getElementById('mwRecTime').textContent = '0:00';
+    clearInterval(_recTimer);
+    _recTimer = setInterval(() => { document.getElementById('mwRecTime').textContent = fmtRecTime(Date.now() - _recStart); if (Date.now() - _recStart > 5 * 60 * 1000) stopVoiceAndSend(); }, 400);
+  }
+  function cancelVoice() { if (_rec && _rec.state !== 'inactive') { _rec.onstop = null; try { _rec.stop(); } catch (_) {} } _rec = null; _recChunks = []; stopRecStream(); }
+  async function stopVoiceAndSend() {
+    if (!_rec || _rec.state === 'inactive') { stopRecStream(); return; }
+    const dur = Date.now() - _recStart; const rec = _rec; _rec = null;
+    await new Promise((res) => { rec.onstop = res; try { rec.stop(); } catch (_) { res(); } });
+    stopRecStream();
+    if (dur < 700 || !_recChunks.length) { _recChunks = []; return; }   // too short → discard
+    const type = rec.mimeType || 'audio/webm';
+    const ext = /mp4|m4a|aac/.test(type) ? 'm4a' : (/ogg/.test(type) ? 'ogg' : 'webm');
+    const file = new File(_recChunks, 'voice-' + Date.now() + '.' + ext, { type }); _recChunks = [];
+    await handleFiles([file]);
+    await send();   // send the voice note as its own message
+  }
   async function send() {
     const inp = document.getElementById('mwInput'); const body = inp.value.trim();
     if (!curConv) return;
@@ -1110,7 +1176,7 @@
     const ready = pendingAtts.filter(a => a.status === 'done' && a.path);
     if (!body && !ready.length) return;
     // Resolve which picked @mentions actually survive in the final text.
-    const mentioned = [...mentionPicked.entries()].filter(([, name]) => body.includes('@' + name)).map(([id]) => id);
+    const mentioned = [...mentionPicked.entries()].filter(([, name]) => body.includes('@' + name)).map(([id]) => id).filter((id) => id !== '__everyone__');
     mentionPicked.clear();
     const replyId = replyTarget ? replyTarget.id : null;
     const replyObj = replyTarget ? { id: replyTarget.id, sender_name: replyTarget.sender_name, snippet: replyTarget.snippet } : null;

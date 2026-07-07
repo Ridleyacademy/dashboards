@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v445-lp-image-fit';
+const CACHE_NAME = 'ridley-v446-mute-everyone-voice';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [

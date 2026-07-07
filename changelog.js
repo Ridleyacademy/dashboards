@@ -16,6 +16,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v436', title: 'Messages — pin chats, send files, copy text', items: [
+      'Pin a conversation to keep it at the top of your list (great for the support/refunds team’s key threads). Open a chat and tap the pin icon in the header.',
+      'Attach files beyond photos & videos — PDFs, docs, spreadsheets, etc. (up to 50 MB). They show as a downloadable file tile.',
+      'Copy a message’s text from the ⋯ menu.',
+    ]},
     { version: 'v435', title: 'Messages — faster chat open + loading skeleton', items: [
       'Opening a conversation (including jumping to a searched message) is faster — the server no longer re-authenticates with attachment storage on every open.',
       'While a chat loads, shimmering placeholder bubbles show instead of a blank “Loading…”, so it no longer looks frozen.',

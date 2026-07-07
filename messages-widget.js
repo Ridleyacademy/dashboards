@@ -26,6 +26,9 @@
   const REACTIONS = ['👍', '❤️', '😂', '🎉', '😮', '😢'];
   const EDIT_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
   const TRASH_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
+  const COPY_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+  const FILE_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
+  const PIN_MINI_SVG = '<svg class="mw-cn-pin" xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14l-1.6-2.6a2 2 0 0 1-.4-1.2V8a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2v5.2a2 2 0 0 1-.4 1.2L5 17z"/></svg>';
   const SLASH_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>';
 
   function ensureSupa() {
@@ -166,6 +169,8 @@
       .mw-attstrip { display:flex; gap:8px; flex-wrap:wrap; padding:8px 12px 0; }
       .mw-attstrip:empty { display:none; }
       .mw-thumb { position:relative; width:58px; height:58px; border-radius:9px; overflow:hidden; border:1px solid #272d45; background:#0f1120; flex-shrink:0; }
+      .mw-thumb-file { width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; padding:4px; color:#7f8bd6; }
+      .mw-thumb-file .mw-thumb-fn { font-size:0.58rem; color:#9aa2c8; line-height:1.1; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
       .mw-thumb img, .mw-thumb video { width:100%; height:100%; object-fit:cover; display:block; }
       .mw-thumb .mw-vico { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:1.2rem; color:#fff; background:rgba(0,0,0,0.3); }
       .mw-thumb .mw-rm { position:absolute; top:2px; right:2px; width:17px; height:17px; border-radius:50%; background:rgba(0,0,0,0.7); color:#fff; border:none; cursor:pointer; font-size:0.7rem; line-height:17px; padding:0; }
@@ -223,6 +228,16 @@
       .mw-mi svg { flex-shrink:0; }
       .mw-mi:hover { background:#252c44; color:#eaecf8; }
       .mw-mi.del:hover { background:#3a1f24; color:#ff9a9a; }
+      .mw-toast { position:absolute; left:50%; bottom:76px; transform:translateX(-50%) translateY(6px); background:#0b0d18; border:1px solid #2a3350; color:#eaecf8; padding:7px 14px; border-radius:20px; font-size:0.8rem; opacity:0; pointer-events:none; transition:opacity .18s, transform .18s; z-index:40; box-shadow:0 6px 20px rgba(0,0,0,0.4); }
+      .mw-toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+      .mw-file { display:flex; align-items:center; gap:10px; text-decoration:none; background:#0f1120; border:1px solid #1f2438; border-radius:12px; padding:9px 12px; max-width:240px; color:#eaecf8; }
+      .mw-file:hover { border-color:#2a3350; }
+      .mw-file .mw-fico { color:#7f8bd6; flex-shrink:0; }
+      .mw-file .mw-fmeta { min-width:0; }
+      .mw-file .mw-fname { font-size:0.82rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+      .mw-file .mw-fsz { font-size:0.7rem; color:#7880a8; }
+      .mw-cn-pin { color:#8ea2ff; margin-right:4px; vertical-align:-1px; flex-shrink:0; }
+      .mw-iconbtn.on { color:#8ea2ff !important; background:#1a2140 !important; }
       .mw-confirm { position:fixed; inset:0; z-index:10070; background:rgba(0,0,0,0.55); display:flex; align-items:center; justify-content:center; padding:20px; }
       .mw-confirm-card { background:#1a1f30; border:1px solid #2a3150; border-radius:14px; padding:18px; max-width:300px; width:100%; box-shadow:0 20px 50px rgba(0,0,0,0.6); }
       .mw-confirm-msg { font-size:0.9rem; color:#eaecf8; margin-bottom:16px; line-height:1.4; }
@@ -342,7 +357,7 @@
       <input class="mw-listsearch" id="mwListSearch" placeholder="Search messages & chats…">
       <div class="mw-scroll" id="mwList"><div class="mw-empty">Loading…</div></div>
       <div class="mw-thread" id="mwThread">
-        <div class="mw-head"><button class="mw-back" id="mwBack">‹</button><div class="mw-title" id="mwThreadTitle" style="font-size:0.88rem;flex:1;"></div><button class="mw-hbtn mw-iconbtn" id="mwFindBtn" title="Search in conversation" aria-label="Search"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button><button class="mw-x" id="mwClose2">×</button></div>
+        <div class="mw-head"><button class="mw-back" id="mwBack">‹</button><div class="mw-title" id="mwThreadTitle" style="font-size:0.88rem;flex:1;"></div><button class="mw-hbtn mw-iconbtn" id="mwPinBtn" title="Pin conversation" aria-label="Pin"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14l-1.6-2.6a2 2 0 0 1-.4-1.2V8a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2v5.2a2 2 0 0 1-.4 1.2L5 17z"/></svg></button><button class="mw-hbtn mw-iconbtn" id="mwFindBtn" title="Search in conversation" aria-label="Search"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button><button class="mw-x" id="mwClose2">×</button></div>
         <div class="mw-findbar" id="mwFindBar"><input id="mwFindInput" placeholder="Search this conversation…"><span class="mw-find-n" id="mwFindN"></span><button class="mw-find-nav" id="mwFindPrev">↑</button><button class="mw-find-nav" id="mwFindNext">↓</button><button class="mw-find-x" id="mwFindClose">✕</button></div>
         <div class="mw-msgs-wrap">
           <div class="mw-msgs" id="mwMsgs"></div>
@@ -355,8 +370,8 @@
         <div class="mw-attstrip" id="mwAttStrip"></div>
         <div class="mw-comp">
           <div class="mw-mentions" id="mwMentions"></div>
-          <input type="file" id="mwFile" accept="image/*,video/*" multiple style="display:none">
-          <button id="mwAttach" class="mw-attbtn" title="Attach photo or video"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></button>
+          <input type="file" id="mwFile" multiple style="display:none">
+          <button id="mwAttach" class="mw-attbtn" title="Attach a file"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></button>
           <textarea id="mwInput" rows="1" placeholder="Message…"></textarea>
           <button id="mwSend"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
         </div>
@@ -394,12 +409,14 @@
       const mbtn = e.target.closest && e.target.closest('.mw-menu-btn');
       if (mbtn && mid) {
         const m = curMsgs.find(x => x.id === mid);
+        const copyItem = (m && m.body) ? `<button class="mw-mi" data-act="copy">${COPY_SVG}Copy text</button>` : '';
         const mineItems = (m && m.mine) ? `<button class="mw-mi" data-act="edit">${EDIT_SVG}Edit</button><button class="mw-mi del" data-act="del">${TRASH_SVG}Delete</button>` : '';
-        showPop(`<button class="mw-mi" data-act="reply">↩ Reply</button><button class="mw-mi" data-act="forward">↪ Forward</button><button class="mw-mi" data-act="select">☑ Select</button>${mineItems}`, mbtn, 'menu', (ev) => {
+        showPop(`<button class="mw-mi" data-act="reply">↩ Reply</button><button class="mw-mi" data-act="forward">↪ Forward</button>${copyItem}<button class="mw-mi" data-act="select">☑ Select</button>${mineItems}`, mbtn, 'menu', (ev) => {
           const b = ev.target.closest('.mw-mi'); if (!b) return; closePopups();
           const act = b.dataset.act;
           if (act === 'reply') startReply(mid);
           else if (act === 'forward') openForwardPicker([mid]);
+          else if (act === 'copy') copyMsg(mid);
           else if (act === 'select') { enterSelectMode(); toggleSelect(mid); }
           else if (act === 'edit') startEdit(mid);
           else if (act === 'del') doDelete(mid);
@@ -422,6 +439,7 @@
       renderList();
     });
     // In-thread find
+    p.querySelector('#mwPinBtn').addEventListener('click', togglePin);
     p.querySelector('#mwFindBtn').addEventListener('click', toggleFind);
     p.querySelector('#mwFindClose').addEventListener('click', closeFind);
     p.querySelector('#mwFindInput').addEventListener('input', (e) => runFind(e.target.value));
@@ -505,7 +523,7 @@
     const isG = c.type === 'group';
     const prev = c.last_message ? ((isG && c.last_message.sender_name ? c.last_message.sender_name + ': ' : '') + c.last_message.body) : 'No messages yet';
     return `<div class="mw-conv${c.unread ? ' unread' : ''}" data-c="${c.id}"><div class="mw-av${isG ? ' grp' : ''}">${isG ? '#' : esc(initials(c.title))}</div>
-      <div class="mw-cm"><div class="mw-cn">${esc(c.title)}</div><div class="mw-cp">${esc(prev).slice(0, 70)}</div></div>
+      <div class="mw-cm"><div class="mw-cn">${c.pinned ? PIN_MINI_SVG : ''}${esc(c.title)}</div><div class="mw-cp">${esc(prev).slice(0, 70)}</div></div>
       <div class="mw-cr"><span class="mw-ct">${fmtTime(c.last_message_at)}</span>${c.unread ? `<span class="mw-badge">${c.unread > 99 ? '99+' : c.unread}</span>` : ''}</div></div>`;
   }
   function renderList() {
@@ -545,6 +563,7 @@
     subscribeTyping(id); hideTyping();
     showThread();
     document.getElementById('mwThreadTitle').textContent = conv ? conv.title : 'Conversation';
+    updatePinBtn();
     const mEl = document.getElementById('mwMsgs'); mEl.innerHTML = threadSkeleton();
     try {
       const j = await chatFetch('?api=messages&conversation_id=' + id);
@@ -597,6 +616,12 @@
     clearTimeout(typingHideT); typingHideT = setTimeout(hideTyping, 3500);
   }
   function hideTyping() { const el = document.getElementById('mwTyping'); if (el) { el.classList.remove('show'); el.textContent = ''; } clearTimeout(typingHideT); }
+  function fmtBytes(n) {
+    n = Number(n) || 0; if (!n) return '';
+    if (n < 1024) return n + ' B';
+    if (n < 1048576) return (n / 1024).toFixed(0) + ' KB';
+    return (n / 1048576).toFixed(1) + ' MB';
+  }
   function mediaHtml(atts) {
     if (!atts || !atts.length) return '';
     const items = atts.map(a => {
@@ -604,6 +629,7 @@
       if (!src) return '';
       const nm = esc(a.name || (a.kind === 'video' ? 'video' : 'image'));
       if (a.kind === 'video') return `<div class="mw-mtile mw-loading" data-full="${esc(src)}" data-kind="video" data-name="${nm}"><video class="mw-mvid" src="${esc(src)}" preload="metadata" muted playsinline></video><div class="mw-play">▶</div></div>`;
+      if (a.kind === 'file') { const sz = fmtBytes(a.size); return `<a class="mw-file" href="${esc(src)}" target="_blank" rel="noopener" download="${nm}"><span class="mw-fico">${FILE_SVG}</span><span class="mw-fmeta"><span class="mw-fname">${nm}</span>${sz ? `<span class="mw-fsz">${sz}</span>` : ''}</span></a>`; }
       return `<img class="mw-mimg mw-loading" src="${esc(src)}" loading="lazy" data-full="${esc(src)}" data-kind="image" data-name="${nm}" alt="${nm}">`;
     }).join('');
     return `<div class="mw-media">${items}</div>`;
@@ -747,6 +773,45 @@
     try { await chatFetch('?api=react', { method: 'POST', body: JSON.stringify({ message_id: mid, emoji }) }); }
     catch (e) { refreshThreadSoon(); }
   }
+  function updatePinBtn() {
+    const btn = document.getElementById('mwPinBtn'); if (!btn) return;
+    const conv = convs.find(c => c.id === curConv);
+    const on = !!(conv && conv.pinned);
+    btn.classList.toggle('on', on);
+    btn.title = on ? 'Unpin conversation' : 'Pin conversation';
+  }
+  async function togglePin() {
+    const conv = convs.find(c => c.id === curConv); if (!conv) return;
+    const next = !conv.pinned;
+    conv.pinned = next; conv.pinned_at = next ? new Date().toISOString() : null;
+    updatePinBtn(); sortConvs(); renderList();
+    try { await chatFetch('?api=pin', { method: 'POST', body: JSON.stringify({ conversation_id: conv.id, pinned: next }) }); toast(next ? 'Pinned' : 'Unpinned'); }
+    catch (_) { conv.pinned = !next; updatePinBtn(); sortConvs(); renderList(); toast('Could not update'); }
+  }
+  // Keep the local convs array in the same pinned-first, then recent order the server uses,
+  // so pin/unpin reorders instantly without a refetch.
+  function sortConvs() {
+    convs.sort((a, b) => {
+      if (a.pinned && b.pinned) return new Date(b.pinned_at || 0) - new Date(a.pinned_at || 0);
+      if (a.pinned) return -1; if (b.pinned) return 1;
+      return new Date(b.last_message_at || 0) - new Date(a.last_message_at || 0);
+    });
+  }
+  let toastT = null;
+  function toast(msg) {
+    let t = document.getElementById('mwToast');
+    if (!t) { t = document.createElement('div'); t.id = 'mwToast'; t.className = 'mw-toast'; (document.getElementById('msgWidgetPanel') || document.body).appendChild(t); }
+    t.textContent = msg; t.classList.add('show');
+    clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 1600);
+  }
+  async function copyMsg(mid) {
+    const m = curMsgs.find(x => x.id === mid); if (!m || !m.body) return;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) await navigator.clipboard.writeText(m.body);
+      else { const ta = document.createElement('textarea'); ta.value = m.body; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); }
+      toast('Copied');
+    } catch (_) { toast('Could not copy'); }
+  }
   function startEdit(mid) {
     const m = curMsgs.find(x => x.id === mid); if (!m || m.deleted) return;
     editingId = mid; mentionPicked.clear();
@@ -871,6 +936,8 @@
     el.innerHTML = pendingAtts.map(a => {
       const inner = a.kind === 'video'
         ? `<video src="${esc(a._localUrl || '')}" muted></video><div class="mw-vico">🎬</div>`
+        : a.kind === 'file'
+        ? `<div class="mw-thumb-file"><span class="mw-fico">${FILE_SVG}</span><span class="mw-thumb-fn">${esc(a.name || 'file')}</span></div>`
         : `<img src="${esc(a._localUrl || '')}" alt="">`;
       return `<div class="mw-thumb${a.status === 'uploading' ? ' up' : ''}" data-a="${a.id}">${inner}<button class="mw-rm" data-rm="${a.id}">×</button></div>`;
     }).join('');
@@ -883,7 +950,7 @@
     if (!curConv || !files || !files.length) return;
     for (const file of Array.from(files)) {
       const kind = file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : 'file';
-      if (kind === 'file') { alert('Only photos and videos can be attached.'); continue; }
+      if (file.size > 50 * 1024 * 1024) { alert(file.name + ' is larger than 50 MB.'); continue; }
       const localId = 'att-' + Date.now() + '-' + Math.round(performance.now());
       const rec = { id: localId, kind, mime: file.type, size: file.size, name: file.name, path: null, _localUrl: URL.createObjectURL(file), status: 'uploading' };
       pendingAtts.push(rec); renderAttStrip();
@@ -942,7 +1009,7 @@
     // WITHOUT revoking them (revoking would blank the preview we just rendered).
     pendingAtts = []; renderAttStrip();
     const payloadAtts = ready.map(a => ({ path: a.path, mime: a.mime, size: a.size, name: a.name }));
-    const preview = body || (ready.some(a => a.kind === 'video') ? '📷 Attachment' : '📷 Attachment');
+    const preview = body || (ready.every(a => a.kind === 'file') ? '📎 Attachment' : '📷 Attachment');
     const conv = convs.find(c => c.id === cid);
     if (conv) { conv.last_message = { body: preview, sender_id: me?.user_id, sender_name: me?.name, created_at: nowIso }; conv.last_message_at = nowIso; convs.sort((a, b) => new Date(b.last_message_at) - new Date(a.last_message_at)); renderList(); }
     try {

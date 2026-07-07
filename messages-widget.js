@@ -947,6 +947,23 @@
       if (i >= 0) { if (pendingAtts[i]._localUrl) URL.revokeObjectURL(pendingAtts[i]._localUrl); pendingAtts.splice(i, 1); renderAttStrip(); }
     }));
   }
+  async function uploadWithRetry(url, tok, file, tries = 3) {
+    let lastErr;
+    for (let attempt = 0; attempt < tries; attempt++) {
+      try {
+        const r = await fetch(url, { method: 'POST', headers: { Authorization: 'Bearer ' + tok }, body: file });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+        return j;
+      } catch (err) {
+        lastErr = err;
+        const transient = (err instanceof TypeError) || /load failed|network|fetch/i.test(err.message || '');
+        if (attempt < tries - 1 && transient) { await new Promise((res) => setTimeout(res, 600 * (attempt + 1))); continue; }
+        throw lastErr;
+      }
+    }
+    throw lastErr;
+  }
   async function handleFiles(files) {
     if (!curConv || !files || !files.length) return;
     for (const file of Array.from(files)) {
@@ -960,9 +977,9 @@
         // blocked by CORS). Query carries the metadata; the body is the raw file.
         const tok = await getToken(); if (!tok) throw new Error('no auth');
         const qs = '?api=attach-upload&conversation_id=' + curConv + '&filename=' + encodeURIComponent(file.name) + '&mime=' + encodeURIComponent(file.type || 'application/octet-stream');
-        const r = await fetch(CHAT_BASE + qs, { method: 'POST', headers: { Authorization: 'Bearer ' + tok }, body: file });
-        const j = await r.json().catch(() => ({}));
-        if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+        // First upload after a load can hit a cold edge instance and Safari drops the streamed
+        // body ("Load failed"); a File is re-readable, so retry a couple of times before erroring.
+        const j = await uploadWithRetry(CHAT_BASE + qs, tok, file);
         rec.path = j.path; rec.status = 'done'; renderAttStrip();
       } catch (e) {
         const i = pendingAtts.indexOf(rec); if (i >= 0) { URL.revokeObjectURL(rec._localUrl); pendingAtts.splice(i, 1); }

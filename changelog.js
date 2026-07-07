@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v439', title: 'Messages — fix “Load failed” on first upload', items: [
+      'Attachments now retry automatically if the first upload after a page load fails, so a document uploads on the first try instead of needing a second attempt.',
+    ]},
     { version: 'v438', title: 'Messages — line-style upload spinner', items: [
       'The uploading indicator on an attachment is now a spinning line-style loader instead of an hourglass emoji.',
     ]},

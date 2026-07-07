@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v444', title: 'Messages — link previews', items: [
+      'Links you send now show a preview card with the page’s title, description, and thumbnail (fetched securely on the server).',
+    ]},
     { version: 'v443', title: 'Messages — drag & drop + separate sends', items: [
       'Drag photos, videos, or files straight onto a conversation to attach them (like WhatsApp).',
       'When you attach several files at once, each is sent as its own message — so each keeps its own 50 MB limit instead of sharing one.',

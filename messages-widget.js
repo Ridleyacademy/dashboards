@@ -9,6 +9,8 @@
   const SUPABASE_URL      = "https://pojqljrhhtnigyrtzdzz.supabase.co";
   const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBvanFsanJoaHRuaWd5cnR6ZHp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTA3ODMsImV4cCI6MjA5MTM4Njc4M30.PcSBDqOzbiZxZ7IAs5efqx0gsAlAG0cj3GqUOkAmxos";
   const CHAT_BASE = SUPABASE_URL + '/functions/v1/chat';
+  const UNFURL_BASE = SUPABASE_URL + '/functions/v1/unfurl';
+  const unfurlCache = new Map();   // url -> { status:'loading'|'done'|'fail', data }
 
   let mSupa = null, me = null, convs = [], usersCache = [], curConv = null, channel = null, panelOpen = false;
   let curMsgs = [];          // messages currently rendered in the open thread (for reaction/edit updates)
@@ -245,6 +247,14 @@
       .mw-file .mw-fname { font-size:0.82rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
       .mw-file .mw-fsz { font-size:0.7rem; color:#7880a8; }
       .mw-cn-pin { color:#8ea2ff; margin-right:4px; vertical-align:-1px; flex-shrink:0; }
+      .mw-lp { display:flex; margin-top:7px; border-radius:10px; overflow:hidden; text-decoration:none; background:rgba(0,0,0,0.22); border:1px solid rgba(255,255,255,0.12); max-width:260px; }
+      .mw-lp:hover { background:rgba(0,0,0,0.30); }
+      .mw-lp-img { width:100%; height:120px; background-size:cover; background-position:center; background-color:#0f1120; }
+      .mw-lp { flex-direction:column; }
+      .mw-lp-tx { padding:8px 10px; min-width:0; }
+      .mw-lp-site { font-size:0.68rem; text-transform:uppercase; letter-spacing:0.03em; color:#8ea2ff; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+      .mw-lp-title { font-size:0.82rem; font-weight:700; color:#eaecf8; line-height:1.25; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+      .mw-lp-desc { font-size:0.75rem; color:#aab2d5; margin-top:3px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
       .mw-drop { position:absolute; inset:0; z-index:30; display:none; align-items:center; justify-content:center; background:rgba(11,13,24,0.82); border:2px dashed #3a4a80; border-radius:14px; margin:6px; }
       .mw-drop.show { display:flex; }
       .mw-drop-inner { display:flex; flex-direction:column; align-items:center; gap:8px; color:#8ea2ff; font-weight:700; pointer-events:none; }
@@ -753,6 +763,47 @@
     for (const nm of names) { const e = esc(nm); h = h.split('@' + e).join(`<span class="mw-mention">@${e}</span>`); }
     return linkify(h);
   }
+  // ── Link previews (unfurl) ──────────────────────────────────────────────
+  function firstUrl(text) {
+    const m = /(https?:\/\/[^\s<]+)/i.exec(text || ''); if (!m) return null;
+    return m[1].replace(/[.,!?;:)\]]+$/, '');
+  }
+  function lpHtml(url) {
+    const c = unfurlCache.get(url);
+    if (c && c.status === 'done' && c.data && c.data.ok) return unfurlCard(url, c.data);
+    if (c && c.status === 'fail') return '';
+    return `<div class="mw-lp-ph" data-lpurl="${esc(url)}"></div>`;   // filled async by hydrateLinkPreviews
+  }
+  function unfurlCard(url, d) {
+    const href = esc(d.url || url);
+    const img = d.image ? `<div class="mw-lp-img" style="background-image:url('${esc(String(d.image).replace(/'/g, '%27'))}')"></div>` : '';
+    const site = d.site ? `<div class="mw-lp-site">${esc(d.site)}</div>` : '';
+    const title = `<div class="mw-lp-title">${esc(d.title || d.url || url)}</div>`;
+    const desc = d.description ? `<div class="mw-lp-desc">${esc(d.description)}</div>` : '';
+    return `<a class="mw-lp" href="${href}" target="_blank" rel="noopener noreferrer">${img}<div class="mw-lp-tx">${site}${title}${desc}</div></a>`;
+  }
+  async function hydrateLinkPreviews(el) {
+    if (!el) return;
+    const phs = [...el.querySelectorAll('.mw-lp-ph[data-lpurl]')];
+    const urls = [...new Set(phs.map(p => p.dataset.lpurl))];
+    for (const url of urls) {
+      let c = unfurlCache.get(url);
+      if (!c) {
+        c = { status: 'loading' }; unfurlCache.set(url, c);
+        try {
+          const tok = await getToken();
+          const r = await fetch(UNFURL_BASE + '?url=' + encodeURIComponent(url), { headers: { Authorization: 'Bearer ' + tok } });
+          const j = await r.json().catch(() => ({}));
+          c.data = j; c.status = (j && j.ok) ? 'done' : 'fail';
+        } catch (_) { c.status = 'fail'; }
+      }
+      if (c.status === 'loading') continue;   // another render will pick it up
+      // Fill (or drop) every placeholder currently showing this URL.
+      el.querySelectorAll(`.mw-lp-ph[data-lpurl="${(window.CSS && CSS.escape) ? CSS.escape(url) : url}"]`).forEach(ph => {
+        if (c.status === 'done') ph.outerHTML = unfurlCard(url, c.data); else ph.remove();
+      });
+    }
+  }
   function reactionChips(m) {
     if (!m.reactions || !m.reactions.length) return '';
     return `<div class="mw-rx">${m.reactions.map(r => `<button class="mw-rchip${r.mine ? ' mine' : ''}" data-emoji="${esc(r.emoji)}">${esc(r.emoji)} ${r.count}</button>`).join('')}</div>`;
@@ -768,7 +819,8 @@
     const snd = (!m.mine && isG) ? `<div class="mw-snd">${esc(m.sender_name || nameById[m.sender_id] || '')}</div>` : '';
     const fwd = m.forwarded ? '<div class="mw-fwd">↪ Forwarded</div>' : '';
     const rq = m.reply ? `<div class="mw-quote" data-jump="${m.reply.id}"><span class="mw-quote-n">${esc(m.reply.sender_name || '')}</span><span class="mw-quote-t">${m.reply.deleted ? 'message deleted' : esc(m.reply.snippet || '')}</span></div>` : '';
-    const bubInner = fwd + rq + (m.body ? renderBody(m.body) + (m.edited ? '<span class="mw-edited">edited</span>' : '') : '');
+    const lpUrl = (!m.deleted && m.body) ? firstUrl(m.body) : null;
+    const bubInner = fwd + rq + (m.body ? renderBody(m.body) + (m.edited ? '<span class="mw-edited">edited</span>' : '') : '') + (lpUrl ? lpHtml(lpUrl) : '');
     const txt = bubInner ? `<div class="mw-bub">${bubInner}</div>` : '';
     const inner = mediaHtml(m.attachments) + txt;
     const smileSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>';
@@ -787,7 +839,7 @@
     el.innerHTML = msgs.length
       ? msgs.map(m => (m.id === dividerBefore ? '<div class="mw-newdiv"><span>New messages</span></div>' : '') + bubble(m, isG)).join('')
       : '<div class="mw-empty">No messages yet — say hi 👋</div>';
-    wireMediaSkeletons(el);
+    wireMediaSkeletons(el); hydrateLinkPreviews(el);
     if (preserveScroll && !atBottom) el.scrollTop = prevTop;
     else if (dividerBefore) { const d = el.querySelector('.mw-newdiv'); if (d) d.scrollIntoView({ block: 'center' }); else el.scrollTop = el.scrollHeight; }
     else el.scrollTop = el.scrollHeight;
@@ -797,7 +849,7 @@
     const conv = convs.find(c => c.id === curConv); const isG = conv && conv.type === 'group';
     const el = document.getElementById('mwMsgs'); const e = el.querySelector('.mw-empty'); if (e) el.innerHTML = '';
     curMsgs.push(m);
-    el.insertAdjacentHTML('beforeend', bubble(m, isG)); wireMediaSkeletons(el); el.scrollTop = el.scrollHeight;
+    el.insertAdjacentHTML('beforeend', bubble(m, isG)); wireMediaSkeletons(el); hydrateLinkPreviews(el); el.scrollTop = el.scrollHeight;
   }
 
   // ── Reactions, edit, delete ──────────────────────────────────────────────

@@ -332,7 +332,7 @@
         <button class="mw-hbtn" id="mwNewGrp">＋ Group</button>
         <button class="mw-x" id="mwClose">×</button>
       </div>
-      <input class="mw-listsearch" id="mwListSearch" placeholder="Search conversations…">
+      <input class="mw-listsearch" id="mwListSearch" placeholder="Search messages & chats…">
       <div class="mw-scroll" id="mwList"><div class="mw-empty">Loading…</div></div>
       <div class="mw-thread" id="mwThread">
         <div class="mw-head"><button class="mw-back" id="mwBack">‹</button><div class="mw-title" id="mwThreadTitle" style="font-size:0.88rem;flex:1;"></div><button class="mw-hbtn mw-iconbtn" id="mwFindBtn" title="Search in conversation" aria-label="Search"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button><button class="mw-x" id="mwClose2">×</button></div>

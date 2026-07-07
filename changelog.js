@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v428', title: 'Messages — readable reply quote + smoother select', items: [
+      'Redesigned the “replying to” quote: dark panel, teal name, and up to two readable lines of the original — clear on every message.',
+      'Fixed flicker when checking messages in Select/Forward mode (rows now toggle in place instead of re-rendering the whole thread).',
+    ]},
     { version: 'v427', title: 'Messages — clearer reply quote', items: [
       'The quoted “replying to” preview is now easy to read on both your own (green) and incoming messages.',
     ]},

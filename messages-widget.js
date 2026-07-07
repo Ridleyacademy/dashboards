@@ -230,12 +230,9 @@
       /* forwarded label + reply quote inside a bubble */
       .mw-fwd { font-size:0.66rem; font-style:italic; color:#8b93b8; margin-bottom:2px; }
       .mw-row.mine .mw-fwd { color:#cdeee0; }
-      .mw-quote { border-left:3px solid #34d399; background:rgba(0,0,0,0.22); border-radius:5px; padding:4px 8px; margin-bottom:5px; cursor:pointer; display:flex; flex-direction:column; max-width:100%; overflow:hidden; }
-      .mw-quote-n { font-size:0.68rem; font-weight:800; color:#c4b5fd; }
-      .mw-quote-t { font-size:0.72rem; color:#c7cdec; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-      .mw-row.mine .mw-quote { background:rgba(255,255,255,0.22); border-left-color:#fff; }
-      .mw-row.mine .mw-quote-n { color:#fff; }
-      .mw-row.mine .mw-quote-t { color:#f2fff9; }
+      .mw-quote { border-left:4px solid #34d399; background:rgba(0,0,0,0.32); border-radius:7px; padding:6px 9px; margin-bottom:6px; cursor:pointer; max-width:100%; overflow:hidden; }
+      .mw-quote-n { display:block; font-size:0.72rem; font-weight:800; color:#5eead4; margin-bottom:2px; }
+      .mw-quote-t { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; font-size:0.78rem; line-height:1.35; color:#eef1fb; word-break:break-word; }
       .mw-flash { animation:mwFlash 1.2s ease; }
       @keyframes mwFlash { 0%,100%{ background:transparent } 30%{ background:rgba(52,211,153,0.18) } }
       /* reply composer bar */
@@ -619,7 +616,14 @@
   // ── Forward + multi-select ───────────────────────────────────────────────
   function enterSelectMode() { selectMode = true; selectedIds = new Set(); renderMsgs(curMsgs, true); updateSelectBar(); }
   function exitSelectMode() { selectMode = false; selectedIds = new Set(); renderMsgs(curMsgs, true); updateSelectBar(); }
-  function toggleSelect(mid) { if (selectedIds.has(mid)) selectedIds.delete(mid); else selectedIds.add(mid); renderMsgs(curMsgs, true); updateSelectBar(); }
+  function toggleSelect(mid) {
+    // Toggle just this row's state in place — a full re-render on every tap caused
+    // a visible flicker/scroll jump while selecting.
+    if (selectedIds.has(mid)) selectedIds.delete(mid); else selectedIds.add(mid);
+    const row = document.querySelector(`#mwMsgs .mw-row[data-mid="${mid}"]`);
+    if (row) row.classList.toggle('selected', selectedIds.has(mid));
+    updateSelectBar();
+  }
   function updateSelectBar() {
     const bar = document.getElementById('mwSelBar'); if (!bar) return;
     bar.classList.toggle('open', selectMode);

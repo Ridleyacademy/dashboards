@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v427', title: 'Messages — clearer reply quote', items: [
+      'The quoted “replying to” preview is now easy to read on both your own (green) and incoming messages.',
+    ]},
     { version: 'v426', title: 'Messages — reply, forward & clickable links', items: [
       'Reply to a specific message (like WhatsApp): pick Reply from a message’s ⋯ menu; the reply shows a quote you can tap to jump to the original.',
       'Forward messages: use ⋯ → Forward for one, or ⋯ → Select to pick several, then choose a conversation to send them to.',

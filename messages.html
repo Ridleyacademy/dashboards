@@ -163,10 +163,12 @@
   .bubble-row.mine .msg-link { color:#d9f4ff; }
   .msg-fwd { font-size:0.68rem; font-style:italic; color:var(--text-dim); margin-bottom:2px; }
   .bubble-row.mine .msg-fwd { color:#cdeee0; }
-  .msg-quote { border-left:3px solid #34d399; background:rgba(255,255,255,0.05); border-radius:6px; padding:4px 8px; margin-bottom:5px; cursor:pointer; display:flex; flex-direction:column; overflow:hidden; }
-  .msg-quote-n { font-size:0.72rem; font-weight:700; color:var(--purple); }
-  .bubble-row.mine .msg-quote-n { color:#eafff5; }
-  .msg-quote-t { font-size:0.78rem; color:var(--text-dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .msg-quote { border-left:3px solid #34d399; background:rgba(0,0,0,0.16); border-radius:6px; padding:5px 9px; margin-bottom:6px; cursor:pointer; display:flex; flex-direction:column; overflow:hidden; }
+  .msg-quote-n { font-size:0.74rem; font-weight:800; color:var(--purple); }
+  .msg-quote-t { font-size:0.8rem; color:var(--text); opacity:0.9; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .bubble-row.mine .msg-quote { background:rgba(255,255,255,0.22); border-left-color:#fff; }
+  .bubble-row.mine .msg-quote-n { color:#fff; }
+  .bubble-row.mine .msg-quote-t { color:#f2fff9; opacity:1; }
   .msg-flash { animation:msgFlash 1.2s ease; }
   @keyframes msgFlash { 0%,100%{background:transparent} 30%{background:rgba(52,211,153,0.16)} }
   .reply-bar { display:none; align-items:center; gap:10px; padding:8px 16px; background:var(--surface2); border-top:1px solid var(--border); border-left:3px solid #34d399; }

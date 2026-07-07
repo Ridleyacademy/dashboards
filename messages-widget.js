@@ -230,10 +230,12 @@
       /* forwarded label + reply quote inside a bubble */
       .mw-fwd { font-size:0.66rem; font-style:italic; color:#8b93b8; margin-bottom:2px; }
       .mw-row.mine .mw-fwd { color:#cdeee0; }
-      .mw-quote { border-left:3px solid #34d399; background:rgba(255,255,255,0.05); border-radius:5px; padding:3px 7px; margin-bottom:4px; cursor:pointer; display:flex; flex-direction:column; max-width:100%; overflow:hidden; }
-      .mw-quote-n { font-size:0.68rem; font-weight:700; color:#a78bfa; }
-      .mw-row.mine .mw-quote-n { color:#eafff5; }
-      .mw-quote-t { font-size:0.72rem; color:#9aa3c8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+      .mw-quote { border-left:3px solid #34d399; background:rgba(0,0,0,0.22); border-radius:5px; padding:4px 8px; margin-bottom:5px; cursor:pointer; display:flex; flex-direction:column; max-width:100%; overflow:hidden; }
+      .mw-quote-n { font-size:0.68rem; font-weight:800; color:#c4b5fd; }
+      .mw-quote-t { font-size:0.72rem; color:#c7cdec; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+      .mw-row.mine .mw-quote { background:rgba(255,255,255,0.22); border-left-color:#fff; }
+      .mw-row.mine .mw-quote-n { color:#fff; }
+      .mw-row.mine .mw-quote-t { color:#f2fff9; }
       .mw-flash { animation:mwFlash 1.2s ease; }
       @keyframes mwFlash { 0%,100%{ background:transparent } 30%{ background:rgba(52,211,153,0.18) } }
       /* reply composer bar */

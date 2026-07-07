@@ -645,6 +645,7 @@ let sortDir        = 'desc';
 // Record types (slug → label + badge color). Order drives the dropdowns + KPIs.
 const RECORD_TYPES = [
   { v: 'request',         label: 'Refund Request',     badge: 'badge-gold'   },
+  { v: 'refund_manager',  label: 'Refund Manager',     badge: 'badge-blue'   },
   { v: 'approved',        label: 'Refund Approved',    badge: 'badge-red'    },
   { v: 'disapproved',     label: 'Refund Disapproved', badge: 'badge-green'  },
   { v: 'processed',       label: 'Processed',          badge: 'badge-blue'   },
@@ -836,7 +837,7 @@ function renderStats(rows) {
 
   // KPI cards: a Total card, then one per record type (count + $ amount).
   const kpiColors = {
-    request: 'kpi-gold', approved: 'kpi-red', disapproved: 'kpi-green',
+    request: 'kpi-gold', refund_manager: 'kpi-blue', approved: 'kpi-red', disapproved: 'kpi-green',
     processed: 'kpi-blue', dispute_started: 'kpi-purple',
     dispute_won: 'kpi-green', dispute_lost: 'kpi-red',
   };

@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v419', title: 'Refunds — "Refund Manager" record type', items: [
+      'New record type "Refund Manager" (right after Refund Request). Setting a refund to it notifies the refund manager.',
+    ]},
     { version: 'v417', title: 'Declarations — New GI stat', items: [
       'Added a "New GI" card up top: cash sales + payment plans, excluding rebills.',
     ]},

@@ -148,14 +148,13 @@
   .lb-bar { position:absolute; top:16px; right:16px; z-index:2; display:flex; gap:10px; }
   .lb-btn { background:rgba(255,255,255,0.16); color:#fff; border:none; border-radius:9px; padding:10px 15px; font-size:0.9rem; font-weight:700; cursor:pointer; }
   .lb-btn:hover { background:rgba(255,255,255,0.3); }
-  /* message hover tools + reactions + mentions + edit/delete */
+  /* always-visible action footer + reactions + mentions + edit/delete */
   .bubble-row { position:relative; }
-  .msg-tools { position:absolute; top:-4px; display:none; gap:3px; z-index:2; }
-  .bubble-row:not(.mine) .msg-tools { right:-4px; flex-direction:row-reverse; }
-  .bubble-row.mine .msg-tools { left:-4px; }
-  .bubble-row:hover .msg-tools { display:flex; }
-  .msg-tools button { width:27px; height:27px; border-radius:50%; border:1px solid var(--border); background:var(--surface2); color:var(--text-dim); cursor:pointer; font-size:0.9rem; line-height:1; display:flex; align-items:center; justify-content:center; padding:0; }
-  .msg-tools button:hover { background:var(--surface); color:var(--text); }
+  .msg-foot { display:flex; align-items:center; gap:6px; margin-top:3px; }
+  .bubble-row.mine .msg-foot { flex-direction:row-reverse; }
+  .msg-foot button { width:26px; height:26px; border-radius:50%; border:1px solid var(--border); background:var(--surface2); color:var(--text); cursor:pointer; font-size:0.9rem; line-height:1; display:flex; align-items:center; justify-content:center; padding:0; opacity:0.85; }
+  .msg-foot button:hover { background:var(--surface); opacity:1; }
+  .react-btn { font-size:1rem; }
   .bubble-edited { font-size:0.64rem; color:var(--text-dim); margin-left:7px; }
   .bubble-row.mine .bubble-edited { color:#cdeee0; }
   .bubble.deleted { background:var(--surface); border:1px dashed var(--border); color:var(--text-dim); font-style:italic; }
@@ -549,9 +548,9 @@ function bubbleHtml(m, showSender){
     const txt = m.body?`<div class="bubble">${renderBody(m.body)}${m.edited?'<span class="bubble-edited">edited</span>':''}</div>`:'';
     inner = mediaHtml(m.attachments)+txt;
   }
-  const tools = (m.deleted || !m.id)?'':`<div class="msg-tools">${m.mine?'<button class="menu-btn" title="Edit or delete">⋯</button>':''}<button class="react-btn" title="React">☺</button></div>`;
+  const tools = (m.deleted || !m.id)?'':`<button class="react-btn" title="React">🙂</button>${m.mine?'<button class="menu-btn" title="Edit or delete">⋯</button>':''}`;
   const idAttr = m.id?` data-mid="${m.id}"`:'';
-  return `<div class="bubble-row${m.mine?' mine':''}"${m._tmpId?` id="${m._tmpId}"`:''}${idAttr}>${snd}${tools}${inner}${reactionChips(m)}<div class="bubble-time">${fmtTime(m.created_at)}</div></div>`;
+  return `<div class="bubble-row${m.mine?' mine':''}"${m._tmpId?` id="${m._tmpId}"`:''}${idAttr}>${snd}${inner}${reactionChips(m)}<div class="msg-foot">${tools}<span class="bubble-time">${fmtTime(m.created_at)}</span></div></div>`;
 }
 function renderMessages(msgs, preserveScroll){
   currentMsgs = msgs;
@@ -783,16 +782,17 @@ function subscribeRealtime(){
     })
     .on('postgres_changes', { event:'UPDATE', schema:'public', table:'chat_messages' }, (payload)=>{
       const m = payload.new; if(!m || m.conversation_id!==currentConv) return;
-      const cm = currentMsgs.find(x=>x.id===m.id);
-      if(cm){
-        cm.deleted=!!m.deleted_at; cm.body=m.deleted_at?'':m.body; cm.edited=!!m.edited_at;
-        if(m.deleted_at){ cm.attachments=[]; cm.has_attachments=false; cm.reactions=[]; }
-        renderMessages(currentMsgs, true);
-      }
-      loadConversations();
+      const cm = currentMsgs.find(x=>x.id===m.id); if(!cm) return;
+      const nextDeleted=!!m.deleted_at, nextBody=m.deleted_at?'':m.body, nextEdited=!!m.edited_at;
+      // Skip if nothing changed (e.g. our own edit already applied optimistically) — avoids flicker.
+      if(cm.deleted===nextDeleted && cm.body===nextBody && cm.edited===nextEdited) return;
+      cm.deleted=nextDeleted; cm.body=nextBody; cm.edited=nextEdited;
+      if(m.deleted_at){ cm.attachments=[]; cm.has_attachments=false; cm.reactions=[]; }
+      renderMessages(currentMsgs, true); loadConversations();
     })
     .on('postgres_changes', { event:'*', schema:'public', table:'chat_reactions' }, (payload)=>{
       const row = payload.new || payload.old; if(!row || row.conversation_id!==currentConv) return;
+      if(me && row.user_id===me.user_id) return;   // our own toggle already applied optimistically — no refetch
       refreshThreadSoon();
     })
     .subscribe();

@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v421', title: 'Messages — clearer react/edit buttons + smoother updates', items: [
+      'The react (🙂) and edit/delete (⋯) buttons now sit under every message and are always visible — no more hovering to find them (works on touch too).',
+      'Reactions and edits update more smoothly — your own changes no longer flicker or momentarily double-count.',
+    ]},
     { version: 'v420', title: 'Messages — reactions, edit/delete & @mentions', items: [
       'React to any message with an emoji — tap the ☺ on a message or a reaction chip to toggle yours.',
       'Edit or delete your own messages from the ⋯ menu. Edits show an "edited" tag; deletes leave a "message deleted" placeholder.',

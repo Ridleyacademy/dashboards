@@ -161,14 +161,13 @@
       .mw-lb-bar { position:absolute; top:14px; right:14px; z-index:2; display:flex; gap:10px; }
       .mw-lb-btn { background:rgba(255,255,255,0.16); color:#fff; border:none; border-radius:9px; padding:9px 13px; font-size:0.85rem; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:6px; }
       .mw-lb-btn:hover { background:rgba(255,255,255,0.3); }
-      /* message hover tools (react / edit-delete) */
+      /* always-visible action footer under each message (react / edit-delete + time) */
       .mw-row { position:relative; }
-      .mw-tools { position:absolute; top:-2px; display:none; gap:2px; z-index:2; }
-      .mw-row:not(.mine) .mw-tools { right:-2px; flex-direction:row-reverse; }
-      .mw-row.mine .mw-tools { left:-2px; }
-      .mw-row:hover .mw-tools { display:flex; }
-      .mw-tools button { width:24px; height:24px; border-radius:50%; border:1px solid #272d45; background:#191e30; color:#9aa3c8; cursor:pointer; font-size:0.82rem; line-height:1; display:flex; align-items:center; justify-content:center; padding:0; }
-      .mw-tools button:hover { background:#232a41; color:#eaecf8; }
+      .mw-foot { display:flex; align-items:center; gap:5px; margin-top:3px; }
+      .mw-row.mine .mw-foot { flex-direction:row-reverse; }
+      .mw-foot button { width:23px; height:23px; border-radius:50%; border:1px solid #272d45; background:#191e30; color:#aeb6da; cursor:pointer; font-size:0.82rem; line-height:1; display:flex; align-items:center; justify-content:center; padding:0; opacity:0.85; }
+      .mw-foot button:hover { background:#232a41; color:#fff; opacity:1; }
+      .mw-react-btn { font-size:0.9rem; }
       .mw-edited { font-size:0.6rem; color:#6b7398; margin-left:6px; }
       .mw-row.mine .mw-edited { color:#bdeeda; }
       .mw-bub.mw-del { background:#141827; border:1px dashed #272d45; color:#6b7398; font-style:italic; }
@@ -427,9 +426,9 @@
       const txt = m.body ? `<div class="mw-bub">${renderBody(m.body)}${m.edited ? '<span class="mw-edited">edited</span>' : ''}</div>` : '';
       inner = mediaHtml(m.attachments) + txt;
     }
-    const tools = (m.deleted || !m.id) ? '' : `<div class="mw-tools">${m.mine ? '<button class="mw-menu-btn" title="Edit or delete">⋯</button>' : ''}<button class="mw-react-btn" title="React">☺</button></div>`;
+    const tools = (m.deleted || !m.id) ? '' : `<button class="mw-react-btn" title="React">🙂</button>${m.mine ? '<button class="mw-menu-btn" title="Edit or delete">⋯</button>' : ''}`;
     const idAttr = m.id ? ` data-mid="${m.id}"` : '';
-    return `<div class="mw-row${m.mine ? ' mine' : ''}"${m._tmpId ? ` id="${m._tmpId}"` : ''}${idAttr}>${snd}${tools}${inner}${reactionChips(m)}<div class="mw-bt">${fmtTime(m.created_at)}</div></div>`;
+    return `<div class="mw-row${m.mine ? ' mine' : ''}"${m._tmpId ? ` id="${m._tmpId}"` : ''}${idAttr}>${snd}${inner}${reactionChips(m)}<div class="mw-foot">${tools}<span class="mw-bt">${fmtTime(m.created_at)}</span></div></div>`;
   }
   function renderMsgs(msgs, preserveScroll) {
     curMsgs = msgs;
@@ -667,17 +666,18 @@
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_messages' }, (payload) => {
         // Edit / soft-delete of an existing message — patch it in place if it's on screen.
         const m = payload.new; if (!m || !panelOpen || m.conversation_id !== curConv) return;
-        const cm = curMsgs.find(x => x.id === m.id);
-        if (cm) {
-          cm.deleted = !!m.deleted_at; cm.body = m.deleted_at ? '' : m.body; cm.edited = !!m.edited_at;
-          if (m.deleted_at) { cm.attachments = []; cm.has_attachments = false; cm.reactions = []; }
-          renderMsgs(curMsgs, true);
-        }
-        refreshSoon();
+        const cm = curMsgs.find(x => x.id === m.id); if (!cm) return;
+        const nextDeleted = !!m.deleted_at, nextBody = m.deleted_at ? '' : m.body, nextEdited = !!m.edited_at;
+        // Skip if nothing actually changed (e.g. our own edit already applied optimistically) — avoids flicker.
+        if (cm.deleted === nextDeleted && cm.body === nextBody && cm.edited === nextEdited) return;
+        cm.deleted = nextDeleted; cm.body = nextBody; cm.edited = nextEdited;
+        if (m.deleted_at) { cm.attachments = []; cm.has_attachments = false; cm.reactions = []; }
+        renderMsgs(curMsgs, true); refreshSoon();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_reactions' }, (payload) => {
         const row = payload.new || payload.old; if (!row || !panelOpen || row.conversation_id !== curConv) return;
-        refreshThreadSoon();   // pull fresh reaction counts (debounced, preserves scroll)
+        if (me && row.user_id === me.user_id) return;   // our own toggle is already applied optimistically — no refetch
+        refreshThreadSoon();   // someone else reacted: pull fresh counts (debounced, preserves scroll)
       })
       .subscribe();
   }

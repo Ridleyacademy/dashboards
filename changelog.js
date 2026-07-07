@@ -16,6 +16,12 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v426', title: 'Messages — reply, forward & clickable links', items: [
+      'Reply to a specific message (like WhatsApp): pick Reply from a message’s ⋯ menu; the reply shows a quote you can tap to jump to the original.',
+      'Forward messages: use ⋯ → Forward for one, or ⋯ → Select to pick several, then choose a conversation to send them to.',
+      'Links in messages are now clickable and open in a new tab.',
+      'Fixed: the ⋯ menu in the topbar messages popup now opens reliably.',
+    ]},
     { version: 'v425', title: 'Messages — cleaner “deleted” look', items: [
       'A deleted message now shows as a small, muted “This message was deleted” line instead of a full bubble with an emoji.',
     ]},

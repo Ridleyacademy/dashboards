@@ -13,6 +13,9 @@
   let mSupa = null, me = null, convs = [], usersCache = [], curConv = null, channel = null, panelOpen = false;
   let curMsgs = [];          // messages currently rendered in the open thread (for reaction/edit updates)
   let editingId = null;      // message id being edited (composer is in edit mode)
+  let replyTarget = null;    // { id, sender_name, snippet } message being replied to
+  let selectMode = false;    // multi-select (for forwarding) active
+  let selectedIds = new Set();
   const mentionPicked = new Map();   // id -> name for @mentions chosen while composing
   const nameById = {};
   const REACTIONS = ['👍', '❤️', '😂', '🎉', '😮', '😢'];
@@ -221,6 +224,47 @@
       .mw-confirm-btn.cancel { background:#232a41; color:#c7cdec; }
       .mw-confirm-btn.ok { background:#c0392b; color:#fff; }
       .mw-confirm-btn.ok:hover { background:#e04b3a; }
+      /* links inside messages */
+      .mw-link { color:#7fd7ff; text-decoration:underline; word-break:break-all; }
+      .mw-row.mine .mw-link { color:#d9f4ff; }
+      /* forwarded label + reply quote inside a bubble */
+      .mw-fwd { font-size:0.66rem; font-style:italic; color:#8b93b8; margin-bottom:2px; }
+      .mw-row.mine .mw-fwd { color:#cdeee0; }
+      .mw-quote { border-left:3px solid #34d399; background:rgba(255,255,255,0.05); border-radius:5px; padding:3px 7px; margin-bottom:4px; cursor:pointer; display:flex; flex-direction:column; max-width:100%; overflow:hidden; }
+      .mw-quote-n { font-size:0.68rem; font-weight:700; color:#a78bfa; }
+      .mw-row.mine .mw-quote-n { color:#eafff5; }
+      .mw-quote-t { font-size:0.72rem; color:#9aa3c8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+      .mw-flash { animation:mwFlash 1.2s ease; }
+      @keyframes mwFlash { 0%,100%{ background:transparent } 30%{ background:rgba(52,211,153,0.18) } }
+      /* reply composer bar */
+      .mw-replybar { display:none; align-items:center; gap:8px; padding:7px 12px; background:#141827; border-top:1px solid #1f2438; border-left:3px solid #34d399; }
+      .mw-replybar.open { display:flex; }
+      .mw-rb-body { flex:1; min-width:0; display:flex; flex-direction:column; }
+      .mw-rb-name { font-size:0.7rem; font-weight:700; color:#34d399; }
+      .mw-rb-txt { font-size:0.74rem; color:#9aa3c8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+      .mw-rb-x { background:none; border:none; color:#7880a8; font-size:1rem; cursor:pointer; }
+      /* multi-select bar + checkboxes */
+      .mw-selbar { display:none; align-items:center; gap:10px; padding:8px 12px; background:#141827; border-top:1px solid #1f2438; }
+      .mw-selbar.open { display:flex; }
+      .mw-sel-x { background:none; border:none; color:#7880a8; font-size:1rem; cursor:pointer; }
+      .mw-sel-count { flex:1; font-size:0.8rem; color:#c7cdec; }
+      .mw-sel-fwd { background:linear-gradient(135deg,#34d399,#22b07d); border:none; color:#fff; border-radius:8px; padding:6px 13px; font-size:0.8rem; font-weight:700; cursor:pointer; }
+      .mw-sel-fwd:disabled { opacity:0.4; cursor:default; }
+      .mw-row.selecting { cursor:pointer; padding-left:26px; position:relative; }
+      .mw-row.selecting.mine { padding-left:0; padding-right:26px; }
+      .mw-check { position:absolute; top:50%; transform:translateY(-50%); left:2px; width:17px; height:17px; border-radius:50%; border:2px solid #4b567e; }
+      .mw-row.selecting.mine .mw-check { left:auto; right:2px; }
+      .mw-row.selected .mw-check { background:#34d399; border-color:#34d399; }
+      .mw-row.selected { background:rgba(52,211,153,0.08); }
+      /* forward → conversation picker overlay */
+      .mw-fwdpick { position:fixed; inset:0; z-index:10065; background:rgba(0,0,0,0.55); display:flex; align-items:center; justify-content:center; padding:20px; }
+      .mw-fwdpick-card { background:#13141f; border:1px solid #272d45; border-radius:14px; width:100%; max-width:340px; max-height:70vh; display:flex; flex-direction:column; overflow:hidden; }
+      .mw-fwdpick-head { display:flex; align-items:center; justify-content:space-between; padding:12px 14px; font-weight:800; font-size:0.9rem; border-bottom:1px solid #1f2438; }
+      .mw-fwdpick-x { background:none; border:none; color:#7880a8; font-size:1.1rem; cursor:pointer; }
+      .mw-fwdpick-list { overflow-y:auto; }
+      .mw-fwd-row { display:flex; align-items:center; gap:10px; padding:10px 14px; cursor:pointer; border-bottom:1px solid #1a1f30; }
+      .mw-fwd-row:hover { background:#191e30; }
+      .mw-fwd-row .mw-cn { font-size:0.86rem; }
       /* @mention autocomplete */
       .mw-mentions { position:absolute; left:12px; right:12px; bottom:100%; margin-bottom:4px; background:#1a1f30; border:1px solid #2a3150; border-radius:10px; box-shadow:0 -6px 22px rgba(0,0,0,0.45); max-height:180px; overflow-y:auto; display:none; z-index:6; }
       .mw-mentions.open { display:block; }
@@ -260,7 +304,9 @@
       <div class="mw-thread" id="mwThread">
         <div class="mw-head"><button class="mw-back" id="mwBack">‹</button><div class="mw-title" id="mwThreadTitle" style="font-size:0.88rem;"></div><button class="mw-x" id="mwClose2">×</button></div>
         <div class="mw-msgs" id="mwMsgs"></div>
+        <div class="mw-selbar" id="mwSelBar"><button class="mw-sel-x" id="mwSelCancel">✕</button><span class="mw-sel-count">0 selected</span><button class="mw-sel-fwd" id="mwSelFwd">↪ Forward</button></div>
         <div class="mw-editbar" id="mwEditBar">${EDIT_SVG}Editing message<button id="mwEditCancel">Cancel</button></div>
+        <div class="mw-replybar" id="mwReplyBar"><div class="mw-rb-body"><span class="mw-rb-name"></span><span class="mw-rb-txt"></span></div><button class="mw-rb-x" id="mwReplyCancel">✕</button></div>
         <div class="mw-attstrip" id="mwAttStrip"></div>
         <div class="mw-comp">
           <div class="mw-mentions" id="mwMentions"></div>
@@ -288,20 +334,39 @@
     p.querySelector('#mwSend').addEventListener('click', send);
     p.querySelector('#mwAttach').addEventListener('click', () => document.getElementById('mwFile').click());
     p.querySelector('#mwFile').addEventListener('change', (e) => { handleFiles(e.target.files); e.target.value = ''; });
-    // Thread click: media lightbox, reaction chips, react/edit-delete tool buttons.
+    // Thread click: selection toggle, media lightbox, reply-jump, reaction chips, tool buttons.
     p.querySelector('#mwMsgs').addEventListener('click', (e) => {
+      const row = e.target.closest && e.target.closest('.mw-row'); const mid = row && row.dataset.mid ? Number(row.dataset.mid) : 0;
+      if (selectMode) { if (mid) toggleSelect(mid); return; }   // in select mode, tapping a message (de)selects it
       const media = e.target.closest && e.target.closest('img.mw-mimg, .mw-mtile');
       if (media) { const full = media.getAttribute('data-full'); if (full) openLightbox(full, media.getAttribute('data-kind'), media.getAttribute('data-name')); return; }
-      const row = e.target.closest && e.target.closest('.mw-row'); const mid = row && row.dataset.mid ? Number(row.dataset.mid) : 0;
+      const jump = e.target.closest && e.target.closest('.mw-quote');
+      if (jump && jump.dataset.jump) { const t = document.querySelector(`.mw-row[data-mid="${jump.dataset.jump}"]`); if (t) { t.scrollIntoView({ block: 'center', behavior: 'smooth' }); t.classList.add('mw-flash'); setTimeout(() => t.classList.remove('mw-flash'), 1200); } return; }
       const chip = e.target.closest && e.target.closest('.mw-rchip');
       if (chip && mid) { toggleReaction(mid, chip.dataset.emoji); return; }
       const rbtn = e.target.closest && e.target.closest('.mw-react-btn');
       if (rbtn && mid) { showPop(REACTIONS.map(em => `<button class="mw-rxopt" data-emoji="${em}">${em}</button>`).join(''), rbtn, '', (ev) => { const b = ev.target.closest('.mw-rxopt'); if (!b) return; closePopups(); toggleReaction(mid, b.dataset.emoji); }); return; }
       const mbtn = e.target.closest && e.target.closest('.mw-menu-btn');
-      if (mbtn && mid) { showPop(`<button class="mw-mi" data-act="edit">${EDIT_SVG}Edit</button><button class="mw-mi del" data-act="del">${TRASH_SVG}Delete</button>`, mbtn, 'menu', (ev) => { const b = ev.target.closest('.mw-mi'); if (!b) return; closePopups(); if (b.dataset.act === 'edit') startEdit(mid); else doDelete(mid); }); return; }
+      if (mbtn && mid) {
+        const m = curMsgs.find(x => x.id === mid);
+        const mineItems = (m && m.mine) ? `<button class="mw-mi" data-act="edit">${EDIT_SVG}Edit</button><button class="mw-mi del" data-act="del">${TRASH_SVG}Delete</button>` : '';
+        showPop(`<button class="mw-mi" data-act="reply">↩ Reply</button><button class="mw-mi" data-act="forward">↪ Forward</button><button class="mw-mi" data-act="select">☑ Select</button>${mineItems}`, mbtn, 'menu', (ev) => {
+          const b = ev.target.closest('.mw-mi'); if (!b) return; closePopups();
+          const act = b.dataset.act;
+          if (act === 'reply') startReply(mid);
+          else if (act === 'forward') openForwardPicker([mid]);
+          else if (act === 'select') { enterSelectMode(); toggleSelect(mid); }
+          else if (act === 'edit') startEdit(mid);
+          else if (act === 'del') doDelete(mid);
+        });
+        return;
+      }
     });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeLightbox(); closePopups(); } });
     p.querySelector('#mwEditCancel').addEventListener('click', cancelEdit);
+    p.querySelector('#mwReplyCancel').addEventListener('click', cancelReply);
+    p.querySelector('#mwSelCancel').addEventListener('click', exitSelectMode);
+    p.querySelector('#mwSelFwd').addEventListener('click', () => { if (selectedIds.size) openForwardPicker([...selectedIds]); });
     p.querySelector('#mwMentions').addEventListener('click', (e) => { const r = e.target.closest('.mw-mrow'); if (r) insertMention(r.dataset.mid, r.dataset.name); });
     p.querySelector('#mwSearch').addEventListener('input', e => renderPicker(e.target.value));
     p.querySelector('#mwPickGo').addEventListener('click', pickerConfirm);
@@ -324,7 +389,9 @@
       // Clicks inside our floating overlays (emoji/edit menu, confirm dialog) are NOT "outside".
       // They live in document.body, so .closest() (not panel.contains) is the reliable check —
       // and it resolves even after the popup element has just been detached from the DOM.
-      if (e.target.closest('#mwPop, .mw-confirm')) return;
+      if (e.target.closest('#mwPop, .mw-confirm, .mw-fwdpick')) return;
+      // The trigger buttons open/replace the popup themselves — don't treat their click as "outside".
+      if (e.target.closest('.mw-react-btn, .mw-menu-btn')) return;
       const lb = document.getElementById('mwLb'); if (lb && lb.contains(e.target)) return;
       if (document.getElementById('mwPop')) closePopups();   // a click elsewhere dismisses the menu/palette
       const pn = document.getElementById('msgWidgetPanel'); const bt = document.getElementById('msgWidgetBtn');
@@ -369,7 +436,8 @@
 
   async function openConv(id) {
     curConv = id; const conv = convs.find(c => c.id === id);
-    resetAtts(); cancelEdit(); closePopups();
+    resetAtts(); cancelEdit(); cancelReply(); closePopups();
+    selectMode = false; selectedIds = new Set(); updateSelectBar();
     showThread();
     document.getElementById('mwThreadTitle').textContent = conv ? conv.title : 'Conversation';
     const mEl = document.getElementById('mwMsgs'); mEl.innerHTML = '<div class="mw-empty">Loading…</div>';
@@ -441,14 +509,23 @@
     lb.querySelector('#mwLbDl').onclick = () => downloadMedia(url, name);
     lb.classList.add('open');
   }
-  // Highlight @mentions of known conversation members inside an (already-escaped) body.
+  // Turn URLs in an (already-escaped) string into clickable links (open in new tab).
+  function linkify(h) {
+    return h.replace(/(https?:\/\/[^\s<]+|www\.[^\s<]+)/g, (m) => {
+      const tail = (m.match(/[.,!?;:)]+$/) || [''])[0];      // don't swallow trailing punctuation
+      const u = tail ? m.slice(0, -tail.length) : m;
+      const href = u.startsWith('http') ? u : 'https://' + u;
+      return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="mw-link">${u}</a>${tail}`;
+    });
+  }
+  // Highlight @mentions of known conversation members + linkify URLs inside a body.
   function renderBody(text) {
     let h = esc(text);
     const conv = convs.find(c => c.id === curConv);
     const names = [...(conv && conv.members || []).map(mm => mm.name), me && me.name].filter(Boolean);
     names.sort((a, b) => b.length - a.length);   // longest first so "Ann Marie" beats "Ann"
     for (const nm of names) { const e = esc(nm); h = h.split('@' + e).join(`<span class="mw-mention">@${e}</span>`); }
-    return h;
+    return linkify(h);
   }
   function reactionChips(m) {
     if (!m.reactions || !m.reactions.length) return '';
@@ -456,16 +533,21 @@
   }
   function bubble(m, isG) {
     const idAttr = m.id ? ` data-mid="${m.id}"` : '';
+    const selCls = (selectMode ? ' selecting' : '') + (m.id && selectedIds.has(m.id) ? ' selected' : '');
+    const chk = (selectMode && m.id) ? '<span class="mw-check"></span>' : '';
     // Deleted → a compact, muted system line (no bubble, no footer, no emoji).
     if (m.deleted) {
-      return `<div class="mw-row${m.mine ? ' mine' : ''} deleted"${m._tmpId ? ` id="${m._tmpId}"` : ''}${idAttr}><span class="mw-deleted">${SLASH_SVG}This message was deleted</span></div>`;
+      return `<div class="mw-row${m.mine ? ' mine' : ''} deleted${selCls}"${m._tmpId ? ` id="${m._tmpId}"` : ''}${idAttr}>${chk}<span class="mw-deleted">${SLASH_SVG}This message was deleted</span></div>`;
     }
     const snd = (!m.mine && isG) ? `<div class="mw-snd">${esc(m.sender_name || nameById[m.sender_id] || '')}</div>` : '';
-    const txt = m.body ? `<div class="mw-bub">${renderBody(m.body)}${m.edited ? '<span class="mw-edited">edited</span>' : ''}</div>` : '';
+    const fwd = m.forwarded ? '<div class="mw-fwd">↪ Forwarded</div>' : '';
+    const rq = m.reply ? `<div class="mw-quote" data-jump="${m.reply.id}"><span class="mw-quote-n">${esc(m.reply.sender_name || '')}</span><span class="mw-quote-t">${m.reply.deleted ? 'message deleted' : esc(m.reply.snippet || '')}</span></div>` : '';
+    const bubInner = fwd + rq + (m.body ? renderBody(m.body) + (m.edited ? '<span class="mw-edited">edited</span>' : '') : '');
+    const txt = bubInner ? `<div class="mw-bub">${bubInner}</div>` : '';
     const inner = mediaHtml(m.attachments) + txt;
     const smileSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>';
-    const tools = (!m.id) ? '' : `<button class="mw-react-btn" title="React" aria-label="React">${smileSvg}</button>${m.mine ? '<button class="mw-menu-btn" title="Edit or delete">⋯</button>' : ''}`;
-    return `<div class="mw-row${m.mine ? ' mine' : ''}"${m._tmpId ? ` id="${m._tmpId}"` : ''}${idAttr}>${snd}${inner}${reactionChips(m)}<div class="mw-foot">${tools}<span class="mw-bt">${fmtStamp(m.created_at)}</span>${statusHtml(m)}</div></div>`;
+    const tools = (!m.id || selectMode) ? '' : `<button class="mw-react-btn" title="React" aria-label="React">${smileSvg}</button><button class="mw-menu-btn" title="More">⋯</button>`;
+    return `<div class="mw-row${m.mine ? ' mine' : ''}${selCls}"${m._tmpId ? ` id="${m._tmpId}"` : ''}${idAttr}>${chk}${snd}${inner}${reactionChips(m)}<div class="mw-foot">${tools}<span class="mw-bt">${fmtStamp(m.created_at)}</span>${statusHtml(m)}</div></div>`;
   }
   function renderMsgs(msgs, preserveScroll) {
     curMsgs = msgs;
@@ -518,6 +600,48 @@
     editingId = null;
     const bar = document.getElementById('mwEditBar'); if (bar) bar.classList.remove('open');
     const inp = document.getElementById('mwInput'); if (inp) { inp.value = ''; inp.style.height = 'auto'; }
+  }
+  // ── Reply ────────────────────────────────────────────────────────────────
+  function startReply(mid) {
+    const m = curMsgs.find(x => x.id === mid); if (!m || m.deleted) return;
+    cancelEdit();
+    replyTarget = { id: mid, sender_name: m.mine ? 'You' : (m.sender_name || 'Unknown'),
+      snippet: (m.body || '').slice(0, 120) || (m.has_attachments ? '📷 Attachment' : '') };
+    const bar = document.getElementById('mwReplyBar');
+    bar.querySelector('.mw-rb-name').textContent = replyTarget.sender_name;
+    bar.querySelector('.mw-rb-txt').textContent = replyTarget.snippet;
+    bar.classList.add('open');
+    document.getElementById('mwInput').focus();
+  }
+  function cancelReply() { replyTarget = null; const bar = document.getElementById('mwReplyBar'); if (bar) bar.classList.remove('open'); }
+  // ── Forward + multi-select ───────────────────────────────────────────────
+  function enterSelectMode() { selectMode = true; selectedIds = new Set(); renderMsgs(curMsgs, true); updateSelectBar(); }
+  function exitSelectMode() { selectMode = false; selectedIds = new Set(); renderMsgs(curMsgs, true); updateSelectBar(); }
+  function toggleSelect(mid) { if (selectedIds.has(mid)) selectedIds.delete(mid); else selectedIds.add(mid); renderMsgs(curMsgs, true); updateSelectBar(); }
+  function updateSelectBar() {
+    const bar = document.getElementById('mwSelBar'); if (!bar) return;
+    bar.classList.toggle('open', selectMode);
+    bar.querySelector('.mw-sel-count').textContent = selectedIds.size + ' selected';
+    bar.querySelector('.mw-sel-fwd').disabled = selectedIds.size === 0;
+  }
+  // Conversation picker overlay → forward `ids` into the chosen conversation.
+  function openForwardPicker(ids) {
+    closePopups();
+    const list = convs.filter(c => c.id).map(c => `<div class="mw-fwd-row" data-c="${c.id}"><div class="mw-av${c.type === 'group' ? ' grp' : ''}">${c.type === 'group' ? '#' : esc(initials(c.title))}</div><div class="mw-cn">${esc(c.title)}</div></div>`).join('') || '<div class="mw-empty">No conversations.</div>';
+    const ov = document.createElement('div'); ov.className = 'mw-fwdpick';
+    ov.innerHTML = `<div class="mw-fwdpick-card"><div class="mw-fwdpick-head">Forward to…<button class="mw-fwdpick-x">✕</button></div><div class="mw-fwdpick-list">${list}</div></div>`;
+    document.body.appendChild(ov);
+    const close = () => ov.remove();
+    ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
+    ov.querySelector('.mw-fwdpick-x').addEventListener('click', close);
+    ov.querySelectorAll('[data-c]').forEach(r => r.addEventListener('click', async () => {
+      const target = Number(r.dataset.c); close();
+      try {
+        const j = await chatFetch('?api=forward', { method: 'POST', body: JSON.stringify({ conversation_id: target, message_ids: ids }) });
+        if (selectMode) exitSelectMode();
+        if (target === curConv) openConv(curConv); else { await loadConversations(); }
+      } catch (e) { alert('Could not forward: ' + e.message); }
+    }));
   }
   // In-app styled confirm (replaces the native confirm() popup). Resolves true/false.
   function confirmModal(message, okLabel) {
@@ -636,16 +760,19 @@
     // Resolve which picked @mentions actually survive in the final text.
     const mentioned = [...mentionPicked.entries()].filter(([, name]) => body.includes('@' + name)).map(([id]) => id);
     mentionPicked.clear();
-    return sendWith(body, ready, mentioned);
+    const replyId = replyTarget ? replyTarget.id : null;
+    const replyObj = replyTarget ? { id: replyTarget.id, sender_name: replyTarget.sender_name, snippet: replyTarget.snippet } : null;
+    cancelReply();
+    return sendWith(body, ready, mentioned, replyId, replyObj);
   }
-  async function sendWith(body, ready, mentioned) {
+  async function sendWith(body, ready, mentioned, replyId, replyObj) {
     const inp = document.getElementById('mwInput');
     const cid = curConv; inp.value = ''; inp.style.height = 'auto';
     const nowIso = new Date().toISOString();
     const tmpId = 'mw-tmp-' + nowIso.replace(/\D/g, '');
     // Optimistic bubble reuses the local preview URLs so media shows instantly.
     const optAtts = ready.map(a => ({ kind: a.kind, mime: a.mime, name: a.name, _localUrl: a._localUrl }));
-    appendMsg({ body, created_at: nowIso, mine: true, sender_id: me?.user_id, _tmpId: tmpId, attachments: optAtts });
+    appendMsg({ body, created_at: nowIso, mine: true, sender_id: me?.user_id, _tmpId: tmpId, attachments: optAtts, reply: replyObj || null });
     // The strip's object URLs are now owned by the optimistic bubble — clear the strip
     // WITHOUT revoking them (revoking would blank the preview we just rendered).
     pendingAtts = []; renderAttStrip();
@@ -654,7 +781,7 @@
     const conv = convs.find(c => c.id === cid);
     if (conv) { conv.last_message = { body: preview, sender_id: me?.user_id, sender_name: me?.name, created_at: nowIso }; conv.last_message_at = nowIso; convs.sort((a, b) => new Date(b.last_message_at) - new Date(a.last_message_at)); renderList(); }
     try {
-      const j = await chatFetch('?api=send', { method: 'POST', body: JSON.stringify({ conversation_id: cid, body, attachments: payloadAtts, mentioned_user_ids: mentioned || [] }) });
+      const j = await chatFetch('?api=send', { method: 'POST', body: JSON.stringify({ conversation_id: cid, body, attachments: payloadAtts, mentioned_user_ids: mentioned || [], reply_to: replyId || null }) });
       // Swap the optimistic bubble for the real message (gives it an id → react/edit + status ticks).
       if (curConv === cid && j && j.message) { const i = curMsgs.findIndex((x) => x._tmpId === tmpId); if (i >= 0) { curMsgs[i] = { ...j.message, mine: true }; renderMsgs(curMsgs, true); } }
     }
@@ -712,7 +839,7 @@
         if (panelOpen && m.conversation_id === curConv) {
           // The realtime payload carries only the message row, not its attachments — so if
           // it has media, re-fetch the thread to pull fresh view links; otherwise append.
-          if (m.has_attachments) openConv(curConv);
+          if (m.has_attachments || m.reply_to) openConv(curConv);   // refetch to hydrate media / reply quote
           else appendMsg({ ...m, sender_name: nameById[m.sender_id] || '', mine: false, edited: !!m.edited_at, deleted: !!m.deleted_at });
           chatFetch('?api=mark-read', { method: 'POST', body: JSON.stringify({ conversation_id: curConv }) }).catch(() => {});
         }

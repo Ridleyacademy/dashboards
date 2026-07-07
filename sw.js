@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v425-msg-deleted-look';
+const CACHE_NAME = 'ridley-v426-msg-reply-forward';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [

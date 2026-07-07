@@ -204,6 +204,10 @@
   .skel-b { background:linear-gradient(90deg,rgba(255,255,255,0.05) 25%,rgba(255,255,255,0.11) 37%,rgba(255,255,255,0.05) 63%); background-size:400% 100%; animation:skelShimmer 1.2s ease-in-out infinite; border-radius:6px; }
   .skel-line { height:11px; margin:5px 0; }
   @keyframes skelShimmer { 0%{background-position:100% 0} 100%{background-position:0 0} }
+  .thread-skel { padding:16px; display:flex; flex-direction:column; gap:14px; }
+  .tsk-row { display:flex; }
+  .tsk-row.mine { justify-content:flex-end; }
+  .tsk-bub { height:38px; border-radius:14px; max-width:75%; }
   /* thread body wrapper for typing + jump overlays */
   .msgs-wrap { flex:1; min-height:0; position:relative; display:flex; flex-direction:column; }
   /* thread find */
@@ -549,6 +553,10 @@ function hlMatch(text, q){
   const h = esc(text||''); if(!q) return h;
   try { return h.replace(new RegExp('('+q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','ig'), '<mark class="msg-mk">$1</mark>'); } catch(_){ return h; }
 }
+function threadSkeleton(){
+  const widths=[52,68,40,74,58,46];
+  return '<div class="thread-skel">'+widths.map((w,i)=>`<div class="tsk-row ${i%2?'mine':''}"><div class="tsk-bub skel-b" style="width:${w}%"></div></div>`).join('')+'</div>';
+}
 async function runListSearch(){
   const q = listQuery; if(q.length<2){ searchResults=[]; searching=false; renderConvList(); return; }
   searching=true; renderConvList();
@@ -612,7 +620,7 @@ async function openConversation(id, jumpMid){
     document.getElementById('grpLeave').addEventListener('click',async()=>{ if(!confirm('Leave this group?'))return; await chatFetch('?api=leave',{method:'POST',body:JSON.stringify({conversation_id:id})}); currentConv=null; document.getElementById('chatOpen').style.display='none'; document.getElementById('chatEmpty').style.display='flex'; document.getElementById('app').classList.remove('thread-open'); await loadConversations(); });
   }
   renderConvList();
-  const msgsEl = document.getElementById('msgs'); msgsEl.innerHTML='<div class="empty-state">Loading…</div>';
+  const msgsEl = document.getElementById('msgs'); msgsEl.innerHTML = threadSkeleton();
   try {
     const j = await chatFetch('?api=messages&conversation_id='+id);
     readCutoff = j.read_cutoff || null;

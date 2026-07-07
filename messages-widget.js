@@ -280,6 +280,9 @@
       .mw-skb { background:linear-gradient(90deg,rgba(255,255,255,0.05) 25%,rgba(255,255,255,0.11) 37%,rgba(255,255,255,0.05) 63%); background-size:400% 100%; animation:mwSkel 1.2s ease-in-out infinite; border-radius:6px; }
       .mw-skl { height:10px; margin:5px 0; }
       @keyframes mwSkel { 0%{background-position:100% 0} 100%{background-position:0 0} }
+      .mw-thskel { padding:12px; display:flex; flex-direction:column; gap:11px; }
+      .mw-tsr { display:flex; } .mw-tsr.mine { justify-content:flex-end; }
+      .mw-tsb { height:32px; border-radius:12px; max-width:75%; }
       .mw-mk { background:rgba(52,211,153,0.32); color:#eafff5; border-radius:3px; padding:0 1px; }
       /* thread body wrapper (for typing + jump overlays) */
       .mw-msgs-wrap { flex:1; min-height:0; position:relative; display:flex; flex-direction:column; }
@@ -487,6 +490,10 @@
     if (!q) return h;
     try { return h.replace(new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'ig'), '<mark class="mw-mk">$1</mark>'); } catch (_) { return h; }
   }
+  function threadSkeleton() {
+    const widths = [52, 68, 40, 74, 58, 46];
+    return '<div class="mw-thskel">' + widths.map((w, i) => `<div class="mw-tsr ${i % 2 ? 'mine' : ''}"><div class="mw-tsb mw-skb" style="width:${w}%"></div></div>`).join('') + '</div>';
+  }
   async function runListSearch() {
     const q = listQuery; if (q.length < 2) { searchResults = []; searching = false; renderList(); return; }
     searching = true; renderList();
@@ -538,7 +545,7 @@
     subscribeTyping(id); hideTyping();
     showThread();
     document.getElementById('mwThreadTitle').textContent = conv ? conv.title : 'Conversation';
-    const mEl = document.getElementById('mwMsgs'); mEl.innerHTML = '<div class="mw-empty">Loading…</div>';
+    const mEl = document.getElementById('mwMsgs'); mEl.innerHTML = threadSkeleton();
     try {
       const j = await chatFetch('?api=messages&conversation_id=' + id);
       readCutoff = j.read_cutoff || null;

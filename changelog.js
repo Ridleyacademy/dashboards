@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v435', title: 'Messages — faster chat open + loading skeleton', items: [
+      'Opening a conversation (including jumping to a searched message) is faster — the server no longer re-authenticates with attachment storage on every open.',
+      'While a chat loads, shimmering placeholder bubbles show instead of a blank “Loading…”, so it no longer looks frozen.',
+    ]},
     { version: 'v434', title: 'Messages — loading skeleton while searching', items: [
       'Searching message content now shows shimmering placeholder rows while results load, instead of looking empty/broken until the server responds.',
     ]},

@@ -11,6 +11,7 @@
   const CHAT_BASE = SUPABASE_URL + '/functions/v1/chat';
   const UNFURL_BASE = SUPABASE_URL + '/functions/v1/unfurl';
   const unfurlCache = new Map();   // url -> { status:'loading'|'done'|'fail', data }
+  const audioBlobCache = new Map();   // remote url -> object URL (Dropbox links download rather than stream; fetch to a blob so <audio> plays)
 
   let mSupa = null, me = null, convs = [], usersCache = [], curConv = null, channel = null, panelOpen = false;
   let curMsgs = [];          // messages currently rendered in the open thread (for reaction/edit updates)
@@ -679,7 +680,7 @@
       if (!src) return '';
       const nm = esc(a.name || (a.kind === 'video' ? 'video' : 'image'));
       if (a.kind === 'video') return `<div class="mw-mtile mw-loading" data-full="${esc(src)}" data-kind="video" data-name="${nm}"><video class="mw-mvid" src="${esc(src)}#t=0.1" preload="metadata" muted playsinline></video><div class="mw-play">▶</div></div>`;
-      if (a.kind === 'audio' || (a.mime || '').startsWith('audio/')) return `<audio class="mw-aud" controls preload="metadata" src="${esc(src)}"></audio>`;
+      if (a.kind === 'audio' || (a.mime || '').startsWith('audio/')) return `<audio class="mw-aud" controls preload="metadata" data-aud="${esc(src)}"></audio>`;
       if (a.kind === 'file') { const sz = fmtBytes(a.size); return `<div class="mw-file" data-full="${esc(src)}" data-kind="file" data-name="${nm}" data-mime="${esc(a.mime || '')}"><span class="mw-fico">${FILE_SVG}</span><span class="mw-fmeta"><span class="mw-fname">${nm}</span>${sz ? `<span class="mw-fsz">${sz}</span>` : ''}</span></div>`; }
       return `<img class="mw-mimg mw-loading" src="${esc(src)}" loading="lazy" data-full="${esc(src)}" data-kind="image" data-name="${nm}" alt="${nm}">`;
     }).join('');
@@ -801,6 +802,19 @@
     const desc = d.description ? `<div class="mw-lp-desc">${esc(d.description)}</div>` : '';
     return `<a class="mw-lp" href="${href}" target="_blank" rel="noopener noreferrer">${img}<div class="mw-lp-tx">${site}${title}${desc}</div></a>`;
   }
+  async function hydrateAudio(el) {
+    if (!el) return;
+    for (const a of [...el.querySelectorAll('audio[data-aud]')]) {
+      const url = a.getAttribute('data-aud'); a.removeAttribute('data-aud');
+      const cached = audioBlobCache.get(url);
+      if (cached) { a.src = cached; continue; }
+      try {
+        const r = await fetch(url); const b = await r.blob();
+        const blob = /audio|video/.test(b.type) ? b : new Blob([b], { type: 'audio/webm' });
+        const u = URL.createObjectURL(blob); audioBlobCache.set(url, u); a.src = u;
+      } catch (_) { a.src = url; }   // fall back to the direct link
+    }
+  }
   async function hydrateLinkPreviews(el) {
     if (!el) return;
     const phs = [...el.querySelectorAll('.mw-lp-ph[data-lpurl]')];
@@ -858,7 +872,7 @@
     el.innerHTML = msgs.length
       ? msgs.map(m => (m.id === dividerBefore ? '<div class="mw-newdiv"><span>New messages</span></div>' : '') + bubble(m, isG)).join('')
       : '<div class="mw-empty">No messages yet — say hi 👋</div>';
-    wireMediaSkeletons(el); hydrateLinkPreviews(el);
+    wireMediaSkeletons(el); hydrateLinkPreviews(el); hydrateAudio(el);
     if (preserveScroll && !atBottom) el.scrollTop = prevTop;
     else if (dividerBefore) { const d = el.querySelector('.mw-newdiv'); if (d) d.scrollIntoView({ block: 'center' }); else el.scrollTop = el.scrollHeight; }
     else el.scrollTop = el.scrollHeight;
@@ -868,7 +882,7 @@
     const conv = convs.find(c => c.id === curConv); const isG = conv && conv.type === 'group';
     const el = document.getElementById('mwMsgs'); const e = el.querySelector('.mw-empty'); if (e) el.innerHTML = '';
     curMsgs.push(m);
-    el.insertAdjacentHTML('beforeend', bubble(m, isG)); wireMediaSkeletons(el); hydrateLinkPreviews(el); el.scrollTop = el.scrollHeight;
+    el.insertAdjacentHTML('beforeend', bubble(m, isG)); wireMediaSkeletons(el); hydrateLinkPreviews(el); hydrateAudio(el); el.scrollTop = el.scrollHeight;
   }
 
   // ── Reactions, edit, delete ──────────────────────────────────────────────

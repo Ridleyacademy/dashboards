@@ -465,6 +465,20 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const CHAT_BASE = SUPABASE_URL + '/functions/v1/chat';
 const UNFURL_BASE = SUPABASE_URL + '/functions/v1/unfurl';
 const unfurlCache = new Map();   // url -> { status:'loading'|'done'|'fail', data }
+const audioBlobCache = new Map();   // remote url -> object URL (Dropbox links download rather than stream; fetch to a blob so <audio> plays)
+async function hydrateAudio(el){
+  if(!el) return;
+  for(const a of [...el.querySelectorAll('audio[data-aud]')]){
+    const url = a.getAttribute('data-aud'); a.removeAttribute('data-aud');
+    const cached = audioBlobCache.get(url);
+    if(cached){ a.src = cached; continue; }
+    try {
+      const r = await fetch(url); const b = await r.blob();
+      const blob = /audio|video/.test(b.type) ? b : new Blob([b], { type:'audio/webm' });
+      const u = URL.createObjectURL(blob); audioBlobCache.set(url, u); a.src = u;
+    } catch(_){ a.src = url; }
+  }
+}
 const supa = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: true, detectSessionInUrl: true, autoRefreshToken: true } });
 
 let currentSession = null, me = null, conversations = [], usersCache = [], currentConv = null, chatChannel = null;
@@ -761,7 +775,7 @@ function mediaHtml(atts){
     const src = a.url || a._localUrl || ''; if(!src) return '';
     const nm = esc(a.name||(a.kind==='video'?'video':'image'));
     if(a.kind==='video') return `<div class="m-tile m-loading" data-full="${esc(src)}" data-kind="video" data-name="${nm}"><video class="m-vid" src="${esc(src)}#t=0.1" preload="metadata" muted playsinline></video><div class="m-play">▶</div></div>`;
-    if(a.kind==='audio' || (a.mime||'').startsWith('audio/')) return `<audio class="msg-aud" controls preload="metadata" src="${esc(src)}"></audio>`;
+    if(a.kind==='audio' || (a.mime||'').startsWith('audio/')) return `<audio class="msg-aud" controls preload="metadata" data-aud="${esc(src)}"></audio>`;
     if(a.kind==='file'){ const sz=fmtBytes(a.size); return `<div class="msg-file" data-full="${esc(src)}" data-kind="file" data-name="${nm}" data-mime="${esc(a.mime||'')}"><span class="mf-ico">${FILE_SVG}</span><span class="mf-meta"><span class="mf-name">${nm}</span>${sz?`<span class="mf-sz">${sz}</span>`:''}</span></div>`; }
     return `<img class="m-img m-loading" src="${esc(src)}" loading="lazy" data-full="${esc(src)}" data-kind="image" data-name="${nm}" alt="${nm}">`;
   }).join('')+`</div>`;
@@ -926,7 +940,7 @@ function renderMessages(msgs, preserveScroll){
   let dividerBefore = null;
   if(cut){ const first = msgs.find(m=>!m.mine && m.id && new Date(m.created_at).getTime()>cut); if(first) dividerBefore = first.id; }
   el.innerHTML = msgs.map(m=>(m.id===dividerBefore?'<div class="new-div"><span>New messages</span></div>':'')+bubbleHtml(m, isG)).join('');
-  wireMediaSkeletons(el); hydrateLinkPreviews(el);
+  wireMediaSkeletons(el); hydrateLinkPreviews(el); hydrateAudio(el);
   if(preserveScroll && !atBottom) el.scrollTop = prevTop;
   else if(dividerBefore){ const d=el.querySelector('.new-div'); if(d) d.scrollIntoView({block:'center'}); else el.scrollTop = el.scrollHeight; }
   else el.scrollTop = el.scrollHeight;
@@ -937,7 +951,7 @@ function appendMessage(m){
   const empty = el.querySelector('.empty-state'); if(empty) el.innerHTML='';
   currentMsgs.push(m);
   el.insertAdjacentHTML('beforeend', bubbleHtml(m, isG));
-  wireMediaSkeletons(el); hydrateLinkPreviews(el);
+  wireMediaSkeletons(el); hydrateLinkPreviews(el); hydrateAudio(el);
   el.scrollTop = el.scrollHeight;
 }
 

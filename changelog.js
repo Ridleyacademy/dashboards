@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v447', title: 'Messages — voice note playback fix', items: [
+      'Voice messages now play back reliably (previously the controls appeared but nothing played).',
+    ]},
     { version: 'v446', title: 'Messages — mute, @everyone, voice notes', items: [
       'Mute a conversation (bell icon in the chat header) to stop its phone notifications — handy for busy groups.',
       'Type @everyone (or @all) in a group to notify all members.',

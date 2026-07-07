@@ -29,6 +29,7 @@
   const COPY_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
   const FILE_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
   const PIN_MINI_SVG = '<svg class="mw-cn-pin" xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14l-1.6-2.6a2 2 0 0 1-.4-1.2V8a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2v5.2a2 2 0 0 1-.4 1.2L5 17z"/></svg>';
+  const VIDEO_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>';
   const SLASH_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>';
 
   function ensureSupa() {
@@ -829,7 +830,7 @@
     const m = curMsgs.find(x => x.id === mid); if (!m || m.deleted) return;
     cancelEdit();
     replyTarget = { id: mid, sender_name: m.mine ? 'You' : (m.sender_name || 'Unknown'),
-      snippet: (m.body || '').slice(0, 120) || (m.has_attachments ? '📷 Attachment' : '') };
+      snippet: (m.body || '').slice(0, 120) || (m.has_attachments ? 'Attachment' : '') };
     const bar = document.getElementById('mwReplyBar');
     bar.querySelector('.mw-rb-name').textContent = replyTarget.sender_name;
     bar.querySelector('.mw-rb-txt').textContent = replyTarget.snippet;
@@ -935,7 +936,7 @@
     const el = document.getElementById('mwAttStrip'); if (!el) return;
     el.innerHTML = pendingAtts.map(a => {
       const inner = a.kind === 'video'
-        ? `<video src="${esc(a._localUrl || '')}" muted></video><div class="mw-vico">🎬</div>`
+        ? `<video src="${esc(a._localUrl || '')}" muted></video><div class="mw-vico">${VIDEO_SVG}</div>`
         : a.kind === 'file'
         ? `<div class="mw-thumb-file"><span class="mw-fico">${FILE_SVG}</span><span class="mw-thumb-fn">${esc(a.name || 'file')}</span></div>`
         : `<img src="${esc(a._localUrl || '')}" alt="">`;
@@ -1009,7 +1010,7 @@
     // WITHOUT revoking them (revoking would blank the preview we just rendered).
     pendingAtts = []; renderAttStrip();
     const payloadAtts = ready.map(a => ({ path: a.path, mime: a.mime, size: a.size, name: a.name }));
-    const preview = body || (ready.every(a => a.kind === 'file') ? '📎 Attachment' : '📷 Attachment');
+    const preview = body || 'Attachment';
     const conv = convs.find(c => c.id === cid);
     if (conv) { conv.last_message = { body: preview, sender_id: me?.user_id, sender_name: me?.name, created_at: nowIso }; conv.last_message_at = nowIso; convs.sort((a, b) => new Date(b.last_message_at) - new Date(a.last_message_at)); renderList(); }
     try {

@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v437', title: 'Messages — consistent attachment icons', items: [
+      'Attachment indicators now use the same line-icon style as the rest of the app (video thumbnails, previews) instead of emoji.',
+    ]},
     { version: 'v436', title: 'Messages — pin chats, send files, copy text', items: [
       'Pin a conversation to keep it at the top of your list (great for the support/refunds team’s key threads). Open a chat and tap the pin icon in the header.',
       'Attach files beyond photos & videos — PDFs, docs, spreadsheets, etc. (up to 50 MB). They show as a downloadable file tile.',

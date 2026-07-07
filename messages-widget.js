@@ -16,6 +16,8 @@
   const mentionPicked = new Map();   // id -> name for @mentions chosen while composing
   const nameById = {};
   const REACTIONS = ['👍', '❤️', '😂', '🎉', '😮', '😢'];
+  const EDIT_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
+  const TRASH_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
 
   function ensureSupa() {
     if (mSupa) return mSupa;
@@ -204,7 +206,8 @@
       .mw-rxopt { background:none; border:none; font-size:1.15rem; cursor:pointer; border-radius:8px; padding:3px 5px; line-height:1; }
       .mw-rxopt:hover { background:#252c44; transform:scale(1.15); }
       .mw-pop.menu { flex-direction:column; gap:1px; padding:4px; }
-      .mw-mi { background:none; border:none; color:#c7cdec; text-align:left; padding:7px 13px; border-radius:7px; cursor:pointer; font-size:0.82rem; white-space:nowrap; }
+      .mw-mi { background:none; border:none; color:#c7cdec; text-align:left; padding:7px 13px; border-radius:7px; cursor:pointer; font-size:0.82rem; white-space:nowrap; display:flex; align-items:center; gap:8px; }
+      .mw-mi svg { flex-shrink:0; }
       .mw-mi:hover { background:#252c44; color:#eaecf8; }
       .mw-mi.del:hover { background:#3a1f24; color:#ff9a9a; }
       /* @mention autocomplete */
@@ -246,7 +249,7 @@
       <div class="mw-thread" id="mwThread">
         <div class="mw-head"><button class="mw-back" id="mwBack">‹</button><div class="mw-title" id="mwThreadTitle" style="font-size:0.88rem;"></div><button class="mw-x" id="mwClose2">×</button></div>
         <div class="mw-msgs" id="mwMsgs"></div>
-        <div class="mw-editbar" id="mwEditBar">✎ Editing message<button id="mwEditCancel">Cancel</button></div>
+        <div class="mw-editbar" id="mwEditBar">${EDIT_SVG}Editing message<button id="mwEditCancel">Cancel</button></div>
         <div class="mw-attstrip" id="mwAttStrip"></div>
         <div class="mw-comp">
           <div class="mw-mentions" id="mwMentions"></div>
@@ -284,7 +287,7 @@
       const rbtn = e.target.closest && e.target.closest('.mw-react-btn');
       if (rbtn && mid) { showPop(REACTIONS.map(em => `<button class="mw-rxopt" data-emoji="${em}">${em}</button>`).join(''), rbtn, '', (ev) => { const b = ev.target.closest('.mw-rxopt'); if (!b) return; closePopups(); toggleReaction(mid, b.dataset.emoji); }); return; }
       const mbtn = e.target.closest && e.target.closest('.mw-menu-btn');
-      if (mbtn && mid) { showPop('<button class="mw-mi" data-act="edit">✎ Edit</button><button class="mw-mi del" data-act="del">🗑 Delete</button>', mbtn, 'menu', (ev) => { const b = ev.target.closest('.mw-mi'); if (!b) return; closePopups(); if (b.dataset.act === 'edit') startEdit(mid); else doDelete(mid); }); return; }
+      if (mbtn && mid) { showPop(`<button class="mw-mi" data-act="edit">${EDIT_SVG}Edit</button><button class="mw-mi del" data-act="del">${TRASH_SVG}Delete</button>`, mbtn, 'menu', (ev) => { const b = ev.target.closest('.mw-mi'); if (!b) return; closePopups(); if (b.dataset.act === 'edit') startEdit(mid); else doDelete(mid); }); return; }
     });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeLightbox(); closePopups(); } });
     p.querySelector('#mwEditCancel').addEventListener('click', cancelEdit);

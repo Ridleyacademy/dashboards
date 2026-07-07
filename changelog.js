@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v423', title: 'Messages — line-style Edit/Delete icons', items: [
+      'The Edit and Delete options (and the “Editing” bar) now use clean line icons that match the rest of the UI.',
+    ]},
     { version: 'v422', title: 'Messages — styled react icon + WhatsApp-style read receipts', items: [
       'The react button is now a clean smiley icon that matches the rest of the UI (and shows in dark mode).',
       'Each message footer now shows the full date and time.',

@@ -16,6 +16,12 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v430', title: 'Messages — search, typing indicator & new-message divider', items: [
+      'Search your conversation list by name (box above the list).',
+      'Search within a conversation: tap the 🔍 in the thread header, then step through matches.',
+      '“X is typing…” shows live while someone is typing to you.',
+      'A “New messages” divider marks where you left off, plus a ↓ button to jump to the latest.',
+    ]},
     { version: 'v429', title: 'Messages — deleted messages can’t be selected', items: [
       'Deleted messages no longer show a checkbox and can’t be picked when selecting to forward.',
     ]},

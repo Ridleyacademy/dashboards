@@ -16,6 +16,10 @@
   let replyTarget = null;    // { id, sender_name, snippet } message being replied to
   let selectMode = false;    // multi-select (for forwarding) active
   let selectedIds = new Set();
+  let readCutoff = null;     // caller's last_read_at when the thread was opened (for the unread divider)
+  let listQuery = '';        // conversation-list search text
+  let findMatches = [], findIdx = -1;   // in-thread find state
+  let typingCh = null, lastTypingSent = 0, typingHideT = null;   // per-conversation typing broadcast
   const mentionPicked = new Map();   // id -> name for @mentions chosen while composing
   const nameById = {};
   const REACTIONS = ['👍', '❤️', '😂', '🎉', '😮', '😢'];
@@ -264,6 +268,29 @@
       .mw-fwd-row { display:flex; align-items:center; gap:10px; padding:10px 14px; cursor:pointer; border-bottom:1px solid #1a1f30; }
       .mw-fwd-row:hover { background:#191e30; }
       .mw-fwd-row .mw-cn { font-size:0.86rem; }
+      /* conversation-list search */
+      .mw-listsearch { margin:8px 12px; background:#0f1120; border:1px solid #1f2438; color:#eaecf8; border-radius:9px; padding:8px 11px; font-size:0.82rem; outline:none; }
+      .mw-listsearch:focus { border-color:#2a3350; }
+      /* thread body wrapper (for typing + jump overlays) */
+      .mw-msgs-wrap { flex:1; min-height:0; position:relative; display:flex; flex-direction:column; }
+      /* in-thread find bar */
+      .mw-findbar { display:none; align-items:center; gap:6px; padding:7px 10px; background:#141827; border-bottom:1px solid #1f2438; }
+      .mw-findbar.open { display:flex; }
+      .mw-findbar input { flex:1; background:#0f1120; border:1px solid #1f2438; color:#eaecf8; border-radius:8px; padding:6px 10px; font-size:0.82rem; outline:none; }
+      .mw-find-n { font-size:0.7rem; color:#7880a8; min-width:34px; text-align:center; }
+      .mw-find-nav, .mw-find-x { background:#191e30; border:1px solid #272d45; color:#c7cdec; border-radius:7px; width:26px; height:26px; cursor:pointer; font-size:0.8rem; }
+      .mw-find-nav:hover, .mw-find-x:hover { background:#232a41; }
+      .mw-hit .mw-bub { box-shadow:0 0 0 2px rgba(52,211,153,0.35); }
+      .mw-hit-cur .mw-bub { box-shadow:0 0 0 2px #34d399; }
+      /* unread divider */
+      .mw-newdiv { display:flex; align-items:center; text-align:center; margin:10px 4px 4px; color:#34d399; font-size:0.68rem; font-weight:800; text-transform:uppercase; letter-spacing:0.04em; }
+      .mw-newdiv::before, .mw-newdiv::after { content:''; flex:1; height:1px; background:rgba(52,211,153,0.35); }
+      .mw-newdiv span { padding:0 10px; }
+      /* typing indicator + jump-to-latest */
+      .mw-typing { position:absolute; left:12px; bottom:6px; font-size:0.72rem; font-style:italic; color:#7880a8; background:rgba(19,20,31,0.85); padding:2px 8px; border-radius:10px; display:none; pointer-events:none; }
+      .mw-typing.show { display:block; }
+      .mw-jump { position:absolute; right:14px; bottom:12px; width:36px; height:36px; border-radius:50%; background:#232a41; border:1px solid #2a3350; color:#eaecf8; font-size:1.1rem; cursor:pointer; display:none; align-items:center; justify-content:center; box-shadow:0 4px 14px rgba(0,0,0,0.4); }
+      .mw-jump.show { display:flex; }
       /* @mention autocomplete */
       .mw-mentions { position:absolute; left:12px; right:12px; bottom:100%; margin-bottom:4px; background:#1a1f30; border:1px solid #2a3150; border-radius:10px; box-shadow:0 -6px 22px rgba(0,0,0,0.45); max-height:180px; overflow-y:auto; display:none; z-index:6; }
       .mw-mentions.open { display:block; }
@@ -299,10 +326,16 @@
         <button class="mw-hbtn" id="mwNewGrp">＋ Group</button>
         <button class="mw-x" id="mwClose">×</button>
       </div>
+      <input class="mw-listsearch" id="mwListSearch" placeholder="Search conversations…">
       <div class="mw-scroll" id="mwList"><div class="mw-empty">Loading…</div></div>
       <div class="mw-thread" id="mwThread">
-        <div class="mw-head"><button class="mw-back" id="mwBack">‹</button><div class="mw-title" id="mwThreadTitle" style="font-size:0.88rem;"></div><button class="mw-x" id="mwClose2">×</button></div>
-        <div class="mw-msgs" id="mwMsgs"></div>
+        <div class="mw-head"><button class="mw-back" id="mwBack">‹</button><div class="mw-title" id="mwThreadTitle" style="font-size:0.88rem;flex:1;"></div><button class="mw-hbtn" id="mwFindBtn" title="Search in conversation">🔍</button><button class="mw-x" id="mwClose2">×</button></div>
+        <div class="mw-findbar" id="mwFindBar"><input id="mwFindInput" placeholder="Search this conversation…"><span class="mw-find-n" id="mwFindN"></span><button class="mw-find-nav" id="mwFindPrev">↑</button><button class="mw-find-nav" id="mwFindNext">↓</button><button class="mw-find-x" id="mwFindClose">✕</button></div>
+        <div class="mw-msgs-wrap">
+          <div class="mw-msgs" id="mwMsgs"></div>
+          <div class="mw-typing" id="mwTyping"></div>
+          <button class="mw-jump" id="mwJump" title="Jump to latest">↓</button>
+        </div>
         <div class="mw-selbar" id="mwSelBar"><button class="mw-sel-x" id="mwSelCancel">✕</button><span class="mw-sel-count">0 selected</span><button class="mw-sel-fwd" id="mwSelFwd">↪ Forward</button></div>
         <div class="mw-editbar" id="mwEditBar">${EDIT_SVG}Editing message<button id="mwEditCancel">Cancel</button></div>
         <div class="mw-replybar" id="mwReplyBar"><div class="mw-rb-body"><span class="mw-rb-name"></span><span class="mw-rb-txt"></span></div><button class="mw-rb-x" id="mwReplyCancel">✕</button></div>
@@ -367,6 +400,18 @@
     p.querySelector('#mwSelCancel').addEventListener('click', exitSelectMode);
     p.querySelector('#mwSelFwd').addEventListener('click', () => { if (selectedIds.size) openForwardPicker([...selectedIds]); });
     p.querySelector('#mwMentions').addEventListener('click', (e) => { const r = e.target.closest('.mw-mrow'); if (r) insertMention(r.dataset.mid, r.dataset.name); });
+    // Conversation-list search
+    p.querySelector('#mwListSearch').addEventListener('input', (e) => { listQuery = e.target.value.trim().toLowerCase(); renderList(); });
+    // In-thread find
+    p.querySelector('#mwFindBtn').addEventListener('click', toggleFind);
+    p.querySelector('#mwFindClose').addEventListener('click', closeFind);
+    p.querySelector('#mwFindInput').addEventListener('input', (e) => runFind(e.target.value));
+    p.querySelector('#mwFindInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); stepFind(e.shiftKey ? -1 : 1); } else if (e.key === 'Escape') closeFind(); });
+    p.querySelector('#mwFindPrev').addEventListener('click', () => stepFind(-1));
+    p.querySelector('#mwFindNext').addEventListener('click', () => stepFind(1));
+    // Jump to latest + show/hide it based on scroll position
+    p.querySelector('#mwJump').addEventListener('click', () => { const el = document.getElementById('mwMsgs'); el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' }); });
+    p.querySelector('#mwMsgs').addEventListener('scroll', updateJumpBtn);
     p.querySelector('#mwSearch').addEventListener('input', e => renderPicker(e.target.value));
     p.querySelector('#mwPickGo').addEventListener('click', pickerConfirm);
     const inp = p.querySelector('#mwInput');
@@ -380,7 +425,7 @@
       }
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
     });
-    inp.addEventListener('input', function () { this.style.height = 'auto'; this.style.height = Math.min(this.scrollHeight, 110) + 'px'; updateMentionBox(); });
+    inp.addEventListener('input', function () { this.style.height = 'auto'; this.style.height = Math.min(this.scrollHeight, 110) + 'px'; updateMentionBox(); sendTyping(); });
     inp.addEventListener('click', updateMentionBox);
     // close on outside click
     document.addEventListener('click', (e) => {
@@ -403,8 +448,8 @@
   let _refreshT = null;
   function refreshSoon() { clearTimeout(_refreshT); _refreshT = setTimeout(loadConversations, 700); }
   function closePanel() { panelOpen = false; const p = document.getElementById('msgWidgetPanel'); if (p) p.classList.remove('open'); document.getElementById('mwPick')?.classList.remove('open'); }
-  function showList() { curConv = null; document.getElementById('mwThread').classList.remove('open'); document.getElementById('mwList').style.display = ''; document.getElementById('mwListHead').style.display = 'flex'; }
-  function showThread() { document.getElementById('mwList').style.display = 'none'; document.getElementById('mwListHead').style.display = 'none'; document.getElementById('mwThread').classList.add('open'); }
+  function showList() { curConv = null; if (typingCh) { try { ensureSupa()?.removeChannel(typingCh); } catch (_) {} typingCh = null; } document.getElementById('mwThread').classList.remove('open'); document.getElementById('mwList').style.display = ''; document.getElementById('mwListHead').style.display = 'flex'; document.getElementById('mwListSearch').style.display = ''; }
+  function showThread() { document.getElementById('mwList').style.display = 'none'; document.getElementById('mwListHead').style.display = 'none'; document.getElementById('mwListSearch').style.display = 'none'; document.getElementById('mwThread').classList.add('open'); }
 
   async function loadUsers() { try { const j = await chatFetch('?api=users'); usersCache = j.users || []; me = j.me || me; if (me) nameById[me.user_id] = me.name; for (const u of usersCache) nameById[u.id] = u.name; } catch (_) {} }
   async function loadConversations() {
@@ -423,7 +468,11 @@
   function renderList() {
     const el = document.getElementById('mwList'); if (!el) return;
     if (!convs.length) { el.innerHTML = '<div class="mw-empty">No conversations yet.<br>Tap “✉ New” to start one.</div>'; return; }
-    el.innerHTML = convs.map(c => {
+    const shown = listQuery
+      ? convs.filter(c => String(c.title || '').toLowerCase().includes(listQuery) || (c.members || []).some(m => String(m.name || '').toLowerCase().includes(listQuery)))
+      : convs;
+    if (!shown.length) { el.innerHTML = `<div class="mw-empty">No conversations match “${esc(listQuery)}”.</div>`; return; }
+    el.innerHTML = shown.map(c => {
       const isG = c.type === 'group';
       const prev = c.last_message ? ((isG && c.last_message.sender_name ? c.last_message.sender_name + ': ' : '') + c.last_message.body) : 'No messages yet';
       return `<div class="mw-conv${c.unread ? ' unread' : ''}" data-c="${c.id}"><div class="mw-av${isG ? ' grp' : ''}">${isG ? '#' : esc(initials(c.title))}</div>
@@ -435,18 +484,62 @@
 
   async function openConv(id) {
     curConv = id; const conv = convs.find(c => c.id === id);
-    resetAtts(); cancelEdit(); cancelReply(); closePopups();
+    resetAtts(); cancelEdit(); cancelReply(); closePopups(); closeFind();
     selectMode = false; selectedIds = new Set(); updateSelectBar();
+    subscribeTyping(id); hideTyping();
     showThread();
     document.getElementById('mwThreadTitle').textContent = conv ? conv.title : 'Conversation';
     const mEl = document.getElementById('mwMsgs'); mEl.innerHTML = '<div class="mw-empty">Loading…</div>';
     try {
       const j = await chatFetch('?api=messages&conversation_id=' + id);
+      readCutoff = j.read_cutoff || null;
       renderMsgs(j.messages || []);
       if (conv) { conv.unread = 0; renderList(); updateBadge(); }
     } catch (e) { mEl.innerHTML = `<div class="mw-empty">${esc(e.message)}</div>`; }
-    setTimeout(() => document.getElementById('mwInput').focus(), 40);
+    setTimeout(() => { document.getElementById('mwInput').focus(); updateJumpBtn(); }, 40);
   }
+  // ── In-thread find ───────────────────────────────────────────────────────
+  function toggleFind() { const bar = document.getElementById('mwFindBar'); if (bar.classList.contains('open')) closeFind(); else { bar.classList.add('open'); const i = document.getElementById('mwFindInput'); i.value = ''; setTimeout(() => i.focus(), 30); } }
+  function closeFind() { const bar = document.getElementById('mwFindBar'); if (bar) bar.classList.remove('open'); findMatches = []; findIdx = -1; document.querySelectorAll('#mwMsgs .mw-hit').forEach(n => n.classList.remove('mw-hit', 'mw-hit-cur')); const n = document.getElementById('mwFindN'); if (n) n.textContent = ''; }
+  function runFind(q) {
+    q = (q || '').trim().toLowerCase();
+    document.querySelectorAll('#mwMsgs .mw-hit').forEach(n => n.classList.remove('mw-hit', 'mw-hit-cur'));
+    findMatches = []; findIdx = -1;
+    const n = document.getElementById('mwFindN');
+    if (!q) { if (n) n.textContent = ''; return; }
+    for (const m of curMsgs) { if (!m.deleted && m.id && (m.body || '').toLowerCase().includes(q)) findMatches.push(m.id); }
+    findMatches.forEach(id => { const r = document.querySelector(`#mwMsgs .mw-row[data-mid="${id}"]`); if (r) r.classList.add('mw-hit'); });
+    if (findMatches.length) { findIdx = findMatches.length - 1; focusFind(); } else if (n) n.textContent = '0';
+  }
+  function focusFind() {
+    document.querySelectorAll('#mwMsgs .mw-hit-cur').forEach(n => n.classList.remove('mw-hit-cur'));
+    const id = findMatches[findIdx]; const r = id && document.querySelector(`#mwMsgs .mw-row[data-mid="${id}"]`);
+    if (r) { r.classList.add('mw-hit-cur'); r.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+    const n = document.getElementById('mwFindN'); if (n) n.textContent = `${findIdx + 1}/${findMatches.length}`;
+  }
+  function stepFind(dir) { if (!findMatches.length) return; findIdx = (findIdx + dir + findMatches.length) % findMatches.length; focusFind(); }
+  // ── Jump-to-latest ───────────────────────────────────────────────────────
+  function updateJumpBtn() { const el = document.getElementById('mwMsgs'), b = document.getElementById('mwJump'); if (!el || !b) return; const far = el.scrollHeight - el.scrollTop - el.clientHeight > 240; b.classList.toggle('show', far); }
+  // ── Typing indicator (ephemeral realtime broadcast per conversation) ──────
+  function subscribeTyping(id) {
+    const s = ensureSupa(); if (!s) return;
+    if (typingCh) { try { s.removeChannel(typingCh); } catch (_) {} typingCh = null; }
+    typingCh = s.channel('typing:' + id, { config: { broadcast: { self: false } } })
+      .on('broadcast', { event: 't' }, (p) => { if (panelOpen && curConv === id) showTyping(p.payload?.name || 'Someone'); })
+      .subscribe();
+  }
+  function sendTyping() {
+    if (!typingCh) return; const now = Date.now();
+    if (now - lastTypingSent < 2000) return;   // throttle
+    lastTypingSent = now;
+    try { typingCh.send({ type: 'broadcast', event: 't', payload: { name: (me && me.name) || 'Someone' } }); } catch (_) {}
+  }
+  function showTyping(name) {
+    const el = document.getElementById('mwTyping'); if (!el) return;
+    el.textContent = name + ' is typing…'; el.classList.add('show');
+    clearTimeout(typingHideT); typingHideT = setTimeout(hideTyping, 3500);
+  }
+  function hideTyping() { const el = document.getElementById('mwTyping'); if (el) { el.classList.remove('show'); el.textContent = ''; } clearTimeout(typingHideT); }
   function mediaHtml(atts) {
     if (!atts || !atts.length) return '';
     const items = atts.map(a => {
@@ -553,9 +646,18 @@
     const conv = convs.find(c => c.id === curConv); const isG = conv && conv.type === 'group';
     const el = document.getElementById('mwMsgs');
     const prevTop = el.scrollTop, atBottom = el.scrollHeight - prevTop - el.clientHeight < 40;
-    el.innerHTML = msgs.length ? msgs.map(m => bubble(m, isG)).join('') : '<div class="mw-empty">No messages yet — say hi 👋</div>';
+    // Unread divider: before the first message newer than my read cutoff that isn't mine.
+    const cut = readCutoff ? new Date(readCutoff).getTime() : 0;
+    let dividerBefore = null;
+    if (cut) { const first = msgs.find(m => !m.mine && m.id && new Date(m.created_at).getTime() > cut); if (first) dividerBefore = first.id; }
+    el.innerHTML = msgs.length
+      ? msgs.map(m => (m.id === dividerBefore ? '<div class="mw-newdiv"><span>New messages</span></div>' : '') + bubble(m, isG)).join('')
+      : '<div class="mw-empty">No messages yet — say hi 👋</div>';
     wireMediaSkeletons(el);
-    if (preserveScroll && !atBottom) el.scrollTop = prevTop; else el.scrollTop = el.scrollHeight;
+    if (preserveScroll && !atBottom) el.scrollTop = prevTop;
+    else if (dividerBefore) { const d = el.querySelector('.mw-newdiv'); if (d) d.scrollIntoView({ block: 'center' }); else el.scrollTop = el.scrollHeight; }
+    else el.scrollTop = el.scrollHeight;
+    updateJumpBtn();
   }
   function appendMsg(m) {
     const conv = convs.find(c => c.id === curConv); const isG = conv && conv.type === 'group';

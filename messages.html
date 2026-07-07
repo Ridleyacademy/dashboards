@@ -194,6 +194,31 @@
   .fwd-row { display:flex; align-items:center; gap:12px; padding:12px 18px; cursor:pointer; border-bottom:1px solid var(--border); }
   .fwd-row:hover { background:var(--surface2); }
   .fwd-name { font-size:0.92rem; }
+  /* conversation-list search */
+  .conv-search { margin:10px 14px; background:var(--surface2); border:1px solid var(--border); color:var(--text); border-radius:10px; padding:9px 12px; font-size:0.88rem; outline:none; }
+  .conv-search:focus { border-color:var(--blue); box-shadow:0 0 0 3px var(--blue-bg); }
+  /* thread body wrapper for typing + jump overlays */
+  .msgs-wrap { flex:1; min-height:0; position:relative; display:flex; flex-direction:column; }
+  /* thread find */
+  .chat-head-find { background:none; border:none; color:var(--text-dim); font-size:1.05rem; cursor:pointer; padding:4px 8px; }
+  .chat-head-find:hover { color:var(--text); }
+  .find-bar { display:none; align-items:center; gap:8px; padding:9px 16px; background:var(--surface2); border-bottom:1px solid var(--border); }
+  .find-bar.open { display:flex; }
+  .find-bar input { flex:1; background:var(--surface); border:1px solid var(--border); color:var(--text); border-radius:9px; padding:8px 12px; font-size:0.88rem; outline:none; }
+  .find-n { font-size:0.78rem; color:var(--text-dim); min-width:40px; text-align:center; }
+  .find-nav, .find-x { background:var(--surface); border:1px solid var(--border); color:var(--text); border-radius:8px; width:30px; height:30px; cursor:pointer; }
+  .find-nav:hover, .find-x:hover { background:var(--surface2); }
+  .find-hit .bubble { box-shadow:0 0 0 2px rgba(52,211,153,0.4); }
+  .find-hit-cur .bubble { box-shadow:0 0 0 2px #34d399; }
+  /* unread divider */
+  .new-div { display:flex; align-items:center; text-align:center; margin:14px 6px 6px; color:#34d399; font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.05em; }
+  .new-div::before, .new-div::after { content:''; flex:1; height:1px; background:rgba(52,211,153,0.35); }
+  .new-div span { padding:0 12px; }
+  /* typing indicator + jump-to-latest */
+  .typing-ind { position:absolute; left:18px; bottom:8px; font-size:0.8rem; font-style:italic; color:var(--text-dim); background:color-mix(in srgb, var(--surface) 85%, transparent); padding:3px 10px; border-radius:12px; display:none; pointer-events:none; }
+  .typing-ind.show { display:block; }
+  .jump-btn { position:absolute; right:22px; bottom:16px; width:42px; height:42px; border-radius:50%; background:var(--surface2); border:1px solid var(--border-light); color:var(--text); font-size:1.2rem; cursor:pointer; display:none; align-items:center; justify-content:center; box-shadow:0 6px 18px rgba(0,0,0,0.45); }
+  .jump-btn.show { display:flex; }
   .bubble-edited { font-size:0.64rem; color:var(--text-dim); margin-left:7px; }
   .bubble-row.mine .bubble-edited { color:#cdeee0; }
   .bubble-row.deleted { margin-top:5px; }
@@ -330,6 +355,7 @@
           <button class="btn-ghost" id="newGroupBtn">＋ Group</button>
         </div>
       </div>
+      <input class="conv-search" id="convSearch" placeholder="Search conversations…">
       <div class="conv-scroll" id="convScroll"><div class="empty-state">Loading…</div></div>
     </aside>
     <section class="chat-main" id="chatMain">
@@ -337,10 +363,16 @@
       <div id="chatOpen" style="display:none;flex:1;flex-direction:column;min-height:0;">
         <div class="chat-head">
           <button class="chat-head-back" id="chatBack">‹</button>
-          <div style="min-width:0;"><div class="chat-head-title" id="chatTitle"></div><div class="chat-head-sub" id="chatSub"></div></div>
+          <div style="min-width:0;flex:1;"><div class="chat-head-title" id="chatTitle"></div><div class="chat-head-sub" id="chatSub"></div></div>
+          <button class="chat-head-find" id="findBtn" title="Search in conversation">🔍</button>
           <div class="chat-head-actions" id="chatActions"></div>
         </div>
-        <div class="msgs" id="msgs"></div>
+        <div class="find-bar" id="findBar"><input id="findInput" placeholder="Search this conversation…"><span class="find-n" id="findN"></span><button class="find-nav" id="findPrev">↑</button><button class="find-nav" id="findNext">↓</button><button class="find-x" id="findClose">✕</button></div>
+        <div class="msgs-wrap">
+          <div class="msgs" id="msgs"></div>
+          <div class="typing-ind" id="typingInd"></div>
+          <button class="jump-btn" id="jumpBtn" title="Jump to latest">↓</button>
+        </div>
         <div class="sel-bar" id="selBar"><button class="sel-x" id="selCancel">✕</button><span class="sel-count">0 selected</span><button class="sel-fwd" id="selFwd">↪ Forward</button></div>
         <div class="edit-bar" id="editBar"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Editing message<button id="editCancel">Cancel</button></div>
         <div class="reply-bar" id="replyBar"><div class="rb-body"><span class="rb-name"></span><span class="rb-txt"></span></div><button class="rb-x" id="replyCancel">✕</button></div>
@@ -377,6 +409,8 @@ const supa = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { pe
 let currentSession = null, me = null, conversations = [], usersCache = [], currentConv = null, chatChannel = null;
 let currentMsgs = [], editingId = null;
 let replyTarget = null, selectMode = false, selectedIds = new Set();
+let readCutoff = null, listQuery = '', findMatches = [], findIdx = -1;
+let typingCh = null, lastTypingSent = 0, typingHideT = null;
 const mentionPicked = new Map();
 const REACTIONS = ['👍', '❤️', '😂', '🎉', '😮', '😢'];
 const EDIT_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
@@ -504,7 +538,11 @@ async function loadConversations(){
 function renderConvList(){
   const el = document.getElementById('convScroll');
   if(!conversations.length){ el.innerHTML='<div class="empty-state">No conversations yet.<br>Start one with “New message”.</div>'; return; }
-  el.innerHTML = conversations.map(c=>{
+  const shown = listQuery
+    ? conversations.filter(c => String(c.title||'').toLowerCase().includes(listQuery) || (c.members||[]).some(m=>String(m.name||'').toLowerCase().includes(listQuery)))
+    : conversations;
+  if(!shown.length){ el.innerHTML=`<div class="empty-state">No conversations match “${esc(listQuery)}”.</div>`; return; }
+  el.innerHTML = shown.map(c=>{
     const isG = c.type==='group';
     const prev = c.last_message ? (isG && c.last_message.sender_name ? c.last_message.sender_name+': ' : '') + c.last_message.body : 'No messages yet';
     return `<div class="conv-row${c.id===currentConv?' active':''}${c.unread?' unread':''}" data-conv="${c.id}">
@@ -519,8 +557,9 @@ function renderConvList(){
 async function openConversation(id){
   const conv = conversations.find(c=>c.id===id);
   currentConv = id;
-  resetAtts(); cancelEdit(); cancelReply(); closePopups();
+  resetAtts(); cancelEdit(); cancelReply(); closePopups(); closeFind();
   selectMode=false; selectedIds=new Set(); updateSelectBar();
+  subscribeTyping(id); hideTyping();
   document.getElementById('chatEmpty').style.display='none';
   document.getElementById('chatOpen').style.display='flex';
   document.getElementById('app').classList.add('thread-open');
@@ -537,11 +576,43 @@ async function openConversation(id){
   const msgsEl = document.getElementById('msgs'); msgsEl.innerHTML='<div class="empty-state">Loading…</div>';
   try {
     const j = await chatFetch('?api=messages&conversation_id='+id);
+    readCutoff = j.read_cutoff || null;
     renderMessages(j.messages||[]);
     if(conv){ conv.unread=0; renderConvList(); }
   } catch(e){ msgsEl.innerHTML=`<div class="empty-state">${esc(e.message)}</div>`; }
-  setTimeout(()=>document.getElementById('composerInput').focus(),50);
+  setTimeout(()=>{ document.getElementById('composerInput').focus(); updateJumpBtn(); },50);
 }
+// ── In-thread find ──
+function toggleFind(){ const bar=document.getElementById('findBar'); if(bar.classList.contains('open')) closeFind(); else { bar.classList.add('open'); const i=document.getElementById('findInput'); i.value=''; setTimeout(()=>i.focus(),30); } }
+function closeFind(){ const bar=document.getElementById('findBar'); if(bar) bar.classList.remove('open'); findMatches=[]; findIdx=-1; document.querySelectorAll('#msgs .find-hit').forEach(n=>n.classList.remove('find-hit','find-hit-cur')); const n=document.getElementById('findN'); if(n) n.textContent=''; }
+function runFind(q){
+  q=(q||'').trim().toLowerCase();
+  document.querySelectorAll('#msgs .find-hit').forEach(n=>n.classList.remove('find-hit','find-hit-cur'));
+  findMatches=[]; findIdx=-1; const n=document.getElementById('findN');
+  if(!q){ if(n) n.textContent=''; return; }
+  for(const m of currentMsgs){ if(!m.deleted && m.id && (m.body||'').toLowerCase().includes(q)) findMatches.push(m.id); }
+  findMatches.forEach(id=>{ const r=document.querySelector(`#msgs .bubble-row[data-mid="${id}"]`); if(r) r.classList.add('find-hit'); });
+  if(findMatches.length){ findIdx=findMatches.length-1; focusFind(); } else if(n) n.textContent='0';
+}
+function focusFind(){
+  document.querySelectorAll('#msgs .find-hit-cur').forEach(n=>n.classList.remove('find-hit-cur'));
+  const id=findMatches[findIdx]; const r=id && document.querySelector(`#msgs .bubble-row[data-mid="${id}"]`);
+  if(r){ r.classList.add('find-hit-cur'); r.scrollIntoView({block:'center',behavior:'smooth'}); }
+  const n=document.getElementById('findN'); if(n) n.textContent=`${findIdx+1}/${findMatches.length}`;
+}
+function stepFind(dir){ if(!findMatches.length) return; findIdx=(findIdx+dir+findMatches.length)%findMatches.length; focusFind(); }
+// ── Jump to latest ──
+function updateJumpBtn(){ const el=document.getElementById('msgs'), b=document.getElementById('jumpBtn'); if(!el||!b) return; b.classList.toggle('show', el.scrollHeight-el.scrollTop-el.clientHeight>240); }
+// ── Typing indicator ──
+function subscribeTyping(id){
+  if(typingCh){ try{ supa.removeChannel(typingCh); }catch(_){} typingCh=null; }
+  typingCh = supa.channel('typing:'+id, { config:{ broadcast:{ self:false } } })
+    .on('broadcast', { event:'t' }, (p)=>{ if(currentConv===id) showTyping(p.payload?.name||'Someone'); })
+    .subscribe();
+}
+function sendTyping(){ if(!typingCh) return; const now=Date.now(); if(now-lastTypingSent<2000) return; lastTypingSent=now; try{ typingCh.send({ type:'broadcast', event:'t', payload:{ name:(me&&me.name)||'Someone' } }); }catch(_){} }
+function showTyping(name){ const el=document.getElementById('typingInd'); if(!el) return; el.textContent=name+' is typing…'; el.classList.add('show'); clearTimeout(typingHideT); typingHideT=setTimeout(hideTyping,3500); }
+function hideTyping(){ const el=document.getElementById('typingInd'); if(el){ el.classList.remove('show'); el.textContent=''; } clearTimeout(typingHideT); }
 function mediaHtml(atts){
   if(!atts || !atts.length) return '';
   return `<div class="msg-media">`+atts.map(a=>{
@@ -642,9 +713,15 @@ function renderMessages(msgs, preserveScroll){
   const el = document.getElementById('msgs');
   const prevTop = el.scrollTop, atBottom = el.scrollHeight - prevTop - el.clientHeight < 40;
   if(!msgs.length){ el.innerHTML='<div class="empty-state">No messages yet — say hi 👋</div>'; return; }
-  el.innerHTML = msgs.map(m=>bubbleHtml(m, isG)).join('');
+  const cut = readCutoff ? new Date(readCutoff).getTime() : 0;
+  let dividerBefore = null;
+  if(cut){ const first = msgs.find(m=>!m.mine && m.id && new Date(m.created_at).getTime()>cut); if(first) dividerBefore = first.id; }
+  el.innerHTML = msgs.map(m=>(m.id===dividerBefore?'<div class="new-div"><span>New messages</span></div>':'')+bubbleHtml(m, isG)).join('');
   wireMediaSkeletons(el);
-  if(preserveScroll && !atBottom) el.scrollTop = prevTop; else el.scrollTop = el.scrollHeight;
+  if(preserveScroll && !atBottom) el.scrollTop = prevTop;
+  else if(dividerBefore){ const d=el.querySelector('.new-div'); if(d) d.scrollIntoView({block:'center'}); else el.scrollTop = el.scrollHeight; }
+  else el.scrollTop = el.scrollHeight;
+  updateJumpBtn();
 }
 function appendMessage(m){
   const el = document.getElementById('msgs'); const conv = conversations.find(c=>c.id===currentConv); const isG=conv&&conv.type==='group';
@@ -916,7 +993,19 @@ document.getElementById('composerInput').addEventListener('keydown', e=>{
   }
   if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); sendMessage(); }
 });
-document.getElementById('composerInput').addEventListener('input', function(){ this.style.height='auto'; this.style.height=Math.min(this.scrollHeight,140)+'px'; updateMentionBox(); });
+document.getElementById('composerInput').addEventListener('input', function(){ this.style.height='auto'; this.style.height=Math.min(this.scrollHeight,140)+'px'; updateMentionBox(); sendTyping(); });
+// Conversation-list search
+document.getElementById('convSearch').addEventListener('input', e=>{ listQuery=e.target.value.trim().toLowerCase(); renderConvList(); });
+// In-thread find
+document.getElementById('findBtn').addEventListener('click', toggleFind);
+document.getElementById('findClose').addEventListener('click', closeFind);
+document.getElementById('findInput').addEventListener('input', e=>runFind(e.target.value));
+document.getElementById('findInput').addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); stepFind(e.shiftKey?-1:1); } else if(e.key==='Escape') closeFind(); });
+document.getElementById('findPrev').addEventListener('click', ()=>stepFind(-1));
+document.getElementById('findNext').addEventListener('click', ()=>stepFind(1));
+// Jump to latest
+document.getElementById('jumpBtn').addEventListener('click', ()=>{ const el=document.getElementById('msgs'); el.scrollTo({top:el.scrollHeight, behavior:'smooth'}); });
+document.getElementById('msgs').addEventListener('scroll', updateJumpBtn);
 document.getElementById('composerInput').addEventListener('click', updateMentionBox);
 document.addEventListener('click', e=>{ const pop=document.getElementById('msgPop'); if(!pop) return; if(pop.contains(e.target)) return; if(e.target.closest('.react-btn, .menu-btn')) return; closePopups(); });
 document.addEventListener('keydown', e=>{ if(e.key==='Escape') closePopups(); });

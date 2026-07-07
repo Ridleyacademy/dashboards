@@ -210,6 +210,14 @@
       .mw-mi svg { flex-shrink:0; }
       .mw-mi:hover { background:#252c44; color:#eaecf8; }
       .mw-mi.del:hover { background:#3a1f24; color:#ff9a9a; }
+      .mw-confirm { position:fixed; inset:0; z-index:10070; background:rgba(0,0,0,0.55); display:flex; align-items:center; justify-content:center; padding:20px; }
+      .mw-confirm-card { background:#1a1f30; border:1px solid #2a3150; border-radius:14px; padding:18px; max-width:300px; width:100%; box-shadow:0 20px 50px rgba(0,0,0,0.6); }
+      .mw-confirm-msg { font-size:0.9rem; color:#eaecf8; margin-bottom:16px; line-height:1.4; }
+      .mw-confirm-row { display:flex; gap:8px; justify-content:flex-end; }
+      .mw-confirm-btn { border:none; border-radius:9px; padding:8px 15px; font-size:0.82rem; font-weight:700; cursor:pointer; }
+      .mw-confirm-btn.cancel { background:#232a41; color:#c7cdec; }
+      .mw-confirm-btn.ok { background:#c0392b; color:#fff; }
+      .mw-confirm-btn.ok:hover { background:#e04b3a; }
       /* @mention autocomplete */
       .mw-mentions { position:absolute; left:12px; right:12px; bottom:100%; margin-bottom:4px; background:#1a1f30; border:1px solid #2a3150; border-radius:10px; box-shadow:0 -6px 22px rgba(0,0,0,0.45); max-height:180px; overflow-y:auto; display:none; z-index:6; }
       .mw-mentions.open { display:block; }
@@ -310,9 +318,12 @@
     // close on outside click
     document.addEventListener('click', (e) => {
       if (!panelOpen) return; if (lightboxOpen()) return;
-      const pop = document.getElementById('mwPop'); if (pop && pop.contains(e.target)) return;
-      if (pop && !e.target.closest('.mw-react-btn, .mw-menu-btn')) closePopups();
+      // Clicks inside our floating overlays (emoji/edit menu, confirm dialog) are NOT "outside".
+      // They live in document.body, so .closest() (not panel.contains) is the reliable check —
+      // and it resolves even after the popup element has just been detached from the DOM.
+      if (e.target.closest('#mwPop, .mw-confirm')) return;
       const lb = document.getElementById('mwLb'); if (lb && lb.contains(e.target)) return;
+      if (document.getElementById('mwPop')) closePopups();   // a click elsewhere dismisses the menu/palette
       const pn = document.getElementById('msgWidgetPanel'); const bt = document.getElementById('msgWidgetBtn');
       if (pn && !pn.contains(e.target) && bt && !bt.contains(e.target)) closePanel();
     });
@@ -506,8 +517,20 @@
     const bar = document.getElementById('mwEditBar'); if (bar) bar.classList.remove('open');
     const inp = document.getElementById('mwInput'); if (inp) { inp.value = ''; inp.style.height = 'auto'; }
   }
+  // In-app styled confirm (replaces the native confirm() popup). Resolves true/false.
+  function confirmModal(message, okLabel) {
+    return new Promise((resolve) => {
+      const ov = document.createElement('div'); ov.className = 'mw-confirm';
+      ov.innerHTML = `<div class="mw-confirm-card"><div class="mw-confirm-msg">${esc(message)}</div><div class="mw-confirm-row"><button class="mw-confirm-btn cancel">Cancel</button><button class="mw-confirm-btn ok">${esc(okLabel || 'OK')}</button></div></div>`;
+      document.body.appendChild(ov);
+      const done = (v) => { ov.remove(); resolve(v); };
+      ov.addEventListener('click', (e) => { if (e.target === ov) done(false); });
+      ov.querySelector('.cancel').addEventListener('click', () => done(false));
+      ov.querySelector('.ok').addEventListener('click', () => done(true));
+    });
+  }
   async function doDelete(mid) {
-    if (!confirm('Delete this message for everyone?')) return;
+    if (!(await confirmModal('Delete this message for everyone?', 'Delete'))) return;
     try {
       await chatFetch('?api=delete-message', { method: 'POST', body: JSON.stringify({ message_id: mid }) });
       const m = curMsgs.find(x => x.id === mid);

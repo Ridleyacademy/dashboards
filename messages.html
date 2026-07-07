@@ -144,6 +144,11 @@
   .lb-stage { position:absolute; inset:0; overflow:auto; display:flex; align-items:center; justify-content:center; -webkit-overflow-scrolling:touch; }
   .lb-stage img { max-width:94vw; max-height:92vh; border-radius:10px; display:block; cursor:zoom-in; }
   .lb-stage video { max-width:94vw; max-height:92vh; border-radius:10px; display:block; }
+  .lb-frame { width:94vw; max-width:960px; height:90vh; border:0; border-radius:10px; background:#fff; }
+  .lb-file { display:flex; flex-direction:column; align-items:center; gap:12px; color:var(--text); text-align:center; padding:24px; }
+  .lb-file .lb-fico { color:var(--blue); } .lb-file .lb-fico svg { width:56px; height:56px; }
+  .lb-file .lb-fname { font-weight:700; word-break:break-word; max-width:80vw; }
+  .lb-file .lb-fhint { color:var(--text-dim); font-size:0.86rem; }
   .lb-stage.zoomed { align-items:flex-start; justify-content:flex-start; }
   .lb-stage.zoomed img { max-width:none; max-height:none; margin:auto; cursor:zoom-out; }
   .lb-bar { position:absolute; top:16px; right:16px; z-index:2; display:flex; gap:10px; }
@@ -211,7 +216,7 @@
   .tsk-bub { height:38px; border-radius:14px; max-width:75%; }
   .msg-toast { position:fixed; left:50%; bottom:40px; transform:translateX(-50%) translateY(6px); background:#0b0d18; border:1px solid #2a3350; color:#eaecf8; padding:9px 18px; border-radius:22px; font-size:0.86rem; opacity:0; pointer-events:none; transition:opacity .18s, transform .18s; z-index:9999; box-shadow:0 8px 26px rgba(0,0,0,0.45); }
   .msg-toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
-  .msg-file { display:inline-flex; align-items:center; gap:10px; text-decoration:none; background:rgba(0,0,0,0.18); border:1px solid rgba(255,255,255,0.14); border-radius:12px; padding:10px 13px; max-width:260px; color:inherit; }
+  .msg-file { display:inline-flex; align-items:center; gap:10px; text-decoration:none; background:rgba(0,0,0,0.18); border:1px solid rgba(255,255,255,0.14); border-radius:12px; padding:10px 13px; max-width:260px; color:inherit; cursor:pointer; }
   .msg-file:hover { background:rgba(0,0,0,0.28); }
   .msg-file .mf-ico { flex-shrink:0; opacity:0.9; }
   .msg-file .mf-meta { min-width:0; display:flex; flex-direction:column; }
@@ -715,7 +720,7 @@ function mediaHtml(atts){
     const src = a.url || a._localUrl || ''; if(!src) return '';
     const nm = esc(a.name||(a.kind==='video'?'video':'image'));
     if(a.kind==='video') return `<div class="m-tile m-loading" data-full="${esc(src)}" data-kind="video" data-name="${nm}"><video class="m-vid" src="${esc(src)}" preload="metadata" muted playsinline></video><div class="m-play">▶</div></div>`;
-    if(a.kind==='file'){ const sz=fmtBytes(a.size); return `<a class="msg-file" href="${esc(src)}" target="_blank" rel="noopener" download="${nm}"><span class="mf-ico">${FILE_SVG}</span><span class="mf-meta"><span class="mf-name">${nm}</span>${sz?`<span class="mf-sz">${sz}</span>`:''}</span></a>`; }
+    if(a.kind==='file'){ const sz=fmtBytes(a.size); return `<div class="msg-file" data-full="${esc(src)}" data-kind="file" data-name="${nm}" data-mime="${esc(a.mime||'')}"><span class="mf-ico">${FILE_SVG}</span><span class="mf-meta"><span class="mf-name">${nm}</span>${sz?`<span class="mf-sz">${sz}</span>`:''}</span></div>`; }
     return `<img class="m-img m-loading" src="${esc(src)}" loading="lazy" data-full="${esc(src)}" data-kind="image" data-name="${nm}" alt="${nm}">`;
   }).join('')+`</div>`;
 }
@@ -743,7 +748,7 @@ function downloadMedia(url, name){
   }).catch(()=>{ const a=document.createElement('a'); a.href=url; a.download=name||'download'; a.target='_blank'; a.rel='noopener'; document.body.appendChild(a); a.click(); a.remove(); });
 }
 function closeLightbox(){ const lb=document.getElementById('mediaLb'); if(lb){ lb.classList.remove('open'); const s=lb.querySelector('.lb-stage'); s.classList.remove('zoomed'); s.innerHTML=''; } }
-function openLightbox(url, kind, name){
+function openLightbox(url, kind, name, mime){
   let lb=document.getElementById('mediaLb');
   if(!lb){
     lb=document.createElement('div'); lb.id='mediaLb'; lb.className='media-lb';
@@ -758,9 +763,18 @@ function openLightbox(url, kind, name){
     lb.querySelector('#lbX').addEventListener('click', closeLightbox);
   }
   const stage=lb.querySelector('.lb-stage'); stage.classList.remove('zoomed');
-  stage.innerHTML = kind==='video'
-    ? `<video src="${esc(url)}" controls autoplay playsinline></video>`
-    : `<img src="${esc(url)}" alt="${esc(name||'')}">`;
+  if(kind==='video'){
+    stage.innerHTML = `<video src="${esc(url)}" controls autoplay playsinline></video>`;
+  } else if(kind==='file'){
+    const isPdf = /pdf/i.test(mime||'') || /\.pdf$/i.test(name||'');
+    // PDFs (and other browser-native types) render in an iframe — the browser's built-in
+    // viewer handles page-to-page navigation. Non-renderable types get an Open/Download card.
+    stage.innerHTML = isPdf
+      ? `<iframe class="lb-frame" src="${esc(url)}" title="${esc(name||'Document')}"></iframe>`
+      : `<div class="lb-file"><div class="lb-fico">${FILE_SVG}</div><div class="lb-fname">${esc(name||'File')}</div><div class="lb-fhint">This file type can’t be previewed here.</div><a class="lb-btn" href="${esc(url)}" target="_blank" rel="noopener">Open in new tab</a></div>`;
+  } else {
+    stage.innerHTML = `<img src="${esc(url)}" alt="${esc(name||'')}">`;
+  }
   lb.querySelector('#lbDl').onclick = ()=>downloadMedia(url, name);
   lb.classList.add('open');
 }
@@ -1076,8 +1090,8 @@ document.getElementById('fileInput').addEventListener('change', e=>{ handleFiles
 document.getElementById('msgs').addEventListener('click', e=>{
   const row = e.target.closest && e.target.closest('.bubble-row'); const mid = row && row.dataset.mid ? Number(row.dataset.mid) : 0;
   if(selectMode){ const m = mid && currentMsgs.find(x=>x.id===mid); if(m && !m.deleted) toggleSelect(mid); return; }
-  const media = e.target.closest && e.target.closest('img.m-img, .m-tile');
-  if(media){ const f=media.getAttribute('data-full'); if(f) openLightbox(f, media.getAttribute('data-kind'), media.getAttribute('data-name')); return; }
+  const media = e.target.closest && e.target.closest('img.m-img, .m-tile, .msg-file');
+  if(media){ const f=media.getAttribute('data-full'); if(f) openLightbox(f, media.getAttribute('data-kind'), media.getAttribute('data-name'), media.getAttribute('data-mime')); return; }
   const jump = e.target.closest && e.target.closest('.msg-quote');
   if(jump && jump.dataset.jump){ const t=document.querySelector(`.bubble-row[data-mid="${jump.dataset.jump}"]`); if(t){ t.scrollIntoView({block:'center',behavior:'smooth'}); t.classList.add('msg-flash'); setTimeout(()=>t.classList.remove('msg-flash'),1200); } return; }
   const chip = e.target.closest && e.target.closest('.rx-chip');

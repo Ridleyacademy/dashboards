@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v440', title: 'Messages — open PDFs & files in the viewer', items: [
+      'Tap a PDF to open it right inside the message viewer (like images) with page-to-page scrolling. Other file types open in the same viewer with an Open / Download option.',
+    ]},
     { version: 'v439', title: 'Messages — fix “Load failed” on first upload', items: [
       'Attachments now retry automatically if the first upload after a page load fails, so a document uploads on the first try instead of needing a second attempt.',
     ]},

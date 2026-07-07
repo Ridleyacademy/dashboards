@@ -191,6 +191,11 @@
       .mw-lb-stage { position:absolute; inset:0; overflow:auto; display:flex; align-items:center; justify-content:center; -webkit-overflow-scrolling:touch; }
       .mw-lb-stage img { max-width:94vw; max-height:92vh; border-radius:10px; display:block; cursor:zoom-in; }
       .mw-lb-stage video { max-width:94vw; max-height:92vh; border-radius:10px; display:block; }
+      .mw-lb-frame { width:94vw; max-width:900px; height:90vh; border:0; border-radius:10px; background:#fff; }
+      .mw-lb-file { display:flex; flex-direction:column; align-items:center; gap:12px; color:#eaecf8; text-align:center; padding:24px; }
+      .mw-lb-file .mw-lb-fico { color:#8ea2ff; } .mw-lb-file .mw-lb-fico svg { width:56px; height:56px; }
+      .mw-lb-file .mw-lb-fname { font-weight:700; word-break:break-word; max-width:80vw; }
+      .mw-lb-file .mw-lb-fhint { color:#9aa2c8; font-size:0.84rem; }
       .mw-lb-stage.zoomed { align-items:flex-start; justify-content:flex-start; }
       .mw-lb-stage.zoomed img { max-width:none; max-height:none; margin:auto; cursor:zoom-out; }
       .mw-lb-bar { position:absolute; top:14px; right:14px; z-index:2; display:flex; gap:10px; }
@@ -231,7 +236,7 @@
       .mw-mi.del:hover { background:#3a1f24; color:#ff9a9a; }
       .mw-toast { position:absolute; left:50%; bottom:76px; transform:translateX(-50%) translateY(6px); background:#0b0d18; border:1px solid #2a3350; color:#eaecf8; padding:7px 14px; border-radius:20px; font-size:0.8rem; opacity:0; pointer-events:none; transition:opacity .18s, transform .18s; z-index:40; box-shadow:0 6px 20px rgba(0,0,0,0.4); }
       .mw-toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
-      .mw-file { display:flex; align-items:center; gap:10px; text-decoration:none; background:#0f1120; border:1px solid #1f2438; border-radius:12px; padding:9px 12px; max-width:240px; color:#eaecf8; }
+      .mw-file { display:flex; align-items:center; gap:10px; text-decoration:none; background:#0f1120; border:1px solid #1f2438; border-radius:12px; padding:9px 12px; max-width:240px; color:#eaecf8; cursor:pointer; }
       .mw-file:hover { border-color:#2a3350; }
       .mw-file .mw-fico { color:#7f8bd6; flex-shrink:0; }
       .mw-file .mw-fmeta { min-width:0; }
@@ -399,8 +404,8 @@
     p.querySelector('#mwMsgs').addEventListener('click', (e) => {
       const row = e.target.closest && e.target.closest('.mw-row'); const mid = row && row.dataset.mid ? Number(row.dataset.mid) : 0;
       if (selectMode) { const m = mid && curMsgs.find(x => x.id === mid); if (m && !m.deleted) toggleSelect(mid); return; }   // tap to (de)select; deleted msgs aren't selectable
-      const media = e.target.closest && e.target.closest('img.mw-mimg, .mw-mtile');
-      if (media) { const full = media.getAttribute('data-full'); if (full) openLightbox(full, media.getAttribute('data-kind'), media.getAttribute('data-name')); return; }
+      const media = e.target.closest && e.target.closest('img.mw-mimg, .mw-mtile, .mw-file');
+      if (media) { const full = media.getAttribute('data-full'); if (full) openLightbox(full, media.getAttribute('data-kind'), media.getAttribute('data-name'), media.getAttribute('data-mime')); return; }
       const jump = e.target.closest && e.target.closest('.mw-quote');
       if (jump && jump.dataset.jump) { const t = document.querySelector(`.mw-row[data-mid="${jump.dataset.jump}"]`); if (t) { t.scrollIntoView({ block: 'center', behavior: 'smooth' }); t.classList.add('mw-flash'); setTimeout(() => t.classList.remove('mw-flash'), 1200); } return; }
       const chip = e.target.closest && e.target.closest('.mw-rchip');
@@ -630,7 +635,7 @@
       if (!src) return '';
       const nm = esc(a.name || (a.kind === 'video' ? 'video' : 'image'));
       if (a.kind === 'video') return `<div class="mw-mtile mw-loading" data-full="${esc(src)}" data-kind="video" data-name="${nm}"><video class="mw-mvid" src="${esc(src)}" preload="metadata" muted playsinline></video><div class="mw-play">▶</div></div>`;
-      if (a.kind === 'file') { const sz = fmtBytes(a.size); return `<a class="mw-file" href="${esc(src)}" target="_blank" rel="noopener" download="${nm}"><span class="mw-fico">${FILE_SVG}</span><span class="mw-fmeta"><span class="mw-fname">${nm}</span>${sz ? `<span class="mw-fsz">${sz}</span>` : ''}</span></a>`; }
+      if (a.kind === 'file') { const sz = fmtBytes(a.size); return `<div class="mw-file" data-full="${esc(src)}" data-kind="file" data-name="${nm}" data-mime="${esc(a.mime || '')}"><span class="mw-fico">${FILE_SVG}</span><span class="mw-fmeta"><span class="mw-fname">${nm}</span>${sz ? `<span class="mw-fsz">${sz}</span>` : ''}</span></div>`; }
       return `<img class="mw-mimg mw-loading" src="${esc(src)}" loading="lazy" data-full="${esc(src)}" data-kind="image" data-name="${nm}" alt="${nm}">`;
     }).join('');
     return `<div class="mw-media">${items}</div>`;
@@ -663,7 +668,7 @@
   }
   function closeLightbox() { const lb = document.getElementById('mwLb'); if (lb) { lb.classList.remove('open'); const s = lb.querySelector('.mw-lb-stage'); s.classList.remove('zoomed'); s.innerHTML = ''; } }
   function lightboxOpen() { const lb = document.getElementById('mwLb'); return !!(lb && lb.classList.contains('open')); }
-  function openLightbox(url, kind, name) {
+  function openLightbox(url, kind, name, mime) {
     let lb = document.getElementById('mwLb');
     if (!lb) {
       lb = document.createElement('div'); lb.id = 'mwLb'; lb.className = 'mw-lb';
@@ -679,9 +684,19 @@
     }
     const stage = lb.querySelector('.mw-lb-stage');
     stage.classList.remove('zoomed');
-    stage.innerHTML = kind === 'video'
-      ? `<video src="${esc(url)}" controls autoplay playsinline></video>`
-      : `<img src="${esc(url)}" alt="${esc(name || '')}">`;
+    if (kind === 'video') {
+      stage.innerHTML = `<video src="${esc(url)}" controls autoplay playsinline></video>`;
+    } else if (kind === 'file') {
+      const isPdf = /pdf/i.test(mime || '') || /\.pdf$/i.test(name || '');
+      // PDFs (and other browser-native types) render in an iframe — the browser's built-in
+      // viewer provides page-to-page navigation. Types the browser can't render fall back to
+      // a card with Open / Download.
+      stage.innerHTML = isPdf
+        ? `<iframe class="mw-lb-frame" src="${esc(url)}" title="${esc(name || 'Document')}"></iframe>`
+        : `<div class="mw-lb-file"><div class="mw-lb-fico">${FILE_SVG}</div><div class="mw-lb-fname">${esc(name || 'File')}</div><div class="mw-lb-fhint">This file type can’t be previewed here.</div><a class="mw-lb-btn" href="${esc(url)}" target="_blank" rel="noopener">Open in new tab</a></div>`;
+    } else {
+      stage.innerHTML = `<img src="${esc(url)}" alt="${esc(name || '')}">`;
+    }
     lb.querySelector('#mwLbDl').onclick = () => downloadMedia(url, name);
     lb.classList.add('open');
   }

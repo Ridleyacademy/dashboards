@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v431', title: 'Messages — line-style search icon', items: [
+      'The in-conversation search button now uses a clean magnifier icon matching the rest of the UI.',
+    ]},
     { version: 'v430', title: 'Messages — search, typing indicator & new-message divider', items: [
       'Search your conversation list by name (box above the list).',
       'Search within a conversation: tap the 🔍 in the thread header, then step through matches.',

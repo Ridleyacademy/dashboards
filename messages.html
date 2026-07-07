@@ -201,7 +201,9 @@
   .msgs-wrap { flex:1; min-height:0; position:relative; display:flex; flex-direction:column; }
   /* thread find */
   .chat-head-find { background:none; border:none; color:var(--text-dim); font-size:1.05rem; cursor:pointer; padding:4px 8px; }
+  .chat-head-find { display:inline-flex; align-items:center; justify-content:center; }
   .chat-head-find:hover { color:var(--text); }
+  .chat-head-find svg { display:block; }
   .find-bar { display:none; align-items:center; gap:8px; padding:9px 16px; background:var(--surface2); border-bottom:1px solid var(--border); }
   .find-bar.open { display:flex; }
   .find-bar input { flex:1; background:var(--surface); border:1px solid var(--border); color:var(--text); border-radius:9px; padding:8px 12px; font-size:0.88rem; outline:none; }
@@ -364,7 +366,7 @@
         <div class="chat-head">
           <button class="chat-head-back" id="chatBack">‹</button>
           <div style="min-width:0;flex:1;"><div class="chat-head-title" id="chatTitle"></div><div class="chat-head-sub" id="chatSub"></div></div>
-          <button class="chat-head-find" id="findBtn" title="Search in conversation">🔍</button>
+          <button class="chat-head-find" id="findBtn" title="Search in conversation" aria-label="Search"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
           <div class="chat-head-actions" id="chatActions"></div>
         </div>
         <div class="find-bar" id="findBar"><input id="findInput" placeholder="Search this conversation…"><span class="find-n" id="findN"></span><button class="find-nav" id="findPrev">↑</button><button class="find-nav" id="findNext">↓</button><button class="find-x" id="findClose">✕</button></div>

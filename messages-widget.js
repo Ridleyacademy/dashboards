@@ -117,6 +117,8 @@
       .mw-title { font-size:0.95rem; font-weight:800; flex:1; }
       .mw-hbtn { background:#191e30; border:1px solid #1f2438; color:#7880a8; border-radius:8px; padding:5px 9px; font-size:0.72rem; font-weight:700; cursor:pointer; }
       .mw-hbtn:hover { color:#eaecf8; }
+      .mw-iconbtn { display:inline-flex; align-items:center; justify-content:center; padding:5px 7px; }
+      .mw-iconbtn svg { display:block; }
       .mw-x { background:none; border:none; color:#7880a8; font-size:1.35rem; cursor:pointer; padding:0 4px; line-height:1; }
       .mw-scroll { flex:1; overflow-y:auto; }
       .mw-conv { display:flex; align-items:center; gap:10px; padding:10px 14px; cursor:pointer; border-bottom:1px solid #1a1f30; }
@@ -329,7 +331,7 @@
       <input class="mw-listsearch" id="mwListSearch" placeholder="Search conversations…">
       <div class="mw-scroll" id="mwList"><div class="mw-empty">Loading…</div></div>
       <div class="mw-thread" id="mwThread">
-        <div class="mw-head"><button class="mw-back" id="mwBack">‹</button><div class="mw-title" id="mwThreadTitle" style="font-size:0.88rem;flex:1;"></div><button class="mw-hbtn" id="mwFindBtn" title="Search in conversation">🔍</button><button class="mw-x" id="mwClose2">×</button></div>
+        <div class="mw-head"><button class="mw-back" id="mwBack">‹</button><div class="mw-title" id="mwThreadTitle" style="font-size:0.88rem;flex:1;"></div><button class="mw-hbtn mw-iconbtn" id="mwFindBtn" title="Search in conversation" aria-label="Search"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button><button class="mw-x" id="mwClose2">×</button></div>
         <div class="mw-findbar" id="mwFindBar"><input id="mwFindInput" placeholder="Search this conversation…"><span class="mw-find-n" id="mwFindN"></span><button class="mw-find-nav" id="mwFindPrev">↑</button><button class="mw-find-nav" id="mwFindNext">↓</button><button class="mw-find-x" id="mwFindClose">✕</button></div>
         <div class="mw-msgs-wrap">
           <div class="mw-msgs" id="mwMsgs"></div>

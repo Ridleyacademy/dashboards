@@ -151,6 +151,9 @@
   .lb-file .lb-fhint { color:var(--text-dim); font-size:0.86rem; }
   .lb-spin { width:34px; height:34px; border:3px solid rgba(255,255,255,0.25); border-top-color:#fff; border-radius:50%; animation:lbspin 0.7s linear infinite; }
   @keyframes lbspin { to { transform:rotate(360deg); } }
+  .chat-drop { position:absolute; inset:0; z-index:40; display:none; align-items:center; justify-content:center; background:rgba(11,13,24,0.82); border:2px dashed var(--blue); border-radius:14px; margin:8px; }
+  .chat-drop.show { display:flex; }
+  .chat-drop-inner { display:flex; flex-direction:column; align-items:center; gap:10px; color:var(--blue); font-weight:700; pointer-events:none; font-size:1.05rem; }
   .lb-stage.zoomed { align-items:flex-start; justify-content:flex-start; }
   .lb-stage.zoomed img { max-width:none; max-height:none; margin:auto; cursor:zoom-out; }
   .lb-bar { position:absolute; top:16px; right:16px; z-index:2; display:flex; gap:10px; }
@@ -393,7 +396,8 @@
     </aside>
     <section class="chat-main" id="chatMain">
       <div class="chat-main-empty" id="chatEmpty">Pick a conversation, or start a new one.</div>
-      <div id="chatOpen" style="display:none;flex:1;flex-direction:column;min-height:0;">
+      <div id="chatOpen" style="display:none;flex:1;flex-direction:column;min-height:0;position:relative;">
+        <div class="chat-drop" id="chatDrop"><div class="chat-drop-inner"><svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg><span>Drop to attach</span></div></div>
         <div class="chat-head">
           <button class="chat-head-back" id="chatBack">‹</button>
           <div style="min-width:0;flex:1;"><div class="chat-head-title" id="chatTitle"></div><div class="chat-head-sub" id="chatSub"></div></div>
@@ -1083,30 +1087,51 @@ async function sendMessage(){
   const replyObj = replyTarget ? { id:replyTarget.id, sender_name:replyTarget.sender_name, snippet:replyTarget.snippet } : null;
   cancelReply();
   const cid = currentConv; inp.value=''; inp.style.height='auto';
+  // The strip's object URLs are now owned by the optimistic bubbles — clear WITHOUT revoking.
+  pendingAtts=[]; renderAttStrip();
+  // Each attachment is sent as its OWN message (its own Dropbox path + own 50 MB), never
+  // bundled — multi-file sends behave like WhatsApp. Text/reply ride the first message.
+  if(ready.length>1){
+    for(let i=0;i<ready.length;i++){
+      await sendOne(cid, i===0?body:'', [ready[i]], i===0?mentioned:[], i===0?replyId:null, i===0?replyObj:null);
+    }
+  } else {
+    await sendOne(cid, body, ready, mentioned, replyId, replyObj);
+  }
+}
+async function sendOne(cid, body, ready, mentioned, replyId, replyObj){
+  const inp = document.getElementById('composerInput');
   const nowIso = new Date().toISOString();
-  const tmpId = 'msg-tmp-'+nowIso.replace(/\D/g,'');
+  const tmpId = 'msg-tmp-'+nowIso.replace(/\D/g,'')+'-'+Math.round(Math.random()*1e6);
   const optAtts = ready.map(a=>({ kind:a.kind, mime:a.mime, name:a.name, _localUrl:a._localUrl }));
   appendMessage({ body, created_at: nowIso, mine:true, sender_id: me?.user_id, _tmpId: tmpId, attachments: optAtts, reply: replyObj || null });  // optimistic
-  // The strip's object URLs are now owned by the optimistic bubble — clear WITHOUT revoking.
-  pendingAtts=[]; renderAttStrip();
   const payloadAtts = ready.map(a=>({ path:a.path, mime:a.mime, size:a.size, name:a.name }));
   const preview = body || 'Attachment';
   const conv = conversations.find(c=>c.id===cid);
   if(conv){ conv.last_message={ body: preview, sender_id: me?.user_id, sender_name: me?.name, created_at: nowIso }; conv.last_message_at=nowIso; conversations.sort((a,b)=>new Date(b.last_message_at)-new Date(a.last_message_at)); renderConvList(); }
   try {
-    const j = await chatFetch('?api=send',{method:'POST',body:JSON.stringify({conversation_id:cid, body, attachments: payloadAtts, mentioned_user_ids: mentioned, reply_to: replyId || null})});
+    const j = await chatFetch('?api=send',{method:'POST',body:JSON.stringify({conversation_id:cid, body, attachments: payloadAtts, mentioned_user_ids: mentioned||[], reply_to: replyId || null})});
     // Swap optimistic bubble for the real message (gives it an id → react/edit + status ticks).
     if(currentConv===cid && j && j.message){ const i=currentMsgs.findIndex(x=>x._tmpId===tmpId); if(i>=0){ currentMsgs[i]={...j.message, mine:true}; renderMessages(currentMsgs, true); } }
   }
   catch(e){
     const node = document.getElementById(tmpId); if(node) node.remove();
-    if(currentConv===cid && !inp.value.trim()){ inp.value = body; inp.style.height='auto'; }
+    if(currentConv===cid && body && !inp.value.trim()){ inp.value = body; inp.style.height='auto'; }
     alert('Message not sent: '+e.message+(body?'\nYour text was restored — tap send to try again.':''));
   }
 }
 document.getElementById('sendBtn').addEventListener('click', sendMessage);
 document.getElementById('attachBtn').addEventListener('click', ()=>document.getElementById('fileInput').click());
 document.getElementById('fileInput').addEventListener('change', e=>{ handleFiles(e.target.files); e.target.value=''; });
+// Drag-and-drop files onto the open conversation (like WhatsApp).
+(()=>{
+  const pane=document.getElementById('chatOpen'); const drop=document.getElementById('chatDrop'); let depth=0;
+  const hasFiles=e=>e.dataTransfer && Array.from(e.dataTransfer.types||[]).includes('Files');
+  pane.addEventListener('dragenter', e=>{ if(!currentConv||!hasFiles(e)) return; e.preventDefault(); depth++; drop.classList.add('show'); });
+  pane.addEventListener('dragover', e=>{ if(!currentConv||!hasFiles(e)) return; e.preventDefault(); e.dataTransfer.dropEffect='copy'; });
+  pane.addEventListener('dragleave', e=>{ if(!hasFiles(e)) return; depth=Math.max(0,depth-1); if(!depth) drop.classList.remove('show'); });
+  pane.addEventListener('drop', e=>{ if(!currentConv||!hasFiles(e)) return; e.preventDefault(); depth=0; drop.classList.remove('show'); if(e.dataTransfer.files && e.dataTransfer.files.length) handleFiles(e.dataTransfer.files); });
+})();
 document.getElementById('msgs').addEventListener('click', e=>{
   const row = e.target.closest && e.target.closest('.bubble-row'); const mid = row && row.dataset.mid ? Number(row.dataset.mid) : 0;
   if(selectMode){ const m = mid && currentMsgs.find(x=>x.id===mid); if(m && !m.deleted) toggleSelect(mid); return; }

@@ -140,7 +140,7 @@
       .mw-ct { font-size:0.62rem; color:#3e4668; }
       .mw-badge { background:#34d399; color:#04120b; border-radius:999px; min-width:17px; height:17px; padding:0 5px; font-size:0.64rem; font-weight:800; display:flex; align-items:center; justify-content:center; }
       .mw-empty { text-align:center; color:#3e4668; font-size:0.8rem; padding:30px 16px; }
-      .mw-thread { display:none; flex-direction:column; flex:1; min-height:0; }
+      .mw-thread { display:none; flex-direction:column; flex:1; min-height:0; position:relative; }
       .mw-thread.open { display:flex; }
       .mw-back { background:none; border:none; color:#7880a8; font-size:1.2rem; cursor:pointer; padding:0 4px; }
       .mw-msgs { flex:1; overflow-y:auto; padding:12px; display:flex; flex-direction:column; }
@@ -245,6 +245,10 @@
       .mw-file .mw-fname { font-size:0.82rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
       .mw-file .mw-fsz { font-size:0.7rem; color:#7880a8; }
       .mw-cn-pin { color:#8ea2ff; margin-right:4px; vertical-align:-1px; flex-shrink:0; }
+      .mw-drop { position:absolute; inset:0; z-index:30; display:none; align-items:center; justify-content:center; background:rgba(11,13,24,0.82); border:2px dashed #3a4a80; border-radius:14px; margin:6px; }
+      .mw-drop.show { display:flex; }
+      .mw-drop-inner { display:flex; flex-direction:column; align-items:center; gap:8px; color:#8ea2ff; font-weight:700; pointer-events:none; }
+      .mw-drop-inner svg { width:38px; height:38px; }
       .mw-iconbtn.on { color:#8ea2ff !important; background:#1a2140 !important; }
       .mw-confirm { position:fixed; inset:0; z-index:10070; background:rgba(0,0,0,0.55); display:flex; align-items:center; justify-content:center; padding:20px; }
       .mw-confirm-card { background:#1a1f30; border:1px solid #2a3150; border-radius:14px; padding:18px; max-width:300px; width:100%; box-shadow:0 20px 50px rgba(0,0,0,0.6); }
@@ -365,6 +369,7 @@
       <input class="mw-listsearch" id="mwListSearch" placeholder="Search messages & chats…">
       <div class="mw-scroll" id="mwList"><div class="mw-empty">Loading…</div></div>
       <div class="mw-thread" id="mwThread">
+        <div class="mw-drop" id="mwDrop"><div class="mw-drop-inner">${FILE_SVG}<span>Drop to attach</span></div></div>
         <div class="mw-head"><button class="mw-back" id="mwBack">‹</button><div class="mw-title" id="mwThreadTitle" style="font-size:0.88rem;flex:1;"></div><button class="mw-hbtn mw-iconbtn" id="mwPinBtn" title="Pin conversation" aria-label="Pin"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14l-1.6-2.6a2 2 0 0 1-.4-1.2V8a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2v5.2a2 2 0 0 1-.4 1.2L5 17z"/></svg></button><button class="mw-hbtn mw-iconbtn" id="mwFindBtn" title="Search in conversation" aria-label="Search"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button><button class="mw-x" id="mwClose2">×</button></div>
         <div class="mw-findbar" id="mwFindBar"><input id="mwFindInput" placeholder="Search this conversation…"><span class="mw-find-n" id="mwFindN"></span><button class="mw-find-nav" id="mwFindPrev">↑</button><button class="mw-find-nav" id="mwFindNext">↓</button><button class="mw-find-x" id="mwFindClose">✕</button></div>
         <div class="mw-msgs-wrap">
@@ -447,6 +452,16 @@
       renderList();
     });
     // In-thread find
+    // Drag-and-drop files onto the open thread (like WhatsApp).
+    (() => {
+      const thread = p.querySelector('#mwThread'); const drop = p.querySelector('#mwDrop');
+      let depth = 0;
+      const hasFiles = (e) => e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
+      thread.addEventListener('dragenter', (e) => { if (!curConv || !hasFiles(e)) return; e.preventDefault(); depth++; drop.classList.add('show'); });
+      thread.addEventListener('dragover', (e) => { if (!curConv || !hasFiles(e)) return; e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; });
+      thread.addEventListener('dragleave', (e) => { if (!hasFiles(e)) return; depth = Math.max(0, depth - 1); if (!depth) drop.classList.remove('show'); });
+      thread.addEventListener('drop', (e) => { if (!curConv || !hasFiles(e)) return; e.preventDefault(); depth = 0; drop.classList.remove('show'); if (e.dataTransfer.files && e.dataTransfer.files.length) handleFiles(e.dataTransfer.files); });
+    })();
     p.querySelector('#mwPinBtn').addEventListener('click', togglePin);
     p.querySelector('#mwFindBtn').addEventListener('click', toggleFind);
     p.querySelector('#mwFindClose').addEventListener('click', closeFind);
@@ -1048,13 +1063,21 @@
     const replyId = replyTarget ? replyTarget.id : null;
     const replyObj = replyTarget ? { id: replyTarget.id, sender_name: replyTarget.sender_name, snippet: replyTarget.snippet } : null;
     cancelReply();
+    // Each attachment is sent as its OWN message (its own Dropbox path + own 50 MB), never
+    // bundled — so multi-file sends behave like WhatsApp. Text/reply ride the first message.
+    if (ready.length > 1) {
+      for (let i = 0; i < ready.length; i++) {
+        await sendWith(i === 0 ? body : '', [ready[i]], i === 0 ? mentioned : [], i === 0 ? replyId : null, i === 0 ? replyObj : null);
+      }
+      return;
+    }
     return sendWith(body, ready, mentioned, replyId, replyObj);
   }
   async function sendWith(body, ready, mentioned, replyId, replyObj) {
     const inp = document.getElementById('mwInput');
     const cid = curConv; inp.value = ''; inp.style.height = 'auto';
     const nowIso = new Date().toISOString();
-    const tmpId = 'mw-tmp-' + nowIso.replace(/\D/g, '');
+    const tmpId = 'mw-tmp-' + nowIso.replace(/\D/g, '') + '-' + Math.round(Math.random() * 1e6);
     // Optimistic bubble reuses the local preview URLs so media shows instantly.
     const optAtts = ready.map(a => ({ kind: a.kind, mime: a.mime, name: a.name, _localUrl: a._localUrl }));
     appendMsg({ body, created_at: nowIso, mine: true, sender_id: me?.user_id, _tmpId: tmpId, attachments: optAtts, reply: replyObj || null });

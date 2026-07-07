@@ -16,6 +16,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v422', title: 'Messages — styled react icon + WhatsApp-style read receipts', items: [
+      'The react button is now a clean smiley icon that matches the rest of the UI (and shows in dark mode).',
+      'Each message footer now shows the full date and time.',
+      'Your sent messages show delivery status like WhatsApp: ✓ sent, ✓✓ delivered, and ✓✓ (green) once read.',
+    ]},
     { version: 'v421', title: 'Messages — clearer react/edit buttons + smoother updates', items: [
       'The react (🙂) and edit/delete (⋯) buttons now sit under every message and are always visible — no more hovering to find them (works on touch too).',
       'Reactions and edits update more smoothly — your own changes no longer flicker or momentarily double-count.',

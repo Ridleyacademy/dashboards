@@ -77,6 +77,22 @@
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const initials = (n) => String(n || '?').trim().split(/\s+/).map(w => w[0] || '').join('').slice(0, 2).toUpperCase() || '?';
   function fmtTime(t) { if (!t) return ''; const d = new Date(t), now = new Date(); return d.toDateString() === now.toDateString() ? d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); }
+  // Full date + time under a message (today → just time; this year → "Jul 7, 2:34 PM"; else include year).
+  function fmtStamp(t) {
+    if (!t) return ''; const d = new Date(t), now = new Date();
+    const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    if (d.toDateString() === now.toDateString()) return time;
+    const dateOpts = d.getFullYear() === now.getFullYear() ? { month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric', year: 'numeric' };
+    return d.toLocaleDateString('en-US', dateOpts) + ', ' + time;
+  }
+  // WhatsApp-style ticks on my own messages: sent ✓, delivered ✓✓, read ✓✓ (accent).
+  function statusHtml(m) {
+    if (!m.mine || !m.id) return '';
+    const s = m.status || 'sent';
+    if (s === 'read') return '<span class="mw-tick read" title="Read">✓✓</span>';
+    if (s === 'delivered') return '<span class="mw-tick" title="Delivered">✓✓</span>';
+    return '<span class="mw-tick" title="Sent">✓</span>';
+  }
 
   function styles() {
     if (document.getElementById('msgWidgetCss')) return;
@@ -168,6 +184,10 @@
       .mw-foot button { width:23px; height:23px; border-radius:50%; border:1px solid #272d45; background:#191e30; color:#aeb6da; cursor:pointer; font-size:0.82rem; line-height:1; display:flex; align-items:center; justify-content:center; padding:0; opacity:0.85; }
       .mw-foot button:hover { background:#232a41; color:#fff; opacity:1; }
       .mw-react-btn { font-size:0.9rem; }
+      .mw-react-btn svg { display:block; }
+      .mw-bt { text-align:left; }
+      .mw-tick { font-size:0.68rem; letter-spacing:-2px; color:#6b7398; margin-left:1px; }
+      .mw-tick.read { color:#34d399; }
       .mw-edited { font-size:0.6rem; color:#6b7398; margin-left:6px; }
       .mw-row.mine .mw-edited { color:#bdeeda; }
       .mw-bub.mw-del { background:#141827; border:1px dashed #272d45; color:#6b7398; font-style:italic; }
@@ -426,9 +446,10 @@
       const txt = m.body ? `<div class="mw-bub">${renderBody(m.body)}${m.edited ? '<span class="mw-edited">edited</span>' : ''}</div>` : '';
       inner = mediaHtml(m.attachments) + txt;
     }
-    const tools = (m.deleted || !m.id) ? '' : `<button class="mw-react-btn" title="React">🙂</button>${m.mine ? '<button class="mw-menu-btn" title="Edit or delete">⋯</button>' : ''}`;
+    const smileSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>';
+    const tools = (m.deleted || !m.id) ? '' : `<button class="mw-react-btn" title="React" aria-label="React">${smileSvg}</button>${m.mine ? '<button class="mw-menu-btn" title="Edit or delete">⋯</button>' : ''}`;
     const idAttr = m.id ? ` data-mid="${m.id}"` : '';
-    return `<div class="mw-row${m.mine ? ' mine' : ''}"${m._tmpId ? ` id="${m._tmpId}"` : ''}${idAttr}>${snd}${inner}${reactionChips(m)}<div class="mw-foot">${tools}<span class="mw-bt">${fmtTime(m.created_at)}</span></div></div>`;
+    return `<div class="mw-row${m.mine ? ' mine' : ''}"${m._tmpId ? ` id="${m._tmpId}"` : ''}${idAttr}>${snd}${inner}${reactionChips(m)}<div class="mw-foot">${tools}<span class="mw-bt">${fmtStamp(m.created_at)}</span>${statusHtml(m)}</div></div>`;
   }
   function renderMsgs(msgs, preserveScroll) {
     curMsgs = msgs;
@@ -604,7 +625,11 @@
     const preview = body || (ready.some(a => a.kind === 'video') ? '📷 Attachment' : '📷 Attachment');
     const conv = convs.find(c => c.id === cid);
     if (conv) { conv.last_message = { body: preview, sender_id: me?.user_id, sender_name: me?.name, created_at: nowIso }; conv.last_message_at = nowIso; convs.sort((a, b) => new Date(b.last_message_at) - new Date(a.last_message_at)); renderList(); }
-    try { await chatFetch('?api=send', { method: 'POST', body: JSON.stringify({ conversation_id: cid, body, attachments: payloadAtts, mentioned_user_ids: mentioned || [] }) }); }
+    try {
+      const j = await chatFetch('?api=send', { method: 'POST', body: JSON.stringify({ conversation_id: cid, body, attachments: payloadAtts, mentioned_user_ids: mentioned || [] }) });
+      // Swap the optimistic bubble for the real message (gives it an id → react/edit + status ticks).
+      if (curConv === cid && j && j.message) { const i = curMsgs.findIndex((x) => x._tmpId === tmpId); if (i >= 0) { curMsgs[i] = { ...j.message, mine: true }; renderMsgs(curMsgs, true); } }
+    }
     catch (e) {
       // Roll back the optimistic bubble and put the text back so nothing is silently lost.
       const node = document.getElementById(tmpId); if (node) node.remove();
@@ -654,6 +679,8 @@
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, (payload) => {
         const m = payload.new; if (!m) return;
         if (me && m.sender_id === me.user_id) return;
+        // Tell the sender it arrived (delivered ✓✓), even if we don't open the conversation.
+        chatFetch('?api=delivered', { method: 'POST', body: JSON.stringify({ conversation_id: m.conversation_id }) }).catch(() => {});
         if (panelOpen && m.conversation_id === curConv) {
           // The realtime payload carries only the message row, not its attachments — so if
           // it has media, re-fetch the thread to pull fresh view links; otherwise append.
@@ -678,6 +705,12 @@
         const row = payload.new || payload.old; if (!row || !panelOpen || row.conversation_id !== curConv) return;
         if (me && row.user_id === me.user_id) return;   // our own toggle is already applied optimistically — no refetch
         refreshThreadSoon();   // someone else reacted: pull fresh counts (debounced, preserves scroll)
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_members' }, (payload) => {
+        // Another member's read/delivered receipt moved → refresh my sent-message ticks.
+        const row = payload.new; if (!row || !panelOpen || row.conversation_id !== curConv) return;
+        if (me && row.user_id === me.user_id) return;
+        refreshThreadSoon();
       })
       .subscribe();
   }

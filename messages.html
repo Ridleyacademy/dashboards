@@ -155,6 +155,10 @@
   .msg-foot button { width:26px; height:26px; border-radius:50%; border:1px solid var(--border); background:var(--surface2); color:var(--text); cursor:pointer; font-size:0.9rem; line-height:1; display:flex; align-items:center; justify-content:center; padding:0; opacity:0.85; }
   .msg-foot button:hover { background:var(--surface); opacity:1; }
   .react-btn { font-size:1rem; }
+  .react-btn svg { display:block; }
+  .bubble-time { text-align:left; }
+  .tick { font-size:0.72rem; letter-spacing:-2px; color:var(--text-dim); margin-left:1px; }
+  .tick.read { color:#34d399; }
   .bubble-edited { font-size:0.64rem; color:var(--text-dim); margin-left:7px; }
   .bubble-row.mine .bubble-edited { color:#cdeee0; }
   .bubble.deleted { background:var(--surface); border:1px dashed var(--border); color:var(--text-dim); font-style:italic; }
@@ -335,6 +339,22 @@ function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;',
 function initials(n){ return String(n||'?').trim().split(/\s+/).map(w=>w[0]||'').join('').slice(0,2).toUpperCase() || '?'; }
 function fmtTime(t){ if(!t) return ''; const d=new Date(t), now=new Date(); const sameDay=d.toDateString()===now.toDateString();
   return sameDay ? d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : d.toLocaleDateString('en-US',{month:'short',day:'numeric'}); }
+// Full date + time under a message (today → time; this year → "Jul 7, 2:34 PM"; else include year).
+function fmtStamp(t){
+  if(!t) return ''; const d=new Date(t), now=new Date();
+  const time=d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+  if(d.toDateString()===now.toDateString()) return time;
+  const opts = d.getFullYear()===now.getFullYear() ? {month:'short',day:'numeric'} : {month:'short',day:'numeric',year:'numeric'};
+  return d.toLocaleDateString('en-US',opts)+', '+time;
+}
+// WhatsApp-style ticks on my own messages: sent ✓, delivered ✓✓, read ✓✓ (accent).
+function statusHtml(m){
+  if(!m.mine || !m.id) return '';
+  const s = m.status || 'sent';
+  if(s==='read') return '<span class="tick read" title="Read">✓✓</span>';
+  if(s==='delivered') return '<span class="tick" title="Delivered">✓✓</span>';
+  return '<span class="tick" title="Sent">✓</span>';
+}
 
 // Safari drops keep-alive connections when a tab sits idle; the first fetch after that
 // rejects at the network layer with "Load failed" (a TypeError, NOT an HTTP status).
@@ -548,9 +568,10 @@ function bubbleHtml(m, showSender){
     const txt = m.body?`<div class="bubble">${renderBody(m.body)}${m.edited?'<span class="bubble-edited">edited</span>':''}</div>`:'';
     inner = mediaHtml(m.attachments)+txt;
   }
-  const tools = (m.deleted || !m.id)?'':`<button class="react-btn" title="React">🙂</button>${m.mine?'<button class="menu-btn" title="Edit or delete">⋯</button>':''}`;
+  const smileSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>';
+  const tools = (m.deleted || !m.id)?'':`<button class="react-btn" title="React" aria-label="React">${smileSvg}</button>${m.mine?'<button class="menu-btn" title="Edit or delete">⋯</button>':''}`;
   const idAttr = m.id?` data-mid="${m.id}"`:'';
-  return `<div class="bubble-row${m.mine?' mine':''}"${m._tmpId?` id="${m._tmpId}"`:''}${idAttr}>${snd}${inner}${reactionChips(m)}<div class="msg-foot">${tools}<span class="bubble-time">${fmtTime(m.created_at)}</span></div></div>`;
+  return `<div class="bubble-row${m.mine?' mine':''}"${m._tmpId?` id="${m._tmpId}"`:''}${idAttr}>${snd}${inner}${reactionChips(m)}<div class="msg-foot">${tools}<span class="bubble-time">${fmtStamp(m.created_at)}</span>${statusHtml(m)}</div></div>`;
 }
 function renderMessages(msgs, preserveScroll){
   currentMsgs = msgs;
@@ -723,7 +744,11 @@ async function sendMessage(){
   const preview = body || '📷 Attachment';
   const conv = conversations.find(c=>c.id===cid);
   if(conv){ conv.last_message={ body: preview, sender_id: me?.user_id, sender_name: me?.name, created_at: nowIso }; conv.last_message_at=nowIso; conversations.sort((a,b)=>new Date(b.last_message_at)-new Date(a.last_message_at)); renderConvList(); }
-  try { await chatFetch('?api=send',{method:'POST',body:JSON.stringify({conversation_id:cid, body, attachments: payloadAtts, mentioned_user_ids: mentioned})}); }
+  try {
+    const j = await chatFetch('?api=send',{method:'POST',body:JSON.stringify({conversation_id:cid, body, attachments: payloadAtts, mentioned_user_ids: mentioned})});
+    // Swap optimistic bubble for the real message (gives it an id → react/edit + status ticks).
+    if(currentConv===cid && j && j.message){ const i=currentMsgs.findIndex(x=>x._tmpId===tmpId); if(i>=0){ currentMsgs[i]={...j.message, mine:true}; renderMessages(currentMsgs, true); } }
+  }
   catch(e){
     const node = document.getElementById(tmpId); if(node) node.remove();
     if(currentConv===cid && !inp.value.trim()){ inp.value = body; inp.style.height='auto'; }
@@ -769,6 +794,8 @@ function subscribeRealtime(){
     .on('postgres_changes', { event:'INSERT', schema:'public', table:'chat_messages' }, (payload)=>{
       const m = payload.new; if(!m) return;
       if(me && m.sender_id===me.user_id) return; // our own send is handled optimistically
+      // Tell the sender it arrived (delivered ✓✓), even if we don't open the conversation.
+      chatFetch('?api=delivered',{method:'POST',body:JSON.stringify({conversation_id:m.conversation_id})}).catch(()=>{});
       if(m.conversation_id===currentConv){
         // Realtime payload carries only the message row, not its attachments — refetch the
         // thread when it has media so the view links come through; otherwise just append.
@@ -793,6 +820,12 @@ function subscribeRealtime(){
     .on('postgres_changes', { event:'*', schema:'public', table:'chat_reactions' }, (payload)=>{
       const row = payload.new || payload.old; if(!row || row.conversation_id!==currentConv) return;
       if(me && row.user_id===me.user_id) return;   // our own toggle already applied optimistically — no refetch
+      refreshThreadSoon();
+    })
+    .on('postgres_changes', { event:'UPDATE', schema:'public', table:'chat_members' }, (payload)=>{
+      // Another member's read/delivered receipt moved → refresh my sent-message ticks.
+      const row = payload.new; if(!row || row.conversation_id!==currentConv) return;
+      if(me && row.user_id===me.user_id) return;
       refreshThreadSoon();
     })
     .subscribe();

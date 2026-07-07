@@ -18,6 +18,7 @@
   let selectedIds = new Set();
   let readCutoff = null;     // caller's last_read_at when the thread was opened (for the unread divider)
   let listQuery = '';        // conversation-list search text
+  let searchResults = [], searchT = null, jumpToMid = null;   // message-content search results + pending scroll target
   let findMatches = [], findIdx = -1;   // in-thread find state
   let typingCh = null, lastTypingSent = 0, typingHideT = null;   // per-conversation typing broadcast
   const mentionPicked = new Map();   // id -> name for @mentions chosen while composing
@@ -273,6 +274,9 @@
       /* conversation-list search */
       .mw-listsearch { margin:8px 12px; background:#0f1120; border:1px solid #1f2438; color:#eaecf8; border-radius:9px; padding:8px 11px; font-size:0.82rem; outline:none; }
       .mw-listsearch:focus { border-color:#2a3350; }
+      .mw-seclabel { padding:8px 14px 4px; font-size:0.66rem; font-weight:800; text-transform:uppercase; letter-spacing:0.05em; color:#7880a8; }
+      .mw-msghit .mw-cp { white-space:normal; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+      .mw-mk { background:rgba(52,211,153,0.32); color:#eafff5; border-radius:3px; padding:0 1px; }
       /* thread body wrapper (for typing + jump overlays) */
       .mw-msgs-wrap { flex:1; min-height:0; position:relative; display:flex; flex-direction:column; }
       /* in-thread find bar */
@@ -403,7 +407,12 @@
     p.querySelector('#mwSelFwd').addEventListener('click', () => { if (selectedIds.size) openForwardPicker([...selectedIds]); });
     p.querySelector('#mwMentions').addEventListener('click', (e) => { const r = e.target.closest('.mw-mrow'); if (r) insertMention(r.dataset.mid, r.dataset.name); });
     // Conversation-list search
-    p.querySelector('#mwListSearch').addEventListener('input', (e) => { listQuery = e.target.value.trim().toLowerCase(); renderList(); });
+    p.querySelector('#mwListSearch').addEventListener('input', (e) => {
+      listQuery = e.target.value.trim().toLowerCase(); renderList();
+      clearTimeout(searchT);
+      if (listQuery.length >= 2) searchT = setTimeout(runListSearch, 250);
+      else { searchResults = []; }
+    });
     // In-thread find
     p.querySelector('#mwFindBtn').addEventListener('click', toggleFind);
     p.querySelector('#mwFindClose').addEventListener('click', closeFind);
@@ -467,25 +476,51 @@
     const dot = document.getElementById('mwDot'); if (!dot) return;
     if (total > 0) { dot.textContent = total > 99 ? '99+' : total; dot.style.display = 'flex'; } else dot.style.display = 'none';
   }
+  // Highlight the query inside an (escaped) string.
+  function hlMatch(text, q) {
+    const h = esc(text || '');
+    if (!q) return h;
+    try { return h.replace(new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'ig'), '<mark class="mw-mk">$1</mark>'); } catch (_) { return h; }
+  }
+  async function runListSearch() {
+    const q = listQuery; if (q.length < 2) { searchResults = []; renderList(); return; }
+    try { const j = await chatFetch('?api=search&q=' + encodeURIComponent(q)); if (listQuery === q) { searchResults = j.results || []; renderList(); } } catch (_) {}
+  }
+  function convRow(c) {
+    const isG = c.type === 'group';
+    const prev = c.last_message ? ((isG && c.last_message.sender_name ? c.last_message.sender_name + ': ' : '') + c.last_message.body) : 'No messages yet';
+    return `<div class="mw-conv${c.unread ? ' unread' : ''}" data-c="${c.id}"><div class="mw-av${isG ? ' grp' : ''}">${isG ? '#' : esc(initials(c.title))}</div>
+      <div class="mw-cm"><div class="mw-cn">${esc(c.title)}</div><div class="mw-cp">${esc(prev).slice(0, 70)}</div></div>
+      <div class="mw-cr"><span class="mw-ct">${fmtTime(c.last_message_at)}</span>${c.unread ? `<span class="mw-badge">${c.unread > 99 ? '99+' : c.unread}</span>` : ''}</div></div>`;
+  }
   function renderList() {
     const el = document.getElementById('mwList'); if (!el) return;
     if (!convs.length) { el.innerHTML = '<div class="mw-empty">No conversations yet.<br>Tap “✉ New” to start one.</div>'; return; }
-    const shown = listQuery
-      ? convs.filter(c => String(c.title || '').toLowerCase().includes(listQuery) || (c.members || []).some(m => String(m.name || '').toLowerCase().includes(listQuery)))
-      : convs;
-    if (!shown.length) { el.innerHTML = `<div class="mw-empty">No conversations match “${esc(listQuery)}”.</div>`; return; }
-    el.innerHTML = shown.map(c => {
-      const isG = c.type === 'group';
-      const prev = c.last_message ? ((isG && c.last_message.sender_name ? c.last_message.sender_name + ': ' : '') + c.last_message.body) : 'No messages yet';
-      return `<div class="mw-conv${c.unread ? ' unread' : ''}" data-c="${c.id}"><div class="mw-av${isG ? ' grp' : ''}">${isG ? '#' : esc(initials(c.title))}</div>
-        <div class="mw-cm"><div class="mw-cn">${esc(c.title)}</div><div class="mw-cp">${esc(prev).slice(0, 70)}</div></div>
-        <div class="mw-cr"><span class="mw-ct">${fmtTime(c.last_message_at)}</span>${c.unread ? `<span class="mw-badge">${c.unread > 99 ? '99+' : c.unread}</span>` : ''}</div></div>`;
-    }).join('');
-    el.querySelectorAll('[data-c]').forEach(r => r.addEventListener('click', () => openConv(Number(r.dataset.c))));
+    if (!listQuery) {
+      el.innerHTML = convs.map(convRow).join('');
+      el.querySelectorAll('[data-c]').forEach(r => r.addEventListener('click', () => openConv(Number(r.dataset.c))));
+      return;
+    }
+    // Search mode: chats matching by name, then messages matching by content.
+    const chatHits = convs.filter(c => String(c.title || '').toLowerCase().includes(listQuery) || (c.members || []).some(m => String(m.name || '').toLowerCase().includes(listQuery)));
+    let html = '';
+    if (chatHits.length) html += `<div class="mw-seclabel">Chats</div>` + chatHits.map(convRow).join('');
+    if (searchResults.length) {
+      html += `<div class="mw-seclabel">Messages</div>` + searchResults.map(r => `
+        <div class="mw-conv mw-msghit" data-c="${r.conversation_id}" data-mid="${r.message_id}">
+          <div class="mw-av${''}">${esc(initials(r.conversation_title))}</div>
+          <div class="mw-cm"><div class="mw-cn">${esc(r.conversation_title)}</div><div class="mw-cp">${(r.mine ? 'You: ' : (esc(r.sender_name) + ': '))}${hlMatch(r.snippet, listQuery)}</div></div>
+          <div class="mw-cr"><span class="mw-ct">${fmtTime(r.created_at)}</span></div></div>`).join('');
+    }
+    if (!html) html = `<div class="mw-empty">No matches for “${esc(listQuery)}”.</div>`;
+    el.innerHTML = html;
+    el.querySelectorAll('.mw-msghit').forEach(r => r.addEventListener('click', () => openConv(Number(r.dataset.c), Number(r.dataset.mid))));
+    el.querySelectorAll('.mw-conv:not(.mw-msghit)').forEach(r => r.addEventListener('click', () => openConv(Number(r.dataset.c))));
   }
 
-  async function openConv(id) {
+  async function openConv(id, jumpMid) {
     curConv = id; const conv = convs.find(c => c.id === id);
+    jumpToMid = jumpMid || null;
     resetAtts(); cancelEdit(); cancelReply(); closePopups(); closeFind();
     selectMode = false; selectedIds = new Set(); updateSelectBar();
     subscribeTyping(id); hideTyping();
@@ -497,6 +532,7 @@
       readCutoff = j.read_cutoff || null;
       renderMsgs(j.messages || []);
       if (conv) { conv.unread = 0; renderList(); updateBadge(); }
+      if (jumpToMid) { const t = document.querySelector(`#mwMsgs .mw-row[data-mid="${jumpToMid}"]`); if (t) { t.scrollIntoView({ block: 'center' }); t.classList.add('mw-flash'); setTimeout(() => t.classList.remove('mw-flash'), 1400); } jumpToMid = null; }
     } catch (e) { mEl.innerHTML = `<div class="mw-empty">${esc(e.message)}</div>`; }
     setTimeout(() => { document.getElementById('mwInput').focus(); updateJumpBtn(); }, 40);
   }

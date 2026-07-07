@@ -680,7 +680,7 @@
       if (!src) return '';
       const nm = esc(a.name || (a.kind === 'video' ? 'video' : 'image'));
       if (a.kind === 'video') return `<div class="mw-mtile mw-loading" data-full="${esc(src)}" data-kind="video" data-name="${nm}"><video class="mw-mvid" src="${esc(src)}#t=0.1" preload="metadata" muted playsinline></video><div class="mw-play">▶</div></div>`;
-      if (a.kind === 'audio' || (a.mime || '').startsWith('audio/')) return `<audio class="mw-aud" controls preload="metadata" data-aud="${esc(src)}"></audio>`;
+      if (a.kind === 'audio' || (a.mime || '').startsWith('audio/')) return `<audio class="mw-aud" controls preload="metadata" data-aud="${esc(src)}" data-aud-type="${esc(a.mime || 'audio/wav')}"></audio>`;
       if (a.kind === 'file') { const sz = fmtBytes(a.size); return `<div class="mw-file" data-full="${esc(src)}" data-kind="file" data-name="${nm}" data-mime="${esc(a.mime || '')}"><span class="mw-fico">${FILE_SVG}</span><span class="mw-fmeta"><span class="mw-fname">${nm}</span>${sz ? `<span class="mw-fsz">${sz}</span>` : ''}</span></div>`; }
       return `<img class="mw-mimg mw-loading" src="${esc(src)}" loading="lazy" data-full="${esc(src)}" data-kind="image" data-name="${nm}" alt="${nm}">`;
     }).join('');
@@ -805,12 +805,12 @@
   async function hydrateAudio(el) {
     if (!el) return;
     for (const a of [...el.querySelectorAll('audio[data-aud]')]) {
-      const url = a.getAttribute('data-aud'); a.removeAttribute('data-aud');
+      const url = a.getAttribute('data-aud'); const type = a.getAttribute('data-aud-type') || 'audio/wav'; a.removeAttribute('data-aud');
       const cached = audioBlobCache.get(url);
       if (cached) { a.src = cached; continue; }
       try {
         const r = await fetch(url); const b = await r.blob();
-        const blob = /audio|video/.test(b.type) ? b : new Blob([b], { type: 'audio/webm' });
+        const blob = /^(audio|video)\//.test(b.type) ? b : new Blob([b], { type });
         const u = URL.createObjectURL(blob); audioBlobCache.set(url, u); a.src = u;
       } catch (_) { a.src = url; }   // fall back to the direct link
     }

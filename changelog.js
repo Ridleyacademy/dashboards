@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v449', title: 'Messages — voice note audio fix', items: [
+      'Fixed voice notes playing back silently — the player now loads them with the correct audio type.',
+    ]},
     { version: 'v448', title: 'Messages — voice notes play in every browser', items: [
       'Voice messages now record in a universal format, so they play on Safari, Chrome, and phones alike — no more silent notes between different browsers.',
     ]},

@@ -11,7 +11,11 @@
   const CHAT_BASE = SUPABASE_URL + '/functions/v1/chat';
 
   let mSupa = null, me = null, convs = [], usersCache = [], curConv = null, channel = null, panelOpen = false;
+  let curMsgs = [];          // messages currently rendered in the open thread (for reaction/edit updates)
+  let editingId = null;      // message id being edited (composer is in edit mode)
+  const mentionPicked = new Map();   // id -> name for @mentions chosen while composing
   const nameById = {};
+  const REACTIONS = ['👍', '❤️', '😂', '🎉', '😮', '😢'];
 
   function ensureSupa() {
     if (mSupa) return mSupa;
@@ -113,7 +117,7 @@
       .mw-row.mine .mw-bub { background:linear-gradient(135deg,#2c7a5a,#22b07d); border-color:transparent; color:#eafff5; }
       .mw-snd { font-size:0.66rem; font-weight:700; color:#a78bfa; margin:0 3px 2px; }
       .mw-bt { font-size:0.58rem; color:#3e4668; margin:2px 3px 0; text-align:right; }
-      .mw-comp { display:flex; gap:8px; padding:10px 12px; border-top:1px solid #1f2438; flex-shrink:0; align-items:flex-end; }
+      .mw-comp { display:flex; gap:8px; padding:10px 12px; border-top:1px solid #1f2438; flex-shrink:0; align-items:flex-end; position:relative; }
       .mw-comp textarea { flex:1; background:#0f1120; border:1px solid #1f2438; color:#eaecf8; border-radius:10px; padding:9px 11px; font-size:0.86rem; outline:none; resize:none; max-height:110px; font-family:inherit; line-height:1.35; }
       .mw-comp button { background:linear-gradient(135deg,#34d399,#22b07d); border:none; color:#fff; border-radius:10px; width:38px; height:38px; flex-shrink:0; cursor:pointer; display:flex; align-items:center; justify-content:center; }
       .mw-pick { position:absolute; inset:0; background:#13141f; z-index:5; display:none; flex-direction:column; }
@@ -157,6 +161,41 @@
       .mw-lb-bar { position:absolute; top:14px; right:14px; z-index:2; display:flex; gap:10px; }
       .mw-lb-btn { background:rgba(255,255,255,0.16); color:#fff; border:none; border-radius:9px; padding:9px 13px; font-size:0.85rem; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:6px; }
       .mw-lb-btn:hover { background:rgba(255,255,255,0.3); }
+      /* message hover tools (react / edit-delete) */
+      .mw-row { position:relative; }
+      .mw-tools { position:absolute; top:-2px; display:none; gap:2px; z-index:2; }
+      .mw-row:not(.mine) .mw-tools { right:-2px; flex-direction:row-reverse; }
+      .mw-row.mine .mw-tools { left:-2px; }
+      .mw-row:hover .mw-tools { display:flex; }
+      .mw-tools button { width:24px; height:24px; border-radius:50%; border:1px solid #272d45; background:#191e30; color:#9aa3c8; cursor:pointer; font-size:0.82rem; line-height:1; display:flex; align-items:center; justify-content:center; padding:0; }
+      .mw-tools button:hover { background:#232a41; color:#eaecf8; }
+      .mw-edited { font-size:0.6rem; color:#6b7398; margin-left:6px; }
+      .mw-row.mine .mw-edited { color:#bdeeda; }
+      .mw-bub.mw-del { background:#141827; border:1px dashed #272d45; color:#6b7398; font-style:italic; }
+      .mw-mention { color:#a78bfa; font-weight:700; }
+      .mw-row.mine .mw-mention { color:#dfe7ff; }
+      /* reaction chips */
+      .mw-rx { display:flex; flex-wrap:wrap; gap:4px; margin:3px 2px 0; }
+      .mw-row.mine .mw-rx { justify-content:flex-end; }
+      .mw-rchip { background:#191e30; border:1px solid #272d45; color:#c7cdec; border-radius:11px; padding:1px 7px; font-size:0.72rem; cursor:pointer; line-height:1.5; }
+      .mw-rchip.mine { background:#243a52; border-color:#3b6ea5; color:#dbeafe; }
+      .mw-rchip:hover { border-color:#4b567e; }
+      /* floating popup (emoji palette / edit-delete menu) */
+      .mw-pop { position:fixed; z-index:10060; background:#1a1f30; border:1px solid #2a3150; border-radius:11px; box-shadow:0 10px 30px rgba(0,0,0,0.5); padding:5px; display:flex; gap:3px; }
+      .mw-rxopt { background:none; border:none; font-size:1.15rem; cursor:pointer; border-radius:8px; padding:3px 5px; line-height:1; }
+      .mw-rxopt:hover { background:#252c44; transform:scale(1.15); }
+      .mw-pop.menu { flex-direction:column; gap:1px; padding:4px; }
+      .mw-mi { background:none; border:none; color:#c7cdec; text-align:left; padding:7px 13px; border-radius:7px; cursor:pointer; font-size:0.82rem; white-space:nowrap; }
+      .mw-mi:hover { background:#252c44; color:#eaecf8; }
+      .mw-mi.del:hover { background:#3a1f24; color:#ff9a9a; }
+      /* @mention autocomplete */
+      .mw-mentions { position:absolute; left:12px; right:12px; bottom:100%; margin-bottom:4px; background:#1a1f30; border:1px solid #2a3150; border-radius:10px; box-shadow:0 -6px 22px rgba(0,0,0,0.45); max-height:180px; overflow-y:auto; display:none; z-index:6; }
+      .mw-mentions.open { display:block; }
+      .mw-mrow { padding:8px 12px; cursor:pointer; font-size:0.84rem; color:#dfe3f5; display:flex; align-items:center; gap:8px; }
+      .mw-mrow:hover, .mw-mrow.active { background:#252c44; }
+      .mw-editbar { display:none; align-items:center; gap:8px; padding:6px 12px; background:#141827; border-top:1px solid #1f2438; font-size:0.76rem; color:#9aa3c8; }
+      .mw-editbar.open { display:flex; }
+      .mw-editbar button { margin-left:auto; background:none; border:none; color:#f2a9a9; cursor:pointer; font-size:0.76rem; font-weight:700; }
     `;
     document.head.appendChild(css);
   }
@@ -188,8 +227,10 @@
       <div class="mw-thread" id="mwThread">
         <div class="mw-head"><button class="mw-back" id="mwBack">‹</button><div class="mw-title" id="mwThreadTitle" style="font-size:0.88rem;"></div><button class="mw-x" id="mwClose2">×</button></div>
         <div class="mw-msgs" id="mwMsgs"></div>
+        <div class="mw-editbar" id="mwEditBar">✎ Editing message<button id="mwEditCancel">Cancel</button></div>
         <div class="mw-attstrip" id="mwAttStrip"></div>
         <div class="mw-comp">
+          <div class="mw-mentions" id="mwMentions"></div>
           <input type="file" id="mwFile" accept="image/*,video/*" multiple style="display:none">
           <button id="mwAttach" class="mw-attbtn" title="Attach photo or video"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></button>
           <textarea id="mwInput" rows="1" placeholder="Message…"></textarea>
@@ -214,19 +255,45 @@
     p.querySelector('#mwSend').addEventListener('click', send);
     p.querySelector('#mwAttach').addEventListener('click', () => document.getElementById('mwFile').click());
     p.querySelector('#mwFile').addEventListener('change', (e) => { handleFiles(e.target.files); e.target.value = ''; });
-    // Tap an image or video tile to expand it in the in-app lightbox.
+    // Thread click: media lightbox, reaction chips, react/edit-delete tool buttons.
     p.querySelector('#mwMsgs').addEventListener('click', (e) => {
-      const el = e.target.closest && e.target.closest('img.mw-mimg, .mw-mtile'); if (!el) return;
-      const full = el.getAttribute('data-full'); if (full) openLightbox(full, el.getAttribute('data-kind'), el.getAttribute('data-name'));
+      const media = e.target.closest && e.target.closest('img.mw-mimg, .mw-mtile');
+      if (media) { const full = media.getAttribute('data-full'); if (full) openLightbox(full, media.getAttribute('data-kind'), media.getAttribute('data-name')); return; }
+      const row = e.target.closest && e.target.closest('.mw-row'); const mid = row && row.dataset.mid ? Number(row.dataset.mid) : 0;
+      const chip = e.target.closest && e.target.closest('.mw-rchip');
+      if (chip && mid) { toggleReaction(mid, chip.dataset.emoji); return; }
+      const rbtn = e.target.closest && e.target.closest('.mw-react-btn');
+      if (rbtn && mid) { showPop(REACTIONS.map(em => `<button class="mw-rxopt" data-emoji="${em}">${em}</button>`).join(''), rbtn, '', (ev) => { const b = ev.target.closest('.mw-rxopt'); if (!b) return; closePopups(); toggleReaction(mid, b.dataset.emoji); }); return; }
+      const mbtn = e.target.closest && e.target.closest('.mw-menu-btn');
+      if (mbtn && mid) { showPop('<button class="mw-mi" data-act="edit">✎ Edit</button><button class="mw-mi del" data-act="del">🗑 Delete</button>', mbtn, 'menu', (ev) => { const b = ev.target.closest('.mw-mi'); if (!b) return; closePopups(); if (b.dataset.act === 'edit') startEdit(mid); else doDelete(mid); }); return; }
     });
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeLightbox(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeLightbox(); closePopups(); } });
+    p.querySelector('#mwEditCancel').addEventListener('click', cancelEdit);
+    p.querySelector('#mwMentions').addEventListener('click', (e) => { const r = e.target.closest('.mw-mrow'); if (r) insertMention(r.dataset.mid, r.dataset.name); });
     p.querySelector('#mwSearch').addEventListener('input', e => renderPicker(e.target.value));
     p.querySelector('#mwPickGo').addEventListener('click', pickerConfirm);
     const inp = p.querySelector('#mwInput');
-    inp.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
-    inp.addEventListener('input', function () { this.style.height = 'auto'; this.style.height = Math.min(this.scrollHeight, 110) + 'px'; });
+    inp.addEventListener('keydown', e => {
+      const box = document.getElementById('mwMentions');
+      if (box.classList.contains('open')) {
+        const rows = [...box.querySelectorAll('.mw-mrow')]; let ai = rows.findIndex(r => r.classList.contains('active'));
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); if (!rows.length) return; rows[ai < 0 ? 0 : ai]?.classList.remove('active'); ai = e.key === 'ArrowDown' ? (ai + 1) % rows.length : (ai - 1 + rows.length) % rows.length; rows[ai].classList.add('active'); return; }
+        if (e.key === 'Enter') { e.preventDefault(); const r = rows[ai < 0 ? 0 : ai]; if (r) insertMention(r.dataset.mid, r.dataset.name); return; }
+        if (e.key === 'Escape') { box.classList.remove('open'); return; }
+      }
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+    });
+    inp.addEventListener('input', function () { this.style.height = 'auto'; this.style.height = Math.min(this.scrollHeight, 110) + 'px'; updateMentionBox(); });
+    inp.addEventListener('click', updateMentionBox);
     // close on outside click
-    document.addEventListener('click', (e) => { if (!panelOpen) return; if (lightboxOpen()) return; const lb = document.getElementById('mwLb'); if (lb && lb.contains(e.target)) return; const pn = document.getElementById('msgWidgetPanel'); const bt = document.getElementById('msgWidgetBtn'); if (pn && !pn.contains(e.target) && bt && !bt.contains(e.target)) closePanel(); });
+    document.addEventListener('click', (e) => {
+      if (!panelOpen) return; if (lightboxOpen()) return;
+      const pop = document.getElementById('mwPop'); if (pop && pop.contains(e.target)) return;
+      if (pop && !e.target.closest('.mw-react-btn, .mw-menu-btn')) closePopups();
+      const lb = document.getElementById('mwLb'); if (lb && lb.contains(e.target)) return;
+      const pn = document.getElementById('msgWidgetPanel'); const bt = document.getElementById('msgWidgetBtn');
+      if (pn && !pn.contains(e.target) && bt && !bt.contains(e.target)) closePanel();
+    });
   }
 
   function togglePanel() { panelOpen ? closePanel() : openPanel(); }
@@ -266,7 +333,7 @@
 
   async function openConv(id) {
     curConv = id; const conv = convs.find(c => c.id === id);
-    resetAtts();
+    resetAtts(); cancelEdit(); closePopups();
     showThread();
     document.getElementById('mwThreadTitle').textContent = conv ? conv.title : 'Conversation';
     const mEl = document.getElementById('mwMsgs'); mEl.innerHTML = '<div class="mw-empty">Loading…</div>';
@@ -338,22 +405,126 @@
     lb.querySelector('#mwLbDl').onclick = () => downloadMedia(url, name);
     lb.classList.add('open');
   }
+  // Highlight @mentions of known conversation members inside an (already-escaped) body.
+  function renderBody(text) {
+    let h = esc(text);
+    const conv = convs.find(c => c.id === curConv);
+    const names = [...(conv && conv.members || []).map(mm => mm.name), me && me.name].filter(Boolean);
+    names.sort((a, b) => b.length - a.length);   // longest first so "Ann Marie" beats "Ann"
+    for (const nm of names) { const e = esc(nm); h = h.split('@' + e).join(`<span class="mw-mention">@${e}</span>`); }
+    return h;
+  }
+  function reactionChips(m) {
+    if (!m.reactions || !m.reactions.length) return '';
+    return `<div class="mw-rx">${m.reactions.map(r => `<button class="mw-rchip${r.mine ? ' mine' : ''}" data-emoji="${esc(r.emoji)}">${esc(r.emoji)} ${r.count}</button>`).join('')}</div>`;
+  }
   function bubble(m, isG) {
     const snd = (!m.mine && isG) ? `<div class="mw-snd">${esc(m.sender_name || nameById[m.sender_id] || '')}</div>` : '';
-    const txt = m.body ? `<div class="mw-bub">${esc(m.body)}</div>` : '';
-    return `<div class="mw-row${m.mine ? ' mine' : ''}"${m._tmpId ? ` id="${m._tmpId}"` : ''}>${snd}${mediaHtml(m.attachments)}${txt}<div class="mw-bt">${fmtTime(m.created_at)}</div></div>`;
+    let inner;
+    if (m.deleted) {
+      inner = `<div class="mw-bub mw-del">🚫 message deleted</div>`;
+    } else {
+      const txt = m.body ? `<div class="mw-bub">${renderBody(m.body)}${m.edited ? '<span class="mw-edited">edited</span>' : ''}</div>` : '';
+      inner = mediaHtml(m.attachments) + txt;
+    }
+    const tools = (m.deleted || !m.id) ? '' : `<div class="mw-tools">${m.mine ? '<button class="mw-menu-btn" title="Edit or delete">⋯</button>' : ''}<button class="mw-react-btn" title="React">☺</button></div>`;
+    const idAttr = m.id ? ` data-mid="${m.id}"` : '';
+    return `<div class="mw-row${m.mine ? ' mine' : ''}"${m._tmpId ? ` id="${m._tmpId}"` : ''}${idAttr}>${snd}${tools}${inner}${reactionChips(m)}<div class="mw-bt">${fmtTime(m.created_at)}</div></div>`;
   }
-  function renderMsgs(msgs) {
+  function renderMsgs(msgs, preserveScroll) {
+    curMsgs = msgs;
     const conv = convs.find(c => c.id === curConv); const isG = conv && conv.type === 'group';
     const el = document.getElementById('mwMsgs');
+    const prevTop = el.scrollTop, atBottom = el.scrollHeight - prevTop - el.clientHeight < 40;
     el.innerHTML = msgs.length ? msgs.map(m => bubble(m, isG)).join('') : '<div class="mw-empty">No messages yet — say hi 👋</div>';
     wireMediaSkeletons(el);
-    el.scrollTop = el.scrollHeight;
+    if (preserveScroll && !atBottom) el.scrollTop = prevTop; else el.scrollTop = el.scrollHeight;
   }
   function appendMsg(m) {
     const conv = convs.find(c => c.id === curConv); const isG = conv && conv.type === 'group';
     const el = document.getElementById('mwMsgs'); const e = el.querySelector('.mw-empty'); if (e) el.innerHTML = '';
+    curMsgs.push(m);
     el.insertAdjacentHTML('beforeend', bubble(m, isG)); wireMediaSkeletons(el); el.scrollTop = el.scrollHeight;
+  }
+
+  // ── Reactions, edit, delete ──────────────────────────────────────────────
+  function closePopups() { const p = document.getElementById('mwPop'); if (p) p.remove(); }
+  function showPop(html, anchor, cls, onclick) {
+    closePopups();
+    const p = document.createElement('div'); p.id = 'mwPop'; p.className = 'mw-pop' + (cls ? ' ' + cls : ''); p.innerHTML = html;
+    document.body.appendChild(p);
+    const r = anchor.getBoundingClientRect(); const pw = p.offsetWidth, ph = p.offsetHeight;
+    let left = r.left, top = r.bottom + 6;
+    if (left + pw > window.innerWidth - 8) left = window.innerWidth - 8 - pw;
+    if (top + ph > window.innerHeight - 8) top = r.top - ph - 6;
+    p.style.left = Math.max(8, left) + 'px'; p.style.top = Math.max(8, top) + 'px';
+    p.addEventListener('click', onclick);
+  }
+  async function toggleReaction(mid, emoji) {
+    const m = curMsgs.find(x => x.id === mid); if (!m) return;
+    m.reactions = m.reactions || [];
+    const ex = m.reactions.find(r => r.emoji === emoji);
+    if (ex && ex.mine) { ex.count--; ex.mine = false; if (ex.count <= 0) m.reactions = m.reactions.filter(r => r !== ex); }
+    else if (ex) { ex.count++; ex.mine = true; }
+    else m.reactions.push({ emoji, count: 1, mine: true });
+    renderMsgs(curMsgs, true);
+    try { await chatFetch('?api=react', { method: 'POST', body: JSON.stringify({ message_id: mid, emoji }) }); }
+    catch (e) { refreshThreadSoon(); }
+  }
+  function startEdit(mid) {
+    const m = curMsgs.find(x => x.id === mid); if (!m || m.deleted) return;
+    editingId = mid; mentionPicked.clear();
+    const inp = document.getElementById('mwInput'); inp.value = m.body || '';
+    document.getElementById('mwEditBar').classList.add('open');
+    inp.focus(); inp.style.height = 'auto'; inp.style.height = Math.min(inp.scrollHeight, 110) + 'px';
+  }
+  function cancelEdit() {
+    editingId = null;
+    const bar = document.getElementById('mwEditBar'); if (bar) bar.classList.remove('open');
+    const inp = document.getElementById('mwInput'); if (inp) { inp.value = ''; inp.style.height = 'auto'; }
+  }
+  async function doDelete(mid) {
+    if (!confirm('Delete this message for everyone?')) return;
+    try {
+      await chatFetch('?api=delete-message', { method: 'POST', body: JSON.stringify({ message_id: mid }) });
+      const m = curMsgs.find(x => x.id === mid);
+      if (m) { m.deleted = true; m.body = ''; m.attachments = []; m.has_attachments = false; m.reactions = []; }
+      renderMsgs(curMsgs, true);
+    } catch (e) { alert('Could not delete: ' + e.message); }
+  }
+  let _rxT = null;
+  function refreshThreadSoon() {
+    clearTimeout(_rxT);
+    _rxT = setTimeout(async () => {
+      if (!panelOpen || !curConv) return;
+      try { const j = await chatFetch('?api=messages&conversation_id=' + curConv); renderMsgs(j.messages || [], true); } catch (_) {}
+    }, 300);
+  }
+
+  // ── @mention autocomplete ────────────────────────────────────────────────
+  function mentionCandidates() {
+    const conv = convs.find(c => c.id === curConv);
+    return (conv && conv.members || []).filter(mm => !me || mm.id !== me.user_id);
+  }
+  function updateMentionBox() {
+    const inp = document.getElementById('mwInput'); const box = document.getElementById('mwMentions');
+    const before = inp.value.slice(0, inp.selectionStart);
+    const mm = before.match(/(?:^|\s)@([\w'\-]*)$/);
+    if (!mm) { box.classList.remove('open'); box.innerHTML = ''; return; }
+    const q = mm[1].toLowerCase();
+    const cands = mentionCandidates().filter(c => c.name.toLowerCase().includes(q)).slice(0, 6);
+    if (!cands.length) { box.classList.remove('open'); box.innerHTML = ''; return; }
+    box.innerHTML = cands.map((c, i) => `<div class="mw-mrow${i === 0 ? ' active' : ''}" data-mid="${c.id}" data-name="${esc(c.name)}"><span class="mw-av" style="width:24px;height:24px;font-size:0.6rem;">${esc(initials(c.name))}</span>${esc(c.name)}</div>`).join('');
+    box.classList.add('open');
+  }
+  function insertMention(id, name) {
+    const inp = document.getElementById('mwInput');
+    const caret = inp.selectionStart; const before = inp.value.slice(0, caret); const after = inp.value.slice(caret);
+    const rep = before.replace(/(^|\s)@([\w'\-]*)$/, (_m, p) => p + '@' + name + ' ');
+    inp.value = rep + after; inp.setSelectionRange(rep.length, rep.length);
+    mentionPicked.set(id, name);
+    document.getElementById('mwMentions').classList.remove('open');
+    inp.focus();
   }
   // ── Attachments: upload straight to Dropbox via a one-time link ──────────
   let pendingAtts = [];   // { id, kind, mime, size, name, path, _localUrl, status:'uploading'|'done' }
@@ -398,13 +569,28 @@
   async function send() {
     const inp = document.getElementById('mwInput'); const body = inp.value.trim();
     if (!curConv) return;
+    document.getElementById('mwMentions').classList.remove('open');
+    // Edit mode: update the existing message rather than sending a new one.
+    if (editingId) {
+      if (!body) { alert('Message can’t be empty — use delete to remove it.'); return; }
+      const mid = editingId;
+      try {
+        await chatFetch('?api=edit-message', { method: 'POST', body: JSON.stringify({ message_id: mid, body }) });
+        const m = curMsgs.find(x => x.id === mid); if (m) { m.body = body; m.edited = true; }
+        renderMsgs(curMsgs, true); cancelEdit();
+      } catch (e) { alert('Could not edit: ' + e.message); }
+      return;
+    }
     const uploading = pendingAtts.some(a => a.status === 'uploading');
     if (uploading) { alert('Hold on — attachments are still uploading.'); return; }
     const ready = pendingAtts.filter(a => a.status === 'done' && a.path);
     if (!body && !ready.length) return;
-    return sendWith(body, ready);
+    // Resolve which picked @mentions actually survive in the final text.
+    const mentioned = [...mentionPicked.entries()].filter(([, name]) => body.includes('@' + name)).map(([id]) => id);
+    mentionPicked.clear();
+    return sendWith(body, ready, mentioned);
   }
-  async function sendWith(body, ready) {
+  async function sendWith(body, ready, mentioned) {
     const inp = document.getElementById('mwInput');
     const cid = curConv; inp.value = ''; inp.style.height = 'auto';
     const nowIso = new Date().toISOString();
@@ -419,7 +605,7 @@
     const preview = body || (ready.some(a => a.kind === 'video') ? '📷 Attachment' : '📷 Attachment');
     const conv = convs.find(c => c.id === cid);
     if (conv) { conv.last_message = { body: preview, sender_id: me?.user_id, sender_name: me?.name, created_at: nowIso }; conv.last_message_at = nowIso; convs.sort((a, b) => new Date(b.last_message_at) - new Date(a.last_message_at)); renderList(); }
-    try { await chatFetch('?api=send', { method: 'POST', body: JSON.stringify({ conversation_id: cid, body, attachments: payloadAtts }) }); }
+    try { await chatFetch('?api=send', { method: 'POST', body: JSON.stringify({ conversation_id: cid, body, attachments: payloadAtts, mentioned_user_ids: mentioned || [] }) }); }
     catch (e) {
       // Roll back the optimistic bubble and put the text back so nothing is silently lost.
       const node = document.getElementById(tmpId); if (node) node.remove();
@@ -465,18 +651,35 @@
     // Authenticate the realtime socket BEFORE subscribing, else RLS silently drops
     // events and messages never arrive live.
     const tok = await getToken(); if (tok) { try { s.realtime.setAuth(tok); } catch (_) {} }
-    channel = s.channel('msg-widget-rt').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, (payload) => {
-      const m = payload.new; if (!m) return;
-      if (me && m.sender_id === me.user_id) return;
-      if (panelOpen && m.conversation_id === curConv) {
-        // The realtime payload carries only the message row, not its attachments — so if
-        // it has media, re-fetch the thread to pull fresh view links; otherwise append.
-        if (m.has_attachments) openConv(curConv);
-        else appendMsg({ ...m, sender_name: nameById[m.sender_id] || '', mine: false });
-        chatFetch('?api=mark-read', { method: 'POST', body: JSON.stringify({ conversation_id: curConv }) }).catch(() => {});
-      }
-      refreshSoon();
-    }).subscribe();
+    channel = s.channel('msg-widget-rt')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, (payload) => {
+        const m = payload.new; if (!m) return;
+        if (me && m.sender_id === me.user_id) return;
+        if (panelOpen && m.conversation_id === curConv) {
+          // The realtime payload carries only the message row, not its attachments — so if
+          // it has media, re-fetch the thread to pull fresh view links; otherwise append.
+          if (m.has_attachments) openConv(curConv);
+          else appendMsg({ ...m, sender_name: nameById[m.sender_id] || '', mine: false, edited: !!m.edited_at, deleted: !!m.deleted_at });
+          chatFetch('?api=mark-read', { method: 'POST', body: JSON.stringify({ conversation_id: curConv }) }).catch(() => {});
+        }
+        refreshSoon();
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_messages' }, (payload) => {
+        // Edit / soft-delete of an existing message — patch it in place if it's on screen.
+        const m = payload.new; if (!m || !panelOpen || m.conversation_id !== curConv) return;
+        const cm = curMsgs.find(x => x.id === m.id);
+        if (cm) {
+          cm.deleted = !!m.deleted_at; cm.body = m.deleted_at ? '' : m.body; cm.edited = !!m.edited_at;
+          if (m.deleted_at) { cm.attachments = []; cm.has_attachments = false; cm.reactions = []; }
+          renderMsgs(curMsgs, true);
+        }
+        refreshSoon();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_reactions' }, (payload) => {
+        const row = payload.new || payload.old; if (!row || !panelOpen || row.conversation_id !== curConv) return;
+        refreshThreadSoon();   // pull fresh reaction counts (debounced, preserves scroll)
+      })
+      .subscribe();
   }
 
   function init() {

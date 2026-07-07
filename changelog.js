@@ -16,6 +16,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v420', title: 'Messages — reactions, edit/delete & @mentions', items: [
+      'React to any message with an emoji — tap the ☺ on a message or a reaction chip to toggle yours.',
+      'Edit or delete your own messages from the ⋯ menu. Edits show an "edited" tag; deletes leave a "message deleted" placeholder.',
+      'Type @ to mention a member (in DMs or groups). Mentioned people get a distinct "mentioned you" phone notification and the name is highlighted in the thread.',
+    ]},
     { version: 'v419', title: 'Refunds — "Refund Manager" record type', items: [
       'New record type "Refund Manager" (right after Refund Request). Setting a refund to it notifies the refund manager.',
     ]},

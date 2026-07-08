@@ -243,6 +243,17 @@
   #pinBtn.on, #muteBtn.on { color:var(--blue); background:var(--blue-bg); }
   .conv-mute { color:var(--text-dim); vertical-align:-2px; }
   .conv-draft { color:#ff8f8f; font-weight:600; }
+  .conv-menu { background:none; border:none; color:var(--text-dim); font-size:1.1rem; line-height:1; cursor:pointer; padding:0 4px; opacity:0; transition:opacity .12s; }
+  .conv-row:hover .conv-menu { opacity:1; }
+  @media (hover: none) { .conv-menu { opacity:0.7; } }
+  .pin-bar { display:none; align-items:center; gap:10px; padding:8px 14px; background:var(--surface2); border-bottom:1px solid var(--border); cursor:pointer; }
+  .pin-bar.show { display:flex; }
+  .pin-bar-ico { color:var(--blue); flex-shrink:0; display:flex; }
+  .pin-bar-tx { flex:1; min-width:0; display:flex; flex-direction:column; line-height:1.25; }
+  .pin-bar-name { font-size:0.68rem; color:var(--blue); font-weight:700; }
+  .pin-bar-snip { font-size:0.85rem; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .pin-bar-x { background:none; border:none; color:var(--text-dim); font-size:1rem; cursor:pointer; padding:2px 6px; flex-shrink:0; }
+  .pin-bar-x:hover { color:var(--text); }
   .msg-aud { width:260px; max-width:60vw; height:40px; margin-top:2px; }
   .rec-bar { display:none; flex:1; align-items:center; gap:10px; padding:4px 4px 4px 12px; }
   .composer.recording .attach-btn, .composer.recording #micBtn, .composer.recording #composerInput, .composer.recording #sendBtn { display:none; }
@@ -429,6 +440,7 @@
           <div class="chat-head-actions" id="chatActions"></div>
         </div>
         <div class="find-bar" id="findBar"><input id="findInput" placeholder="Search this conversation…"><span class="find-n" id="findN"></span><button class="find-nav" id="findPrev">↑</button><button class="find-nav" id="findNext">↓</button><button class="find-x" id="findClose">✕</button></div>
+        <div class="pin-bar" id="pinBar"></div>
         <div class="msgs-wrap">
           <div class="msgs" id="msgs"></div>
           <div class="typing-ind" id="typingInd"></div>
@@ -521,6 +533,7 @@ const supa = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { pe
 let currentSession = null, me = null, conversations = [], usersCache = [], currentConv = null, chatChannel = null;
 let currentMsgs = [], editingId = null;
 let curHasMore = false, loadingOlder = false;   // history pagination
+let curPinned = null;   // pinned message {id, sender_name, snippet} for the open thread
 let replyTarget = null, selectMode = false, selectedIds = new Set();
 let readCutoff = null, listQuery = '', findMatches = [], findIdx = -1;
 let searchResults = [], searchT = null, jumpToMid = null, searching = false;
@@ -530,6 +543,7 @@ const REACTIONS = ['👍', '❤️', '😂', '🎉', '😮', '😢'];
 const EDIT_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
 const TRASH_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
 const COPY_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+const PIN_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14l-1.6-2.6a2 2 0 0 1-.4-1.2V8a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2v5.2a2 2 0 0 1-.4 1.2L5 17z"/></svg>';
 const FILE_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
 const PIN_MINI_SVG = '<svg class="conv-pin" xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14l-1.6-2.6a2 2 0 0 1-.4-1.2V8a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2v5.2a2 2 0 0 1-.4 1.2L5 17z"/></svg>';
 const VIDEO_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>';
@@ -718,7 +732,7 @@ function convRowHtml(c){
   return `<div class="conv-row${c.id===currentConv?' active':''}${c.unread?' unread':''}" data-conv="${c.id}">
     <div class="conv-av${isG?' group':''}">${isG?'#':esc(initials(c.title))}${(()=>{ const o=!isG?(c.members||[]).find(m=>!me||m.id!==me.user_id):null; return (o&&onlineIds.has(o.id))?'<span class="conv-online-dot"></span>':''; })()}</div>
     <div class="conv-mid"><div class="conv-name">${c.pinned?PIN_MINI_SVG:''}${esc(c.title)}${isG?` <span style="color:var(--text-dim);font-weight:500;font-size:0.72rem;">· ${c.member_count}</span>`:''}</div><div class="conv-prev">${prevHtml}</div></div>
-    <div class="conv-right"><span class="conv-time">${fmtTime(c.last_message_at)}</span>${c.muted?'<svg class="conv-mute" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/></svg>':''}${c.unread?`<span class="conv-badge">${c.unread>99?'99+':c.unread}</span>`:''}</div>
+    <div class="conv-right"><button class="conv-menu" data-menu="${c.id}" title="More">⋯</button><span class="conv-time">${fmtTime(c.last_message_at)}</span>${c.muted?'<svg class="conv-mute" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/></svg>':''}${c.unread?`<span class="conv-badge">${c.unread>99?'99+':c.unread}</span>`:''}</div>
   </div>`;
 }
 function renderConvList(){
@@ -727,6 +741,7 @@ function renderConvList(){
   if(!listQuery){
     el.innerHTML = conversations.map(convRowHtml).join('');
     el.querySelectorAll('[data-conv]').forEach(r=>r.addEventListener('click',()=>openConversation(Number(r.dataset.conv))));
+    wireConvMenus(el);
     return;
   }
   const chatHits = conversations.filter(c => String(c.title||'').toLowerCase().includes(listQuery) || (c.members||[]).some(m=>String(m.name||'').toLowerCase().includes(listQuery)));
@@ -747,6 +762,23 @@ function renderConvList(){
   el.innerHTML = html;
   el.querySelectorAll('.msg-hit').forEach(r=>r.addEventListener('click',()=>openConversation(Number(r.dataset.conv), Number(r.dataset.mid))));
   el.querySelectorAll('.conv-row:not(.msg-hit)').forEach(r=>r.addEventListener('click',()=>openConversation(Number(r.dataset.conv))));
+  wireConvMenus(el);
+}
+function wireConvMenus(el){
+  el.querySelectorAll('.conv-menu').forEach(b=>b.addEventListener('click', e=>{
+    e.stopPropagation();
+    const cid=Number(b.dataset.menu); const c=conversations.find(x=>x.id===cid); if(!c) return;
+    showPop(`<button class="msg-mi" data-act="unread">Mark as unread</button>`, b, 'menu', ev=>{
+      const bb=ev.target.closest('.msg-mi'); if(!bb) return; closePopups();
+      if(bb.dataset.act==='unread') markUnread(cid);
+    });
+  }));
+}
+async function markUnread(cid){
+  const c=conversations.find(x=>x.id===cid); if(!c) return;
+  if(!c.unread) c.unread=1; renderConvList();
+  try { await chatFetch('?api=mark-unread',{method:'POST',body:JSON.stringify({conversation_id:cid})}); toast('Marked unread'); }
+  catch(_){}
 }
 
 // ── Draft autosave (per conversation, localStorage) ──
@@ -784,6 +816,7 @@ async function openConversation(id, jumpMid){
   try {
     const j = await chatFetch('?api=messages&conversation_id='+id);
     readCutoff = j.read_cutoff || null; curHasMore = !!j.has_more;
+    curPinned = j.pinned_message || null; renderPinBar();
     renderMessages(j.messages||[]);
     if(conv){ conv.unread=0; renderConvList(); }
     if(jumpToMid){
@@ -816,6 +849,23 @@ function focusFind(){
 function stepFind(dir){ if(!findMatches.length) return; findIdx=(findIdx+dir+findMatches.length)%findMatches.length; focusFind(); }
 // ── Jump to latest ──
 function updateJumpBtn(){ const el=document.getElementById('msgs'), b=document.getElementById('jumpBtn'); if(!el||!b) return; b.classList.toggle('show', el.scrollHeight-el.scrollTop-el.clientHeight>240); }
+// ── Pinned message bar ──
+function renderPinBar(){
+  const bar=document.getElementById('pinBar'); if(!bar) return;
+  if(!curPinned){ bar.classList.remove('show'); bar.innerHTML=''; return; }
+  bar.classList.add('show');
+  bar.innerHTML = `<span class="pin-bar-ico">${PIN_SVG}</span><div class="pin-bar-tx"><span class="pin-bar-name">${esc(curPinned.sender_name||'')}</span><span class="pin-bar-snip">${esc(curPinned.snippet||'')}</span></div><button class="pin-bar-x" title="Unpin">✕</button>`;
+  bar.querySelector('.pin-bar-x').addEventListener('click', e=>{ e.stopPropagation(); pinMessage(curPinned.id); });
+  bar.addEventListener('click', ()=>{ const t=document.querySelector(`#msgs .bubble-row[data-mid="${curPinned.id}"]`); if(t){ t.scrollIntoView({block:'center',behavior:'smooth'}); t.classList.add('msg-flash'); setTimeout(()=>t.classList.remove('msg-flash'),1200); } }, { once:true });
+}
+async function pinMessage(mid){
+  const unpin = curPinned && curPinned.id===mid;
+  if(unpin) curPinned=null;
+  else { const m=currentMsgs.find(x=>x.id===mid); curPinned={ id:mid, sender_name: m?(m.mine?((me&&me.name)||'You'):m.sender_name):'', snippet:(m&&m.body?m.body:(m&&m.has_attachments?'Attachment':'')).slice(0,140) }; }
+  renderPinBar();
+  try { await chatFetch('?api=pin-message',{method:'POST',body:JSON.stringify({conversation_id:currentConv, message_id: unpin?null:mid})}); toast(unpin?'Unpinned':'Pinned'); }
+  catch(_){ toast('Could not update'); }
+}
 // Load an older page and prepend it, keeping the current message under the viewport.
 async function loadOlder(){
   if(loadingOlder || !curHasMore || !currentConv || !currentMsgs.length) return;
@@ -1363,12 +1413,14 @@ document.getElementById('msgs').addEventListener('click', e=>{
   if(mbtn && mid){
     const m = currentMsgs.find(x=>x.id===mid);
     const copyItem = (m && m.body)?`<button class="msg-mi" data-act="copy">${COPY_SVG}Copy text</button>`:'';
+    const pinItem = `<button class="msg-mi" data-act="pinmsg">${PIN_SVG}${curPinned && curPinned.id===mid ? 'Unpin' : 'Pin'}</button>`;
     const mineItems = (m && m.mine)?`<button class="msg-mi" data-act="edit">${EDIT_SVG}Edit</button><button class="msg-mi del" data-act="del">${TRASH_SVG}Delete</button>`:'';
-    showPop(`<button class="msg-mi" data-act="reply">↩ Reply</button><button class="msg-mi" data-act="forward">↪ Forward</button>${copyItem}<button class="msg-mi" data-act="select">☑ Select</button>${mineItems}`, mbtn, 'menu', ev=>{
+    showPop(`<button class="msg-mi" data-act="reply">↩ Reply</button><button class="msg-mi" data-act="forward">↪ Forward</button>${copyItem}${pinItem}<button class="msg-mi" data-act="select">☑ Select</button>${mineItems}`, mbtn, 'menu', ev=>{
       const b=ev.target.closest('.msg-mi'); if(!b) return; closePopups(); const act=b.dataset.act;
       if(act==='reply') startReply(mid);
       else if(act==='forward') openForwardPicker([mid]);
       else if(act==='copy') copyMsg(mid);
+      else if(act==='pinmsg') pinMessage(mid);
       else if(act==='select'){ enterSelectMode(); toggleSelect(mid); }
       else if(act==='edit') startEdit(mid);
       else if(act==='del') doDelete(mid);
@@ -1410,7 +1462,7 @@ document.getElementById('findNext').addEventListener('click', ()=>stepFind(1));
 document.getElementById('jumpBtn').addEventListener('click', ()=>{ const el=document.getElementById('msgs'); el.scrollTo({top:el.scrollHeight, behavior:'smooth'}); });
 document.getElementById('msgs').addEventListener('scroll', ()=>{ updateJumpBtn(); const el=document.getElementById('msgs'); if(el && el.scrollTop<80) loadOlder(); });
 document.getElementById('composerInput').addEventListener('click', updateMentionBox);
-document.addEventListener('click', e=>{ const pop=document.getElementById('msgPop'); if(!pop) return; if(pop.contains(e.target)) return; if(e.target.closest('.react-btn, .menu-btn')) return; closePopups(); });
+document.addEventListener('click', e=>{ const pop=document.getElementById('msgPop'); if(!pop) return; if(pop.contains(e.target)) return; if(e.target.closest('.react-btn, .menu-btn, .conv-menu')) return; closePopups(); });
 document.addEventListener('keydown', e=>{ if(e.key==='Escape') closePopups(); });
 document.getElementById('chatBack').addEventListener('click', ()=>{ document.getElementById('app').classList.remove('thread-open'); currentConv=null; renderConvList(); });
 

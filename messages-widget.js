@@ -18,6 +18,7 @@
   let mSupa = null, me = null, convs = [], usersCache = [], curConv = null, channel = null, panelOpen = false;
   let curMsgs = [];          // messages currently rendered in the open thread (for reaction/edit updates)
   let curHasMore = false, loadingOlder = false;   // history pagination (load-earlier on scroll-up)
+  let curPinned = null;      // pinned message {id, sender_name, snippet} for the open thread
   let editingId = null;      // message id being edited (composer is in edit mode)
   let replyTarget = null;    // { id, sender_name, snippet } message being replied to
   let selectMode = false;    // multi-select (for forwarding) active
@@ -33,6 +34,7 @@
   const EDIT_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
   const TRASH_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
   const COPY_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+  const PIN_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14l-1.6-2.6a2 2 0 0 1-.4-1.2V8a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2v5.2a2 2 0 0 1-.4 1.2L5 17z"/></svg>';
   const FILE_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
   const PIN_MINI_SVG = '<svg class="mw-cn-pin" xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14l-1.6-2.6a2 2 0 0 1-.4-1.2V8a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2v5.2a2 2 0 0 1-.4 1.2L5 17z"/></svg>';
   const VIDEO_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>';
@@ -266,6 +268,17 @@
       .mw-iconbtn.on { color:#8ea2ff !important; background:#1a2140 !important; }
       .mw-cn-mute { color:#7880a8; vertical-align:-2px; }
       .mw-draft { color:#ff8f8f; font-weight:600; }
+      .mw-conv-menu { background:none; border:none; color:#6b7396; font-size:1rem; line-height:1; cursor:pointer; padding:0 2px; opacity:0; transition:opacity .12s; }
+      .mw-conv:hover .mw-conv-menu { opacity:1; }
+      @media (hover: none) { .mw-conv-menu { opacity:0.7; } }
+      .mw-pinbar { display:none; align-items:center; gap:9px; padding:7px 10px; background:#12162a; border-bottom:1px solid #1f2438; cursor:pointer; }
+      .mw-pinbar.show { display:flex; }
+      .mw-pinbar-ico { color:#8ea2ff; flex-shrink:0; display:flex; }
+      .mw-pinbar-tx { flex:1; min-width:0; display:flex; flex-direction:column; line-height:1.2; }
+      .mw-pinbar-name { font-size:0.66rem; color:#8ea2ff; font-weight:700; }
+      .mw-pinbar-snip { font-size:0.8rem; color:#c7cdec; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+      .mw-pinbar-x { background:none; border:none; color:#7880a8; font-size:0.9rem; cursor:pointer; padding:2px 6px; flex-shrink:0; }
+      .mw-pinbar-x:hover { color:#eaecf8; }
       .mw-presence { font-size:0.68rem; color:#7880a8; line-height:1.1; }
       .mw-presence.online { color:#34d399; }
       .mw-av { position:relative; }
@@ -401,6 +414,7 @@
       <div class="mw-thread" id="mwThread">
         <div class="mw-drop" id="mwDrop"><div class="mw-drop-inner">${FILE_SVG}<span>Drop to attach</span></div></div>
         <div class="mw-head"><button class="mw-back" id="mwBack">‹</button><div style="flex:1;min-width:0;"><div class="mw-title" id="mwThreadTitle" style="font-size:0.88rem;"></div><div class="mw-presence" id="mwThreadSub"></div></div><button class="mw-hbtn mw-iconbtn" id="mwPinBtn" title="Pin conversation" aria-label="Pin"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14l-1.6-2.6a2 2 0 0 1-.4-1.2V8a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2v5.2a2 2 0 0 1-.4 1.2L5 17z"/></svg></button><button class="mw-hbtn mw-iconbtn" id="mwMuteBtn" title="Mute notifications" aria-label="Mute"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></button><button class="mw-hbtn mw-iconbtn" id="mwFindBtn" title="Search in conversation" aria-label="Search"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button><button class="mw-x" id="mwClose2">×</button></div>
+        <div class="mw-pinbar" id="mwPinBar"></div>
         <div class="mw-findbar" id="mwFindBar"><input id="mwFindInput" placeholder="Search this conversation…"><span class="mw-find-n" id="mwFindN"></span><button class="mw-find-nav" id="mwFindPrev">↑</button><button class="mw-find-nav" id="mwFindNext">↓</button><button class="mw-find-x" id="mwFindClose">✕</button></div>
         <div class="mw-msgs-wrap">
           <div class="mw-msgs" id="mwMsgs"></div>
@@ -455,13 +469,15 @@
       if (mbtn && mid) {
         const m = curMsgs.find(x => x.id === mid);
         const copyItem = (m && m.body) ? `<button class="mw-mi" data-act="copy">${COPY_SVG}Copy text</button>` : '';
+        const pinItem = `<button class="mw-mi" data-act="pinmsg">${PIN_SVG}${curPinned && curPinned.id === mid ? 'Unpin' : 'Pin'}</button>`;
         const mineItems = (m && m.mine) ? `<button class="mw-mi" data-act="edit">${EDIT_SVG}Edit</button><button class="mw-mi del" data-act="del">${TRASH_SVG}Delete</button>` : '';
-        showPop(`<button class="mw-mi" data-act="reply">↩ Reply</button><button class="mw-mi" data-act="forward">↪ Forward</button>${copyItem}<button class="mw-mi" data-act="select">☑ Select</button>${mineItems}`, mbtn, 'menu', (ev) => {
+        showPop(`<button class="mw-mi" data-act="reply">↩ Reply</button><button class="mw-mi" data-act="forward">↪ Forward</button>${copyItem}${pinItem}<button class="mw-mi" data-act="select">☑ Select</button>${mineItems}`, mbtn, 'menu', (ev) => {
           const b = ev.target.closest('.mw-mi'); if (!b) return; closePopups();
           const act = b.dataset.act;
           if (act === 'reply') startReply(mid);
           else if (act === 'forward') openForwardPicker([mid]);
           else if (act === 'copy') copyMsg(mid);
+          else if (act === 'pinmsg') pinMessage(mid);
           else if (act === 'select') { enterSelectMode(); toggleSelect(mid); }
           else if (act === 'edit') startEdit(mid);
           else if (act === 'del') doDelete(mid);
@@ -531,7 +547,7 @@
       // and it resolves even after the popup element has just been detached from the DOM.
       if (e.target.closest('#mwPop, .mw-confirm, .mw-fwdpick')) return;
       // The trigger buttons open/replace the popup themselves — don't treat their click as "outside".
-      if (e.target.closest('.mw-react-btn, .mw-menu-btn')) return;
+      if (e.target.closest('.mw-react-btn, .mw-menu-btn, .mw-conv-menu')) return;
       const lb = document.getElementById('mwLb'); if (lb && lb.contains(e.target)) return;
       if (document.getElementById('mwPop')) closePopups();   // a click elsewhere dismisses the menu/palette
       const pn = document.getElementById('msgWidgetPanel'); const bt = document.getElementById('msgWidgetBtn');
@@ -587,7 +603,7 @@
     const prevHtml = draft ? `<span class="mw-draft">Draft:</span> ${esc(draft).slice(0, 60)}` : esc(prev).slice(0, 70);
     return `<div class="mw-conv${c.unread ? ' unread' : ''}" data-c="${c.id}"><div class="mw-av${isG ? ' grp' : ''}">${isG ? '#' : esc(initials(c.title))}${online ? '<span class="mw-online-dot"></span>' : ''}</div>
       <div class="mw-cm"><div class="mw-cn">${c.pinned ? PIN_MINI_SVG : ''}${esc(c.title)}</div><div class="mw-cp">${prevHtml}</div></div>
-      <div class="mw-cr"><span class="mw-ct">${fmtTime(c.last_message_at)}</span>${c.muted ? '<svg class="mw-cn-mute" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/></svg>' : ''}${c.unread ? `<span class="mw-badge">${c.unread > 99 ? '99+' : c.unread}</span>` : ''}</div></div>`;
+      <div class="mw-cr"><button class="mw-conv-menu" data-menu="${c.id}" title="More">⋯</button><span class="mw-ct">${fmtTime(c.last_message_at)}</span>${c.muted ? '<svg class="mw-cn-mute" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/></svg>' : ''}${c.unread ? `<span class="mw-badge">${c.unread > 99 ? '99+' : c.unread}</span>` : ''}</div></div>`;
   }
   function renderList() {
     const el = document.getElementById('mwList'); if (!el) return;
@@ -595,6 +611,7 @@
     if (!listQuery) {
       el.innerHTML = convs.map(convRow).join('');
       el.querySelectorAll('[data-c]').forEach(r => r.addEventListener('click', () => openConv(Number(r.dataset.c))));
+      wireConvMenus(el);
       return;
     }
     // Search mode: chats matching by name, then messages matching by content.
@@ -616,6 +633,23 @@
     el.innerHTML = html;
     el.querySelectorAll('.mw-msghit').forEach(r => r.addEventListener('click', () => openConv(Number(r.dataset.c), Number(r.dataset.mid))));
     el.querySelectorAll('.mw-conv:not(.mw-msghit)').forEach(r => r.addEventListener('click', () => openConv(Number(r.dataset.c))));
+    wireConvMenus(el);
+  }
+  function wireConvMenus(el) {
+    el.querySelectorAll('.mw-conv-menu').forEach(b => b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const cid = Number(b.dataset.menu); const c = convs.find(x => x.id === cid); if (!c) return;
+      showPop(`<button class="mw-mi" data-act="unread">Mark as unread</button>`, b, 'menu', (ev) => {
+        const bb = ev.target.closest('.mw-mi'); if (!bb) return; closePopups();
+        if (bb.dataset.act === 'unread') markUnread(cid);
+      });
+    }));
+  }
+  async function markUnread(cid) {
+    const c = convs.find(x => x.id === cid); if (!c) return;
+    if (!c.unread) c.unread = 1; renderList(); updateBadge();
+    try { await chatFetch('?api=mark-unread', { method: 'POST', body: JSON.stringify({ conversation_id: cid }) }); toast('Marked unread'); }
+    catch (_) {}
   }
 
   // ── Draft autosave (per conversation, localStorage) ──────────────────────
@@ -643,6 +677,7 @@
     try {
       const j = await chatFetch('?api=messages&conversation_id=' + id);
       readCutoff = j.read_cutoff || null; curHasMore = !!j.has_more;
+      curPinned = j.pinned_message || null; renderPinBar();
       renderMsgs(j.messages || []);
       if (conv) { conv.unread = 0; renderList(); updateBadge(); }
       if (jumpToMid) {
@@ -673,6 +708,23 @@
       }
     } catch (_) {}
     loadingOlder = false;
+  }
+  // ── Pinned message bar ───────────────────────────────────────────────────
+  function renderPinBar() {
+    const bar = document.getElementById('mwPinBar'); if (!bar) return;
+    if (!curPinned) { bar.classList.remove('show'); bar.innerHTML = ''; return; }
+    bar.classList.add('show');
+    bar.innerHTML = `<span class="mw-pinbar-ico">${PIN_SVG}</span><div class="mw-pinbar-tx"><span class="mw-pinbar-name">${esc(curPinned.sender_name || '')}</span><span class="mw-pinbar-snip">${esc(curPinned.snippet || '')}</span></div><button class="mw-pinbar-x" title="Unpin">✕</button>`;
+    bar.querySelector('.mw-pinbar-x').addEventListener('click', (e) => { e.stopPropagation(); pinMessage(curPinned.id); });
+    bar.addEventListener('click', () => { const t = document.querySelector(`#mwMsgs .mw-row[data-mid="${curPinned.id}"]`); if (t) { t.scrollIntoView({ block: 'center', behavior: 'smooth' }); t.classList.add('mw-flash'); setTimeout(() => t.classList.remove('mw-flash'), 1200); } }, { once: true });
+  }
+  async function pinMessage(mid) {
+    const unpin = curPinned && curPinned.id === mid;
+    if (unpin) curPinned = null;
+    else { const m = curMsgs.find(x => x.id === mid); curPinned = { id: mid, sender_name: m ? (m.mine ? (me && me.name) || 'You' : m.sender_name) : '', snippet: (m && m.body ? m.body : (m && m.has_attachments ? 'Attachment' : '')).slice(0, 140) }; }
+    renderPinBar();
+    try { await chatFetch('?api=pin-message', { method: 'POST', body: JSON.stringify({ conversation_id: curConv, message_id: unpin ? null : mid }) }); toast(unpin ? 'Unpinned' : 'Pinned'); }
+    catch (_) { toast('Could not update'); }
   }
   // ── In-thread find ───────────────────────────────────────────────────────
   function toggleFind() { const bar = document.getElementById('mwFindBar'); if (bar.classList.contains('open')) closeFind(); else { bar.classList.add('open'); const i = document.getElementById('mwFindInput'); i.value = ''; setTimeout(() => i.focus(), 30); } }

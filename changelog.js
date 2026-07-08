@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v453', title: 'Messages — pin a message + mark unread', items: [
+      'Pin any message to the top of a chat so the whole conversation can jump back to it — tap the pinned bar to scroll to it, or unpin from the ⋯ menu.',
+      'Mark a conversation as unread from its ⋯ menu in the list, so you can come back and deal with it later.',
+    ]},
     { version: 'v452', title: 'Messages — draft autosave', items: [
       'A message you start but don’t send is remembered per conversation — switch away and it’s still there when you come back. The list shows a red “Draft” hint.',
     ]},

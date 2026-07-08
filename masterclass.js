@@ -168,10 +168,31 @@
   function roFull(label, val) { const v = (val == null || val === '') ? '—' : String(val); return `<div class="fld full"><label>${esc(label)}</label><div class="ro">${esc(v)}</div></div>`; }
   function chipsField(label, arr) { const a = Array.isArray(arr) ? arr : []; const inner = a.length ? a.map(x => `<span class="kchip">${esc(x)}</span>`).join('') : '<span class="item-meta">—</span>'; return `<div class="fld full"><label>${esc(label)} (${a.length})</label><div class="kchips">${inner}</div></div>`; }
 
+  function activityLogHTML() {
+    const acts = cur.activity || [];
+    const rows = acts.map(a => `<div class="item"><div class="item-top"><span class="item-title" style="font-size:0.86rem">${esc(a.kind || 'Activity')} · ${esc(fmtDate(a.activity_date))}</span><span class="item-meta">${esc(a.created_by_name || a.created_by_email || '')}</span></div>${a.note ? `<div class="item-body">${esc(a.note)}</div>` : ''}${caps.can_edit ? `<div class="item-actions"><button class="lnk red" data-actdel="${a.id}">Delete</button></div>` : ''}</div>`).join('');
+    return `<div class="full">${caps.can_edit ? '<button class="tbtn" id="actAdd" style="margin-bottom:8px">+ Log activity</button>' : ''}${acts.length ? rows : '<div class="item-meta" style="padding:2px">No activity logged yet. Imported last sign-in / activity is shown in Engagement above.</div>'}</div>`;
+  }
+  function activityModal() {
+    const today = new Date().toISOString().slice(0, 10);
+    openModal(`<h3>Log activity</h3>
+      <div class="fld"><label>Type</label><select id="acKind"><option>Sign-in</option><option>Activity</option><option>Other</option></select></div>
+      <div class="fld"><label>Date</label><input type="date" id="acDate" value="${today}"></div>
+      <div class="fld"><label>Note (optional)</label><textarea id="acNote" placeholder="What happened?"></textarea></div>
+      <div class="modal-row"><button class="tbtn" id="acCancel">Cancel</button><button class="tbtn tbtn-primary" id="acSave">Log</button></div>`);
+    $('acCancel').onclick = closeModal;
+    $('acSave').onclick = async () => { try { await mcFetch('?api=add-activity', { method: 'POST', body: JSON.stringify({ studentId: cur.row.id, kind: $('acKind').value, activity_date: $('acDate').value || null, note: $('acNote').value || '' }) }); closeModal(); toast('Activity logged'); await openStudent(cur.row.id); } catch (e) { toast(e.message); } };
+  }
+
   function renderProfile() {
     const r = cur.row; const isNew = !r.id;
     $('mcMainEmpty').classList.add('hidden'); const p = $('mcProfile'); p.classList.remove('hidden');
     const canEdit = caps.can_edit;
+    // Last sign-in / activity = latest log entry of that kind, else the imported column.
+    const acts = cur.activity || [];
+    const lastOf = (k) => { const e = acts.find(a => a.kind === k); return e ? e.activity_date : null; };
+    const lastSignIn = lastOf('Sign-in') || (r.last_sign_in_at ? String(r.last_sign_in_at).slice(0, 10) : null);
+    const lastActivity = lastOf('Activity') || (r.last_activity_at ? String(r.last_activity_at).slice(0, 10) : null);
     const repList = reps.map(x => `<option value="${esc(x.display)}">`).join('');
     const head = `<div class="prof-head">
       <div style="flex:1;min-width:0"><div class="prof-name">${esc(r.name || 'New student')}</div>
@@ -194,8 +215,9 @@
       ${sec('Rep Area', `<div class="fld full"><label>Assigned rep</label><input id="f-rep" list="repList" value="${esc(r.rep || '')}" placeholder="Type or pick a rep…"><datalist id="repList">${repList}</datalist></div><div class="full" id="repWidgets">${isNew ? '<div class="item-meta" style="padding:2px">Create the student first to log contacts &amp; set a rep status.</div>' : '<div class="item-meta" style="padding:2px">Loading…</div>'}</div>`)}
       ${sec('Purchase', `${fld('First purchase', 'f-first_purchase_date', r.first_purchase_date, 'date')}${fld('Last purchase', 'f-last_purchase_date', r.last_purchase_date, 'date')}${fld('Price', 'f-price', r.price, 'number')}`)}
       ${sec('Course progress', `${fld('Level', 'f-level', r.level, 'select', LEVELS)}${fld('Masterclass level', 'f-masterclass_level', r.masterclass_level, 'select', LEVELS)}${fld('Current module', 'f-current_module', r.current_module)}`)}
-      ${(r.sign_in_count != null || r.last_activity_at || r.last_sign_in_at || r.kajabi_created_at || r.source || r.sms_opt_in != null) ? sec('Engagement', `${roField('Sign-ins (course visits)', r.sign_in_count)}${roField('Last activity', r.last_activity_at ? fmtDate(r.last_activity_at) : '')}${roField('Last sign-in', r.last_sign_in_at ? fmtDate(r.last_sign_in_at) : '')}${roField('Joined (Kajabi)', r.kajabi_created_at ? fmtDate(r.kajabi_created_at) : '')}${roField('Source', r.source)}${roField('SMS opt-in', r.sms_opt_in == null ? '' : (r.sms_opt_in ? 'Yes' : 'No'))}`) : ''}
-      ${(r.mobile_phone || r.address_line1 || r.address_line2 || r.city || r.state || r.country || r.zip) ? sec('Location & contact', `${roField('Mobile', r.mobile_phone)}${roFull('Address', [r.address_line1, r.address_line2].filter(Boolean).join(', '))}${roField('City', r.city)}${roField('State', r.state)}${roField('Country', r.country)}${roField('Zip', r.zip)}`) : ''}
+      ${isNew ? '' : sec('Engagement', `${fld('Sign-ins (course visits)', 'f-sign_in_count', r.sign_in_count, 'number')}${roField('Last sign-in', lastSignIn ? fmtDate(lastSignIn) : '')}${roField('Last activity', lastActivity ? fmtDate(lastActivity) : '')}${roField('Joined (Kajabi)', r.kajabi_created_at ? fmtDate(r.kajabi_created_at) : '')}${fld('Source', 'f-source', r.source)}${fld('SMS opt-in', 'f-sms_opt_in', r.sms_opt_in, 'checkbox')}`)}
+      ${isNew ? '' : sec('Activity log', activityLogHTML())}
+      ${sec('Location & contact', `${fld('Mobile', 'f-mobile_phone', r.mobile_phone)}${fld('Address line 1', 'f-address_line1', r.address_line1)}${fld('Address line 2', 'f-address_line2', r.address_line2)}${fld('City', 'f-city', r.city)}${fld('State', 'f-state', r.state)}${fld('Country', 'f-country', r.country)}${fld('Zip', 'f-zip', r.zip)}`)}
       ${((Array.isArray(r.products) && r.products.length) || (Array.isArray(r.tags) && r.tags.length)) ? sec('Products & Tags', `${chipsField('Products', r.products)}${chipsField('Tags', r.tags)}`) : ''}
       ${sec('Admin', `${fld('Status', 'f-status', r.status || 'Active', 'select', ['Active', 'Completed', 'Refunded'])}${fld('Refunded date', 'f-refunded_date', r.refunded_date, 'date')}${fld('Refunded amount', 'f-refunded_amount', r.refunded_amount, 'number')}${fld('Verified', 'f-verified', r.verified, 'checkbox')}${fld('Dead file', 'f-dead_file', r.dead_file, 'checkbox')}${fld('Winning student', 'f-winning_student', r.winning_student, 'checkbox')}`)}
       ${sec('Notes (profile)', `<div class="full">${fld('', 'f-notes', r.notes, 'textarea')}</div>`)}
@@ -214,6 +236,8 @@
     }));
     if (canEdit) { const sb = $('saveBtn'); if (sb) sb.onclick = saveProfile; const cb = $('cancelBtn'); if (cb) cb.onclick = () => { if (isNew) { cur = null; p.classList.add('hidden'); $('mcMainEmpty').classList.remove('hidden'); } else openStudent(r.id); }; }
     if (!isNew) renderRepArea(r);
+    const aAdd = $('actAdd'); if (aAdd) aAdd.onclick = activityModal;
+    p.querySelectorAll('[data-actdel]').forEach(b => b.addEventListener('click', () => confirmDialog('Delete this activity entry?', async () => { try { await mcFetch('?api=delete-activity', { method: 'POST', body: JSON.stringify({ id: Number(b.dataset.actdel) }) }); toast('Deleted'); await openStudent(cur.row.id); } catch (e) { toast(e.message); } })));
   }
   function collapsedSections() { try { return new Set(JSON.parse(localStorage.getItem('mc-collapsed-sections') || '[]')); } catch (_) { return new Set(); } }
 
@@ -292,7 +316,7 @@
   async function saveProfile() {
     const g = (id) => { const el = $(id); if (!el) return undefined; return el.type === 'checkbox' ? el.checked : el.value; };
     const body = { id: cur.row.id || undefined };
-    ['name', 'rep', 'first_purchase_date', 'last_purchase_date', 'price', 'level', 'masterclass_level', 'current_module', 'status', 'refunded_date', 'refunded_amount', 'verified', 'dead_file', 'winning_student', 'notes'].forEach(k => { body[k] = g('f-' + k); });
+    ['name', 'rep', 'first_purchase_date', 'last_purchase_date', 'price', 'level', 'masterclass_level', 'current_module', 'status', 'refunded_date', 'refunded_amount', 'verified', 'dead_file', 'winning_student', 'notes', 'mobile_phone', 'address_line1', 'address_line2', 'city', 'state', 'country', 'zip', 'source', 'sms_opt_in', 'sign_in_count'].forEach(k => { const v = g('f-' + k); if (v !== undefined) body[k] = v; });
     // Multi-value email/phone: first → column, rest → metadata alternates.
     const meta = { ...(cur.row.metadata || {}) };
     $('mcProfile').querySelectorAll('.multi').forEach(m => {

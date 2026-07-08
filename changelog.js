@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v473', title: 'Masterclass CRM — editable details + Activity log', items: [
+      'The imported fields are now editable and saved: Location & contact (mobile, address, city/state/country/zip) and Engagement (sign-ins/course visits, source, SMS opt-in).',
+      'New Activity log on each student — add dated entries (Sign-in / Activity / Other) with a note to keep engagement up to date. “Last sign-in” and “Last activity” now show the most recent log entry (falling back to the imported value), so they stay current.',
+    ]},
     { version: 'v472', title: 'Masterclass CRM — imported data now shown on the profile', items: [
       'A student’s profile now surfaces the imported Kajabi data: an Engagement section (sign-ins / course visits, last activity, last sign-in, join date, source, SMS opt-in), a Location & contact section, a Products & Tags section, and an “All imported details” section that shows every field from the original import so nothing is hidden.',
     ]},

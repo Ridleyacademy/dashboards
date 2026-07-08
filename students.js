@@ -400,6 +400,9 @@ const advFilters = {
   // Tri: students whose term has EXPIRED (days_left < 0) but who were never
   // given an onboarded date — likely never actually started before lapsing.
   expired_never_onboarded: null,
+  // How long ago the term lapsed: show only students expired for AT LEAST N days
+  // (days_left <= -N). Numeric string; '' = off. E.g. 7 → expired 7+ days ago.
+  min_days_expired:        '',
 };
 
 function _advFilterCount() {
@@ -409,6 +412,7 @@ function _advFilterCount() {
     // 'expiring_custom_days' is a sub-input for the 'custom' bucket choice —
     // it doesn't add a filter on its own.
     if (k === 'expiring_custom_days') continue;
+    if (k === 'min_days_expired') { if (String(v).trim()) n += 1; continue; }
     if (Array.isArray(v)) n += v.length;
     else if (v !== null && v !== undefined) n += 1;
   }
@@ -416,7 +420,7 @@ function _advFilterCount() {
 }
 function _clearAdvFilters() {
   for (const k of Object.keys(advFilters)) {
-    if (k === 'expiring_custom_days') { advFilters[k] = ''; continue; }
+    if (k === 'expiring_custom_days' || k === 'min_days_expired') { advFilters[k] = ''; continue; }
     advFilters[k] = Array.isArray(advFilters[k]) ? [] : null;
   }
 }
@@ -507,6 +511,10 @@ function _applyAdvFilters(rows) {
     if (advFilters.days_left_bucket.length && !advFilters.days_left_bucket.some(b => _matchesDaysLeftBucket(s, b))) return false;
     if (advFilters.inactive_days_bucket.length && !advFilters.inactive_days_bucket.includes(_inactiveBucket(s))) return false;
     if (!matchTri('expired_never_onboarded', (s.days_left != null && s.days_left < 0 && !s.student_onboarded_date))) return false;
+    // "Expired for ≥ N days": days_left is negative once the term has lapsed, so days
+    // since expiry = -days_left. N=7 → keep only those expired 7 or more days ago.
+    const minExp = parseInt(advFilters.min_days_expired, 10);
+    if (Number.isFinite(minExp) && minExp > 0 && !(s.days_left != null && s.days_left <= -minExp)) return false;
     return true;
   });
 }
@@ -596,6 +604,16 @@ function renderAdvFilterPanel() {
       { val: 'unknown', label: 'Not onboarded' },
     ])}
     ${customDays}
+    <div class="adv-filter-section">
+      <div class="adv-filter-label">⌛ Expired for at least</div>
+      <div class="adv-filter-options">
+        <input type="number" min="1" step="1" id="advMinDaysExpired"
+          value="${escapeHtml(advFilters.min_days_expired || '')}"
+          placeholder="e.g. 7"
+          style="padding:0.35rem 0.55rem;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:0.8rem;width:110px;" />
+        <span style="font-size:0.7rem;color:var(--text-dim);align-self:center;">days since their term ended</span>
+      </div>
+    </div>
     <button type="button" id="advMoreToggle" style="align-self:flex-start;background:none;border:none;color:var(--accent,#34d399);font-size:0.74rem;font-weight:800;cursor:pointer;padding:4px 0;font-family:inherit;display:inline-flex;align-items:center;gap:5px;">
       ${advMoreOpen ? '▾ Fewer filters' : '▸ More filters'}
     </button>
@@ -662,6 +680,15 @@ function renderAdvFilterPanel() {
       renderStudents?.();
     });
   }
+  const minExpInp = document.getElementById('advMinDaysExpired');
+  if (minExpInp) {
+    minExpInp.addEventListener('input', () => {
+      advFilters.min_days_expired = minExpInp.value.trim();
+      // Re-filter without re-rendering the whole panel (so focus stays in the input).
+      renderActiveFiltersBar?.();
+      renderStudents?.();
+    });
+  }
 }
 
 function _activeFilterChipLabel(key, val) {
@@ -696,11 +723,17 @@ function renderActiveFiltersBar() {
   const chips = [];
   for (const key of Object.keys(advFilters)) {
     const v = advFilters[key];
+    if (key === 'expiring_custom_days') continue;   // shown via the 'custom' Time-left chip
+    if (key === 'min_days_expired') {
+      const t = String(v || '').trim();
+      if (t) chips.push(`<span class="active-filter-chip">Expired ≥ ${escapeHtml(t)}d <button class="x" data-rm-str="min_days_expired" title="Remove">×</button></span>`);
+      continue;
+    }
     if (Array.isArray(v)) {
       for (const val of v) {
         chips.push(`<span class="active-filter-chip">${escapeHtml(_activeFilterChipLabel(key, val))} <button class="x" data-rm-multi="${key}" data-val="${escapeHtml(val)}" title="Remove">×</button></span>`);
       }
-    } else if (v !== null && v !== undefined) {
+    } else if (v !== null && v !== undefined && v !== '') {
       chips.push(`<span class="active-filter-chip">${escapeHtml(_activeFilterChipLabel(key, v))} <button class="x" data-rm-tri="${key}" title="Remove">×</button></span>`);
     }
   }
@@ -717,6 +750,10 @@ function renderActiveFiltersBar() {
   }));
   bar.querySelectorAll('[data-rm-tri]').forEach(b => b.addEventListener('click', () => {
     advFilters[b.dataset.rmTri] = null;
+    _onAdvFiltersChanged();
+  }));
+  bar.querySelectorAll('[data-rm-str]').forEach(b => b.addEventListener('click', () => {
+    advFilters[b.dataset.rmStr] = '';
     _onAdvFiltersChanged();
   }));
   document.getElementById('advFilterClearInline')?.addEventListener('click', () => {

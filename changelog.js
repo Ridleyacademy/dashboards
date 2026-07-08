@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v457', title: 'Messages — GIFs + scheduled messages', items: [
+      'Send a GIF: tap “GIF” in the message bar, search, and pick one (full Messages page).',
+      'Schedule a message: type it, tap the clock in the message bar, choose a time (or a quick option), and it sends itself then. A chip above the box shows what’s scheduled — tap ✕ to cancel.',
+    ]},
     { version: 'v456', title: 'Messages — saved messages, search filters, disappearing messages', items: [
       'Save any message as a personal bookmark (⋯ menu → Save). Open the ★ button at the top of the message list to see everything you’ve saved, and tap one to jump to it.',
       'Filter search by person, files-only, and a date range — pick a name / toggle “Files only” / set from–to dates under the search box.',

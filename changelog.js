@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v452', title: 'Messages — draft autosave', items: [
+      'A message you start but don’t send is remembered per conversation — switch away and it’s still there when you come back. The list shows a red “Draft” hint.',
+    ]},
     { version: 'v451', title: 'Messages — load older + steadier layout', items: [
       'Scroll up in a long conversation to load earlier messages (history no longer stops at the most recent batch).',
       'Chats no longer jump around while images, videos, and link previews load — their space is reserved up front.',

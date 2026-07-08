@@ -265,6 +265,7 @@
       .mw-drop-inner svg { width:38px; height:38px; }
       .mw-iconbtn.on { color:#8ea2ff !important; background:#1a2140 !important; }
       .mw-cn-mute { color:#7880a8; vertical-align:-2px; }
+      .mw-draft { color:#ff8f8f; font-weight:600; }
       .mw-presence { font-size:0.68rem; color:#7880a8; line-height:1.1; }
       .mw-presence.online { color:#34d399; }
       .mw-av { position:relative; }
@@ -520,7 +521,7 @@
       }
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
     });
-    inp.addEventListener('input', function () { this.style.height = 'auto'; this.style.height = Math.min(this.scrollHeight, 110) + 'px'; updateMentionBox(); sendTyping(); });
+    inp.addEventListener('input', function () { this.style.height = 'auto'; this.style.height = Math.min(this.scrollHeight, 110) + 'px'; updateMentionBox(); sendTyping(); saveDraft(); });
     inp.addEventListener('click', updateMentionBox);
     // close on outside click
     document.addEventListener('click', (e) => {
@@ -582,8 +583,10 @@
     const prev = c.last_message ? ((isG && c.last_message.sender_name ? c.last_message.sender_name + ': ' : '') + c.last_message.body) : 'No messages yet';
     const other = !isG ? (c.members || []).find(m => !me || m.id !== me.user_id) : null;
     const online = other && onlineIds.has(other.id);
+    const draft = c.id !== curConv ? loadDraft(c.id) : '';
+    const prevHtml = draft ? `<span class="mw-draft">Draft:</span> ${esc(draft).slice(0, 60)}` : esc(prev).slice(0, 70);
     return `<div class="mw-conv${c.unread ? ' unread' : ''}" data-c="${c.id}"><div class="mw-av${isG ? ' grp' : ''}">${isG ? '#' : esc(initials(c.title))}${online ? '<span class="mw-online-dot"></span>' : ''}</div>
-      <div class="mw-cm"><div class="mw-cn">${c.pinned ? PIN_MINI_SVG : ''}${esc(c.title)}</div><div class="mw-cp">${esc(prev).slice(0, 70)}</div></div>
+      <div class="mw-cm"><div class="mw-cn">${c.pinned ? PIN_MINI_SVG : ''}${esc(c.title)}</div><div class="mw-cp">${prevHtml}</div></div>
       <div class="mw-cr"><span class="mw-ct">${fmtTime(c.last_message_at)}</span>${c.muted ? '<svg class="mw-cn-mute" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/></svg>' : ''}${c.unread ? `<span class="mw-badge">${c.unread > 99 ? '99+' : c.unread}</span>` : ''}</div></div>`;
   }
   function renderList() {
@@ -615,6 +618,16 @@
     el.querySelectorAll('.mw-conv:not(.mw-msghit)').forEach(r => r.addEventListener('click', () => openConv(Number(r.dataset.c))));
   }
 
+  // ── Draft autosave (per conversation, localStorage) ──────────────────────
+  function draftKey(cid) { return 'chatdraft:' + ((me && me.user_id) || '') + ':' + cid; }
+  function saveDraft() {
+    if (editingId || !curConv) return;   // don't capture edit-in-progress text as a draft
+    const v = document.getElementById('mwInput').value;
+    try { if (v.trim()) localStorage.setItem(draftKey(curConv), v); else localStorage.removeItem(draftKey(curConv)); } catch (_) {}
+    renderList();   // refresh the list's "Draft:" hint
+  }
+  function loadDraft(cid) { try { return localStorage.getItem(draftKey(cid)) || ''; } catch (_) { return ''; } }
+  function clearDraft(cid) { try { localStorage.removeItem(draftKey(cid)); } catch (_) {} }
   async function openConv(id, jumpMid) {
     curConv = id; const conv = convs.find(c => c.id === id);
     jumpToMid = jumpMid || null;
@@ -624,6 +637,8 @@
     showThread();
     document.getElementById('mwThreadTitle').textContent = conv ? conv.title : 'Conversation';
     updatePinBtn(); updateMuteBtn(); cancelVoice(); renderThreadPresence();
+    // Restore any unsent draft for this conversation.
+    const inp0 = document.getElementById('mwInput'); inp0.value = loadDraft(id); inp0.style.height = 'auto'; inp0.style.height = inp0.value ? Math.min(inp0.scrollHeight, 110) + 'px' : 'auto';
     const mEl = document.getElementById('mwMsgs'); mEl.innerHTML = threadSkeleton();
     try {
       const j = await chatFetch('?api=messages&conversation_id=' + id);
@@ -1266,7 +1281,7 @@
   }
   async function sendWith(body, ready, mentioned, replyId, replyObj) {
     const inp = document.getElementById('mwInput');
-    const cid = curConv; inp.value = ''; inp.style.height = 'auto';
+    const cid = curConv; inp.value = ''; inp.style.height = 'auto'; clearDraft(cid);
     const nowIso = new Date().toISOString();
     const tmpId = 'mw-tmp-' + nowIso.replace(/\D/g, '') + '-' + Math.round(Math.random() * 1e6);
     // Optimistic bubble reuses the local preview URLs so media shows instantly.

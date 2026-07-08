@@ -242,6 +242,7 @@
   .conv-pin { color:var(--blue); margin-right:4px; vertical-align:-1px; flex-shrink:0; }
   #pinBtn.on, #muteBtn.on { color:var(--blue); background:var(--blue-bg); }
   .conv-mute { color:var(--text-dim); vertical-align:-2px; }
+  .conv-draft { color:#ff8f8f; font-weight:600; }
   .msg-aud { width:260px; max-width:60vw; height:40px; margin-top:2px; }
   .rec-bar { display:none; flex:1; align-items:center; gap:10px; padding:4px 4px 4px 12px; }
   .composer.recording .attach-btn, .composer.recording #micBtn, .composer.recording #composerInput, .composer.recording #sendBtn { display:none; }
@@ -712,9 +713,11 @@ async function runListSearch(){
 function convRowHtml(c){
   const isG = c.type==='group';
   const prev = c.last_message ? (isG && c.last_message.sender_name ? c.last_message.sender_name+': ' : '') + c.last_message.body : 'No messages yet';
+  const draft = c.id!==currentConv ? loadDraft(c.id) : '';
+  const prevHtml = draft ? `<span class="conv-draft">Draft:</span> ${esc(draft).slice(0,70)}` : esc(prev).slice(0,80);
   return `<div class="conv-row${c.id===currentConv?' active':''}${c.unread?' unread':''}" data-conv="${c.id}">
     <div class="conv-av${isG?' group':''}">${isG?'#':esc(initials(c.title))}${(()=>{ const o=!isG?(c.members||[]).find(m=>!me||m.id!==me.user_id):null; return (o&&onlineIds.has(o.id))?'<span class="conv-online-dot"></span>':''; })()}</div>
-    <div class="conv-mid"><div class="conv-name">${c.pinned?PIN_MINI_SVG:''}${esc(c.title)}${isG?` <span style="color:var(--text-dim);font-weight:500;font-size:0.72rem;">· ${c.member_count}</span>`:''}</div><div class="conv-prev">${esc(prev).slice(0,80)}</div></div>
+    <div class="conv-mid"><div class="conv-name">${c.pinned?PIN_MINI_SVG:''}${esc(c.title)}${isG?` <span style="color:var(--text-dim);font-weight:500;font-size:0.72rem;">· ${c.member_count}</span>`:''}</div><div class="conv-prev">${prevHtml}</div></div>
     <div class="conv-right"><span class="conv-time">${fmtTime(c.last_message_at)}</span>${c.muted?'<svg class="conv-mute" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/></svg>':''}${c.unread?`<span class="conv-badge">${c.unread>99?'99+':c.unread}</span>`:''}</div>
   </div>`;
 }
@@ -746,6 +749,16 @@ function renderConvList(){
   el.querySelectorAll('.conv-row:not(.msg-hit)').forEach(r=>r.addEventListener('click',()=>openConversation(Number(r.dataset.conv))));
 }
 
+// ── Draft autosave (per conversation, localStorage) ──
+function draftKey(cid){ return 'chatdraft:'+((me&&me.user_id)||'')+':'+cid; }
+function saveDraft(){
+  if(editingId || !currentConv) return;
+  const v=document.getElementById('composerInput').value;
+  try { if(v.trim()) localStorage.setItem(draftKey(currentConv), v); else localStorage.removeItem(draftKey(currentConv)); } catch(_){}
+  renderConvList();
+}
+function loadDraft(cid){ try { return localStorage.getItem(draftKey(cid))||''; } catch(_){ return ''; } }
+function clearDraft(cid){ try { localStorage.removeItem(draftKey(cid)); } catch(_){} }
 async function openConversation(id, jumpMid){
   const conv = conversations.find(c=>c.id===id);
   currentConv = id; jumpToMid = jumpMid || null;
@@ -758,6 +771,7 @@ async function openConversation(id, jumpMid){
   document.getElementById('chatTitle').textContent = conv ? conv.title : 'Conversation';
   document.getElementById('chatSub').textContent = conv ? (conv.type==='group' ? (conv.members||[]).map(m=>m.name).join(', ') : '') : '';
   updatePinBtn(); updateMuteBtn(); cancelVoice(); renderThreadPresence();
+  { const inp0=document.getElementById('composerInput'); inp0.value=loadDraft(id); inp0.style.height='auto'; if(inp0.value) inp0.style.height=Math.min(inp0.scrollHeight,140)+'px'; }
   // group actions
   const act = document.getElementById('chatActions');
   act.innerHTML = (conv && conv.type==='group') ? '<button class="btn-ghost" id="grpAdd" style="padding:6px 12px;">＋ Add</button><button class="btn-ghost" id="grpLeave" style="padding:6px 12px;">Leave</button>' : '';
@@ -1288,7 +1302,7 @@ async function sendMessage(){
   const replyId = replyTarget ? replyTarget.id : null;
   const replyObj = replyTarget ? { id:replyTarget.id, sender_name:replyTarget.sender_name, snippet:replyTarget.snippet } : null;
   cancelReply();
-  const cid = currentConv; inp.value=''; inp.style.height='auto';
+  const cid = currentConv; inp.value=''; inp.style.height='auto'; clearDraft(cid);
   // The strip's object URLs are now owned by the optimistic bubbles — clear WITHOUT revoking.
   pendingAtts=[]; renderAttStrip();
   // Each attachment is sent as its OWN message (its own Dropbox path + own 50 MB), never
@@ -1377,7 +1391,7 @@ document.getElementById('composerInput').addEventListener('keydown', e=>{
   }
   if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); sendMessage(); }
 });
-document.getElementById('composerInput').addEventListener('input', function(){ this.style.height='auto'; this.style.height=Math.min(this.scrollHeight,140)+'px'; updateMentionBox(); sendTyping(); });
+document.getElementById('composerInput').addEventListener('input', function(){ this.style.height='auto'; this.style.height=Math.min(this.scrollHeight,140)+'px'; updateMentionBox(); sendTyping(); saveDraft(); });
 // Conversation-list search
 document.getElementById('convSearch').addEventListener('input', e=>{ listQuery=e.target.value.trim().toLowerCase(); clearTimeout(searchT); if(listQuery.length>=2){ searching=true; searchResults=[]; searchT=setTimeout(runListSearch,250); } else { searching=false; searchResults=[]; } renderConvList(); });
 // In-thread find

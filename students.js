@@ -463,6 +463,18 @@ function _matchesDaysLeftBucket(s, b) {
   }
   return false;
 }
+// How many days ago the student's term lapsed, or null if they are not expired.
+// Prefers days_left (server-computed, negative once expired); falls back to the
+// effective end date so the filter still works even if days_left is absent.
+function _daysExpired(s) {
+  if (s.days_left != null && s.days_left < 0) return -s.days_left;
+  const end = s.effective_end_date || s.end_date;
+  if (end) {
+    const d = Math.floor((Date.now() - new Date(end + (String(end).length <= 10 ? 'T23:59:59' : '')).getTime()) / 86400000);
+    if (d > 0) return d;
+  }
+  return null;
+}
 function _daysSinceActivity(s) {
   const d = s.last_activity_date;
   if (!d) return null;
@@ -512,11 +524,13 @@ function _applyAdvFilters(rows) {
     if (advFilters.days_left_bucket.length && !advFilters.days_left_bucket.some(b => _matchesDaysLeftBucket(s, b))) return false;
     if (advFilters.inactive_days_bucket.length && !advFilters.inactive_days_bucket.includes(_inactiveBucket(s))) return false;
     if (!matchTri('expired_never_onboarded', (s.days_left != null && s.days_left < 0 && !s.student_onboarded_date))) return false;
-    // "Expired within the last N days": days_left goes negative once the term lapses, so
-    // days since expiry = -days_left. N=7 → keep only students expired but for 7 days or
-    // fewer (recently lapsed): -N <= days_left < 0.
+    // "Expired within the last N days": keep only students whose term lapsed at most N
+    // days ago (recently expired). _daysExpired() returns null when not expired.
     const maxExp = parseInt(advFilters.max_days_expired, 10);
-    if (Number.isFinite(maxExp) && maxExp > 0 && !(s.days_left != null && s.days_left < 0 && s.days_left >= -maxExp)) return false;
+    if (Number.isFinite(maxExp) && maxExp > 0) {
+      const de = _daysExpired(s);
+      if (de == null || de > maxExp) return false;
+    }
     return true;
   });
 }

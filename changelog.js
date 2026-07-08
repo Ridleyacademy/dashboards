@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v462', title: 'Mentorship Students — expiry filter hardened', items: [
+      'The “Expired within the last N days” filter now also works off each student’s term end date (not only the server day-count), so it reliably catches everyone who recently lapsed.',
+    ]},
     { version: 'v461', title: 'Mentorship Students — expiry filter now applies live', items: [
       'Fixed: typing a number in “Expired within the last N days” now actually re-filters the list as you type (the field was set but the list wasn’t refreshing). The “Custom… days until end” field is fixed the same way.',
     ]},

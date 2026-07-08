@@ -19,6 +19,7 @@
   let curMsgs = [];          // messages currently rendered in the open thread (for reaction/edit updates)
   let curHasMore = false, loadingOlder = false;   // history pagination (load-earlier on scroll-up)
   let curPinned = null;      // pinned message {id, sender_name, snippet} for the open thread
+  let curDisappear = 0;      // disappearing-messages TTL (seconds) for the open thread; 0 = off
   let editingId = null;      // message id being edited (composer is in edit mode)
   let replyTarget = null;    // { id, sender_name, snippet } message being replied to
   let selectMode = false;    // multi-select (for forwarding) active
@@ -41,6 +42,8 @@
   const EDIT_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
   const TRASH_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
   const INFO_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M9 13l2 2 4-4"/></svg>';
+  const STAR_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
+  const TIMER_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M9 2h6"/></svg>';
   const COPY_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
   const PIN_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14l-1.6-2.6a2 2 0 0 1-.4-1.2V8a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2v5.2a2 2 0 0 1-.4 1.2L5 17z"/></svg>';
   const FILE_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
@@ -266,6 +269,7 @@
       .mw-rb-name { color:#eaecf8; font-size:0.85rem; }
       .mw-rb-when { color:#8b93bd; font-size:0.72rem; white-space:nowrap; }
       .mw-rb-when.dim { color:#6b7290; }
+      .mw-saved { color:#e6b800; display:inline-flex; align-items:center; margin:0 1px; }
       .mw-toast { position:absolute; left:50%; bottom:76px; transform:translateX(-50%) translateY(6px); background:#0b0d18; border:1px solid #2a3350; color:#eaecf8; padding:7px 14px; border-radius:20px; font-size:0.8rem; opacity:0; pointer-events:none; transition:opacity .18s, transform .18s; z-index:40; box-shadow:0 6px 20px rgba(0,0,0,0.4); }
       .mw-toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
       .mw-file { display:flex; align-items:center; gap:10px; text-decoration:none; background:#0f1120; border:1px solid #1f2438; border-radius:12px; padding:9px 12px; max-width:240px; color:#eaecf8; cursor:pointer; }
@@ -435,7 +439,7 @@
       <div class="mw-scroll" id="mwList"><div class="mw-empty">Loading…</div></div>
       <div class="mw-thread" id="mwThread">
         <div class="mw-drop" id="mwDrop"><div class="mw-drop-inner">${FILE_SVG}<span>Drop to attach</span></div></div>
-        <div class="mw-head"><button class="mw-back" id="mwBack">‹</button><div style="flex:1;min-width:0;"><div class="mw-title" id="mwThreadTitle" style="font-size:0.88rem;"></div><div class="mw-presence" id="mwThreadSub"></div></div><button class="mw-hbtn mw-iconbtn" id="mwPinBtn" title="Pin conversation" aria-label="Pin"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14l-1.6-2.6a2 2 0 0 1-.4-1.2V8a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2v5.2a2 2 0 0 1-.4 1.2L5 17z"/></svg></button><button class="mw-hbtn mw-iconbtn" id="mwMuteBtn" title="Mute notifications" aria-label="Mute"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></button><button class="mw-hbtn mw-iconbtn" id="mwFindBtn" title="Search in conversation" aria-label="Search"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button><button class="mw-x" id="mwClose2">×</button></div>
+        <div class="mw-head"><button class="mw-back" id="mwBack">‹</button><div style="flex:1;min-width:0;"><div class="mw-title" id="mwThreadTitle" style="font-size:0.88rem;"></div><div class="mw-presence" id="mwThreadSub"></div></div><button class="mw-hbtn mw-iconbtn" id="mwPinBtn" title="Pin conversation" aria-label="Pin"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14l-1.6-2.6a2 2 0 0 1-.4-1.2V8a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2v5.2a2 2 0 0 1-.4 1.2L5 17z"/></svg></button><button class="mw-hbtn mw-iconbtn" id="mwMuteBtn" title="Mute notifications" aria-label="Mute"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></button><button class="mw-hbtn mw-iconbtn" id="mwFindBtn" title="Search in conversation" aria-label="Search"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button><button class="mw-hbtn mw-iconbtn" id="mwDisBtn" title="Disappearing messages" aria-label="Disappearing messages"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M9 2h6"/></svg></button><button class="mw-x" id="mwClose2">×</button></div>
         <div class="mw-pinbar" id="mwPinBar"></div>
         <div class="mw-findbar" id="mwFindBar"><input id="mwFindInput" placeholder="Search this conversation…"><span class="mw-find-n" id="mwFindN"></span><button class="mw-find-nav" id="mwFindPrev">↑</button><button class="mw-find-nav" id="mwFindNext">↓</button><button class="mw-find-x" id="mwFindClose">✕</button></div>
         <div class="mw-msgs-wrap">
@@ -496,12 +500,14 @@
         const mineItems = (m && m.mine) ? `<button class="mw-mi" data-act="edit">${EDIT_SVG}Edit</button><button class="mw-mi del" data-act="del">${TRASH_SVG}Delete</button>` : '';
         const conv = convs.find(c => c.id === curConv);
         const readByItem = (m && m.mine && conv && conv.type === 'group') ? `<button class="mw-mi" data-act="readby">${INFO_SVG}Read by</button>` : '';
-        showPop(`<button class="mw-mi" data-act="reply">↩ Reply</button><button class="mw-mi" data-act="forward">↪ Forward</button>${copyItem}${pinItem}${readByItem}<button class="mw-mi" data-act="select">☑ Select</button>${mineItems}`, mbtn, 'menu', (ev) => {
+        const saveItem = `<button class="mw-mi" data-act="save">${STAR_SVG}${m && m.saved ? 'Unsave' : 'Save'}</button>`;
+        showPop(`<button class="mw-mi" data-act="reply">↩ Reply</button><button class="mw-mi" data-act="forward">↪ Forward</button>${copyItem}${saveItem}${pinItem}${readByItem}<button class="mw-mi" data-act="select">☑ Select</button>${mineItems}`, mbtn, 'menu', (ev) => {
           const b = ev.target.closest('.mw-mi'); if (!b) return; closePopups();
           const act = b.dataset.act;
           if (act === 'reply') startReply(mid);
           else if (act === 'forward') openForwardPicker([mid]);
           else if (act === 'copy') copyMsg(mid);
+          else if (act === 'save') toggleSave(mid);
           else if (act === 'pinmsg') pinMessage(mid);
           else if (act === 'readby') showReadBy(mid);
           else if (act === 'select') { enterSelectMode(); toggleSelect(mid); }
@@ -543,6 +549,7 @@
     p.querySelector('#mwRecCancel').addEventListener('click', cancelVoice);
     p.querySelector('#mwRecStop').addEventListener('click', stopVoiceAndSend);
     p.querySelector('#mwFindBtn').addEventListener('click', toggleFind);
+    p.querySelector('#mwDisBtn').addEventListener('click', () => { const opts = [['Off', 0], ['1 hour', 3600], ['24 hours', 86400], ['7 days', 604800]]; showPop(opts.map(([l, s]) => `<button class="mw-mi" data-sec="${s}">${(curDisappear === s) ? '✓ ' : ''}${l}</button>`).join(''), p.querySelector('#mwDisBtn'), 'menu', (ev) => { const b = ev.target.closest('.mw-mi'); if (!b) return; closePopups(); setDisappearing(Number(b.dataset.sec)); }); });
     p.querySelector('#mwFindClose').addEventListener('click', closeFind);
     p.querySelector('#mwFindInput').addEventListener('input', (e) => runFind(e.target.value));
     p.querySelector('#mwFindInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); stepFind(e.shiftKey ? -1 : 1); } else if (e.key === 'Escape') closeFind(); });
@@ -705,6 +712,7 @@
       const j = await chatFetch('?api=messages&conversation_id=' + id);
       readCutoff = j.read_cutoff || null; curHasMore = !!j.has_more;
       curPinned = j.pinned_message || null; renderPinBar();
+      curDisappear = j.disappear_seconds || 0; updateDisBtn();
       renderMsgs(j.messages || []);
       if (conv) { conv.unread = 0; renderList(); updateBadge(); }
       if (jumpToMid) {
@@ -985,7 +993,8 @@
     const txt = bubInner ? `<div class="mw-bub">${bubInner}</div>` : '';
     const inner = mediaHtml(m.attachments) + txt;
     const smileSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>';
-    const tools = (!m.id || selectMode) ? '' : `<button class="mw-react-btn" title="React" aria-label="React">${smileSvg}</button><button class="mw-menu-btn" title="More">⋯</button>`;
+    const savedMark = m.saved ? `<span class="mw-saved" title="Saved">${STAR_SVG}</span>` : '';
+    const tools = (!m.id || selectMode) ? '' : `${savedMark}<button class="mw-react-btn" title="React" aria-label="React">${smileSvg}</button><button class="mw-menu-btn" title="More">⋯</button>`;
     return `<div class="mw-row${m.mine ? ' mine' : ''}${selCls}"${m._tmpId ? ` id="${m._tmpId}"` : ''}${idAttr}>${chk}${snd}${inner}${reactionChips(m)}<div class="mw-foot">${tools}<span class="mw-bt">${fmtStamp(m.created_at)}</span>${statusHtml(m)}</div></div>`;
   }
   function renderMsgs(msgs, preserveScroll) {
@@ -1056,6 +1065,24 @@
           + (unread.length ? `<div class="mw-rb-sub">Not yet read</div>` + unread.map(row).join('') : '');
       const pop = document.getElementById('mwPop'); if (pop) pop.querySelector('.mw-readby').innerHTML = body;
     } catch (_) { const pop = document.getElementById('mwPop'); if (pop) pop.querySelector('.mw-readby').innerHTML = '<div class="mw-readby-loading">Could not load.</div>'; }
+  }
+  // ── Saved / starred messages (personal bookmarks) ──
+  async function toggleSave(mid) {
+    const m = curMsgs.find(x => x.id === mid); const was = !!(m && m.saved);
+    if (m) { m.saved = !was; renderMsgs(curMsgs, true); }
+    try {
+      const j = await chatFetch('?api=save-message', { method: 'POST', body: JSON.stringify({ message_id: mid }) });
+      if (m) m.saved = !!j.saved; renderMsgs(curMsgs, true);
+      toast(j.saved ? 'Saved' : 'Removed from saved');
+    } catch (_) { if (m) { m.saved = was; renderMsgs(curMsgs, true); } toast('Could not update'); }
+  }
+  // ── Disappearing messages ──
+  function disLabel(s) { return s >= 604800 ? '7 days' : s >= 86400 ? '24 hours' : s >= 3600 ? '1 hour' : (s ? Math.round(s / 60) + ' min' : ''); }
+  function updateDisBtn() { const b = document.getElementById('mwDisBtn'); if (!b) return; b.classList.toggle('on', curDisappear > 0); b.title = curDisappear > 0 ? `Disappearing: ${disLabel(curDisappear)}` : 'Disappearing messages'; }
+  async function setDisappearing(sec) {
+    if (!curConv) return; const prev = curDisappear; curDisappear = sec; updateDisBtn();
+    try { await chatFetch('?api=set-disappearing', { method: 'POST', body: JSON.stringify({ conversation_id: curConv, seconds: sec }) }); toast(sec ? `Messages disappear after ${disLabel(sec)}` : 'Disappearing off'); }
+    catch (_) { curDisappear = prev; updateDisBtn(); toast('Could not update'); }
   }
   // ── Desktop notifications ─────────────────────────────────────────────────
   // Complements the phone push: when the dashboard is open in a tab that isn't

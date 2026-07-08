@@ -16,6 +16,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v456', title: 'Messages — saved messages, search filters, disappearing messages', items: [
+      'Save any message as a personal bookmark (⋯ menu → Save). Open the ★ button at the top of the message list to see everything you’ve saved, and tap one to jump to it.',
+      'Filter search by person, files-only, and a date range — pick a name / toggle “Files only” / set from–to dates under the search box.',
+      'Turn on disappearing messages per conversation (clock button in the chat header → Off / 1 hour / 24 hours / 7 days); older messages are removed automatically for everyone.',
+    ]},
     { version: 'v455', title: 'Messages — emoji button in the composer', items: [
       'A smiley button next to the message box opens the full emoji picker so you can drop emoji straight into what you’re typing (it stays open so you can add several).',
     ]},

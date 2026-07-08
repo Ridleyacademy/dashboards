@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v462-expiry-filter-hardened';
+const CACHE_NAME = 'ridley-v463-masterclass-crm';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [
@@ -20,6 +20,8 @@ const PRECACHE = [
   '/loading-states.js',
   '/pwa.js',
   '/students.js',
+  '/masterclass.html',
+  '/masterclass.js',
   '/coach.js',
   '/email-automations.js',
   '/access.html',

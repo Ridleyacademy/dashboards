@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v463', title: 'New — Masterclass Students CRM', items: [
+      'A dedicated CRM for Piano Masterclass students (separate from the Mentorship CRM): search, per-student profile, edit details and course progress, assign a rep, and run turn-overs, alerts, wins and notes — with the usual in-app + phone notifications. Students get imported from a CSV.',
+    ]},
     { version: 'v462', title: 'Mentorship Students — expiry filter hardened', items: [
       'The “Expired within the last N days” filter now also works off each student’s term end date (not only the server day-count), so it reliably catches everyone who recently lapsed.',
     ]},

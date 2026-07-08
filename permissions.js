@@ -38,6 +38,7 @@
     // (daily_reports.view), plus the daily_reports role / admins.
     { href: 'daily-reports.html', id: 'daily_reports', roles: ['daily_reports'], granular: 'daily_reports.view' },
     { href: 'students.html',     id: 'students',     roles: ['students', 'mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'], granular: 'students.view' },
+    { href: 'masterclass.html',  id: 'masterclass',  roles: ['mentorship', 'sales_manager', 'ms_ic', 'delivery_ic', 'ms_rep', 'rep'], granular: 'masterclass.view' },
     // Coach Dashboard: only true editors. Primary gate is the GRANULAR
     // `coach.edit` permission. Legacy fallback includes `coach` /
     // `ms_ic` / `delivery_ic` for users whose JWT predates the

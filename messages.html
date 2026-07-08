@@ -308,6 +308,20 @@
   .msg-mi svg { flex-shrink:0; }
   .msg-mi:hover { background:var(--surface2); }
   .msg-mi.del:hover { background:#3a1f24; color:#ff9a9a; }
+  .rx-more { font-size:1.15rem; color:var(--text-dim); border-left:1px solid var(--border-light); margin-left:3px; padding-left:9px; }
+  .msg-pop.emoji { display:block; padding:9px; width:308px; max-height:320px; overflow-y:auto; }
+  .emoji-cat { font-size:0.68rem; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-dim); margin:7px 3px 4px; font-weight:700; }
+  .emoji-grid { display:grid; grid-template-columns:repeat(8,1fr); gap:2px; }
+  .emoji-btn { background:none; border:none; font-size:1.35rem; cursor:pointer; border-radius:7px; padding:3px 0; line-height:1.1; }
+  .emoji-btn:hover { background:var(--surface2); transform:scale(1.2); }
+  .msg-pop.readby { display:block; padding:11px 13px; min-width:230px; max-width:290px; max-height:320px; overflow-y:auto; }
+  .readby-loading { color:var(--text-dim); font-size:0.85rem; padding:4px 2px; }
+  .rb-head { font-size:0.74rem; color:var(--text-dim); font-weight:700; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:7px; }
+  .rb-sub { font-size:0.7rem; color:var(--text-dim); opacity:0.7; margin:10px 0 4px; text-transform:uppercase; letter-spacing:0.04em; }
+  .rb-row { display:flex; align-items:center; justify-content:space-between; gap:14px; padding:3px 2px; }
+  .rb-name { color:var(--text); font-size:0.88rem; }
+  .rb-when { color:var(--text-dim); font-size:0.74rem; white-space:nowrap; }
+  .rb-when.dim { opacity:0.6; }
   .confirm-overlay { position:fixed; inset:0; z-index:10070; background:rgba(0,0,0,0.6); backdrop-filter:blur(3px); display:flex; align-items:center; justify-content:center; padding:24px; }
   .confirm-card { background:var(--surface); border:1px solid var(--border-light); border-radius:16px; padding:22px; max-width:340px; width:100%; box-shadow:0 24px 60px rgba(0,0,0,0.6); }
   .confirm-msg { font-size:0.95rem; color:var(--text); margin-bottom:18px; line-height:1.45; }
@@ -540,6 +554,14 @@ let searchResults = [], searchT = null, jumpToMid = null, searching = false;
 let typingCh = null, lastTypingSent = 0, typingHideT = null;
 const mentionPicked = new Map();
 const REACTIONS = ['👍', '❤️', '😂', '🎉', '😮', '😢'];
+// Full emoji picker (categorised); the react button's "+" opens it for any-emoji reactions.
+const EMOJI_CATS = [
+  { name: 'Smileys', emojis: '😀 😃 😄 😁 😆 😅 🤣 😂 🙂 🙃 😉 😊 😇 🥰 😍 🤩 😘 😗 😚 😙 😋 😛 😜 🤪 😝 🤑 🤗 🤭 🤫 🤔 🤐 😐 😑 😶 😏 😒 🙄 😬 😮‍💨 🤥 😌 😔 😪 🤤 😴 😷 🤒 🤕 🤢 🤮 🤧 🥵 🥶 🥴 😵 🤯 🤠 🥳 😎 🤓 🧐 😕 😟 🙁 ☹️ 😮 😯 😲 😳 🥺 😦 😧 😨 😰 😥 😢 😭 😱 😖 😣 😞 😓 😩 😫 🥱 😤 😡 😠 🤬 😈 👿 💀 💩 🤡 👻 👽'.split(' ') },
+  { name: 'Gestures', emojis: '👍 👎 👌 🤌 🤏 ✌️ 🤞 🤟 🤘 🤙 👈 👉 👆 👇 ☝️ ✋ 🤚 🖐️ 🖖 👋 🤝 👏 🙌 👐 🤲 🙏 ✍️ 💪 🦾 👊 ✊ 🤛 🤜 💅'.split(' ') },
+  { name: 'Hearts', emojis: '❤️ 🧡 💛 💚 💙 💜 🖤 🤍 🤎 💔 ❣️ 💕 💞 💓 💗 💖 💘 💝 💟 ✨ ⭐ 🌟 💫 🔥 💯 ✅ ❌ ❓ ❗ ⚡'.split(' ') },
+  { name: 'Objects', emojis: '🎉 🎊 🎈 🎁 🏆 🥇 🎯 💡 📌 📎 🔒 🔑 💰 💵 📈 📉 📊 🗓️ ⏰ ⌛ 📞 📱 💻 🖥️ 📷 🎬 🎵 🎧 ☕ 🍕 🍔 🍺 🍻 🥂 🎂 🚀 ✈️ 🏠 👀 🙈'.split(' ') },
+];
+const INFO_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M9 13l2 2 4-4"/></svg>';
 const EDIT_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
 const TRASH_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
 const COPY_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
@@ -666,6 +688,7 @@ async function onAuthed(session) {
   await loadConversations();
   subscribeRealtime();
   startPresence();
+  ensureNotifyPermission();
   const c = _queryParams.get('c');
   if (c) openConversation(Number(c));
 }
@@ -1088,6 +1111,50 @@ function showPop(html, anchor, cls, onclick){
   p.style.left=Math.max(8,left)+'px'; p.style.top=Math.max(8,top)+'px';
   p.addEventListener('click', onclick);
 }
+// Full emoji picker — categorised grid, opened by the "+" in the quick-react palette.
+function openEmojiPicker(anchor, onPick){
+  const html = '<div class="emoji-pick">'+EMOJI_CATS.map(cat=>
+    `<div class="emoji-cat">${esc(cat.name)}</div><div class="emoji-grid">${cat.emojis.map(em=>`<button class="emoji-btn" data-emoji="${em}">${em}</button>`).join('')}</div>`
+  ).join('')+'</div>';
+  showPop(html, anchor, 'emoji', ev=>{ const b=ev.target.closest('.emoji-btn'); if(!b) return; closePopups(); onPick(b.dataset.emoji); });
+}
+// Group read receipts — "Read by" list for one of my own messages.
+async function showReadBy(mid){
+  const anchor = document.querySelector(`.bubble-row[data-mid="${mid}"] .menu-btn`) || document.getElementById('msgs');
+  showPop('<div class="readby"><div class="readby-loading">Loading…</div></div>', anchor, 'readby', ()=>{});
+  try {
+    const j = await chatFetch('?api=read-by', { method:'POST', body:JSON.stringify({ conversation_id: currentConv, message_id: mid }) });
+    const people = j.people||[];
+    const read = people.filter(p=>p.read), unread = people.filter(p=>!p.read);
+    const row = p=>`<div class="rb-row"><span class="rb-name">${esc(p.name)}</span>${p.read?`<span class="rb-when">${fmtTime(p.read_at)}</span>`:`<span class="rb-when dim">${p.delivered?'Delivered':'Sent'}</span>`}</div>`;
+    const body = !people.length ? '<div class="readby-loading">No other members.</div>'
+      : `<div class="rb-head">Read by ${read.length}/${people.length}</div>`
+        + (read.length?read.map(row).join(''):'')
+        + (unread.length?`<div class="rb-sub">Not yet read</div>`+unread.map(row).join(''):'');
+    const pop=document.getElementById('msgPop'); if(pop) pop.querySelector('.readby').innerHTML = body;
+  } catch(_){ const pop=document.getElementById('msgPop'); if(pop) pop.querySelector('.readby').innerHTML='<div class="readby-loading">Could not load.</div>'; }
+}
+// ── Desktop notifications ──
+// Complements the phone push: when this page is open in a tab that isn't focused,
+// pop a native desktop notification for an incoming message.
+function ensureNotifyPermission(){
+  try { if('Notification' in window && Notification.permission==='default') Notification.requestPermission().catch(()=>{}); } catch(_){}
+}
+function desktopNotify(m){
+  try {
+    if(!('Notification' in window) || Notification.permission!=='granted') return;
+    if(document.visibilityState==='visible' && document.hasFocus()) return;   // already visible to them
+    const conv = conversations.find(c=>c.id===m.conversation_id);
+    if(conv && conv.muted) return;
+    const who = nameById[m.sender_id] || m.sender_name || 'New message';
+    const title = conv ? (conv.type==='group'?conv.title:who) : who;
+    let body = (m.body||'').trim();
+    if(!body) body = m.has_attachments ? 'Sent an attachment' : '';
+    if(conv && conv.type==='group' && body) body = who+': '+body;
+    const n = new Notification(title, { body: body.slice(0,180), tag:'chat-'+m.conversation_id, icon:'/icon-192.png' });
+    n.onclick = ()=>{ try { window.focus(); openConversation(m.conversation_id); n.close(); } catch(_){} };
+  } catch(_){}
+}
 async function toggleReaction(mid, emoji){
   const m = currentMsgs.find(x=>x.id===mid); if(!m) return;
   m.reactions = m.reactions || [];
@@ -1408,19 +1475,22 @@ document.getElementById('msgs').addEventListener('click', e=>{
   const chip = e.target.closest && e.target.closest('.rx-chip');
   if(chip && mid){ toggleReaction(mid, chip.dataset.emoji); return; }
   const rbtn = e.target.closest && e.target.closest('.react-btn');
-  if(rbtn && mid){ showPop(REACTIONS.map(em=>`<button class="rx-opt" data-emoji="${em}">${em}</button>`).join(''), rbtn, '', ev=>{ const b=ev.target.closest('.rx-opt'); if(!b) return; closePopups(); toggleReaction(mid, b.dataset.emoji); }); return; }
+  if(rbtn && mid){ showPop(REACTIONS.map(em=>`<button class="rx-opt" data-emoji="${em}">${em}</button>`).join('')+'<button class="rx-opt rx-more" data-more="1" title="More emoji">＋</button>', rbtn, '', ev=>{ const more=ev.target.closest('.rx-more'); if(more){ openEmojiPicker(rbtn, em=>toggleReaction(mid, em)); return; } const b=ev.target.closest('.rx-opt'); if(!b) return; closePopups(); toggleReaction(mid, b.dataset.emoji); }); return; }
   const mbtn = e.target.closest && e.target.closest('.menu-btn');
   if(mbtn && mid){
     const m = currentMsgs.find(x=>x.id===mid);
     const copyItem = (m && m.body)?`<button class="msg-mi" data-act="copy">${COPY_SVG}Copy text</button>`:'';
     const pinItem = `<button class="msg-mi" data-act="pinmsg">${PIN_SVG}${curPinned && curPinned.id===mid ? 'Unpin' : 'Pin'}</button>`;
     const mineItems = (m && m.mine)?`<button class="msg-mi" data-act="edit">${EDIT_SVG}Edit</button><button class="msg-mi del" data-act="del">${TRASH_SVG}Delete</button>`:'';
-    showPop(`<button class="msg-mi" data-act="reply">↩ Reply</button><button class="msg-mi" data-act="forward">↪ Forward</button>${copyItem}${pinItem}<button class="msg-mi" data-act="select">☑ Select</button>${mineItems}`, mbtn, 'menu', ev=>{
+    const conv = conversations.find(c=>c.id===currentConv);
+    const readByItem = (m && m.mine && conv && conv.type==='group')?`<button class="msg-mi" data-act="readby">${INFO_SVG}Read by</button>`:'';
+    showPop(`<button class="msg-mi" data-act="reply">↩ Reply</button><button class="msg-mi" data-act="forward">↪ Forward</button>${copyItem}${pinItem}${readByItem}<button class="msg-mi" data-act="select">☑ Select</button>${mineItems}`, mbtn, 'menu', ev=>{
       const b=ev.target.closest('.msg-mi'); if(!b) return; closePopups(); const act=b.dataset.act;
       if(act==='reply') startReply(mid);
       else if(act==='forward') openForwardPicker([mid]);
       else if(act==='copy') copyMsg(mid);
       else if(act==='pinmsg') pinMessage(mid);
+      else if(act==='readby') showReadBy(mid);
       else if(act==='select'){ enterSelectMode(); toggleSelect(mid); }
       else if(act==='edit') startEdit(mid);
       else if(act==='del') doDelete(mid);
@@ -1462,7 +1532,7 @@ document.getElementById('findNext').addEventListener('click', ()=>stepFind(1));
 document.getElementById('jumpBtn').addEventListener('click', ()=>{ const el=document.getElementById('msgs'); el.scrollTo({top:el.scrollHeight, behavior:'smooth'}); });
 document.getElementById('msgs').addEventListener('scroll', ()=>{ updateJumpBtn(); const el=document.getElementById('msgs'); if(el && el.scrollTop<80) loadOlder(); });
 document.getElementById('composerInput').addEventListener('click', updateMentionBox);
-document.addEventListener('click', e=>{ const pop=document.getElementById('msgPop'); if(!pop) return; if(pop.contains(e.target)) return; if(e.target.closest('.react-btn, .menu-btn, .conv-menu')) return; closePopups(); });
+document.addEventListener('click', e=>{ const pop=document.getElementById('msgPop'); if(!pop) return; if(!e.target.isConnected) return; /* a click inside a popup that just replaced itself (＋→emoji, menu→Read by) — its target is now detached; don't treat as outside */ if(pop.contains(e.target)) return; if(e.target.closest('.react-btn, .menu-btn, .conv-menu')) return; closePopups(); });
 document.addEventListener('keydown', e=>{ if(e.key==='Escape') closePopups(); });
 document.getElementById('chatBack').addEventListener('click', ()=>{ document.getElementById('app').classList.remove('thread-open'); currentConv=null; renderConvList(); });
 
@@ -1485,6 +1555,7 @@ function subscribeRealtime(){
       } else {
         loadConversations();
       }
+      desktopNotify(m);
     })
     .on('postgres_changes', { event:'UPDATE', schema:'public', table:'chat_messages' }, (payload)=>{
       const m = payload.new; if(!m || m.conversation_id!==currentConv) return;

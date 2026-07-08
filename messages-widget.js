@@ -31,8 +31,16 @@
   const mentionPicked = new Map();   // id -> name for @mentions chosen while composing
   const nameById = {};
   const REACTIONS = ['👍', '❤️', '😂', '🎉', '😮', '😢'];
+  // Full emoji picker (categorised); the react button's "+" opens it for any-emoji reactions.
+  const EMOJI_CATS = [
+    { name: 'Smileys', emojis: '😀 😃 😄 😁 😆 😅 🤣 😂 🙂 🙃 😉 😊 😇 🥰 😍 🤩 😘 😗 😚 😙 😋 😛 😜 🤪 😝 🤑 🤗 🤭 🤫 🤔 🤐 😐 😑 😶 😏 😒 🙄 😬 😮‍💨 🤥 😌 😔 😪 🤤 😴 😷 🤒 🤕 🤢 🤮 🤧 🥵 🥶 🥴 😵 🤯 🤠 🥳 😎 🤓 🧐 😕 😟 🙁 ☹️ 😮 😯 😲 😳 🥺 😦 😧 😨 😰 😥 😢 😭 😱 😖 😣 😞 😓 😩 😫 🥱 😤 😡 😠 🤬 😈 👿 💀 💩 🤡 👻 👽'.split(' ') },
+    { name: 'Gestures', emojis: '👍 👎 👌 🤌 🤏 ✌️ 🤞 🤟 🤘 🤙 👈 👉 👆 👇 ☝️ ✋ 🤚 🖐️ 🖖 👋 🤝 👏 🙌 👐 🤲 🙏 ✍️ 💪 🦾 👊 ✊ 🤛 🤜 💅'.split(' ') },
+    { name: 'Hearts', emojis: '❤️ 🧡 💛 💚 💙 💜 🖤 🤍 🤎 💔 ❣️ 💕 💞 💓 💗 💖 💘 💝 💟 ✨ ⭐ 🌟 💫 🔥 💯 ✅ ❌ ❓ ❗ ⚡'.split(' ') },
+    { name: 'Objects', emojis: '🎉 🎊 🎈 🎁 🏆 🥇 🎯 💡 📌 📎 🔒 🔑 💰 💵 📈 📉 📊 🗓️ ⏰ ⌛ 📞 📱 💻 🖥️ 📷 🎬 🎵 🎧 ☕ 🍕 🍔 🍺 🍻 🥂 🎂 🚀 ✈️ 🏠 👀 🙈'.split(' ') },
+  ];
   const EDIT_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
   const TRASH_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
+  const INFO_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M9 13l2 2 4-4"/></svg>';
   const COPY_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
   const PIN_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14l-1.6-2.6a2 2 0 0 1-.4-1.2V8a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2v5.2a2 2 0 0 1-.4 1.2L5 17z"/></svg>';
   const FILE_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
@@ -244,6 +252,20 @@
       .mw-mi svg { flex-shrink:0; }
       .mw-mi:hover { background:#252c44; color:#eaecf8; }
       .mw-mi.del:hover { background:#3a1f24; color:#ff9a9a; }
+      .mw-rxmore { font-size:1.05rem; color:#8b93bd; border-left:1px solid #2a3150; margin-left:2px; padding-left:7px; }
+      .mw-pop.emoji { display:block; padding:8px; width:280px; max-height:300px; overflow-y:auto; }
+      .mw-emoji-cat { font-size:0.66rem; text-transform:uppercase; letter-spacing:0.05em; color:#8b93bd; margin:6px 2px 3px; font-weight:700; }
+      .mw-emoji-grid { display:grid; grid-template-columns:repeat(8,1fr); gap:1px; }
+      .mw-emoji { background:none; border:none; font-size:1.2rem; cursor:pointer; border-radius:6px; padding:3px 0; line-height:1.1; }
+      .mw-emoji:hover { background:#252c44; transform:scale(1.2); }
+      .mw-pop.readby { display:block; padding:9px 11px; min-width:210px; max-width:270px; max-height:300px; overflow-y:auto; }
+      .mw-readby-loading { color:#8b93bd; font-size:0.82rem; padding:4px 2px; }
+      .mw-rb-head { font-size:0.72rem; color:#8b93bd; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:6px; }
+      .mw-rb-sub { font-size:0.68rem; color:#6b7290; margin:9px 0 4px; text-transform:uppercase; letter-spacing:0.04em; }
+      .mw-rb-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:3px 2px; }
+      .mw-rb-name { color:#eaecf8; font-size:0.85rem; }
+      .mw-rb-when { color:#8b93bd; font-size:0.72rem; white-space:nowrap; }
+      .mw-rb-when.dim { color:#6b7290; }
       .mw-toast { position:absolute; left:50%; bottom:76px; transform:translateX(-50%) translateY(6px); background:#0b0d18; border:1px solid #2a3350; color:#eaecf8; padding:7px 14px; border-radius:20px; font-size:0.8rem; opacity:0; pointer-events:none; transition:opacity .18s, transform .18s; z-index:40; box-shadow:0 6px 20px rgba(0,0,0,0.4); }
       .mw-toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
       .mw-file { display:flex; align-items:center; gap:10px; text-decoration:none; background:#0f1120; border:1px solid #1f2438; border-radius:12px; padding:9px 12px; max-width:240px; color:#eaecf8; cursor:pointer; }
@@ -464,20 +486,23 @@
       const chip = e.target.closest && e.target.closest('.mw-rchip');
       if (chip && mid) { toggleReaction(mid, chip.dataset.emoji); return; }
       const rbtn = e.target.closest && e.target.closest('.mw-react-btn');
-      if (rbtn && mid) { showPop(REACTIONS.map(em => `<button class="mw-rxopt" data-emoji="${em}">${em}</button>`).join(''), rbtn, '', (ev) => { const b = ev.target.closest('.mw-rxopt'); if (!b) return; closePopups(); toggleReaction(mid, b.dataset.emoji); }); return; }
+      if (rbtn && mid) { showPop(REACTIONS.map(em => `<button class="mw-rxopt" data-emoji="${em}">${em}</button>`).join('') + '<button class="mw-rxopt mw-rxmore" data-more="1" title="More emoji">＋</button>', rbtn, '', (ev) => { const more = ev.target.closest('.mw-rxmore'); if (more) { openEmojiPicker(rbtn, (em) => toggleReaction(mid, em)); return; } const b = ev.target.closest('.mw-rxopt'); if (!b) return; closePopups(); toggleReaction(mid, b.dataset.emoji); }); return; }
       const mbtn = e.target.closest && e.target.closest('.mw-menu-btn');
       if (mbtn && mid) {
         const m = curMsgs.find(x => x.id === mid);
         const copyItem = (m && m.body) ? `<button class="mw-mi" data-act="copy">${COPY_SVG}Copy text</button>` : '';
         const pinItem = `<button class="mw-mi" data-act="pinmsg">${PIN_SVG}${curPinned && curPinned.id === mid ? 'Unpin' : 'Pin'}</button>`;
         const mineItems = (m && m.mine) ? `<button class="mw-mi" data-act="edit">${EDIT_SVG}Edit</button><button class="mw-mi del" data-act="del">${TRASH_SVG}Delete</button>` : '';
-        showPop(`<button class="mw-mi" data-act="reply">↩ Reply</button><button class="mw-mi" data-act="forward">↪ Forward</button>${copyItem}${pinItem}<button class="mw-mi" data-act="select">☑ Select</button>${mineItems}`, mbtn, 'menu', (ev) => {
+        const conv = convs.find(c => c.id === curConv);
+        const readByItem = (m && m.mine && conv && conv.type === 'group') ? `<button class="mw-mi" data-act="readby">${INFO_SVG}Read by</button>` : '';
+        showPop(`<button class="mw-mi" data-act="reply">↩ Reply</button><button class="mw-mi" data-act="forward">↪ Forward</button>${copyItem}${pinItem}${readByItem}<button class="mw-mi" data-act="select">☑ Select</button>${mineItems}`, mbtn, 'menu', (ev) => {
           const b = ev.target.closest('.mw-mi'); if (!b) return; closePopups();
           const act = b.dataset.act;
           if (act === 'reply') startReply(mid);
           else if (act === 'forward') openForwardPicker([mid]);
           else if (act === 'copy') copyMsg(mid);
           else if (act === 'pinmsg') pinMessage(mid);
+          else if (act === 'readby') showReadBy(mid);
           else if (act === 'select') { enterSelectMode(); toggleSelect(mid); }
           else if (act === 'edit') startEdit(mid);
           else if (act === 'del') doDelete(mid);
@@ -556,7 +581,7 @@
   }
 
   function togglePanel() { panelOpen ? closePanel() : openPanel(); }
-  function openPanel() { panelOpen = true; document.getElementById('msgWidgetPanel').classList.add('open'); showList(); loadConversations(); }
+  function openPanel() { panelOpen = true; ensureNotifyPermission(); document.getElementById('msgWidgetPanel').classList.add('open'); showList(); loadConversations(); }
   let _refreshT = null;
   function refreshSoon() { clearTimeout(_refreshT); _refreshT = setTimeout(loadConversations, 700); }
   function closePanel() { panelOpen = false; const p = document.getElementById('msgWidgetPanel'); if (p) p.classList.remove('open'); document.getElementById('mwPick')?.classList.remove('open'); }
@@ -998,6 +1023,50 @@
     if (top + ph > window.innerHeight - 8) top = r.top - ph - 6;
     p.style.left = Math.max(8, left) + 'px'; p.style.top = Math.max(8, top) + 'px';
     p.addEventListener('click', onclick);
+  }
+  // Full emoji picker — categorised grid, opened by the "+" in the quick-react palette.
+  function openEmojiPicker(anchor, onPick) {
+    const html = '<div class="mw-emoji-pick">' + EMOJI_CATS.map(cat =>
+      `<div class="mw-emoji-cat">${esc(cat.name)}</div><div class="mw-emoji-grid">${cat.emojis.map(em => `<button class="mw-emoji" data-emoji="${em}">${em}</button>`).join('')}</div>`
+    ).join('') + '</div>';
+    showPop(html, anchor, 'emoji', (ev) => { const b = ev.target.closest('.mw-emoji'); if (!b) return; closePopups(); onPick(b.dataset.emoji); });
+  }
+  // Group read receipts — "Read by" list for one of my own messages.
+  async function showReadBy(mid) {
+    const anchor = document.querySelector(`.mw-row[data-mid="${mid}"] .mw-menu-btn`) || document.getElementById('mwThread');
+    showPop('<div class="mw-readby"><div class="mw-readby-loading">Loading…</div></div>', anchor, 'readby', () => {});
+    try {
+      const j = await chatFetch('?api=read-by', { method: 'POST', body: JSON.stringify({ conversation_id: curConv, message_id: mid }) });
+      const people = j.people || [];
+      const read = people.filter(p => p.read), unread = people.filter(p => !p.read);
+      const row = (p) => `<div class="mw-rb-row"><span class="mw-rb-name">${esc(p.name)}</span>${p.read ? `<span class="mw-rb-when">${fmtTime(p.read_at)}</span>` : `<span class="mw-rb-when dim">${p.delivered ? 'Delivered' : 'Sent'}</span>`}</div>`;
+      const body = !people.length ? '<div class="mw-readby-loading">No other members.</div>'
+        : `<div class="mw-rb-head">Read by ${read.length}/${people.length}</div>`
+          + (read.length ? read.map(row).join('') : '')
+          + (unread.length ? `<div class="mw-rb-sub">Not yet read</div>` + unread.map(row).join('') : '');
+      const pop = document.getElementById('mwPop'); if (pop) pop.querySelector('.mw-readby').innerHTML = body;
+    } catch (_) { const pop = document.getElementById('mwPop'); if (pop) pop.querySelector('.mw-readby').innerHTML = '<div class="mw-readby-loading">Could not load.</div>'; }
+  }
+  // ── Desktop notifications ─────────────────────────────────────────────────
+  // Complements the phone push: when the dashboard is open in a tab that isn't
+  // focused, pop a native desktop notification for an incoming message.
+  function ensureNotifyPermission() {
+    try { if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission().catch(() => {}); } catch (_) {}
+  }
+  function desktopNotify(m) {
+    try {
+      if (!('Notification' in window) || Notification.permission !== 'granted') return;
+      if (document.visibilityState === 'visible' && document.hasFocus()) return;   // they can already see it
+      const conv = convs.find(c => c.id === m.conversation_id);
+      if (conv && conv.muted) return;
+      const who = nameById[m.sender_id] || m.sender_name || 'New message';
+      const title = conv ? (conv.type === 'group' ? conv.title : who) : who;
+      let body = (m.body || '').trim();
+      if (!body) body = m.has_attachments ? 'Sent an attachment' : '';
+      if (conv && conv.type === 'group' && body) body = who + ': ' + body;
+      const n = new Notification(title, { body: body.slice(0, 180), tag: 'chat-' + m.conversation_id, icon: '/icon-192.png', silent: false });
+      n.onclick = () => { try { window.focus(); if (!panelOpen) openPanel(); openConv(m.conversation_id); n.close(); } catch (_) {} };
+    } catch (_) {}
   }
   async function toggleReaction(mid, emoji) {
     const m = curMsgs.find(x => x.id === mid); if (!m) return;
@@ -1445,6 +1514,7 @@
           else appendMsg({ ...m, sender_name: nameById[m.sender_id] || '', mine: false, edited: !!m.edited_at, deleted: !!m.deleted_at });
           chatFetch('?api=mark-read', { method: 'POST', body: JSON.stringify({ conversation_id: curConv }) }).catch(() => {});
         }
+        desktopNotify(m);
         refreshSoon();
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_messages' }, (payload) => {

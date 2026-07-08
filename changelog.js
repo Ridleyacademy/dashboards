@@ -16,6 +16,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v454', title: 'Messages — full emoji picker, desktop alerts, group read receipts', items: [
+      'React with any emoji: the six quick reactions now have a “＋” that opens a full emoji picker.',
+      'Desktop notifications: when the dashboards are open in a tab you’re not looking at, you get a native pop-up for new messages (on top of the phone push). Your browser will ask permission the first time.',
+      'In group chats, open a message’s ⋯ menu → “Read by” to see exactly who has read it and when.',
+    ]},
     { version: 'v453', title: 'Messages — pin a message + mark unread', items: [
       'Pin any message to the top of a chat so the whole conversation can jump back to it — tap the pinned bar to scroll to it, or unpin from the ⋯ menu.',
       'Mark a conversation as unread from its ⋯ menu in the list, so you can come back and deal with it later.',

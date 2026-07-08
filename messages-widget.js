@@ -10,6 +10,8 @@
   const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBvanFsanJoaHRuaWd5cnR6ZHp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTA3ODMsImV4cCI6MjA5MTM4Njc4M30.PcSBDqOzbiZxZ7IAs5efqx0gsAlAG0cj3GqUOkAmxos";
   const CHAT_BASE = SUPABASE_URL + '/functions/v1/chat';
   const UNFURL_BASE = SUPABASE_URL + '/functions/v1/unfurl';
+  const PRESENCE_BASE = SUPABASE_URL + '/functions/v1/presence';
+  let onlineIds = new Set(), presenceCh = null, lastSeenCache = {}, _beatT = null;
   const unfurlCache = new Map();   // url -> { status:'loading'|'done'|'fail', data }
   const audioBlobCache = new Map();   // remote url -> object URL (Dropbox links download rather than stream; fetch to a blob so <audio> plays)
 
@@ -262,6 +264,10 @@
       .mw-drop-inner svg { width:38px; height:38px; }
       .mw-iconbtn.on { color:#8ea2ff !important; background:#1a2140 !important; }
       .mw-cn-mute { color:#7880a8; vertical-align:-2px; }
+      .mw-presence { font-size:0.68rem; color:#7880a8; line-height:1.1; }
+      .mw-presence.online { color:#34d399; }
+      .mw-av { position:relative; }
+      .mw-online-dot { position:absolute; right:-1px; bottom:-1px; width:11px; height:11px; border-radius:50%; background:#34d399; border:2px solid #12151f; }
       .mw-aud { width:230px; max-width:60vw; height:38px; margin-top:2px; }
       .mw-recbar { display:none; flex:1; align-items:center; gap:9px; padding:4px 4px 4px 10px; }
       .mw-comp.recording .mw-attbtn, .mw-comp.recording #mwMic, .mw-comp.recording #mwInput, .mw-comp.recording #mwSend { display:none; }
@@ -392,7 +398,7 @@
       <div class="mw-scroll" id="mwList"><div class="mw-empty">Loading…</div></div>
       <div class="mw-thread" id="mwThread">
         <div class="mw-drop" id="mwDrop"><div class="mw-drop-inner">${FILE_SVG}<span>Drop to attach</span></div></div>
-        <div class="mw-head"><button class="mw-back" id="mwBack">‹</button><div class="mw-title" id="mwThreadTitle" style="font-size:0.88rem;flex:1;"></div><button class="mw-hbtn mw-iconbtn" id="mwPinBtn" title="Pin conversation" aria-label="Pin"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14l-1.6-2.6a2 2 0 0 1-.4-1.2V8a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2v5.2a2 2 0 0 1-.4 1.2L5 17z"/></svg></button><button class="mw-hbtn mw-iconbtn" id="mwMuteBtn" title="Mute notifications" aria-label="Mute"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></button><button class="mw-hbtn mw-iconbtn" id="mwFindBtn" title="Search in conversation" aria-label="Search"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button><button class="mw-x" id="mwClose2">×</button></div>
+        <div class="mw-head"><button class="mw-back" id="mwBack">‹</button><div style="flex:1;min-width:0;"><div class="mw-title" id="mwThreadTitle" style="font-size:0.88rem;"></div><div class="mw-presence" id="mwThreadSub"></div></div><button class="mw-hbtn mw-iconbtn" id="mwPinBtn" title="Pin conversation" aria-label="Pin"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14l-1.6-2.6a2 2 0 0 1-.4-1.2V8a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2v5.2a2 2 0 0 1-.4 1.2L5 17z"/></svg></button><button class="mw-hbtn mw-iconbtn" id="mwMuteBtn" title="Mute notifications" aria-label="Mute"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></button><button class="mw-hbtn mw-iconbtn" id="mwFindBtn" title="Search in conversation" aria-label="Search"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button><button class="mw-x" id="mwClose2">×</button></div>
         <div class="mw-findbar" id="mwFindBar"><input id="mwFindInput" placeholder="Search this conversation…"><span class="mw-find-n" id="mwFindN"></span><button class="mw-find-nav" id="mwFindPrev">↑</button><button class="mw-find-nav" id="mwFindNext">↓</button><button class="mw-find-x" id="mwFindClose">✕</button></div>
         <div class="mw-msgs-wrap">
           <div class="mw-msgs" id="mwMsgs"></div>
@@ -573,7 +579,9 @@
   function convRow(c) {
     const isG = c.type === 'group';
     const prev = c.last_message ? ((isG && c.last_message.sender_name ? c.last_message.sender_name + ': ' : '') + c.last_message.body) : 'No messages yet';
-    return `<div class="mw-conv${c.unread ? ' unread' : ''}" data-c="${c.id}"><div class="mw-av${isG ? ' grp' : ''}">${isG ? '#' : esc(initials(c.title))}</div>
+    const other = !isG ? (c.members || []).find(m => !me || m.id !== me.user_id) : null;
+    const online = other && onlineIds.has(other.id);
+    return `<div class="mw-conv${c.unread ? ' unread' : ''}" data-c="${c.id}"><div class="mw-av${isG ? ' grp' : ''}">${isG ? '#' : esc(initials(c.title))}${online ? '<span class="mw-online-dot"></span>' : ''}</div>
       <div class="mw-cm"><div class="mw-cn">${c.pinned ? PIN_MINI_SVG : ''}${esc(c.title)}</div><div class="mw-cp">${esc(prev).slice(0, 70)}</div></div>
       <div class="mw-cr"><span class="mw-ct">${fmtTime(c.last_message_at)}</span>${c.muted ? '<svg class="mw-cn-mute" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/></svg>' : ''}${c.unread ? `<span class="mw-badge">${c.unread > 99 ? '99+' : c.unread}</span>` : ''}</div></div>`;
   }
@@ -614,7 +622,7 @@
     subscribeTyping(id); hideTyping();
     showThread();
     document.getElementById('mwThreadTitle').textContent = conv ? conv.title : 'Conversation';
-    updatePinBtn(); updateMuteBtn(); cancelVoice();
+    updatePinBtn(); updateMuteBtn(); cancelVoice(); renderThreadPresence();
     const mEl = document.getElementById('mwMsgs'); mEl.innerHTML = threadSkeleton();
     try {
       const j = await chatFetch('?api=messages&conversation_id=' + id);
@@ -1290,6 +1298,42 @@
     catch (e) { alert('Failed: ' + e.message); }
   }
 
+  // ── Presence (online now + last seen) ────────────────────────────────────
+  function relTime(iso) {
+    if (!iso) return '';
+    const d = new Date(iso), s = Math.floor((Date.now() - d.getTime()) / 1000);
+    if (s < 60) return 'just now';
+    if (s < 3600) return Math.floor(s / 60) + 'm ago';
+    if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+    const days = Math.floor(s / 86400); if (days < 7) return days + 'd ago';
+    return d.toLocaleDateString();
+  }
+  async function beat() { try { const tok = await getToken(); if (tok) fetch(PRESENCE_BASE + '?api=beat', { method: 'POST', headers: { Authorization: 'Bearer ' + tok } }); } catch (_) {} }
+  function startPresence() {
+    const s = ensureSupa(); if (!s || presenceCh || !me) return;
+    presenceCh = s.channel('presence:chat', { config: { presence: { key: me.user_id } } });
+    presenceCh.on('presence', { event: 'sync' }, () => {
+      onlineIds = new Set(Object.keys(presenceCh.presenceState()));
+      renderList(); renderThreadPresence();
+    }).subscribe(async (status) => { if (status === 'SUBSCRIBED') { try { await presenceCh.track({ at: Date.now() }); } catch (_) {} } });
+    beat(); clearInterval(_beatT); _beatT = setInterval(beat, 60000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) beat(); });
+  }
+  async function renderThreadPresence() {
+    const sub = document.getElementById('mwThreadSub'); if (!sub) return;
+    const conv = convs.find(c => c.id === curConv);
+    const other = (conv && conv.type === 'dm') ? (conv.members || []).find(m => !me || m.id !== me.user_id) : null;
+    if (!other) { sub.textContent = ''; sub.classList.remove('online'); return; }
+    if (onlineIds.has(other.id)) { sub.textContent = 'online'; sub.classList.add('online'); return; }
+    sub.classList.remove('online');
+    let ls = lastSeenCache[other.id];
+    if (ls === undefined) {
+      sub.textContent = '';
+      try { const tok = await getToken(); const r = await fetch(PRESENCE_BASE + '?api=get&ids=' + other.id, { headers: { Authorization: 'Bearer ' + tok } }); const j = await r.json(); ls = (j.seen && j.seen[other.id]) || null; lastSeenCache[other.id] = ls; } catch (_) { ls = null; }
+      if (curConv !== conv.id) return;   // switched away while fetching
+    }
+    sub.textContent = ls ? ('last seen ' + relTime(ls)) : '';
+  }
   async function startRealtime() {
     const s = ensureSupa(); if (!s || channel) return;
     // Authenticate the realtime socket BEFORE subscribing, else RLS silently drops
@@ -1340,8 +1384,8 @@
     const s = ensureSupa(); if (!s) { setTimeout(init, 300); return; }
     // getToken() falls back to the page's stored session, so kick these off now
     // (don't gate on our own client's getSession, which may not be hydrated yet).
-    loadConversations(); startRealtime(); loadUsers();
-    s.auth.onAuthStateChange((_e, sess) => { if (sess) { loadConversations(); startRealtime(); } });
+    loadConversations().then(startPresence); startRealtime(); loadUsers();
+    s.auth.onAuthStateChange((_e, sess) => { if (sess) { loadConversations().then(startPresence); startRealtime(); } });
     // periodic badge refresh as a safety net (realtime is primary)
     setInterval(() => { getToken().then(t => { if (t) loadConversations(); }); }, 120000);
   }

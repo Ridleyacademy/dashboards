@@ -93,6 +93,9 @@
   .conv-row.unread .conv-name { font-weight:800; color:var(--text); }
   .conv-av { width:40px; height:40px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:0.85rem; font-weight:800; color:#fff; background:linear-gradient(135deg,#6b9eff,#a78bfa); }
   .conv-av.group { background:linear-gradient(135deg,#fbbf24,#f59e0b); }
+  .conv-av { position:relative; }
+  .conv-online-dot { position:absolute; right:-1px; bottom:-1px; width:12px; height:12px; border-radius:50%; background:#34d399; border:2px solid var(--surface); }
+  .chat-head-sub.sub-online { color:#34d399; }
   .conv-mid { flex:1; min-width:0; }
   .conv-name { font-size:0.86rem; font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .conv-prev { font-size:0.76rem; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px; }
@@ -466,6 +469,39 @@ const CHAT_BASE = SUPABASE_URL + '/functions/v1/chat';
 const UNFURL_BASE = SUPABASE_URL + '/functions/v1/unfurl';
 const unfurlCache = new Map();   // url -> { status:'loading'|'done'|'fail', data }
 const audioBlobCache = new Map();   // remote url -> object URL (Dropbox links download rather than stream; fetch to a blob so <audio> plays)
+const PRESENCE_BASE = SUPABASE_URL + '/functions/v1/presence';
+let onlineIds = new Set(), presenceCh = null, lastSeenCache = {}, _beatT = null;
+function relTimeSeen(iso){
+  if(!iso) return '';
+  const d=new Date(iso), s=Math.floor((Date.now()-d.getTime())/1000);
+  if(s<60) return 'just now'; if(s<3600) return Math.floor(s/60)+'m ago';
+  if(s<86400) return Math.floor(s/3600)+'h ago'; const days=Math.floor(s/86400);
+  if(days<7) return days+'d ago'; return d.toLocaleDateString();
+}
+async function beat(){ try { const { data:{session} }=await supa.auth.getSession(); const tok=session?.access_token; if(tok) fetch(PRESENCE_BASE+'?api=beat',{method:'POST',headers:{Authorization:'Bearer '+tok}}); } catch(_){} }
+function startPresence(){
+  if(presenceCh || !me) return;
+  presenceCh = supa.channel('presence:chat', { config:{ presence:{ key: me.user_id } } });
+  presenceCh.on('presence',{event:'sync'},()=>{ onlineIds = new Set(Object.keys(presenceCh.presenceState())); renderConvList(); renderThreadPresence(); })
+    .subscribe(async status=>{ if(status==='SUBSCRIBED'){ try{ await presenceCh.track({ at:Date.now() }); }catch(_){}} });
+  beat(); clearInterval(_beatT); _beatT=setInterval(beat, 60000);
+  document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) beat(); });
+}
+async function renderThreadPresence(){
+  const sub=document.getElementById('chatSub'); if(!sub) return;
+  const conv=conversations.find(c=>c.id===currentConv);
+  if(!conv || conv.type!=='dm') return;   // groups keep their member list in chatSub
+  const other=(conv.members||[]).find(m=>!me||m.id!==me.user_id); if(!other){ sub.textContent=''; return; }
+  if(onlineIds.has(other.id)){ sub.textContent='online'; sub.classList.add('sub-online'); return; }
+  sub.classList.remove('sub-online');
+  let ls=lastSeenCache[other.id];
+  if(ls===undefined){
+    sub.textContent='';
+    try { const { data:{session} }=await supa.auth.getSession(); const tok=session?.access_token; const r=await fetch(PRESENCE_BASE+'?api=get&ids='+other.id,{headers:{Authorization:'Bearer '+tok}}); const j=await r.json(); ls=(j.seen&&j.seen[other.id])||null; lastSeenCache[other.id]=ls; } catch(_){ ls=null; }
+    if(currentConv!==conv.id) return;
+  }
+  sub.textContent = ls ? ('last seen '+relTimeSeen(ls)) : '';
+}
 async function hydrateAudio(el){
   if(!el) return;
   for(const a of [...el.querySelectorAll('audio[data-aud]')]){
@@ -613,6 +649,7 @@ async function onAuthed(session) {
   await loadUsers();
   await loadConversations();
   subscribeRealtime();
+  startPresence();
   const c = _queryParams.get('c');
   if (c) openConversation(Number(c));
 }
@@ -675,7 +712,7 @@ function convRowHtml(c){
   const isG = c.type==='group';
   const prev = c.last_message ? (isG && c.last_message.sender_name ? c.last_message.sender_name+': ' : '') + c.last_message.body : 'No messages yet';
   return `<div class="conv-row${c.id===currentConv?' active':''}${c.unread?' unread':''}" data-conv="${c.id}">
-    <div class="conv-av${isG?' group':''}">${isG?'#':esc(initials(c.title))}</div>
+    <div class="conv-av${isG?' group':''}">${isG?'#':esc(initials(c.title))}${(()=>{ const o=!isG?(c.members||[]).find(m=>!me||m.id!==me.user_id):null; return (o&&onlineIds.has(o.id))?'<span class="conv-online-dot"></span>':''; })()}</div>
     <div class="conv-mid"><div class="conv-name">${c.pinned?PIN_MINI_SVG:''}${esc(c.title)}${isG?` <span style="color:var(--text-dim);font-weight:500;font-size:0.72rem;">· ${c.member_count}</span>`:''}</div><div class="conv-prev">${esc(prev).slice(0,80)}</div></div>
     <div class="conv-right"><span class="conv-time">${fmtTime(c.last_message_at)}</span>${c.muted?'<svg class="conv-mute" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/></svg>':''}${c.unread?`<span class="conv-badge">${c.unread>99?'99+':c.unread}</span>`:''}</div>
   </div>`;
@@ -719,7 +756,7 @@ async function openConversation(id, jumpMid){
   document.getElementById('app').classList.add('thread-open');
   document.getElementById('chatTitle').textContent = conv ? conv.title : 'Conversation';
   document.getElementById('chatSub').textContent = conv ? (conv.type==='group' ? (conv.members||[]).map(m=>m.name).join(', ') : '') : '';
-  updatePinBtn(); updateMuteBtn(); cancelVoice();
+  updatePinBtn(); updateMuteBtn(); cancelVoice(); renderThreadPresence();
   // group actions
   const act = document.getElementById('chatActions');
   act.innerHTML = (conv && conv.type==='group') ? '<button class="btn-ghost" id="grpAdd" style="padding:6px 12px;">＋ Add</button><button class="btn-ghost" id="grpLeave" style="padding:6px 12px;">Leave</button>' : '';

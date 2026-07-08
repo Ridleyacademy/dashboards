@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v450', title: 'Messages — online / last seen', items: [
+      'See who’s online now (green dot on their avatar) and, in a direct chat, “online” or “last seen …” under their name.',
+    ]},
     { version: 'v449', title: 'Messages — voice note audio fix', items: [
       'Fixed voice notes playing back silently — the player now loads them with the correct audio type.',
     ]},

@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v472', title: 'Masterclass CRM — imported data now shown on the profile', items: [
+      'A student’s profile now surfaces the imported Kajabi data: an Engagement section (sign-ins / course visits, last activity, last sign-in, join date, source, SMS opt-in), a Location & contact section, a Products & Tags section, and an “All imported details” section that shows every field from the original import so nothing is hidden.',
+    ]},
     { version: 'v471', title: 'Masterclass CRM — full student base imported + fast search', items: [
       'Imported the full Kajabi masterclass audience — ~28,500 students — with their contact details, tags, products, sign-in/activity history and more (merged with the existing buyers; the complete original record is kept on each student).',
       'The student list now loads a page at a time with server-side search and filters (plus a “Load more” button), so it stays fast even with tens of thousands of students. New masterclass sales still auto-create a student.',

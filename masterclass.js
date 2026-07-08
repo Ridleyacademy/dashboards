@@ -163,6 +163,11 @@
     return `<div class="fld full"><label>${esc(label)}</label><div class="multi" data-key="${key}" data-meta="${metaKey}">${vals.map(v => multiRow(type, v)).join('')}<button type="button" class="lnk multi-add">+ Add ${esc(label.toLowerCase())}</button></div></div>`;
   }
 
+  // Read-only display helpers for imported (Kajabi) data.
+  function roField(label, val) { const v = (val == null || val === '') ? '—' : String(val); return `<div class="fld"><label>${esc(label)}</label><div class="ro">${esc(v)}</div></div>`; }
+  function roFull(label, val) { const v = (val == null || val === '') ? '—' : String(val); return `<div class="fld full"><label>${esc(label)}</label><div class="ro">${esc(v)}</div></div>`; }
+  function chipsField(label, arr) { const a = Array.isArray(arr) ? arr : []; const inner = a.length ? a.map(x => `<span class="kchip">${esc(x)}</span>`).join('') : '<span class="item-meta">—</span>'; return `<div class="fld full"><label>${esc(label)} (${a.length})</label><div class="kchips">${inner}</div></div>`; }
+
   function renderProfile() {
     const r = cur.row; const isNew = !r.id;
     $('mcMainEmpty').classList.add('hidden'); const p = $('mcProfile'); p.classList.remove('hidden');
@@ -189,8 +194,12 @@
       ${sec('Rep Area', `<div class="fld full"><label>Assigned rep</label><input id="f-rep" list="repList" value="${esc(r.rep || '')}" placeholder="Type or pick a rep…"><datalist id="repList">${repList}</datalist></div><div class="full" id="repWidgets">${isNew ? '<div class="item-meta" style="padding:2px">Create the student first to log contacts &amp; set a rep status.</div>' : '<div class="item-meta" style="padding:2px">Loading…</div>'}</div>`)}
       ${sec('Purchase', `${fld('First purchase', 'f-first_purchase_date', r.first_purchase_date, 'date')}${fld('Last purchase', 'f-last_purchase_date', r.last_purchase_date, 'date')}${fld('Price', 'f-price', r.price, 'number')}`)}
       ${sec('Course progress', `${fld('Level', 'f-level', r.level, 'select', LEVELS)}${fld('Masterclass level', 'f-masterclass_level', r.masterclass_level, 'select', LEVELS)}${fld('Current module', 'f-current_module', r.current_module)}`)}
+      ${(r.sign_in_count != null || r.last_activity_at || r.last_sign_in_at || r.kajabi_created_at || r.source || r.sms_opt_in != null) ? sec('Engagement', `${roField('Sign-ins (course visits)', r.sign_in_count)}${roField('Last activity', r.last_activity_at ? fmtDate(r.last_activity_at) : '')}${roField('Last sign-in', r.last_sign_in_at ? fmtDate(r.last_sign_in_at) : '')}${roField('Joined (Kajabi)', r.kajabi_created_at ? fmtDate(r.kajabi_created_at) : '')}${roField('Source', r.source)}${roField('SMS opt-in', r.sms_opt_in == null ? '' : (r.sms_opt_in ? 'Yes' : 'No'))}`) : ''}
+      ${(r.mobile_phone || r.address_line1 || r.address_line2 || r.city || r.state || r.country || r.zip) ? sec('Location & contact', `${roField('Mobile', r.mobile_phone)}${roFull('Address', [r.address_line1, r.address_line2].filter(Boolean).join(', '))}${roField('City', r.city)}${roField('State', r.state)}${roField('Country', r.country)}${roField('Zip', r.zip)}`) : ''}
+      ${((Array.isArray(r.products) && r.products.length) || (Array.isArray(r.tags) && r.tags.length)) ? sec('Products & Tags', `${chipsField('Products', r.products)}${chipsField('Tags', r.tags)}`) : ''}
       ${sec('Admin', `${fld('Status', 'f-status', r.status || 'Active', 'select', ['Active', 'Completed', 'Refunded'])}${fld('Refunded date', 'f-refunded_date', r.refunded_date, 'date')}${fld('Refunded amount', 'f-refunded_amount', r.refunded_amount, 'number')}${fld('Verified', 'f-verified', r.verified, 'checkbox')}${fld('Dead file', 'f-dead_file', r.dead_file, 'checkbox')}${fld('Winning student', 'f-winning_student', r.winning_student, 'checkbox')}`)}
       ${sec('Notes (profile)', `<div class="full">${fld('', 'f-notes', r.notes, 'textarea')}</div>`)}
+      ${(r.metadata && r.metadata.kajabi && Object.keys(r.metadata.kajabi).length) ? sec('All imported details', Object.entries(r.metadata.kajabi).map(([k, v]) => roFull(k, v)).join('')) : ''}
       ${canEdit ? `<div class="save-row"><button class="tbtn" id="cancelBtn">Cancel</button><button class="tbtn tbtn-primary" id="saveBtn">${isNew ? 'Create student' : 'Save changes'}</button></div>` : ''}
     </div>`;
 

@@ -16,8 +16,8 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
-    { version: 'v459', title: 'Mentorship Students — filter by how long expired', items: [
-      'New advanced filter: “Expired for at least N days.” Open Filters, type a number (e.g. 7), and the list shows only students whose term ended 7+ days ago.',
+    { version: 'v460', title: 'Mentorship Students — “expired within last N days” filter', items: [
+      'Advanced filter “Expired within the last N days”: open Filters, type a number (e.g. 7), and the list shows students whose term ended within the last 7 days (recently lapsed).',
     ]},
     { version: 'v458', title: 'Messages — one picker for emoji + GIFs', items: [
       'The smiley button now opens a single picker with Emojis and GIFs tabs and a search box at the top — type to find an emoji, or switch to the GIFs tab to search and send one. Works in both the popup and the full page.',

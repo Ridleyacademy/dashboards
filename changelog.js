@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v464', title: 'Masterclass CRM — alerts & turn-overs now match the Mentorship CRM', items: [
+      'Turn-overs and alerts now work exactly like the Mentorship CRM: OPEN / IN PROGRESS / RESOLVED states, an inline Response/Resolution reply box, threaded responses, resolve with a note, edit-result, and reassign-to-another-rep (typeahead). Wins and Notes sections always show (even when empty) so every section is visible.',
+    ]},
     { version: 'v463', title: 'New — Masterclass Students CRM', items: [
       'A dedicated CRM for Piano Masterclass students (separate from the Mentorship CRM): search, per-student profile, edit details and course progress, assign a rep, and run turn-overs, alerts, wins and notes — with the usual in-app + phone notifications. Students get imported from a CSV.',
     ]},

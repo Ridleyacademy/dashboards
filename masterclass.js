@@ -165,25 +165,53 @@
     if (act === 'note') return noteModal();
   }
 
+  // ── Shared bits (MS-CRM parity) ──
+  // Inline Response/Resolution picker shown on open turnovers/alerts. kind = 't' | 'a'.
+  function answerForm(kind, id) {
+    return `<div class="ans" data-kind="${kind}" data-id="${id}">
+      <div class="ans-tabs">
+        <label class="ans-opt"><input type="radio" name="${kind}mode-${id}" value="response" checked> Response</label>
+        <label class="ans-opt"><input type="radio" name="${kind}mode-${id}" value="resolve"> Resolution</label>
+      </div>
+      <textarea class="ans-note" placeholder="Post an update without resolving…"></textarea>
+      <button class="tbtn tbtn-primary ans-btn" data-kind="${kind}" data-id="${id}">↩ Post response</button>
+    </div>`;
+  }
+  function threadHTML(comments) {
+    const cs = comments || [];
+    if (!cs.length) return '';
+    return `<div class="thread-h">Responses (${cs.length})</div>` +
+      cs.map(c => `<div class="cmt">${esc(c.body)}<div class="cmt-meta">${esc(c.created_by_name || c.created_by_email || 'someone')} · ${fmtStamp(c.created_at)}</div></div>`).join('');
+  }
+
   // ── Turnovers ──
   function renderTurnovers() {
-    if (!cur.turnovers.length) return '';
     const rows = cur.turnovers.map(t => {
       const done = !!(t.result && String(t.result).trim());
-      const cs = (t.comments || []).map(c => `<div class="cmt">${esc(c.body)}<div class="cmt-meta">${esc(c.created_by_name || '')} · ${fmtStamp(c.created_at)}</div></div>`).join('');
+      const prog = !done && (t.comments || []).length > 0;
+      const badge = done
+        ? '<span class="pill-open badge-done">✓ resolved</span>'
+        : prog
+          ? '<span class="pill-open" style="background:var(--gold-bg);color:var(--gold)">◐ in progress</span>'
+          : '<span class="pill-open" style="background:var(--green-bg);color:var(--green)">↪ open</span>';
+      const resultBlock = done ? `<div class="result-box">
+        <div class="result-h">Result</div>
+        <div class="item-body" style="margin:0">${esc(t.result)}</div>
+        <div class="cmt-meta" style="margin-top:4px">${t.result_at ? fmtStamp(t.result_at) : ''}${t.result_by_name ? ' · by ' + esc(t.result_by_name) : ''}</div>
+        ${caps.can_edit ? `<div style="margin-top:6px"><button class="lnk" data-tact="editresult" data-id="${t.id}">Edit result</button></div>` : ''}
+      </div>` : '';
       return `<div class="item" data-tid="${t.id}">
-        <div class="item-top"><span class="item-title">→ ${esc(t.rep_name || '')} ${done ? '<span class="pill-open badge-done">done</span>' : '<span class="pill-open badge-open">open</span>'}</span><span class="item-meta">${esc(t.created_by_name || '')} · ${fmtDate(t.turnover_date || t.created_at)}</span></div>
+        <div class="item-top"><span class="item-title">→ ${esc(t.rep_name || '(unassigned)')} ${badge}</span><span class="item-meta">${esc(t.created_by_name || '')} · ${fmtDate(t.turnover_date || t.created_at)}</span></div>
         ${t.note ? `<div class="item-body">${esc(t.note)}</div>` : ''}
-        ${done ? `<div class="item-body"><b>Result:</b> ${esc(t.result)} <span class="item-meta">(${esc(t.result_by_name || '')})</span></div>` : ''}
-        ${cs}
+        ${threadHTML(t.comments)}
+        ${resultBlock}
+        ${(!done && caps.can_edit) ? answerForm('t', t.id) : ''}
         <div class="item-actions">
-          <button class="lnk" data-tact="comment" data-id="${t.id}">Reply</button>
-          ${done ? '' : `<button class="lnk" data-tact="result" data-id="${t.id}">Mark result</button>`}
-          <button class="lnk dim" data-tact="reassign" data-id="${t.id}">Reassign</button>
-          <button class="lnk red" data-tact="del" data-id="${t.id}">Delete</button>
+          ${caps.can_edit ? `<button class="lnk dim" data-tact="reassign" data-id="${t.id}">⇄ Reassign</button>` : ''}
+          ${caps.can_edit ? `<button class="lnk red" data-tact="del" data-id="${t.id}">Delete</button>` : ''}
         </div></div>`;
     }).join('');
-    return `<div class="panel"><div class="panel-h"><div class="sec-t">Turn overs</div><button class="lnk" data-add="turnover">+ Add</button></div>${rows}</div>`;
+    return `<div class="panel"><div class="panel-h"><div class="sec-t">Turn overs (${cur.turnovers.length})</div>${caps.can_edit ? '<button class="lnk" data-add="turnover">+ Add</button>' : ''}</div>${cur.turnovers.length ? rows : '<div class="item-meta" style="padding:4px 2px">No turnovers yet.</div>'}</div>`;
   }
   function turnoverModal() {
     const repOpts = reps.map(x => `<option value="${esc(x.display)}">${esc(x.display)}</option>`).join('');
@@ -197,22 +225,35 @@
 
   // ── Alerts ──
   function renderAlerts() {
-    if (!cur.alerts.length) return '';
-    const rows = cur.alerts.map(a => {
-      const cs = (a.comments || []).map(c => `<div class="cmt">${esc(c.body)}<div class="cmt-meta">${esc(c.created_by_name || '')} · ${fmtStamp(c.created_at)}</div></div>`).join('');
+    // Open first, then resolved by most-recent.
+    const sorted = [...cur.alerts].sort((a, b) => {
+      if (a.status !== b.status) return a.status === 'open' ? -1 : 1;
+      return String(b.created_at || '').localeCompare(String(a.created_at || ''));
+    });
+    const rows = sorted.map(a => {
       const open = a.status === 'open';
-      return `<div class="item">
-        <div class="item-top"><span class="item-title">${esc(a.title)} ${open ? '<span class="pill-open badge-open">open</span>' : '<span class="pill-open badge-done">resolved</span>'}</span><span class="item-meta">${esc(a.created_by_name || '')} · ${fmtDate(a.created_at)}</span></div>
+      const prog = open && (a.comments || []).length > 0;
+      const badge = !open
+        ? '<span class="pill-open badge-done">✓ resolved</span>'
+        : prog
+          ? '<span class="pill-open" style="background:var(--gold-bg);color:var(--gold)">◐ in progress</span>'
+          : '<span class="pill-open" style="background:var(--red-bg);color:var(--red)">⚠ submitted</span>';
+      const resBlock = !open ? `<div class="result-box">
+        <div class="result-h">Resolution</div>
+        <div class="item-body" style="margin:0">${esc(a.resolution_note || '')}</div>
+        <div class="cmt-meta" style="margin-top:4px">${a.resolved_at ? fmtStamp(a.resolved_at) : ''}${a.resolved_by_name ? ' · by ' + esc(a.resolved_by_name) : ''}</div>
+      </div>` : '';
+      return `<div class="item" data-aid="${a.id}">
+        <div class="item-top"><span class="item-title">${esc(a.title)} ${badge}</span><span class="item-meta">${esc(a.created_by_name || '')} · ${fmtDate(a.created_at)}</span></div>
         ${a.description ? `<div class="item-body">${esc(a.description)}</div>` : ''}
-        ${!open && a.resolution_note ? `<div class="item-body"><b>Resolved:</b> ${esc(a.resolution_note)} <span class="item-meta">(${esc(a.resolved_by_name || '')})</span></div>` : ''}
-        ${cs}
-        <div class="item-actions">
-          <button class="lnk" data-aact="comment" data-id="${a.id}">Reply</button>
-          ${open ? `<button class="lnk" data-aact="resolve" data-id="${a.id}">Resolve</button>` : ''}
-          <button class="lnk red" data-aact="del" data-id="${a.id}">Delete</button>
-        </div></div>`;
+        ${threadHTML(a.comments)}
+        ${resBlock}
+        ${(open && caps.can_edit) ? answerForm('a', a.id) : ''}
+        <div class="item-actions">${caps.can_edit ? `<button class="lnk red" data-aact="del" data-id="${a.id}">Delete</button>` : ''}</div>
+      </div>`;
     }).join('');
-    return `<div class="panel"><div class="panel-h"><div class="sec-t">Alerts</div><button class="lnk" data-add="alert">+ Add</button></div>${rows}</div>`;
+    const openCount = cur.alerts.filter(a => a.status === 'open').length;
+    return `<div class="panel"><div class="panel-h"><div class="sec-t">Alerts (${openCount} open · ${cur.alerts.length - openCount} resolved)</div>${caps.can_edit ? '<button class="lnk" data-add="alert">+ Add</button>' : ''}</div>${cur.alerts.length ? rows : '<div class="item-meta" style="padding:4px 2px">No alerts yet.</div>'}</div>`;
   }
   function alertModal() {
     openModal(`<h3>Raise an alert</h3>
@@ -225,9 +266,8 @@
 
   // ── Wins ──
   function renderWins() {
-    if (!cur.wins.length) return '';
-    const rows = cur.wins.map(w => `<div class="item"><div class="item-top"><span class="item-body" style="margin:0">${esc(w.text)}</span><span class="item-meta">${fmtDate(w.win_date || w.created_at)}</span></div><div class="item-actions"><button class="lnk red" data-wact="del" data-id="${w.id}">Delete</button></div></div>`).join('');
-    return `<div class="panel"><div class="panel-h"><div class="sec-t">Wins</div><button class="lnk" data-add="win">+ Add</button></div>${rows}</div>`;
+    const rows = cur.wins.map(w => `<div class="item"><div class="item-top"><span class="item-body" style="margin:0">${esc(w.text)}</span><span class="item-meta">${fmtDate(w.win_date || w.created_at)}</span></div>${caps.can_edit ? `<div class="item-actions"><button class="lnk red" data-wact="del" data-id="${w.id}">Delete</button></div>` : ''}</div>`).join('');
+    return `<div class="panel"><div class="panel-h"><div class="sec-t">Wins (${cur.wins.length})</div>${caps.can_edit ? '<button class="lnk" data-add="win">+ Add</button>' : ''}</div>${cur.wins.length ? rows : '<div class="item-meta" style="padding:4px 2px">No wins yet.</div>'}</div>`;
   }
   function winModal() {
     openModal(`<h3>Log a win</h3><div class="fld"><label>What happened?</label><textarea id="wText"></textarea></div><div class="fld"><label>Date</label><input type="date" id="wDate"></div><div class="modal-row"><button class="tbtn" id="wCancel">Cancel</button><button class="tbtn tbtn-primary" id="wSave">Add win</button></div>`);
@@ -237,9 +277,8 @@
 
   // ── Notes ──
   function renderNotes() {
-    if (!cur.notes.length) return '';
-    const rows = cur.notes.map(n => `<div class="item"><div class="item-top"><span class="item-body" style="margin:0">${esc(n.text)}</span><span class="item-meta">${esc(n.created_by_email || '')} · ${fmtDate(n.note_date || n.created_at)}</span></div><div class="item-actions"><button class="lnk red" data-nact="del" data-id="${n.id}">Delete</button></div></div>`).join('');
-    return `<div class="panel"><div class="panel-h"><div class="sec-t">Notes</div><button class="lnk" data-add="note">+ Add</button></div>${rows}</div>`;
+    const rows = cur.notes.map(n => `<div class="item"><div class="item-top"><span class="item-body" style="margin:0">${esc(n.text)}</span><span class="item-meta">${esc(n.created_by_name || n.created_by_email || '')} · ${fmtDate(n.note_date || n.created_at)}</span></div>${caps.can_edit ? `<div class="item-actions"><button class="lnk red" data-nact="del" data-id="${n.id}">Delete</button></div>` : ''}</div>`).join('');
+    return `<div class="panel"><div class="panel-h"><div class="sec-t">Notes (${cur.notes.length})</div>${caps.can_edit ? '<button class="lnk" data-add="note">+ Add</button>' : ''}</div>${cur.notes.length ? rows : '<div class="item-meta" style="padding:4px 2px">No notes yet.</div>'}</div>`;
   }
   function noteModal() {
     openModal(`<h3>Add a note</h3><div class="fld"><label>Note</label><textarea id="nText"></textarea></div><div class="modal-row"><button class="tbtn" id="nCancel">Cancel</button><button class="tbtn tbtn-primary" id="nSave">Add note</button></div>`);
@@ -247,32 +286,81 @@
     $('nSave').onclick = async () => { const text = $('nText').value.trim(); if (!text) return; try { await mcFetch('?api=add-note', { method: 'POST', body: JSON.stringify({ studentId: cur.row.id, text }) }); closeModal(); toast('Note added'); openStudent(cur.row.id); loadList(); } catch (e) { toast(e.message); } };
   }
 
+  // Reassign a turnover to another rep — typeahead defaulting to the student's rep.
+  function reassignModal(t) {
+    const repList = reps.map(x => `<option value="${esc(x.display)}">`).join('');
+    openModal(`<h3>Reassign turnover</h3>
+      <p style="color:var(--text-muted);font-size:0.82rem;margin:0 0 12px">Currently with <b>${esc(t.rep_name || '(unassigned)')}</b>. Hand it to another rep — they'll be notified and it moves to their queue.</p>
+      <div class="fld"><label>New rep *</label><input id="raRep" list="raRepList" placeholder="Pick or type a rep name" autocomplete="off"><datalist id="raRepList">${repList}</datalist></div>
+      <div class="modal-row"><button class="tbtn" id="raCancel">Cancel</button><button class="tbtn tbtn-primary" id="raSave">Reassign</button></div>`);
+    const inp = $('raRep');
+    const sRep = (cur.row.rep || '').trim();
+    if (sRep && sRep.toLowerCase() !== String(t.rep_name || '').trim().toLowerCase()) inp.value = sRep;
+    $('raCancel').onclick = closeModal;
+    $('raSave').onclick = async () => {
+      const rep_name = inp.value.trim();
+      if (!rep_name) { toast('Pick a rep'); return; }
+      if (rep_name.toLowerCase() === String(t.rep_name || '').trim().toLowerCase()) { toast('Already assigned to ' + rep_name); return; }
+      try { await mcFetch('?api=reassign-turnover', { method: 'POST', body: JSON.stringify({ id: t.id, rep_name }) }); closeModal(); toast('Reassigned'); openStudent(cur.row.id); loadList(); } catch (e) { toast(e.message); }
+    };
+  }
+  function editResultModal(t) {
+    openModal(`<h3>Edit turnover result</h3>
+      <div class="fld"><label>Result</label><textarea id="erText" rows="5">${esc(t.result || '')}</textarea></div>
+      <div class="modal-row"><button class="tbtn" id="erClear" style="margin-right:auto;color:var(--red)">Clear result</button><button class="tbtn" id="erCancel">Cancel</button><button class="tbtn tbtn-primary" id="erSave">Save result</button></div>`);
+    $('erCancel').onclick = closeModal;
+    $('erClear').onclick = () => confirmDialog('Clear this turnover result (reopens it)?', async () => { try { await mcFetch('?api=set-turnover-result', { method: 'POST', body: JSON.stringify({ id: t.id, result: '' }) }); toast('Result cleared'); openStudent(cur.row.id); loadList(); } catch (e) { toast(e.message); } });
+    $('erSave').onclick = async () => { const result = $('erText').value.trim(); if (!result) { toast('Enter a result, or use Clear result'); return; } try { await mcFetch('?api=set-turnover-result', { method: 'POST', body: JSON.stringify({ id: t.id, result }) }); closeModal(); toast('Result saved'); openStudent(cur.row.id); loadList(); } catch (e) { toast(e.message); } };
+  }
+  // Single submit for the inline Response/Resolution picker. Resolution closes the
+  // item (result / resolution note required); Response posts an in-progress update.
+  async function submitAnswer(kind, id, btn) {
+    const wrap = btn.closest('.ans'); if (!wrap) return;
+    const mode = (wrap.querySelector(`input[name="${kind}mode-${id}"]:checked`) || {}).value || 'response';
+    const text = (wrap.querySelector('.ans-note').value || '').trim();
+    if (!text) { toast(mode === 'resolve' ? (kind === 'a' ? 'A resolution note is required' : 'A result is required') : 'Write a response first'); return; }
+    const orig = btn.textContent; btn.disabled = true; btn.textContent = mode === 'resolve' ? 'Resolving…' : 'Posting…';
+    try {
+      if (kind === 't') {
+        if (mode === 'resolve') await mcFetch('?api=set-turnover-result', { method: 'POST', body: JSON.stringify({ id, result: text }) });
+        else await mcFetch('?api=add-turnover-comment', { method: 'POST', body: JSON.stringify({ turnoverId: id, body: text }) });
+      } else {
+        if (mode === 'resolve') await mcFetch('?api=resolve-alert', { method: 'POST', body: JSON.stringify({ id, resolution_note: text }) });
+        else await mcFetch('?api=add-alert-comment', { method: 'POST', body: JSON.stringify({ alertId: id, body: text }) });
+      }
+      toast(mode === 'resolve' ? 'Resolved' : 'Response posted');
+      await openStudent(cur.row.id); await loadList();
+    } catch (e) { btn.disabled = false; btn.textContent = orig; toast(e.message); }
+  }
+
   // ── Panel action wiring (delegated) ──
   function wirePanels() {
     const p = $('mcProfile');
     p.querySelectorAll('[data-add]').forEach(b => b.addEventListener('click', () => onAction(b.dataset.add)));
+    // Response/Resolution picker: swap placeholder + button label on mode change.
+    p.querySelectorAll('.ans input[type="radio"]').forEach(r => r.addEventListener('change', () => {
+      const wrap = r.closest('.ans'); const kind = wrap.dataset.kind;
+      const mode = (wrap.querySelector('input:checked') || {}).value || 'response';
+      const ta = wrap.querySelector('.ans-note'); const btn = wrap.querySelector('.ans-btn');
+      if (mode === 'resolve') { ta.placeholder = kind === 'a' ? 'Explain how this was resolved (required)…' : 'Describe the outcome / result (required)…'; btn.textContent = '✓ Resolve'; }
+      else { ta.placeholder = 'Post an update without resolving…'; btn.textContent = '↩ Post response'; }
+    }));
+    p.querySelectorAll('.ans-btn').forEach(b => b.addEventListener('click', () => submitAnswer(b.dataset.kind, Number(b.dataset.id), b)));
     // Turnover item actions
     p.querySelectorAll('[data-tact]').forEach(b => b.addEventListener('click', () => {
       const id = Number(b.dataset.id); const act = b.dataset.tact;
-      if (act === 'del') return confirmDialog('Delete this turnover?', async () => { await mcFetch('?api=delete-turnover', { method: 'POST', body: JSON.stringify({ id }) }); openStudent(cur.row.id); loadList(); });
-      if (act === 'comment') return promptModal('Reply to turnover', async (txt) => { await mcFetch('?api=add-turnover-comment', { method: 'POST', body: JSON.stringify({ turnoverId: id, body: txt }) }); openStudent(cur.row.id); });
-      if (act === 'result') return promptModal('Turnover result', async (txt) => { await mcFetch('?api=set-turnover-result', { method: 'POST', body: JSON.stringify({ id, result: txt }) }); toast('Result saved'); openStudent(cur.row.id); loadList(); });
-      if (act === 'reassign') { const repOpts = reps.map(x => `<option value="${esc(x.display)}">${esc(x.display)}</option>`).join(''); openModal(`<h3>Reassign turnover</h3><div class="fld"><label>New rep</label><select id="rRep"><option value="">Select…</option>${repOpts}</select></div><div class="modal-row"><button class="tbtn" id="rCancel">Cancel</button><button class="tbtn tbtn-primary" id="rSave">Reassign</button></div>`); $('rCancel').onclick = closeModal; $('rSave').onclick = async () => { const rep_name = $('rRep').value.trim(); if (!rep_name) return; await mcFetch('?api=reassign-turnover', { method: 'POST', body: JSON.stringify({ id, rep_name }) }); closeModal(); toast('Reassigned'); openStudent(cur.row.id); }; }
+      const t = cur.turnovers.find(x => Number(x.id) === id);
+      if (act === 'del') return confirmDialog('Delete this turnover?', async () => { try { await mcFetch('?api=delete-turnover', { method: 'POST', body: JSON.stringify({ id }) }); toast('Deleted'); openStudent(cur.row.id); loadList(); } catch (e) { toast(e.message); } });
+      if (act === 'reassign' && t) return reassignModal(t);
+      if (act === 'editresult' && t) return editResultModal(t);
     }));
     // Alert item actions
     p.querySelectorAll('[data-aact]').forEach(b => b.addEventListener('click', () => {
       const id = Number(b.dataset.id); const act = b.dataset.aact;
-      if (act === 'del') return confirmDialog('Delete this alert?', async () => { await mcFetch('?api=delete-alert', { method: 'POST', body: JSON.stringify({ id }) }); openStudent(cur.row.id); loadList(); });
-      if (act === 'comment') return promptModal('Reply to alert', async (txt) => { await mcFetch('?api=add-alert-comment', { method: 'POST', body: JSON.stringify({ alertId: id, body: txt }) }); openStudent(cur.row.id); });
-      if (act === 'resolve') return promptModal('Resolution note', async (txt) => { await mcFetch('?api=resolve-alert', { method: 'POST', body: JSON.stringify({ id, resolution_note: txt }) }); toast('Alert resolved'); openStudent(cur.row.id); loadList(); }, true);
+      if (act === 'del') return confirmDialog('Delete this alert?', async () => { try { await mcFetch('?api=delete-alert', { method: 'POST', body: JSON.stringify({ id }) }); toast('Deleted'); openStudent(cur.row.id); loadList(); } catch (e) { toast(e.message); } });
     }));
     p.querySelectorAll('[data-wact]').forEach(b => b.addEventListener('click', () => confirmDialog('Delete this win?', async () => { await mcFetch('?api=delete-win', { method: 'POST', body: JSON.stringify({ id: Number(b.dataset.id) }) }); openStudent(cur.row.id); loadList(); })));
     p.querySelectorAll('[data-nact]').forEach(b => b.addEventListener('click', () => confirmDialog('Delete this note?', async () => { await mcFetch('?api=delete-note', { method: 'POST', body: JSON.stringify({ id: Number(b.dataset.id) }) }); openStudent(cur.row.id); loadList(); })));
-  }
-  function promptModal(title, onSubmit, required) {
-    openModal(`<h3>${esc(title)}</h3><div class="fld"><textarea id="pmText" rows="4"></textarea></div><div class="modal-row"><button class="tbtn" id="pmCancel">Cancel</button><button class="tbtn tbtn-primary" id="pmSave">Save</button></div>`);
-    $('pmCancel').onclick = closeModal;
-    $('pmSave').onclick = async () => { const txt = $('pmText').value.trim(); if (required && !txt) { toast('Required'); return; } if (!txt) { closeModal(); return; } try { await onSubmit(txt); closeModal(); } catch (e) { toast(e.message); } };
   }
 
   // ── Top bar wiring ──

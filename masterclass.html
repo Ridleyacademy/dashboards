@@ -113,6 +113,17 @@
     .badge-open{ background:var(--gold-bg); color:var(--gold); }
     .badge-done{ background:var(--green-bg); color:var(--green); }
     .pill-open{ font-size:0.62rem; font-weight:700; padding:1px 7px; border-radius:999px; }
+    /* Response / Resolution inline form + threads (MS-CRM parity) */
+    .thread-h{ font-size:0.66rem; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-muted); margin:10px 0 4px; }
+    .result-box{ margin-top:10px; padding:9px 11px; border-left:3px solid var(--green); background:var(--green-bg); border-radius:8px; }
+    .result-h{ font-size:0.66rem; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; color:var(--green); margin-bottom:3px; }
+    .ans{ margin-top:11px; padding-top:9px; border-top:1px solid var(--border); }
+    .ans-tabs{ display:flex; gap:6px; margin-bottom:8px; }
+    .ans-opt{ flex:1; display:flex; align-items:center; justify-content:center; gap:6px; padding:6px; border:1px solid var(--border); border-radius:8px; font-size:0.76rem; cursor:pointer; color:var(--text); }
+    .ans-opt input{ cursor:pointer; }
+    .ans-note{ width:100%; background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:8px 10px; color:var(--text); font-size:0.84rem; outline:none; font-family:inherit; resize:vertical; min-height:54px; }
+    .ans-note:focus{ border-color:var(--blue); }
+    .ans-btn{ margin-top:8px; }
     /* Modal */
     .ov{ position:fixed; inset:0; background:rgba(4,6,14,0.7); display:none; align-items:center; justify-content:center; z-index:300; padding:16px; }
     .ov.open{ display:flex; }

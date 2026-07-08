@@ -673,23 +673,21 @@ function renderAdvFilterPanel() {
     _clearAdvFilters();
     _onAdvFiltersChanged();
   });
+  // Live re-filter for a numeric sub-input WITHOUT re-rendering the panel (so focus /
+  // caret stay in the field while typing). renderStudentList() is the real list render.
+  const _advInputLiveApply = () => {
+    const badge = document.getElementById('cnt-active-filters');
+    if (badge) { const c = _advFilterCount(); if (c > 0) { badge.style.display = ''; badge.textContent = String(c); } else badge.style.display = 'none'; }
+    renderActiveFiltersBar();
+    renderStudentList();
+  };
   const customInp = document.getElementById('advExpiringCustomDays');
   if (customInp) {
-    customInp.addEventListener('input', () => {
-      advFilters.expiring_custom_days = customInp.value.trim();
-      // Re-filter without re-rendering the whole panel (so focus stays in input).
-      renderActiveFiltersBar?.();
-      renderStudents?.();
-    });
+    customInp.addEventListener('input', () => { advFilters.expiring_custom_days = customInp.value.trim(); _advInputLiveApply(); });
   }
   const maxExpInp = document.getElementById('advMaxDaysExpired');
   if (maxExpInp) {
-    maxExpInp.addEventListener('input', () => {
-      advFilters.max_days_expired = maxExpInp.value.trim();
-      // Re-filter without re-rendering the whole panel (so focus stays in the input).
-      renderActiveFiltersBar?.();
-      renderStudents?.();
-    });
+    maxExpInp.addEventListener('input', () => { advFilters.max_days_expired = maxExpInp.value.trim(); _advInputLiveApply(); });
   }
 }
 

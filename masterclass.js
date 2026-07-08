@@ -483,6 +483,62 @@
     body.querySelectorAll('[data-nact]').forEach(b => b.addEventListener('click', () => confirmDialog('Delete this note?', async () => { try { await mcFetch('?api=delete-note', { method: 'POST', body: JSON.stringify({ id: Number(b.dataset.id) }) }); toast('Deleted'); await afterMutate(); } catch (e) { toast(e.message); } })));
   }
 
+  // ── Global queues (Alerts / Turn-overs / Contacts across all students) ──
+  const QUEUE_META = {
+    alerts:    { title: 'Alerts',     api: 'queue-alerts',    toggle: true },
+    turnovers: { title: 'Turn-overs', api: 'queue-turnovers', toggle: true },
+    contacts:  { title: 'Contacts',   api: 'queue-contacts',  toggle: false },
+  };
+  async function openQueueModal(kind, done = false) {
+    const meta = QUEUE_META[kind];
+    document.getElementById('mcQueueModal')?.remove();
+    const m = document.createElement('div');
+    m.id = 'mcQueueModal'; m.className = 'lm-ov';
+    const toggle = meta.toggle
+      ? `<div style="display:flex;gap:6px"><button class="tbtn${done ? '' : ' tbtn-primary'}" data-done="0">Open</button><button class="tbtn${done ? ' tbtn-primary' : ''}" data-done="1">${kind === 'alerts' ? 'Resolved' : 'Done'}</button></div>`
+      : '';
+    m.innerHTML = `<div class="lm-box">
+      <div class="lm-head">
+        <div style="flex:1;min-width:0"><div class="lm-title">${meta.title}</div><div class="lm-sub" id="qSub">Loading…</div></div>
+        ${toggle}
+        <button class="lm-x" id="qClose" aria-label="Close">×</button>
+      </div>
+      <div class="lm-body" id="qBody"><div class="item-meta" style="padding:26px;text-align:center">Loading…</div></div>
+    </div>`;
+    document.body.appendChild(m);
+    const close = () => { document.removeEventListener('keydown', onKey); m.remove(); };
+    function onKey(e) { if (e.key === 'Escape' && !$('ov').classList.contains('open')) close(); }
+    document.addEventListener('keydown', onKey);
+    m.addEventListener('click', e => { if (e.target === m) close(); });
+    $('qClose').onclick = close;
+    m.querySelectorAll('[data-done]').forEach(b => b.addEventListener('click', () => openQueueModal(kind, b.dataset.done === '1')));
+    try {
+      const j = await mcFetch('?api=' + meta.api + (meta.toggle ? '&done=' + (done ? '1' : '0') : ''));
+      const rows = j.rows || [];
+      const scope = j.see_all ? 'showing all' : 'the ones you’re on';
+      $('qSub').textContent = `${rows.length} ${meta.toggle ? (done ? (kind === 'alerts' ? 'resolved' : 'done') : 'open') : 'logged'} · ${scope}`;
+      $('qBody').innerHTML = rows.length ? rows.map(r => queueRow(kind, r, done)).join('') : `<div class="item-meta" style="padding:26px;text-align:center">Nothing here.</div>`;
+      $('qBody').querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => { close(); openStudent(Number(b.dataset.open)); }));
+    } catch (e) { $('qBody').innerHTML = `<div class="item-meta" style="color:var(--red);padding:20px">${esc(e.message)}</div>`; }
+  }
+  function queueRow(kind, r, done) {
+    const openBtn = `<button class="lnk" data-open="${r.student_id}">Open student →</button>`;
+    const who = `<span class="item-meta">${esc(r.created_by_name || '')}</span>`;
+    if (kind === 'contacts') {
+      return `<div class="item"><div class="item-top"><span class="item-title" style="font-size:0.9rem">${esc(r.student_name || '(unnamed)')}</span><span class="item-meta">✆ ${esc(fmtDate(r.contact_date))}</span></div>${r.notes ? `<div class="item-body">${esc(r.notes)}</div>` : ''}<div class="item-actions">${who}<span style="flex:1"></span>${openBtn}</div></div>`;
+    }
+    if (kind === 'alerts') {
+      const badge = done ? '<span class="pill-open badge-done">✓ resolved</span>' : '<span class="pill-open" style="background:var(--red-bg);color:var(--red)">⚠ open</span>';
+      return `<div class="item"><div class="item-top"><span class="item-title" style="font-size:0.9rem">${esc(r.student_name || '(unnamed)')} — ${esc(r.title || '')} ${badge}</span><span class="item-meta">${esc(fmtDate(r.created_at))}</span></div>${r.description ? `<div class="item-body">${esc(r.description)}</div>` : ''}${done && r.resolution_note ? `<div class="item-body"><b>Resolved:</b> ${esc(r.resolution_note)}</div>` : ''}<div class="item-actions">${who}<span style="flex:1"></span>${openBtn}</div></div>`;
+    }
+    // turnovers
+    const badge = done ? '<span class="pill-open badge-done">✓ resolved</span>' : '<span class="pill-open" style="background:var(--green-bg);color:var(--green)">↪ open</span>';
+    return `<div class="item"><div class="item-top"><span class="item-title" style="font-size:0.9rem">${esc(r.student_name || '(unnamed)')} → ${esc(r.rep_name || '')} ${badge}</span><span class="item-meta">${esc(fmtDate(r.turnover_date || r.created_at))}</span></div>${r.note ? `<div class="item-body">${esc(r.note)}</div>` : ''}${done && r.result ? `<div class="item-body"><b>Result:</b> ${esc(r.result)}</div>` : ''}<div class="item-actions">${who}<span style="flex:1"></span>${openBtn}</div></div>`;
+  }
+  $('gqAlerts').addEventListener('click', () => openQueueModal('alerts', false));
+  $('gqTurnovers').addEventListener('click', () => openQueueModal('turnovers', false));
+  $('gqContacts').addEventListener('click', () => openQueueModal('contacts', false));
+
   // ── Top bar wiring ──
   $('refreshBtn').addEventListener('click', () => { loadList(); loadRepData(); if (cur && cur.row.id) openStudent(cur.row.id); });
   $('newBtn').addEventListener('click', newStudent);

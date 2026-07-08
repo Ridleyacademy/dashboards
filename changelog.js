@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v467', title: 'Masterclass CRM — Rep Area (contacts + rep status)', items: [
+      'Each Masterclass student now has a Rep Area section like the Mentorship CRM: assign the rep, set a rep status (Hot / Warm / Cold / Qualified / …), log contacts with dates & notes, and view the full contact log and status history. Rep status and a “contacted ≤7d” tag also show on the student list.',
+    ]},
     { version: 'v466', title: 'Masterclass CRM — collapsible profile sections', items: [
       'A student’s profile is now split into separate collapsible sections (Identity, Purchase, Course progress, Admin, Notes) just like the Mentorship CRM — click a section header to fold it, and your open/closed choices are remembered.',
     ]},

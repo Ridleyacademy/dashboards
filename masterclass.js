@@ -15,6 +15,18 @@
   let filter = 'all';
   let query = '';
   let editing = false;
+  // Rep Area (contacts + rep status). repDataMap: student_id -> { status, status_at, last_contact_date, recently_contacted }
+  let repDataMap = {};
+  let repStatusOptions = ['Hot', 'Warm', 'Cold', 'Qualified', 'Not qualified', 'Needs help', 'Do not contact'];
+  const REP_STATUS_COLORS = {
+    'Hot': { bg: 'rgba(248,113,113,0.18)', fg: '#f87171' },
+    'Warm': { bg: 'rgba(251,146,60,0.18)', fg: '#fb923c' },
+    'Cold': { bg: 'rgba(96,165,250,0.18)', fg: '#60a5fa' },
+    'Qualified': { bg: 'rgba(52,211,153,0.18)', fg: '#34d399' },
+    'Not qualified': { bg: 'rgba(148,163,184,0.18)', fg: '#94a3b8' },
+    'Needs help': { bg: 'rgba(167,139,250,0.20)', fg: '#a78bfa' },
+    'Do not contact': { bg: 'rgba(248,113,113,0.28)', fg: '#fca5a5' },
+  };
 
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -65,6 +77,9 @@
     if (!rows.length) { $('mcList').innerHTML = `<div class="mc-empty">${students.length ? 'No matches.' : 'No students yet.'}</div>`; return; }
     $('mcList').innerHTML = rows.map(s => {
       const badges = [];
+      const rd = repDataMap[s.id];
+      if (rd && rd.status) { const c = REP_STATUS_COLORS[rd.status] || { bg: 'var(--surface3)', fg: 'var(--text)' }; badges.push(`<span class="mc-mini" style="background:${c.bg};color:${c.fg}" title="Rep status: ${esc(rd.status)}">${esc(rd.status)}</span>`); }
+      if (rd && rd.recently_contacted) badges.push(`<span class="mc-mini" style="background:var(--blue-bg);color:var(--blue)" title="Contacted in the last 7 days">✆ 7d</span>`);
       if (s.open_alerts_count) badges.push(`<span class="mc-mini badge-open" title="Open alerts">⚠ ${s.open_alerts_count}</span>`);
       if (s.turnovers_count) badges.push(`<span class="mc-mini" style="background:var(--blue-bg);color:var(--blue)" title="Turnovers">↪ ${s.turnovers_count}</span>`);
       const sub = [s.masterclass_level || s.level, s.rep ? '· ' + s.rep : ''].filter(Boolean).join(' ');
@@ -116,8 +131,8 @@
     const collapsed = collapsedSections();
     const sec = (title, inner) => `<details class="mc-sec" data-section="${esc(title)}"${collapsed.has(title) ? '' : ' open'}><summary><span class="mc-sec-title">${esc(title)}</span><span class="mc-sec-line"></span><span class="mc-sec-caret">▾</span></summary><div class="sec-grid">${inner}</div></details>`;
     const form = `<div class="prof-body">
-      ${sec('Identity', `${fld('Name', 'f-name', r.name)}${fld('Email', 'f-email', r.email)}${fld('Phone', 'f-phone', r.phone)}
-        <div class="fld"><label>Rep</label><input id="f-rep" list="repList" value="${esc(r.rep || '')}"><datalist id="repList">${repList}</datalist></div>`)}
+      ${sec('Identity', `${fld('Name', 'f-name', r.name)}${fld('Email', 'f-email', r.email)}${fld('Phone', 'f-phone', r.phone)}`)}
+      ${sec('Rep Area', `<div class="fld full"><label>Assigned rep</label><input id="f-rep" list="repList" value="${esc(r.rep || '')}" placeholder="Type or pick a rep…"><datalist id="repList">${repList}</datalist></div><div class="full" id="repWidgets">${isNew ? '<div class="item-meta" style="padding:2px">Create the student first to log contacts &amp; set a rep status.</div>' : '<div class="item-meta" style="padding:2px">Loading…</div>'}</div>`)}
       ${sec('Purchase', `${fld('First purchase', 'f-first_purchase_date', r.first_purchase_date, 'date')}${fld('Last purchase', 'f-last_purchase_date', r.last_purchase_date, 'date')}${fld('Price', 'f-price', r.price, 'number')}`)}
       ${sec('Course progress', `${fld('Level', 'f-level', r.level, 'select', LEVELS)}${fld('Masterclass level', 'f-masterclass_level', r.masterclass_level, 'select', LEVELS)}${fld('Current module', 'f-current_module', r.current_module)}`)}
       ${sec('Admin', `${fld('Status', 'f-status', r.status || 'Active', 'select', ['Active', 'Completed', 'Refunded'])}${fld('Refunded date', 'f-refunded_date', r.refunded_date, 'date')}${fld('Refunded amount', 'f-refunded_amount', r.refunded_amount, 'number')}${fld('Verified', 'f-verified', r.verified, 'checkbox')}${fld('Dead file', 'f-dead_file', r.dead_file, 'checkbox')}${fld('Winning student', 'f-winning_student', r.winning_student, 'checkbox')}`)}
@@ -135,8 +150,81 @@
       try { localStorage.setItem('mc-collapsed-sections', JSON.stringify([...set])); } catch (_) {}
     }));
     if (canEdit) { const sb = $('saveBtn'); if (sb) sb.onclick = saveProfile; const cb = $('cancelBtn'); if (cb) cb.onclick = () => { if (isNew) { cur = null; p.classList.add('hidden'); $('mcMainEmpty').classList.remove('hidden'); } else openStudent(r.id); }; }
+    if (!isNew) renderRepArea(r);
   }
   function collapsedSections() { try { return new Set(JSON.parse(localStorage.getItem('mc-collapsed-sections') || '[]')); } catch (_) { return new Set(); } }
+
+  // ── Rep Area (contacts + rep status) ──────────────────────────────────────
+  async function loadRepData() {
+    try {
+      const j = await mcFetch('?api=rep-data');
+      repDataMap = {};
+      for (const row of (j.rows || [])) repDataMap[row.student_id] = row;
+      if (Array.isArray(j.status_options) && j.status_options.length) repStatusOptions = j.status_options;
+      renderList();
+    } catch (_) {}
+  }
+  function renderRepArea(s) {
+    const box = $('repWidgets'); if (!box) return;
+    const rd = repDataMap[s.id] || {};
+    const c = rd.status ? (REP_STATUS_COLORS[rd.status] || { bg: 'var(--surface3)', fg: 'var(--text)' }) : null;
+    const statusPill = rd.status
+      ? `<span class="pill-open" style="background:${c.bg};color:${c.fg}">${esc(rd.status)}</span>${rd.status_at ? `<span class="item-meta" style="margin-left:6px">since ${fmtDate(rd.status_at)}</span>` : ''}`
+      : '<span class="item-meta">No status set</span>';
+    const recent = rd.recently_contacted ? '<span class="pill-open" style="background:var(--blue-bg);color:var(--blue);margin-left:6px">✆ ≤7d</span>' : '';
+    const statusSel = caps.can_edit
+      ? `<select id="repStatusSel" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:0.82rem;cursor:pointer;font-family:inherit"><option value="">— set status —</option>${repStatusOptions.map(o => `<option value="${esc(o)}"${o === rd.status ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select>`
+      : '';
+    box.innerHTML = `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;margin-bottom:10px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="item-meta">Rep status:</span> ${statusPill} ${recent}</div>
+        <div class="item-meta" style="color:var(--text)">Last contact: <strong>${rd.last_contact_date ? esc(fmtDate(rd.last_contact_date)) : '—'}</strong></div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">${statusSel}
+        ${caps.can_edit ? '<button class="tbtn tbtn-primary" id="repLogContact" style="background:var(--blue-bg);color:var(--blue);border:none">✆ Log contact</button>' : ''}
+        <button class="tbtn" id="repContactsLog">✆ Contacts log</button>
+        <button class="tbtn" id="repStatusHist">Status history</button>
+      </div>`;
+    const sel = $('repStatusSel'); if (sel) sel.addEventListener('change', () => { if (sel.value) setRepStatus(s.id, sel.value); });
+    const lc = $('repLogContact'); if (lc) lc.addEventListener('click', () => repContactModal(s));
+    $('repContactsLog').addEventListener('click', () => repContactsModal(s));
+    $('repStatusHist').addEventListener('click', () => repStatusHistoryModal(s));
+  }
+  async function setRepStatus(studentId, status) {
+    try { await mcFetch('?api=rep-set-status', { method: 'POST', body: JSON.stringify({ studentId, status }) }); toast('Status set to ' + status); await loadRepData(); if (cur && cur.row.id === studentId) renderRepArea(cur.row); }
+    catch (e) { toast(e.message); }
+  }
+  function repContactModal(s) {
+    const today = new Date().toISOString().slice(0, 10);
+    openModal(`<h3>Log contact — ${esc(s.name || '')}</h3>
+      <div class="fld"><label>Contact date</label><input type="date" id="rcDate" value="${today}"></div>
+      <div class="fld"><label>Notes (optional)</label><textarea id="rcNote" placeholder="What happened on this contact?"></textarea></div>
+      <div class="modal-row"><button class="tbtn" id="rcCancel">Cancel</button><button class="tbtn tbtn-primary" id="rcSave">Log contact</button></div>`);
+    $('rcCancel').onclick = closeModal;
+    $('rcSave').onclick = async () => { try { await mcFetch('?api=rep-add-contact', { method: 'POST', body: JSON.stringify({ studentId: s.id, contact_date: $('rcDate').value || null, notes: $('rcNote').value || '' }) }); closeModal(); toast('Contact logged'); await loadRepData(); if (cur && cur.row.id === s.id) renderRepArea(cur.row); } catch (e) { toast(e.message); } };
+  }
+  async function repContactsModal(s) {
+    openModal(`<h3>Contacts — ${esc(s.name || '')}</h3><div id="rcBody" class="item-meta">Loading…</div><div class="modal-row" style="margin-top:12px">${caps.can_edit ? '<button class="tbtn" id="rcAdd" style="margin-right:auto">✆ Log</button>' : ''}<button class="tbtn" id="rcClose">Close</button></div>`);
+    $('rcClose').onclick = closeModal;
+    const addb = $('rcAdd'); if (addb) addb.onclick = () => repContactModal(s);
+    try {
+      const j = await mcFetch('?api=rep-contacts&student_id=' + s.id);
+      const rows = j.rows || [];
+      $('rcBody').innerHTML = rows.length
+        ? rows.map(c => `<div class="item"><div class="item-top"><span class="item-title" style="font-size:0.84rem">✆ ${esc(fmtDate(c.contact_date))}</span><span class="item-meta">${esc(c.created_by_name || '')}</span></div>${c.notes ? `<div class="item-body">${esc(c.notes)}</div>` : ''}</div>`).join('')
+        : '<div class="item-meta" style="padding:16px;text-align:center">No contacts logged yet.</div>';
+    } catch (e) { $('rcBody').innerHTML = `<div class="item-meta" style="color:var(--red)">${esc(e.message)}</div>`; }
+  }
+  async function repStatusHistoryModal(s) {
+    openModal(`<h3>Rep status history — ${esc(s.name || '')}</h3><div id="rsBody" class="item-meta">Loading…</div><div class="modal-row" style="margin-top:12px"><button class="tbtn" id="rsClose">Close</button></div>`);
+    $('rsClose').onclick = closeModal;
+    try {
+      const j = await mcFetch('?api=rep-status-log&student_id=' + s.id);
+      const rows = j.rows || [];
+      $('rsBody').innerHTML = rows.length
+        ? rows.map(r => { const c = REP_STATUS_COLORS[r.status] || { bg: 'var(--surface3)', fg: 'var(--text)' }; return `<div class="item" style="display:flex;align-items:center;gap:10px"><span class="pill-open" style="background:${c.bg};color:${c.fg}">${esc(r.status)}</span><span class="item-meta">${esc(fmtStamp(r.set_at))}</span><span class="item-meta" style="margin-left:auto">${esc(r.set_by_name || '')}</span></div>`; }).join('')
+        : '<div class="item-meta" style="padding:16px;text-align:center">No status changes yet.</div>';
+    } catch (e) { $('rsBody').innerHTML = `<div class="item-meta" style="color:var(--red)">${esc(e.message)}</div>`; }
+  }
 
   async function saveProfile() {
     const g = (id) => { const el = $(id); if (!el) return undefined; return el.type === 'checkbox' ? el.checked : el.value; };
@@ -396,7 +484,7 @@
   }
 
   // ── Top bar wiring ──
-  $('refreshBtn').addEventListener('click', () => { loadList(); if (cur && cur.row.id) openStudent(cur.row.id); });
+  $('refreshBtn').addEventListener('click', () => { loadList(); loadRepData(); if (cur && cur.row.id) openStudent(cur.row.id); });
   $('newBtn').addEventListener('click', newStudent);
   $('signOutBtn').addEventListener('click', async () => { try { await supa.auth.signOut(); } catch (_) {} location.href = 'index.html'; });
 
@@ -406,6 +494,7 @@
     if (session?.user) { const em = session.user.email || ''; $('userEmail').textContent = em; $('userAvatar').textContent = (em[0] || 'U').toUpperCase(); window.__RIDLEY_USER = session.user; }
     try { const j = await mcFetch('?api=reps'); reps = j.reps || []; } catch (_) {}
     await loadList();
+    loadRepData();
     const params = new URLSearchParams(location.search);
     const openId = Number(params.get('id') || 0);
     if (openId) openStudent(openId);

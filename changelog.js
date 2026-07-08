@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v474', title: 'Masterclass CRM — tags + engagement segmenting', items: [
+      'Tags are now editable on a student (add/remove) and filterable in the list — segment by things like “Started course”, “70%+”, “inactive”, “Phone sale”, ad source, etc.',
+      'New list filters: by tag, source and SMS opt-in, plus an “Inactive 30/60/90/180 days” filter and Sort by Last active or Most sign-ins. A red “inactive Nd” badge flags students with no activity for 90+ days.',
+    ]},
     { version: 'v473', title: 'Masterclass CRM — editable details + Activity log', items: [
       'The imported fields are now editable and saved: Location & contact (mobile, address, city/state/country/zip) and Engagement (sign-ins/course visits, source, SMS opt-in).',
       'New Activity log on each student — add dated entries (Sign-in / Activity / Other) with a note to keep engagement up to date. “Last sign-in” and “Last activity” now show the most recent log entry (falling back to the imported value), so they stay current.',

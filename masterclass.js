@@ -15,7 +15,7 @@
   let filter = 'all';
   let query = '';
   let editing = false;
-  const advFilters = { rep: '', level: '', repStatus: '', verified: false, recent: false, wins: false };
+  const advFilters = { rep: '', level: '', repStatus: '', verified: false, recent: false, wins: false, tag: '', source: '', sms: '', inactive: '', sort: 'name' };
   // Rep Area (contacts + rep status). repDataMap: student_id -> { status, status_at, last_contact_date, recently_contacted }
   let repDataMap = {};
   let repStatusOptions = ['Hot', 'Warm', 'Cold', 'Qualified', 'Not qualified', 'Needs help', 'Do not contact'];
@@ -70,6 +70,11 @@
     if (advFilters.wins) p.set('has_wins', '1');
     if (advFilters.repStatus) p.set('rep_status', advFilters.repStatus);
     if (advFilters.recent) p.set('recent', '1');
+    if (advFilters.tag) p.set('tag', advFilters.tag);
+    if (advFilters.source) p.set('source', advFilters.source);
+    if (advFilters.sms) p.set('sms', advFilters.sms);
+    if (advFilters.inactive) p.set('inactive_days', advFilters.inactive);
+    if (advFilters.sort && advFilters.sort !== 'name') p.set('sort', advFilters.sort);
     return p;
   }
   async function loadList(reset = true) {
@@ -94,9 +99,11 @@
     }
     const lvlSel = $('afLevel'); if (lvlSel && lvlSel.options.length <= 1) lvlSel.innerHTML = '<option value="">Any level</option>' + LEVELS.filter(Boolean).map(l => `<option value="${esc(l)}">${esc(l)}</option>`).join('');
     const stSel = $('afRepStatus'); if (stSel && stSel.options.length <= 1) stSel.innerHTML = '<option value="">Any rep status</option>' + repStatusOptions.map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('');
+    // Tag suggestions from the tags seen on the loaded page (typeahead; any tag still allowed).
+    const tagList = $('afTagList'); if (tagList) { const set = new Set(); students.forEach(s => (s.tags || []).forEach(t => set.add(t))); tagList.innerHTML = [...set].sort((a, b) => a.localeCompare(b)).map(t => `<option value="${esc(t)}">`).join(''); }
   }
   function updateFilterCount() {
-    const n = (advFilters.rep ? 1 : 0) + (advFilters.level ? 1 : 0) + (advFilters.repStatus ? 1 : 0) + (advFilters.verified ? 1 : 0) + (advFilters.recent ? 1 : 0) + (advFilters.wins ? 1 : 0);
+    const n = (advFilters.rep ? 1 : 0) + (advFilters.level ? 1 : 0) + (advFilters.repStatus ? 1 : 0) + (advFilters.verified ? 1 : 0) + (advFilters.recent ? 1 : 0) + (advFilters.wins ? 1 : 0) + (advFilters.tag ? 1 : 0) + (advFilters.source ? 1 : 0) + (advFilters.sms ? 1 : 0) + (advFilters.inactive ? 1 : 0);
     const el = $('mcFilterCount'); if (el) el.textContent = n ? String(n) : '';
   }
   function renderList() {
@@ -111,6 +118,7 @@
       if (rd && rd.recently_contacted) badges.push(`<span class="mc-mini" style="background:var(--blue-bg);color:var(--blue)" title="Contacted in the last 7 days">✆ 7d</span>`);
       if (s.open_alerts_count) badges.push(`<span class="mc-mini badge-open" title="Open alerts">⚠ ${s.open_alerts_count}</span>`);
       if (s.turnovers_count) badges.push(`<span class="mc-mini" style="background:var(--blue-bg);color:var(--blue)" title="Turnovers">↪ ${s.turnovers_count}</span>`);
+      if (s.last_activity_at) { const days = Math.floor((Date.now() - new Date(s.last_activity_at).getTime()) / 86400000); if (days >= 90) badges.push(`<span class="mc-mini" style="background:var(--red-bg);color:var(--red)" title="Last active ${esc(fmtDate(s.last_activity_at))}">inactive ${days}d</span>`); }
       const sub = [s.masterclass_level || s.level, s.rep ? '· ' + s.rep : ''].filter(Boolean).join(' ');
       return `<div class="mc-row${cur && cur.row.id === s.id ? ' active' : ''}" data-id="${s.id}">
         <div class="mc-av">${esc(initials(s.name))}</div>
@@ -129,12 +137,16 @@
   const _afApply = () => {
     advFilters.rep = $('afRep').value; advFilters.level = $('afLevel').value; advFilters.repStatus = $('afRepStatus').value;
     advFilters.verified = $('afVerified').checked; advFilters.recent = $('afRecent').checked; advFilters.wins = $('afWins').checked;
+    advFilters.tag = $('afTag').value.trim(); advFilters.source = $('afSource').value.trim();
+    advFilters.sms = $('afSms').value; advFilters.inactive = $('afInactive').value; advFilters.sort = $('afSort').value;
     updateFilterCount(); loadList(true);
   };
-  ['afRep', 'afLevel', 'afRepStatus'].forEach(id => $(id).addEventListener('change', _afApply));
+  ['afRep', 'afLevel', 'afRepStatus', 'afSms', 'afInactive', 'afSort'].forEach(id => $(id).addEventListener('change', _afApply));
   ['afVerified', 'afRecent', 'afWins'].forEach(id => $(id).addEventListener('change', _afApply));
+  let _afT; ['afTag', 'afSource'].forEach(id => $(id).addEventListener('input', () => { clearTimeout(_afT); _afT = setTimeout(_afApply, 350); }));
   $('afClear').addEventListener('click', () => {
-    ['afRep', 'afLevel', 'afRepStatus'].forEach(id => { $(id).value = ''; });
+    ['afRep', 'afLevel', 'afRepStatus', 'afTag', 'afSource'].forEach(id => { $(id).value = ''; });
+    $('afSms').value = ''; $('afInactive').value = ''; $('afSort').value = 'name';
     ['afVerified', 'afRecent', 'afWins'].forEach(id => { $(id).checked = false; });
     _afApply();
   });
@@ -167,6 +179,11 @@
   function roField(label, val) { const v = (val == null || val === '') ? '—' : String(val); return `<div class="fld"><label>${esc(label)}</label><div class="ro">${esc(v)}</div></div>`; }
   function roFull(label, val) { const v = (val == null || val === '') ? '—' : String(val); return `<div class="fld full"><label>${esc(label)}</label><div class="ro">${esc(v)}</div></div>`; }
   function chipsField(label, arr) { const a = Array.isArray(arr) ? arr : []; const inner = a.length ? a.map(x => `<span class="kchip">${esc(x)}</span>`).join('') : '<span class="item-meta">—</span>'; return `<div class="fld full"><label>${esc(label)} (${a.length})</label><div class="kchips">${inner}</div></div>`; }
+  function tagChip(t) { return `<span class="kchip tag-chip" data-tag="${esc(t)}">${esc(t)}<button type="button" class="tag-x" title="Remove">×</button></span>`; }
+  function tagEditor(tags, canEdit) {
+    const chips = (Array.isArray(tags) ? tags : []).map(tagChip).join('');
+    return `<div class="fld full"><label>Tags (${(tags || []).length})</label><div class="tag-edit" id="tagEdit">${chips}${canEdit ? '<input class="tag-input" id="tagInput" placeholder="+ add tag, Enter">' : ''}</div></div>`;
+  }
 
   function activityLogHTML() {
     const acts = cur.activity || [];
@@ -218,7 +235,8 @@
       ${isNew ? '' : sec('Engagement', `${fld('Sign-ins (course visits)', 'f-sign_in_count', r.sign_in_count, 'number')}${roField('Last sign-in', lastSignIn ? fmtDate(lastSignIn) : '')}${roField('Last activity', lastActivity ? fmtDate(lastActivity) : '')}${roField('Joined (Kajabi)', r.kajabi_created_at ? fmtDate(r.kajabi_created_at) : '')}${fld('Source', 'f-source', r.source)}${fld('SMS opt-in', 'f-sms_opt_in', r.sms_opt_in, 'checkbox')}`)}
       ${isNew ? '' : sec('Activity log', activityLogHTML())}
       ${sec('Location & contact', `${fld('Mobile', 'f-mobile_phone', r.mobile_phone)}${fld('Address line 1', 'f-address_line1', r.address_line1)}${fld('Address line 2', 'f-address_line2', r.address_line2)}${fld('City', 'f-city', r.city)}${fld('State', 'f-state', r.state)}${fld('Country', 'f-country', r.country)}${fld('Zip', 'f-zip', r.zip)}`)}
-      ${((Array.isArray(r.products) && r.products.length) || (Array.isArray(r.tags) && r.tags.length)) ? sec('Products & Tags', `${chipsField('Products', r.products)}${chipsField('Tags', r.tags)}`) : ''}
+      ${isNew ? '' : sec('Tags', tagEditor(r.tags, canEdit))}
+      ${(Array.isArray(r.products) && r.products.length) ? sec('Products', chipsField('Products', r.products)) : ''}
       ${sec('Admin', `${fld('Status', 'f-status', r.status || 'Active', 'select', ['Active', 'Completed', 'Refunded'])}${fld('Refunded date', 'f-refunded_date', r.refunded_date, 'date')}${fld('Refunded amount', 'f-refunded_amount', r.refunded_amount, 'number')}${fld('Verified', 'f-verified', r.verified, 'checkbox')}${fld('Dead file', 'f-dead_file', r.dead_file, 'checkbox')}${fld('Winning student', 'f-winning_student', r.winning_student, 'checkbox')}`)}
       ${sec('Notes (profile)', `<div class="full">${fld('', 'f-notes', r.notes, 'textarea')}</div>`)}
       ${(r.metadata && r.metadata.kajabi && Object.keys(r.metadata.kajabi).length) ? sec('All imported details', Object.entries(r.metadata.kajabi).map(([k, v]) => roFull(k, v)).join('')) : ''}
@@ -326,6 +344,8 @@
       if (m.dataset.meta) meta[m.dataset.meta] = vals.slice(1);
     });
     body.metadata = meta;
+    // Tags (editable chip editor) — only send when the editor is on screen.
+    const te = $('tagEdit'); if (te) body.tags = [...te.querySelectorAll('.tag-chip')].map(c => c.dataset.tag);
     if (!String(body.name || '').trim()) { toast('Name is required'); return; }
     try {
       const j = await mcFetch('?api=upsert', { method: 'POST', body: JSON.stringify(body) });
@@ -641,6 +661,18 @@
     if (add) { const m = add.closest('.multi'); add.insertAdjacentHTML('beforebegin', multiRow(m.dataset.key === 'email' ? 'email' : 'tel', '')); return; }
     const del = e.target.closest('.multi-del');
     if (del) { const m = del.closest('.multi'); if (m.querySelectorAll('.multi-row').length > 1) del.closest('.multi-row').remove(); else m.querySelector('.multi-input').value = ''; }
+    const tx = e.target.closest('.tag-x');
+    if (tx) { tx.closest('.tag-chip').remove(); }
+  });
+  // Tags: add on Enter (dedup, case-insensitive).
+  $('mcProfile').addEventListener('keydown', (e) => {
+    if (e.target.id !== 'tagInput' || e.key !== 'Enter') return;
+    e.preventDefault();
+    const v = e.target.value.trim(); if (!v) return;
+    const edit = $('tagEdit');
+    const exists = [...edit.querySelectorAll('.tag-chip')].some(c => (c.dataset.tag || '').toLowerCase() === v.toLowerCase());
+    if (!exists) e.target.insertAdjacentHTML('beforebegin', tagChip(v));
+    e.target.value = '';
   });
 
   // ── Top bar wiring ──

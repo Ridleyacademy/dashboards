@@ -104,6 +104,12 @@
     .ro{ font-size:0.85rem; color:var(--text); padding:7px 0 2px; word-break:break-word; white-space:pre-wrap; min-height:18px; }
     .kchips{ display:flex; flex-wrap:wrap; gap:5px; padding-top:3px; }
     .kchip{ background:var(--surface2); border:1px solid var(--border); border-radius:999px; padding:2px 9px; font-size:0.72rem; color:var(--text-muted); }
+    /* Editable tag chips */
+    .tag-edit{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:6px 8px; }
+    .tag-chip{ display:inline-flex; align-items:center; gap:5px; background:var(--blue-bg); color:var(--blue); border:none; border-radius:999px; padding:2px 4px 2px 9px; font-size:0.72rem; }
+    .tag-chip .tag-x{ background:none; border:none; color:var(--blue); cursor:pointer; font-size:0.9rem; line-height:1; padding:0 2px; opacity:0.7; }
+    .tag-chip .tag-x:hover{ opacity:1; }
+    .tag-input{ flex:1; min-width:120px; background:none; border:none; outline:none; color:var(--text); font-size:0.82rem; font-family:inherit; padding:2px; }
     /* Multi-value email/phone rows */
     .multi-row{ display:flex; gap:6px; margin-bottom:6px; }
     .multi-input{ flex:1; background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:8px 10px; color:var(--text); font-size:0.85rem; outline:none; font-family:inherit; }
@@ -221,6 +227,12 @@
         <select id="afRep"><option value="">Any rep</option></select>
         <select id="afLevel"><option value="">Any level</option></select>
         <select id="afRepStatus"><option value="">Any rep status</option></select>
+        <input id="afTag" placeholder="Tag (e.g. Started course)" list="afTagList" autocomplete="off">
+        <datalist id="afTagList"></datalist>
+        <input id="afSource" placeholder="Source (e.g. YouTube Ads)" autocomplete="off">
+        <select id="afInactive"><option value="">Any activity</option><option value="30">Inactive 30d+</option><option value="60">Inactive 60d+</option><option value="90">Inactive 90d+</option><option value="180">Inactive 180d+</option></select>
+        <select id="afSms"><option value="">SMS: any</option><option value="1">SMS opted-in</option><option value="0">SMS not opted-in</option></select>
+        <select id="afSort"><option value="name">Sort: Name</option><option value="last_activity">Sort: Last active</option><option value="sign_ins">Sort: Most sign-ins</option></select>
         <label class="mc-filter-check"><input type="checkbox" id="afVerified"> Verified</label>
         <label class="mc-filter-check"><input type="checkbox" id="afRecent"> Contacted ≤7d</label>
         <label class="mc-filter-check"><input type="checkbox" id="afWins"> Has wins</label>

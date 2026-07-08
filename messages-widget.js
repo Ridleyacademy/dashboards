@@ -9,6 +9,7 @@
   const SUPABASE_URL      = "https://pojqljrhhtnigyrtzdzz.supabase.co";
   const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBvanFsanJoaHRuaWd5cnR6ZHp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTA3ODMsImV4cCI6MjA5MTM4Njc4M30.PcSBDqOzbiZxZ7IAs5efqx0gsAlAG0cj3GqUOkAmxos";
   const CHAT_BASE = SUPABASE_URL + '/functions/v1/chat';
+  const GIF_BASE = SUPABASE_URL + '/functions/v1/gif';
   const UNFURL_BASE = SUPABASE_URL + '/functions/v1/unfurl';
   const PRESENCE_BASE = SUPABASE_URL + '/functions/v1/presence';
   let onlineIds = new Set(), presenceCh = null, lastSeenCache = {}, _beatT = null;
@@ -38,6 +39,10 @@
     { name: 'Gestures', emojis: '👍 👎 👌 🤌 🤏 ✌️ 🤞 🤟 🤘 🤙 👈 👉 👆 👇 ☝️ ✋ 🤚 🖐️ 🖖 👋 🤝 👏 🙌 👐 🤲 🙏 ✍️ 💪 🦾 👊 ✊ 🤛 🤜 💅'.split(' ') },
     { name: 'Hearts', emojis: '❤️ 🧡 💛 💚 💙 💜 🖤 🤍 🤎 💔 ❣️ 💕 💞 💓 💗 💖 💘 💝 💟 ✨ ⭐ 🌟 💫 🔥 💯 ✅ ❌ ❓ ❗ ⚡'.split(' ') },
     { name: 'Objects', emojis: '🎉 🎊 🎈 🎁 🏆 🥇 🎯 💡 📌 📎 🔒 🔑 💰 💵 📈 📉 📊 🗓️ ⏰ ⌛ 📞 📱 💻 🖥️ 📷 🎬 🎵 🎧 ☕ 🍕 🍔 🍺 🍻 🥂 🎂 🚀 ✈️ 🏠 👀 🙈'.split(' ') },
+  ];
+  // Lightweight emoji keyword index for the picker's search box (common terms).
+  const EMOJI_SEARCH = [
+    ['😀','smile happy grin'],['😃','smile happy'],['😄','smile happy laugh'],['😁','grin happy'],['😆','laugh happy'],['😅','sweat laugh nervous'],['🤣','rofl laugh'],['😂','joy laugh cry tears'],['🙂','smile slight'],['🙃','upside silly'],['😉','wink'],['😊','blush smile happy'],['😇','angel innocent'],['🥰','love hearts adore'],['😍','love heart eyes'],['🤩','star struck wow'],['😘','kiss love'],['😋','yum tongue tasty'],['😜','wink tongue silly'],['🤪','crazy zany silly'],['🤗','hug'],['🤔','think hmm'],['😐','neutral meh'],['🙄','eye roll'],['😬','grimace awkward'],['😴','sleep tired zzz'],['😷','mask sick'],['🤢','sick nausea gross'],['🥵','hot heat'],['🥶','cold freeze'],['🤯','mind blown shock'],['🥳','party celebrate'],['😎','cool sunglasses'],['🤓','nerd geek'],['😕','confused'],['🙁','frown sad'],['😮','wow surprise open'],['😲','shock astonished'],['😳','flushed embarrassed'],['🥺','pleading puppy beg'],['😨','fear scared'],['😢','cry sad tear'],['😭','sob cry bawl'],['😱','scream fear shock'],['😞','disappointed sad'],['😩','weary tired'],['🥱','yawn bored tired'],['😤','huff angry steam'],['😡','angry mad rage'],['🤬','swear cursing angry'],['😈','devil evil'],['💀','skull dead'],['💩','poop'],['🤡','clown'],['👻','ghost boo'],['👽','alien'],['👍','thumbs up yes like approve'],['👎','thumbs down no dislike'],['👌','ok perfect'],['✌️','peace victory'],['🤞','fingers crossed luck'],['🤟','love you'],['🤘','rock horns'],['🤙','call shaka'],['👏','clap applause'],['🙌','praise hooray celebrate'],['🙏','pray thanks please'],['💪','muscle strong flex'],['👊','fist bump'],['🤝','handshake deal'],['👋','wave hi hello bye'],['❤️','heart love red'],['🧡','orange heart'],['💛','yellow heart'],['💚','green heart'],['💙','blue heart'],['💜','purple heart'],['🖤','black heart'],['🤍','white heart'],['💔','broken heart'],['💕','hearts love'],['💯','hundred perfect score'],['🔥','fire lit hot'],['✨','sparkles shine'],['⭐','star'],['🌟','star glow'],['⚡','lightning bolt'],['✅','check yes done tick'],['❌','cross no wrong x'],['❓','question'],['❗','exclamation'],['🎉','party tada celebrate'],['🎊','confetti party'],['🎈','balloon'],['🎁','gift present'],['🏆','trophy win'],['🥇','gold medal first'],['🎯','target bullseye goal'],['💡','idea light bulb'],['📌','pin'],['📎','clip attach'],['💰','money bag'],['💵','money cash dollar'],['📈','chart up growth'],['📉','chart down loss'],['📊','bar chart stats'],['⏰','alarm clock time'],['📞','phone call'],['📱','phone mobile'],['💻','laptop computer'],['📷','camera photo'],['🎬','movie video film'],['🎵','music note'],['☕','coffee'],['🍕','pizza'],['🍔','burger'],['🍺','beer'],['🥂','cheers champagne toast'],['🎂','cake birthday'],['🚀','rocket launch'],['✈️','plane travel flight'],['🏠','house home'],['👀','eyes look'],['🙈','see no evil monkey']
   ];
   const EDIT_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
   const TRASH_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
@@ -104,6 +109,13 @@
       if (!_retried && isNetworkError(e)) { await new Promise(res => setTimeout(res, 400)); return chatFetch(path, opts, true); }
       throw new Error('Connection lost — check your network and try again.');
     }
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+    return j;
+  }
+  async function gifFetch(path) {
+    const tok = await getToken(); if (!tok) throw new Error('no auth');
+    const r = await fetch(GIF_BASE + path, { headers: { Authorization: 'Bearer ' + tok } });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
     return j;
@@ -257,6 +269,17 @@
       .mw-mi.del:hover { background:#3a1f24; color:#ff9a9a; }
       .mw-rxmore { font-size:1.05rem; color:#8b93bd; border-left:1px solid #2a3150; margin-left:2px; padding-left:7px; }
       .mw-pop.emoji { display:block; padding:8px; width:280px; max-height:300px; overflow-y:auto; }
+      .mw-pop.cpick { display:flex; flex-direction:column; padding:8px; width:300px; height:360px; gap:7px; }
+      .mw-cp-search { background:#0f1120; border:1px solid #2a3150; border-radius:9px; color:#eaecf8; font-size:0.82rem; padding:7px 11px; outline:none; }
+      .mw-cp-search:focus { border-color:#4d6bff; }
+      .mw-cp-tabs { display:flex; gap:3px; background:#0f1120; border-radius:9px; padding:3px; }
+      .mw-cp-tab { flex:1; background:none; border:none; color:#8b93bd; font-size:0.78rem; font-weight:700; padding:6px 0; border-radius:7px; cursor:pointer; }
+      .mw-cp-tab.on { background:#252c44; color:#eaecf8; }
+      .mw-cp-body { flex:1; overflow-y:auto; }
+      .mw-gif-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:5px; }
+      .mw-gif-cell { border:none; padding:0; background:#0f1120; border-radius:8px; overflow:hidden; cursor:pointer; aspect-ratio:1; }
+      .mw-gif-cell img { width:100%; height:100%; object-fit:cover; display:block; }
+      .mw-gif-cell:hover { outline:2px solid #4d6bff; }
       .mw-emoji-cat { font-size:0.66rem; text-transform:uppercase; letter-spacing:0.05em; color:#8b93bd; margin:6px 2px 3px; font-weight:700; }
       .mw-emoji-grid { display:grid; grid-template-columns:repeat(8,1fr); gap:1px; }
       .mw-emoji { background:none; border:none; font-size:1.2rem; cursor:pointer; border-radius:6px; padding:3px 0; line-height:1.1; }
@@ -545,7 +568,7 @@
     p.querySelector('#mwPinBtn').addEventListener('click', togglePin);
     p.querySelector('#mwMuteBtn').addEventListener('click', toggleMute);
     p.querySelector('#mwMic').addEventListener('click', startVoice);
-    p.querySelector('#mwEmoji').addEventListener('click', (e) => { e.stopPropagation(); openEmojiPicker(p.querySelector('#mwEmoji'), (em) => insertIntoInput(p.querySelector('#mwInput'), em), true); });
+    p.querySelector('#mwEmoji').addEventListener('click', (e) => { e.stopPropagation(); openComposerPicker(p.querySelector('#mwEmoji')); });
     p.querySelector('#mwRecCancel').addEventListener('click', cancelVoice);
     p.querySelector('#mwRecStop').addEventListener('click', stopVoiceAndSend);
     p.querySelector('#mwFindBtn').addEventListener('click', toggleFind);
@@ -1049,6 +1072,56 @@
     inp.value = inp.value.slice(0, s) + em + inp.value.slice(e);
     const pos = s + em.length; inp.focus(); try { inp.setSelectionRange(pos, pos); } catch (_) {}
     inp.dispatchEvent(new Event('input', { bubbles: true }));   // auto-resize + draft save + typing ping
+  }
+  // Composer picker: Emojis + GIFs tabs (WhatsApp/macOS style).
+  let cpTab = 'emoji', cpGifT = null;
+  function openComposerPicker(anchor) {
+    if (!curConv) { toast('Open a conversation first'); return; }
+    closePopups();
+    const p = document.createElement('div'); p.id = 'mwPop'; p.className = 'mw-pop cpick';
+    p.innerHTML = `<input class="mw-cp-search" id="mwCpSearch" placeholder="Search emoji">
+      <div class="mw-cp-tabs"><button class="mw-cp-tab on" data-tab="emoji">Emojis</button><button class="mw-cp-tab" data-tab="gif">GIFs</button></div>
+      <div class="mw-cp-body" id="mwCpBody"></div>`;
+    document.body.appendChild(p);
+    const r = anchor.getBoundingClientRect(); const pw = p.offsetWidth, ph = p.offsetHeight;
+    let left = Math.min(r.right - pw, window.innerWidth - 8 - pw); if (left < 8) left = 8;
+    let top = r.top - ph - 8; if (top < 8) top = 8;
+    p.style.left = left + 'px'; p.style.top = top + 'px';
+    cpTab = 'emoji'; renderCpEmoji('');
+    p.querySelector('#mwCpSearch').addEventListener('input', (e) => { const q = e.target.value.trim(); if (cpTab === 'emoji') renderCpEmoji(q); else { clearTimeout(cpGifT); cpGifT = setTimeout(() => renderCpGif(q), 300); } });
+    p.querySelectorAll('.mw-cp-tab').forEach(t => t.addEventListener('click', () => { cpTab = t.dataset.tab; p.querySelectorAll('.mw-cp-tab').forEach(x => x.classList.toggle('on', x === t)); const s = p.querySelector('#mwCpSearch'); s.placeholder = cpTab === 'gif' ? 'Search GIFs' : 'Search emoji'; const q = s.value.trim(); if (cpTab === 'emoji') renderCpEmoji(q); else renderCpGif(q); }));
+    p.querySelector('#mwCpBody').addEventListener('click', (e) => {
+      const em = e.target.closest('.mw-emoji'); if (em) { insertIntoInput(document.getElementById('mwInput'), em.dataset.emoji); return; }
+      const g = e.target.closest('.mw-gif-cell'); if (g) { closePopups(); sendGif(g.dataset.url, Number(g.dataset.w) || null, Number(g.dataset.h) || null); return; }
+    });
+    setTimeout(() => { const s = document.getElementById('mwCpSearch'); if (s) s.focus(); }, 50);
+  }
+  function renderCpEmoji(q) {
+    const body = document.getElementById('mwCpBody'); if (!body) return;
+    if (q) {
+      const ql = q.toLowerCase();
+      const hits = EMOJI_SEARCH.filter(([, k]) => k.includes(ql)).map(([e]) => e);
+      body.innerHTML = hits.length ? `<div class="mw-emoji-grid">${hits.map(e => `<button class="mw-emoji" data-emoji="${e}">${e}</button>`).join('')}</div>` : '<div class="mw-readby-loading">No emoji found — try the GIFs tab.</div>';
+      return;
+    }
+    body.innerHTML = EMOJI_CATS.map(cat => `<div class="mw-emoji-cat">${esc(cat.name)}</div><div class="mw-emoji-grid">${cat.emojis.map(e => `<button class="mw-emoji" data-emoji="${e}">${e}</button>`).join('')}</div>`).join('');
+  }
+  async function renderCpGif(q) {
+    const body = document.getElementById('mwCpBody'); if (!body) return;
+    body.innerHTML = '<div class="mw-readby-loading">Loading…</div>';
+    try {
+      const j = await gifFetch(q ? '?api=search&q=' + encodeURIComponent(q) : '?api=trending');
+      const rs = j.results || [];
+      body.innerHTML = rs.length ? `<div class="mw-gif-grid">${rs.map(g => `<button class="mw-gif-cell" data-url="${esc(g.url)}" data-w="${g.width || ''}" data-h="${g.height || ''}"><img src="${esc(g.preview)}" alt="${esc(g.description || 'GIF')}" loading="lazy"></button>`).join('')}</div>` : '<div class="mw-readby-loading">No GIFs found.</div>';
+    } catch (e) { body.innerHTML = `<div class="mw-readby-loading">${esc(e.message || 'GIF search unavailable.')}</div>`; }
+  }
+  async function sendGif(url, w, h) {
+    const cid = curConv; closePopups();
+    try {
+      const j = await chatFetch('?api=send', { method: 'POST', body: JSON.stringify({ conversation_id: cid, attachments: [{ external_url: url, kind: 'gif', mime: 'image/gif', width: w || null, height: h || null }] }) });
+      if (j.message && cid === curConv) appendMsg({ ...j.message, mine: true });
+      refreshSoon();
+    } catch (e) { toast('Could not send GIF: ' + e.message); }
   }
   // Group read receipts — "Read by" list for one of my own messages.
   async function showReadBy(mid) {

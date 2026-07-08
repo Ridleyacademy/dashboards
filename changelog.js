@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v458', title: 'Messages — one picker for emoji + GIFs', items: [
+      'The smiley button now opens a single picker with Emojis and GIFs tabs and a search box at the top — type to find an emoji, or switch to the GIFs tab to search and send one. Works in both the popup and the full page.',
+    ]},
     { version: 'v457', title: 'Messages — GIFs + scheduled messages', items: [
       'Send a GIF: tap “GIF” in the message bar, search, and pick one (full Messages page).',
       'Schedule a message: type it, tap the clock in the message bar, choose a time (or a quick option), and it sends itself then. A chip above the box shows what’s scheduled — tap ✕ to cancel.',

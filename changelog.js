@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v455', title: 'Messages — emoji button in the composer', items: [
+      'A smiley button next to the message box opens the full emoji picker so you can drop emoji straight into what you’re typing (it stays open so you can add several).',
+    ]},
     { version: 'v454', title: 'Messages — full emoji picker, desktop alerts, group read receipts', items: [
       'React with any emoji: the six quick reactions now have a “＋” that opens a full emoji picker.',
       'Desktop notifications: when the dashboards are open in a tab you’re not looking at, you get a native pop-up for new messages (on top of the phone push). Your browser will ask permission the first time.',

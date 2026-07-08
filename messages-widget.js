@@ -453,6 +453,7 @@
           <button id="mwAttach" class="mw-attbtn" title="Attach a file"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></button>
           <button id="mwMic" class="mw-attbtn" title="Record voice message"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg></button>
           <textarea id="mwInput" rows="1" placeholder="Message…"></textarea>
+          <button id="mwEmoji" class="mw-attbtn" title="Emoji"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg></button>
           <button id="mwSend"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
           <div class="mw-recbar" id="mwRecBar"><span class="mw-rec-dot"></span><span class="mw-rec-time" id="mwRecTime">0:00</span><span class="mw-rec-lbl">Recording…</span><button class="mw-rec-cancel" id="mwRecCancel">Cancel</button><button class="mw-rec-send" id="mwRecStop" title="Send"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button></div>
         </div>
@@ -538,6 +539,7 @@
     p.querySelector('#mwPinBtn').addEventListener('click', togglePin);
     p.querySelector('#mwMuteBtn').addEventListener('click', toggleMute);
     p.querySelector('#mwMic').addEventListener('click', startVoice);
+    p.querySelector('#mwEmoji').addEventListener('click', (e) => { e.stopPropagation(); openEmojiPicker(p.querySelector('#mwEmoji'), (em) => insertIntoInput(p.querySelector('#mwInput'), em), true); });
     p.querySelector('#mwRecCancel').addEventListener('click', cancelVoice);
     p.querySelector('#mwRecStop').addEventListener('click', stopVoiceAndSend);
     p.querySelector('#mwFindBtn').addEventListener('click', toggleFind);
@@ -1025,11 +1027,19 @@
     p.addEventListener('click', onclick);
   }
   // Full emoji picker — categorised grid, opened by the "+" in the quick-react palette.
-  function openEmojiPicker(anchor, onPick) {
+  function openEmojiPicker(anchor, onPick, keepOpen) {
     const html = '<div class="mw-emoji-pick">' + EMOJI_CATS.map(cat =>
       `<div class="mw-emoji-cat">${esc(cat.name)}</div><div class="mw-emoji-grid">${cat.emojis.map(em => `<button class="mw-emoji" data-emoji="${em}">${em}</button>`).join('')}</div>`
     ).join('') + '</div>';
-    showPop(html, anchor, 'emoji', (ev) => { const b = ev.target.closest('.mw-emoji'); if (!b) return; closePopups(); onPick(b.dataset.emoji); });
+    showPop(html, anchor, 'emoji', (ev) => { const b = ev.target.closest('.mw-emoji'); if (!b) return; if (!keepOpen) closePopups(); onPick(b.dataset.emoji); });
+  }
+  // Insert an emoji into a textarea at the caret (keeps the picker open so several can be added).
+  function insertIntoInput(inp, em) {
+    if (!inp) return;
+    const s = inp.selectionStart ?? inp.value.length, e = inp.selectionEnd ?? inp.value.length;
+    inp.value = inp.value.slice(0, s) + em + inp.value.slice(e);
+    const pos = s + em.length; inp.focus(); try { inp.setSelectionRange(pos, pos); } catch (_) {}
+    inp.dispatchEvent(new Event('input', { bubbles: true }));   // auto-resize + draft save + typing ping
   }
   // Group read receipts — "Read by" list for one of my own messages.
   async function showReadBy(mid) {

@@ -104,11 +104,12 @@
         <div class="prof-sub">${isNew ? 'Create a new masterclass student' : `${esc(r.email || '')}${r.rep ? ' · Rep: ' + esc(r.rep) : ''}`}</div></div>
       ${isNew ? '' : `<span class="st ${stCls(r.derived_status)}">${esc(r.derived_status || 'Active')}</span>`}
     </div>`;
+    const openAlerts = cur.alerts.filter(a => a.status === 'open').length;
     const actions = isNew ? '' : `<div class="prof-actions">
-      <button class="pbtn" data-act="turnover">↪ Turn over <span class="n">${cur.turnovers.length}</span></button>
-      <button class="pbtn" data-act="alert">⚠ Alert <span class="n">${cur.alerts.length}</span></button>
-      <button class="pbtn" data-act="win">★ Win <span class="n">${cur.wins.length}</span></button>
-      <button class="pbtn" data-act="note">✎ Note <span class="n">${cur.notes.length}</span></button>
+      <button class="pbtn" data-act="turnover">↪ Turn-overs <span class="n">${cur.turnovers.length}</span></button>
+      <button class="pbtn" data-act="alert">⚠ Alerts <span class="n">${openAlerts}</span></button>
+      <button class="pbtn" data-act="win">★ Wins <span class="n">${cur.wins.length}</span></button>
+      <button class="pbtn" data-act="note">✎ Notes <span class="n">${cur.notes.length}</span></button>
       ${caps.is_admin ? '<button class="pbtn danger" data-act="del">Delete</button>' : ''}
     </div>`;
 
@@ -139,12 +140,10 @@
       ${canEdit ? `<div class="save-row"><button class="tbtn" id="cancelBtn">Cancel</button><button class="tbtn tbtn-primary" id="saveBtn">${isNew ? 'Create student' : 'Save changes'}</button></div>` : ''}
     </div>`;
 
-    const panels = isNew ? '' : renderTurnovers() + renderAlerts() + renderWins() + renderNotes();
-    p.innerHTML = head + actions + form + panels;
+    p.innerHTML = head + actions + form;
 
     p.querySelectorAll('.pbtn').forEach(b => b.addEventListener('click', () => onAction(b.dataset.act)));
     if (canEdit) { const sb = $('saveBtn'); if (sb) sb.onclick = saveProfile; const cb = $('cancelBtn'); if (cb) cb.onclick = () => { if (isNew) { cur = null; p.classList.add('hidden'); $('mcMainEmpty').classList.remove('hidden'); } else openStudent(r.id); }; }
-    wirePanels();
   }
 
   async function saveProfile() {
@@ -158,11 +157,11 @@
     } catch (e) { toast('Save failed: ' + e.message); }
   }
   function onAction(act) {
-    if (act === 'del') return confirmDialog('Delete this student and all their turnovers/alerts/wins/notes?', async () => { try { await mcFetch('?api=delete', { method: 'POST', body: JSON.stringify({ id: cur.row.id }) }); toast('Deleted'); cur = null; $('mcProfile').classList.add('hidden'); $('mcMainEmpty').classList.remove('hidden'); loadList(); } catch (e) { toast(e.message); } });
-    if (act === 'turnover') return turnoverModal();
-    if (act === 'alert') return alertModal();
-    if (act === 'win') return winModal();
-    if (act === 'note') return noteModal();
+    if (act === 'del') return confirmDialog('Delete this student and all their turnovers/alerts/wins/notes?', async () => { try { await mcFetch('?api=delete', { method: 'POST', body: JSON.stringify({ id: cur.row.id }) }); toast('Deleted'); closeListModal(); cur = null; $('mcProfile').classList.add('hidden'); $('mcMainEmpty').classList.remove('hidden'); loadList(); } catch (e) { toast(e.message); } });
+    if (act === 'turnover') return openListModal('t');
+    if (act === 'alert') return openListModal('a');
+    if (act === 'win') return openListModal('w');
+    if (act === 'note') return openListModal('n');
   }
 
   // ── Shared bits (MS-CRM parity) ──
@@ -184,106 +183,88 @@
       cs.map(c => `<div class="cmt">${esc(c.body)}<div class="cmt-meta">${esc(c.created_by_name || c.created_by_email || 'someone')} · ${fmtStamp(c.created_at)}</div></div>`).join('');
   }
 
-  // ── Turnovers ──
-  function renderTurnovers() {
-    const rows = cur.turnovers.map(t => {
-      const done = !!(t.result && String(t.result).trim());
-      const prog = !done && (t.comments || []).length > 0;
-      const badge = done
-        ? '<span class="pill-open badge-done">✓ resolved</span>'
-        : prog
-          ? '<span class="pill-open" style="background:var(--gold-bg);color:var(--gold)">◐ in progress</span>'
-          : '<span class="pill-open" style="background:var(--green-bg);color:var(--green)">↪ open</span>';
-      const resultBlock = done ? `<div class="result-box">
-        <div class="result-h">Result</div>
-        <div class="item-body" style="margin:0">${esc(t.result)}</div>
-        <div class="cmt-meta" style="margin-top:4px">${t.result_at ? fmtStamp(t.result_at) : ''}${t.result_by_name ? ' · by ' + esc(t.result_by_name) : ''}</div>
-        ${caps.can_edit ? `<div style="margin-top:6px"><button class="lnk" data-tact="editresult" data-id="${t.id}">Edit result</button></div>` : ''}
-      </div>` : '';
-      return `<div class="item" data-tid="${t.id}">
-        <div class="item-top"><span class="item-title">→ ${esc(t.rep_name || '(unassigned)')} ${badge}</span><span class="item-meta">${esc(t.created_by_name || '')} · ${fmtDate(t.turnover_date || t.created_at)}</span></div>
-        ${t.note ? `<div class="item-body">${esc(t.note)}</div>` : ''}
-        ${threadHTML(t.comments)}
-        ${resultBlock}
-        ${(!done && caps.can_edit) ? answerForm('t', t.id) : ''}
-        <div class="item-actions">
-          ${caps.can_edit ? `<button class="lnk dim" data-tact="reassign" data-id="${t.id}">⇄ Reassign</button>` : ''}
-          ${caps.can_edit ? `<button class="lnk red" data-tact="del" data-id="${t.id}">Delete</button>` : ''}
-        </div></div>`;
-    }).join('');
-    return `<div class="panel"><div class="panel-h"><div class="sec-t">Turn overs (${cur.turnovers.length})</div>${caps.can_edit ? '<button class="lnk" data-add="turnover">+ Add</button>' : ''}</div>${cur.turnovers.length ? rows : '<div class="item-meta" style="padding:4px 2px">No turnovers yet.</div>'}</div>`;
+  // ── Item renderers (one row each; rendered inside the pop-up list modals) ──
+  function turnoverItem(t) {
+    const done = !!(t.result && String(t.result).trim());
+    const prog = !done && (t.comments || []).length > 0;
+    const badge = done
+      ? '<span class="pill-open badge-done">✓ resolved</span>'
+      : prog
+        ? '<span class="pill-open" style="background:var(--gold-bg);color:var(--gold)">◐ in progress</span>'
+        : '<span class="pill-open" style="background:var(--green-bg);color:var(--green)">↪ open</span>';
+    const resultBlock = done ? `<div class="result-box">
+      <div class="result-h">Result</div>
+      <div class="item-body" style="margin:0">${esc(t.result)}</div>
+      <div class="cmt-meta" style="margin-top:4px">${t.result_at ? fmtStamp(t.result_at) : ''}${t.result_by_name ? ' · by ' + esc(t.result_by_name) : ''}</div>
+      ${caps.can_edit ? `<div style="margin-top:6px"><button class="lnk" data-tact="editresult" data-id="${t.id}">Edit result</button></div>` : ''}
+    </div>` : '';
+    return `<div class="item" data-tid="${t.id}">
+      <div class="item-top"><span class="item-title">→ ${esc(t.rep_name || '(unassigned)')} ${badge}</span><span class="item-meta">${esc(t.created_by_name || '')} · ${fmtDate(t.turnover_date || t.created_at)}</span></div>
+      ${t.note ? `<div class="item-body">${esc(t.note)}</div>` : ''}
+      ${threadHTML(t.comments)}
+      ${resultBlock}
+      ${(!done && caps.can_edit) ? answerForm('t', t.id) : ''}
+      <div class="item-actions">
+        ${caps.can_edit ? `<button class="lnk dim" data-tact="reassign" data-id="${t.id}">⇄ Reassign</button>` : ''}
+        ${caps.can_edit ? `<button class="lnk red" data-tact="del" data-id="${t.id}">Delete</button>` : ''}
+      </div></div>`;
   }
+  function alertItem(a) {
+    const open = a.status === 'open';
+    const prog = open && (a.comments || []).length > 0;
+    const badge = !open
+      ? '<span class="pill-open badge-done">✓ resolved</span>'
+      : prog
+        ? '<span class="pill-open" style="background:var(--gold-bg);color:var(--gold)">◐ in progress</span>'
+        : '<span class="pill-open" style="background:var(--red-bg);color:var(--red)">⚠ submitted</span>';
+    const resBlock = !open ? `<div class="result-box">
+      <div class="result-h">Resolution</div>
+      <div class="item-body" style="margin:0">${esc(a.resolution_note || '')}</div>
+      <div class="cmt-meta" style="margin-top:4px">${a.resolved_at ? fmtStamp(a.resolved_at) : ''}${a.resolved_by_name ? ' · by ' + esc(a.resolved_by_name) : ''}</div>
+    </div>` : '';
+    return `<div class="item" data-aid="${a.id}">
+      <div class="item-top"><span class="item-title">${esc(a.title)} ${badge}</span><span class="item-meta">${esc(a.created_by_name || '')} · ${fmtDate(a.created_at)}</span></div>
+      ${a.description ? `<div class="item-body">${esc(a.description)}</div>` : ''}
+      ${threadHTML(a.comments)}
+      ${resBlock}
+      ${(open && caps.can_edit) ? answerForm('a', a.id) : ''}
+      <div class="item-actions">${caps.can_edit ? `<button class="lnk red" data-aact="del" data-id="${a.id}">Delete</button>` : ''}</div>
+    </div>`;
+  }
+  function winItem(w) {
+    return `<div class="item"><div class="item-top"><span class="item-body" style="margin:0">${esc(w.text)}</span><span class="item-meta">${fmtDate(w.win_date || w.created_at)}</span></div>${caps.can_edit ? `<div class="item-actions"><button class="lnk red" data-wact="del" data-id="${w.id}">Delete</button></div>` : ''}</div>`;
+  }
+  function noteItem(n) {
+    return `<div class="item"><div class="item-top"><span class="item-body" style="margin:0">${esc(n.text)}</span><span class="item-meta">${esc(n.created_by_name || n.created_by_email || '')} · ${fmtDate(n.note_date || n.created_at)}</span></div>${caps.can_edit ? `<div class="item-actions"><button class="lnk red" data-nact="del" data-id="${n.id}">Delete</button></div>` : ''}</div>`;
+  }
+
+  // ── Add forms (open on top of the pop-up list modal, via the small .ov overlay) ──
   function turnoverModal() {
     const repOpts = reps.map(x => `<option value="${esc(x.display)}">${esc(x.display)}</option>`).join('');
-    openModal(`<h3>Turn over to a rep</h3>
+    openModal(`<h3>New turn-over</h3>
       <div class="fld"><label>Rep</label><select id="tRep"><option value="">Select…</option>${repOpts}</select></div>
       <div class="fld"><label>Note (optional)</label><textarea id="tNote" placeholder="Why are you handing this student over?"></textarea></div>
-      <div class="modal-row"><button class="tbtn" onclick="void 0" id="tCancel">Cancel</button><button class="tbtn tbtn-primary" id="tSave">Create turnover</button></div>`);
+      <div class="modal-row"><button class="tbtn" id="tCancel">Cancel</button><button class="tbtn tbtn-primary" id="tSave">Create turnover</button></div>`);
     $('tCancel').onclick = closeModal;
-    $('tSave').onclick = async () => { const rep_name = $('tRep').value.trim(); if (!rep_name) { toast('Pick a rep'); return; } try { await mcFetch('?api=add-turnover', { method: 'POST', body: JSON.stringify({ studentId: cur.row.id, rep_name, note: $('tNote').value.trim() || null }) }); closeModal(); toast('Turnover created'); openStudent(cur.row.id); loadList(); } catch (e) { toast(e.message); } };
-  }
-
-  // ── Alerts ──
-  function renderAlerts() {
-    // Open first, then resolved by most-recent.
-    const sorted = [...cur.alerts].sort((a, b) => {
-      if (a.status !== b.status) return a.status === 'open' ? -1 : 1;
-      return String(b.created_at || '').localeCompare(String(a.created_at || ''));
-    });
-    const rows = sorted.map(a => {
-      const open = a.status === 'open';
-      const prog = open && (a.comments || []).length > 0;
-      const badge = !open
-        ? '<span class="pill-open badge-done">✓ resolved</span>'
-        : prog
-          ? '<span class="pill-open" style="background:var(--gold-bg);color:var(--gold)">◐ in progress</span>'
-          : '<span class="pill-open" style="background:var(--red-bg);color:var(--red)">⚠ submitted</span>';
-      const resBlock = !open ? `<div class="result-box">
-        <div class="result-h">Resolution</div>
-        <div class="item-body" style="margin:0">${esc(a.resolution_note || '')}</div>
-        <div class="cmt-meta" style="margin-top:4px">${a.resolved_at ? fmtStamp(a.resolved_at) : ''}${a.resolved_by_name ? ' · by ' + esc(a.resolved_by_name) : ''}</div>
-      </div>` : '';
-      return `<div class="item" data-aid="${a.id}">
-        <div class="item-top"><span class="item-title">${esc(a.title)} ${badge}</span><span class="item-meta">${esc(a.created_by_name || '')} · ${fmtDate(a.created_at)}</span></div>
-        ${a.description ? `<div class="item-body">${esc(a.description)}</div>` : ''}
-        ${threadHTML(a.comments)}
-        ${resBlock}
-        ${(open && caps.can_edit) ? answerForm('a', a.id) : ''}
-        <div class="item-actions">${caps.can_edit ? `<button class="lnk red" data-aact="del" data-id="${a.id}">Delete</button>` : ''}</div>
-      </div>`;
-    }).join('');
-    const openCount = cur.alerts.filter(a => a.status === 'open').length;
-    return `<div class="panel"><div class="panel-h"><div class="sec-t">Alerts (${openCount} open · ${cur.alerts.length - openCount} resolved)</div>${caps.can_edit ? '<button class="lnk" data-add="alert">+ Add</button>' : ''}</div>${cur.alerts.length ? rows : '<div class="item-meta" style="padding:4px 2px">No alerts yet.</div>'}</div>`;
+    $('tSave').onclick = async () => { const rep_name = $('tRep').value.trim(); if (!rep_name) { toast('Pick a rep'); return; } try { await mcFetch('?api=add-turnover', { method: 'POST', body: JSON.stringify({ studentId: cur.row.id, rep_name, note: $('tNote').value.trim() || null }) }); closeModal(); toast('Turnover created'); await afterMutate(); } catch (e) { toast(e.message); } };
   }
   function alertModal() {
-    openModal(`<h3>Raise an alert</h3>
-      <div class="fld"><label>Title</label><input id="aTitle" placeholder="Short summary"></div>
-      <div class="fld"><label>Details (optional)</label><textarea id="aDesc"></textarea></div>
-      <div class="modal-row"><button class="tbtn" id="aCancel">Cancel</button><button class="tbtn tbtn-primary" id="aSave">Raise alert</button></div>`);
+    openModal(`<h3>Submit an alert</h3>
+      <div class="fld"><label>Title</label><input id="aTitle" placeholder="e.g. Refund pending, missed welcome call…"></div>
+      <div class="fld"><label>Details (optional)</label><textarea id="aDesc" placeholder="Context, what needs to happen…"></textarea></div>
+      <div class="modal-row"><button class="tbtn" id="aCancel">Cancel</button><button class="tbtn tbtn-primary" id="aSave">Submit alert</button></div>`);
     $('aCancel').onclick = closeModal;
-    $('aSave').onclick = async () => { const title = $('aTitle').value.trim(); if (!title) { toast('Title required'); return; } try { await mcFetch('?api=add-alert', { method: 'POST', body: JSON.stringify({ studentId: cur.row.id, title, description: $('aDesc').value.trim() || null }) }); closeModal(); toast('Alert raised'); openStudent(cur.row.id); loadList(); } catch (e) { toast(e.message); } };
-  }
-
-  // ── Wins ──
-  function renderWins() {
-    const rows = cur.wins.map(w => `<div class="item"><div class="item-top"><span class="item-body" style="margin:0">${esc(w.text)}</span><span class="item-meta">${fmtDate(w.win_date || w.created_at)}</span></div>${caps.can_edit ? `<div class="item-actions"><button class="lnk red" data-wact="del" data-id="${w.id}">Delete</button></div>` : ''}</div>`).join('');
-    return `<div class="panel"><div class="panel-h"><div class="sec-t">Wins (${cur.wins.length})</div>${caps.can_edit ? '<button class="lnk" data-add="win">+ Add</button>' : ''}</div>${cur.wins.length ? rows : '<div class="item-meta" style="padding:4px 2px">No wins yet.</div>'}</div>`;
+    $('aSave').onclick = async () => { const title = $('aTitle').value.trim(); if (!title) { toast('Title required'); return; } try { await mcFetch('?api=add-alert', { method: 'POST', body: JSON.stringify({ studentId: cur.row.id, title, description: $('aDesc').value.trim() || null }) }); closeModal(); toast('Alert submitted'); await afterMutate(); } catch (e) { toast(e.message); } };
   }
   function winModal() {
     openModal(`<h3>Log a win</h3><div class="fld"><label>What happened?</label><textarea id="wText"></textarea></div><div class="fld"><label>Date</label><input type="date" id="wDate"></div><div class="modal-row"><button class="tbtn" id="wCancel">Cancel</button><button class="tbtn tbtn-primary" id="wSave">Add win</button></div>`);
     $('wCancel').onclick = closeModal;
-    $('wSave').onclick = async () => { const text = $('wText').value.trim(); if (!text) { toast('Enter the win'); return; } try { await mcFetch('?api=add-win', { method: 'POST', body: JSON.stringify({ studentId: cur.row.id, text, win_date: $('wDate').value || null }) }); closeModal(); toast('Win logged'); openStudent(cur.row.id); loadList(); } catch (e) { toast(e.message); } };
-  }
-
-  // ── Notes ──
-  function renderNotes() {
-    const rows = cur.notes.map(n => `<div class="item"><div class="item-top"><span class="item-body" style="margin:0">${esc(n.text)}</span><span class="item-meta">${esc(n.created_by_name || n.created_by_email || '')} · ${fmtDate(n.note_date || n.created_at)}</span></div>${caps.can_edit ? `<div class="item-actions"><button class="lnk red" data-nact="del" data-id="${n.id}">Delete</button></div>` : ''}</div>`).join('');
-    return `<div class="panel"><div class="panel-h"><div class="sec-t">Notes (${cur.notes.length})</div>${caps.can_edit ? '<button class="lnk" data-add="note">+ Add</button>' : ''}</div>${cur.notes.length ? rows : '<div class="item-meta" style="padding:4px 2px">No notes yet.</div>'}</div>`;
+    $('wSave').onclick = async () => { const text = $('wText').value.trim(); if (!text) { toast('Enter the win'); return; } try { await mcFetch('?api=add-win', { method: 'POST', body: JSON.stringify({ studentId: cur.row.id, text, win_date: $('wDate').value || null }) }); closeModal(); toast('Win logged'); await afterMutate(); } catch (e) { toast(e.message); } };
   }
   function noteModal() {
     openModal(`<h3>Add a note</h3><div class="fld"><label>Note</label><textarea id="nText"></textarea></div><div class="modal-row"><button class="tbtn" id="nCancel">Cancel</button><button class="tbtn tbtn-primary" id="nSave">Add note</button></div>`);
     $('nCancel').onclick = closeModal;
-    $('nSave').onclick = async () => { const text = $('nText').value.trim(); if (!text) return; try { await mcFetch('?api=add-note', { method: 'POST', body: JSON.stringify({ studentId: cur.row.id, text }) }); closeModal(); toast('Note added'); openStudent(cur.row.id); loadList(); } catch (e) { toast(e.message); } };
+    $('nSave').onclick = async () => { const text = $('nText').value.trim(); if (!text) return; try { await mcFetch('?api=add-note', { method: 'POST', body: JSON.stringify({ studentId: cur.row.id, text }) }); closeModal(); toast('Note added'); await afterMutate(); } catch (e) { toast(e.message); } };
   }
 
   // Reassign a turnover to another rep — typeahead defaulting to the student's rep.
@@ -301,7 +282,7 @@
       const rep_name = inp.value.trim();
       if (!rep_name) { toast('Pick a rep'); return; }
       if (rep_name.toLowerCase() === String(t.rep_name || '').trim().toLowerCase()) { toast('Already assigned to ' + rep_name); return; }
-      try { await mcFetch('?api=reassign-turnover', { method: 'POST', body: JSON.stringify({ id: t.id, rep_name }) }); closeModal(); toast('Reassigned'); openStudent(cur.row.id); loadList(); } catch (e) { toast(e.message); }
+      try { await mcFetch('?api=reassign-turnover', { method: 'POST', body: JSON.stringify({ id: t.id, rep_name }) }); closeModal(); toast('Reassigned'); await afterMutate(); } catch (e) { toast(e.message); }
     };
   }
   function editResultModal(t) {
@@ -309,8 +290,8 @@
       <div class="fld"><label>Result</label><textarea id="erText" rows="5">${esc(t.result || '')}</textarea></div>
       <div class="modal-row"><button class="tbtn" id="erClear" style="margin-right:auto;color:var(--red)">Clear result</button><button class="tbtn" id="erCancel">Cancel</button><button class="tbtn tbtn-primary" id="erSave">Save result</button></div>`);
     $('erCancel').onclick = closeModal;
-    $('erClear').onclick = () => confirmDialog('Clear this turnover result (reopens it)?', async () => { try { await mcFetch('?api=set-turnover-result', { method: 'POST', body: JSON.stringify({ id: t.id, result: '' }) }); toast('Result cleared'); openStudent(cur.row.id); loadList(); } catch (e) { toast(e.message); } });
-    $('erSave').onclick = async () => { const result = $('erText').value.trim(); if (!result) { toast('Enter a result, or use Clear result'); return; } try { await mcFetch('?api=set-turnover-result', { method: 'POST', body: JSON.stringify({ id: t.id, result }) }); closeModal(); toast('Result saved'); openStudent(cur.row.id); loadList(); } catch (e) { toast(e.message); } };
+    $('erClear').onclick = () => confirmDialog('Clear this turnover result (reopens it)?', async () => { try { await mcFetch('?api=set-turnover-result', { method: 'POST', body: JSON.stringify({ id: t.id, result: '' }) }); toast('Result cleared'); await afterMutate(); } catch (e) { toast(e.message); } });
+    $('erSave').onclick = async () => { const result = $('erText').value.trim(); if (!result) { toast('Enter a result, or use Clear result'); return; } try { await mcFetch('?api=set-turnover-result', { method: 'POST', body: JSON.stringify({ id: t.id, result }) }); closeModal(); toast('Result saved'); await afterMutate(); } catch (e) { toast(e.message); } };
   }
   // Single submit for the inline Response/Resolution picker. Resolution closes the
   // item (result / resolution note required); Response posts an in-progress update.
@@ -329,38 +310,97 @@
         else await mcFetch('?api=add-alert-comment', { method: 'POST', body: JSON.stringify({ alertId: id, body: text }) });
       }
       toast(mode === 'resolve' ? 'Resolved' : 'Response posted');
-      await openStudent(cur.row.id); await loadList();
+      await afterMutate();
     } catch (e) { btn.disabled = false; btn.textContent = orig; toast(e.message); }
   }
 
-  // ── Panel action wiring (delegated) ──
-  function wirePanels() {
-    const p = $('mcProfile');
-    p.querySelectorAll('[data-add]').forEach(b => b.addEventListener('click', () => onAction(b.dataset.add)));
+  // ── Pop-up list modals (Turn overs / Alerts / Wins / Notes) ──
+  let listKind = null; // which list modal is currently open ('t'|'a'|'w'|'n')
+  const LIST_META = {
+    t: { title: 'Turn overs', add: '+ New turn-over', addFn: turnoverModal },
+    a: { title: 'Alerts',     add: '+ Submit alert',  addFn: alertModal },
+    w: { title: 'Wins',       add: '+ Add win',       addFn: winModal },
+    n: { title: 'Notes',      add: '+ Add note',      addFn: noteModal },
+  };
+  function emptyRow(m) { return `<div class="item-meta" style="padding:26px;text-align:center">${m}</div>`; }
+  function listCountLabel(kind) {
+    if (kind === 'a') { const o = cur.alerts.filter(a => a.status === 'open').length; return `${o} open · ${cur.alerts.length - o} resolved`; }
+    const n = kind === 't' ? cur.turnovers.length : kind === 'w' ? cur.wins.length : cur.notes.length;
+    return `${n} total`;
+  }
+  function listBodyHTML(kind) {
+    if (kind === 't') return cur.turnovers.length ? cur.turnovers.map(turnoverItem).join('') : emptyRow('No turn-overs yet.');
+    if (kind === 'a') {
+      const sorted = [...cur.alerts].sort((a, b) => (a.status !== b.status) ? (a.status === 'open' ? -1 : 1) : String(b.created_at || '').localeCompare(String(a.created_at || '')));
+      return cur.alerts.length ? sorted.map(alertItem).join('') : emptyRow('No alerts yet.');
+    }
+    if (kind === 'w') return cur.wins.length ? cur.wins.map(winItem).join('') : emptyRow('No wins yet.');
+    return cur.notes.length ? cur.notes.map(noteItem).join('') : emptyRow('No notes yet.');
+  }
+  function closeListModal() { listKind = null; document.getElementById('mcListModal')?.remove(); }
+  function openListModal(kind) {
+    if (!cur || !cur.row.id) return;
+    listKind = kind;
+    document.getElementById('mcListModal')?.remove();
+    const meta = LIST_META[kind];
+    const m = document.createElement('div');
+    m.id = 'mcListModal';
+    m.className = 'lm-ov';
+    m.innerHTML = `<div class="lm-box">
+      <div class="lm-head">
+        <div style="flex:1;min-width:0"><div class="lm-title">${meta.title} — ${esc(cur.row.name || '')}</div><div class="lm-sub" id="lmSub">${listCountLabel(kind)}</div></div>
+        ${caps.can_edit ? `<button class="tbtn tbtn-primary" id="lmAdd">${meta.add}</button>` : ''}
+        <button class="lm-x" id="lmClose" aria-label="Close">×</button>
+      </div>
+      <div class="lm-body" id="lmBody">${listBodyHTML(kind)}</div>
+    </div>`;
+    document.body.appendChild(m);
+    function onKey(e) { if (e.key === 'Escape' && !$('ov').classList.contains('open')) close(); }
+    function close() { document.removeEventListener('keydown', onKey); closeListModal(); }
+    document.addEventListener('keydown', onKey);
+    m.addEventListener('click', e => { if (e.target === m) close(); });
+    $('lmClose').onclick = close;
+    const addBtn = $('lmAdd'); if (addBtn) addBtn.onclick = () => meta.addFn();
+    wireListItems();
+  }
+  function rerenderListBody() {
+    if (!listKind) return;
+    const body = document.getElementById('lmBody'); if (!body) return;
+    body.innerHTML = listBodyHTML(listKind);
+    const sub = document.getElementById('lmSub'); if (sub) sub.textContent = listCountLabel(listKind);
+    wireListItems();
+  }
+  // Refetch the student, refresh sidebar + profile counts, and re-render the open list modal.
+  async function afterMutate() {
+    await loadList();
+    if (cur && cur.row.id) { try { const j = await mcFetch('?api=get&id=' + cur.row.id); cur = j; caps = j.capabilities || caps; renderProfile(); } catch (_) {} }
+    rerenderListBody();
+  }
+  // Delegated wiring for the items inside the open list modal body.
+  function wireListItems() {
+    const body = document.getElementById('lmBody'); if (!body) return;
     // Response/Resolution picker: swap placeholder + button label on mode change.
-    p.querySelectorAll('.ans input[type="radio"]').forEach(r => r.addEventListener('change', () => {
+    body.querySelectorAll('.ans input[type="radio"]').forEach(r => r.addEventListener('change', () => {
       const wrap = r.closest('.ans'); const kind = wrap.dataset.kind;
       const mode = (wrap.querySelector('input:checked') || {}).value || 'response';
       const ta = wrap.querySelector('.ans-note'); const btn = wrap.querySelector('.ans-btn');
       if (mode === 'resolve') { ta.placeholder = kind === 'a' ? 'Explain how this was resolved (required)…' : 'Describe the outcome / result (required)…'; btn.textContent = '✓ Resolve'; }
       else { ta.placeholder = 'Post an update without resolving…'; btn.textContent = '↩ Post response'; }
     }));
-    p.querySelectorAll('.ans-btn').forEach(b => b.addEventListener('click', () => submitAnswer(b.dataset.kind, Number(b.dataset.id), b)));
-    // Turnover item actions
-    p.querySelectorAll('[data-tact]').forEach(b => b.addEventListener('click', () => {
+    body.querySelectorAll('.ans-btn').forEach(b => b.addEventListener('click', () => submitAnswer(b.dataset.kind, Number(b.dataset.id), b)));
+    body.querySelectorAll('[data-tact]').forEach(b => b.addEventListener('click', () => {
       const id = Number(b.dataset.id); const act = b.dataset.tact;
       const t = cur.turnovers.find(x => Number(x.id) === id);
-      if (act === 'del') return confirmDialog('Delete this turnover?', async () => { try { await mcFetch('?api=delete-turnover', { method: 'POST', body: JSON.stringify({ id }) }); toast('Deleted'); openStudent(cur.row.id); loadList(); } catch (e) { toast(e.message); } });
+      if (act === 'del') return confirmDialog('Delete this turnover?', async () => { try { await mcFetch('?api=delete-turnover', { method: 'POST', body: JSON.stringify({ id }) }); toast('Deleted'); await afterMutate(); } catch (e) { toast(e.message); } });
       if (act === 'reassign' && t) return reassignModal(t);
       if (act === 'editresult' && t) return editResultModal(t);
     }));
-    // Alert item actions
-    p.querySelectorAll('[data-aact]').forEach(b => b.addEventListener('click', () => {
-      const id = Number(b.dataset.id); const act = b.dataset.aact;
-      if (act === 'del') return confirmDialog('Delete this alert?', async () => { try { await mcFetch('?api=delete-alert', { method: 'POST', body: JSON.stringify({ id }) }); toast('Deleted'); openStudent(cur.row.id); loadList(); } catch (e) { toast(e.message); } });
+    body.querySelectorAll('[data-aact]').forEach(b => b.addEventListener('click', () => {
+      const id = Number(b.dataset.id);
+      if (b.dataset.aact === 'del') return confirmDialog('Delete this alert?', async () => { try { await mcFetch('?api=delete-alert', { method: 'POST', body: JSON.stringify({ id }) }); toast('Deleted'); await afterMutate(); } catch (e) { toast(e.message); } });
     }));
-    p.querySelectorAll('[data-wact]').forEach(b => b.addEventListener('click', () => confirmDialog('Delete this win?', async () => { await mcFetch('?api=delete-win', { method: 'POST', body: JSON.stringify({ id: Number(b.dataset.id) }) }); openStudent(cur.row.id); loadList(); })));
-    p.querySelectorAll('[data-nact]').forEach(b => b.addEventListener('click', () => confirmDialog('Delete this note?', async () => { await mcFetch('?api=delete-note', { method: 'POST', body: JSON.stringify({ id: Number(b.dataset.id) }) }); openStudent(cur.row.id); loadList(); })));
+    body.querySelectorAll('[data-wact]').forEach(b => b.addEventListener('click', () => confirmDialog('Delete this win?', async () => { try { await mcFetch('?api=delete-win', { method: 'POST', body: JSON.stringify({ id: Number(b.dataset.id) }) }); toast('Deleted'); await afterMutate(); } catch (e) { toast(e.message); } })));
+    body.querySelectorAll('[data-nact]').forEach(b => b.addEventListener('click', () => confirmDialog('Delete this note?', async () => { try { await mcFetch('?api=delete-note', { method: 'POST', body: JSON.stringify({ id: Number(b.dataset.id) }) }); toast('Deleted'); await afterMutate(); } catch (e) { toast(e.message); } })));
   }
 
   // ── Top bar wiring ──

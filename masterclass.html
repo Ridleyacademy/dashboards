@@ -124,6 +124,14 @@
     .ans-note{ width:100%; background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:8px 10px; color:var(--text); font-size:0.84rem; outline:none; font-family:inherit; resize:vertical; min-height:54px; }
     .ans-note:focus{ border-color:var(--blue); }
     .ans-btn{ margin-top:8px; }
+    /* Pop-up list modal (Turn overs / Alerts / Wins / Notes) — sits under the small .ov modal */
+    .lm-ov{ position:fixed; inset:0; background:rgba(4,6,14,0.7); display:flex; align-items:center; justify-content:center; z-index:260; padding:18px; }
+    .lm-box{ background:var(--surface); border:1px solid var(--border-light); border-radius:16px; width:min(680px,96vw); max-height:88vh; display:flex; flex-direction:column; overflow:hidden; }
+    .lm-head{ display:flex; align-items:center; gap:10px; padding:14px 18px; border-bottom:1px solid var(--border); }
+    .lm-title{ font-size:1.02rem; font-weight:800; letter-spacing:-0.01em; }
+    .lm-sub{ font-size:0.74rem; color:var(--text-muted); margin-top:2px; }
+    .lm-x{ background:none; border:none; color:var(--text-muted); font-size:1.5rem; line-height:1; cursor:pointer; padding:0 4px; }
+    .lm-body{ flex:1; overflow-y:auto; padding:14px 18px; }
     /* Modal */
     .ov{ position:fixed; inset:0; background:rgba(4,6,14,0.7); display:none; align-items:center; justify-content:center; z-index:300; padding:16px; }
     .ov.open{ display:flex; }

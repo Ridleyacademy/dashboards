@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v451', title: 'Messages — load older + steadier layout', items: [
+      'Scroll up in a long conversation to load earlier messages (history no longer stops at the most recent batch).',
+      'Chats no longer jump around while images, videos, and link previews load — their space is reserved up front.',
+    ]},
     { version: 'v450', title: 'Messages — online / last seen', items: [
       'See who’s online now (green dot on their avatar) and, in a direct chat, “online” or “last seen …” under their name.',
     ]},

@@ -156,7 +156,7 @@
   @keyframes lbspin { to { transform:rotate(360deg); } }
   .msg-lp { display:flex; flex-direction:column; margin-top:7px; border-radius:10px; overflow:hidden; text-decoration:none; background:rgba(0,0,0,0.22); border:1px solid rgba(255,255,255,0.12); max-width:320px; }
   .msg-lp:hover { background:rgba(0,0,0,0.30); }
-  .msg-lp .lp-img { width:100%; height:auto; max-height:260px; object-fit:contain; display:block; background:var(--surface2); }
+  .msg-lp .lp-img { width:100%; height:170px; object-fit:contain; display:block; background:var(--surface2); }
   .msg-lp .lp-tx { padding:9px 11px; min-width:0; }
   .msg-lp .lp-site { font-size:0.68rem; text-transform:uppercase; letter-spacing:0.03em; color:var(--blue); margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .msg-lp .lp-title { font-size:0.86rem; font-weight:700; color:var(--text); line-height:1.3; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
@@ -519,6 +519,7 @@ const supa = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { pe
 
 let currentSession = null, me = null, conversations = [], usersCache = [], currentConv = null, chatChannel = null;
 let currentMsgs = [], editingId = null;
+let curHasMore = false, loadingOlder = false;   // history pagination
 let replyTarget = null, selectMode = false, selectedIds = new Set();
 let readCutoff = null, listQuery = '', findMatches = [], findIdx = -1;
 let searchResults = [], searchT = null, jumpToMid = null, searching = false;
@@ -768,10 +769,15 @@ async function openConversation(id, jumpMid){
   const msgsEl = document.getElementById('msgs'); msgsEl.innerHTML = threadSkeleton();
   try {
     const j = await chatFetch('?api=messages&conversation_id='+id);
-    readCutoff = j.read_cutoff || null;
+    readCutoff = j.read_cutoff || null; curHasMore = !!j.has_more;
     renderMessages(j.messages||[]);
     if(conv){ conv.unread=0; renderConvList(); }
-    if(jumpToMid){ const t=document.querySelector(`#msgs .bubble-row[data-mid="${jumpToMid}"]`); if(t){ t.scrollIntoView({block:'center'}); t.classList.add('msg-flash'); setTimeout(()=>t.classList.remove('msg-flash'),1400); } jumpToMid=null; }
+    if(jumpToMid){
+      let tries=0;
+      while(!document.querySelector(`#msgs .bubble-row[data-mid="${jumpToMid}"]`) && curHasMore && tries<8){ await loadOlder(); tries++; }
+      const t=document.querySelector(`#msgs .bubble-row[data-mid="${jumpToMid}"]`);
+      if(t){ t.scrollIntoView({block:'center'}); t.classList.add('msg-flash'); setTimeout(()=>t.classList.remove('msg-flash'),1400); } jumpToMid=null;
+    }
   } catch(e){ msgsEl.innerHTML=`<div class="empty-state">${esc(e.message)}</div>`; }
   setTimeout(()=>{ document.getElementById('composerInput').focus(); updateJumpBtn(); },50);
 }
@@ -796,6 +802,19 @@ function focusFind(){
 function stepFind(dir){ if(!findMatches.length) return; findIdx=(findIdx+dir+findMatches.length)%findMatches.length; focusFind(); }
 // ── Jump to latest ──
 function updateJumpBtn(){ const el=document.getElementById('msgs'), b=document.getElementById('jumpBtn'); if(!el||!b) return; b.classList.toggle('show', el.scrollHeight-el.scrollTop-el.clientHeight>240); }
+// Load an older page and prepend it, keeping the current message under the viewport.
+async function loadOlder(){
+  if(loadingOlder || !curHasMore || !currentConv || !currentMsgs.length) return;
+  loadingOlder = true;
+  const el=document.getElementById('msgs'); const prevH=el.scrollHeight, prevTop=el.scrollTop;
+  try {
+    const before = currentMsgs[0].created_at;
+    const j = await chatFetch('?api=messages&conversation_id='+currentConv+'&before='+encodeURIComponent(before));
+    const older = j.messages||[]; curHasMore = !!j.has_more;
+    if(older.length){ currentMsgs = older.concat(currentMsgs); renderMessages(currentMsgs, true); const el2=document.getElementById('msgs'); el2.scrollTop = prevTop + (el2.scrollHeight - prevH); }
+  } catch(_){}
+  loadingOlder = false;
+}
 // ── Typing indicator ──
 function subscribeTyping(id){
   if(typingCh){ try{ supa.removeChannel(typingCh); }catch(_){} typingCh=null; }
@@ -811,10 +830,10 @@ function mediaHtml(atts){
   return `<div class="msg-media">`+atts.map(a=>{
     const src = a.url || a._localUrl || ''; if(!src) return '';
     const nm = esc(a.name||(a.kind==='video'?'video':'image'));
-    if(a.kind==='video') return `<div class="m-tile m-loading" data-full="${esc(src)}" data-kind="video" data-name="${nm}"><video class="m-vid" src="${esc(src)}#t=0.1" preload="metadata" muted playsinline></video><div class="m-play">▶</div></div>`;
+    if(a.kind==='video'){ const ar=(a.width&&a.height)?`aspect-ratio:${a.width}/${a.height};`:''; return `<div class="m-tile m-loading" style="${ar}" data-full="${esc(src)}" data-kind="video" data-name="${nm}"><video class="m-vid" src="${esc(src)}#t=0.1" preload="metadata" muted playsinline></video><div class="m-play">▶</div></div>`; }
     if(a.kind==='audio' || (a.mime||'').startsWith('audio/')) return `<audio class="msg-aud" controls preload="metadata" data-aud="${esc(src)}" data-aud-type="${esc(a.mime||'audio/wav')}"></audio>`;
     if(a.kind==='file'){ const sz=fmtBytes(a.size); return `<div class="msg-file" data-full="${esc(src)}" data-kind="file" data-name="${nm}" data-mime="${esc(a.mime||'')}"><span class="mf-ico">${FILE_SVG}</span><span class="mf-meta"><span class="mf-name">${nm}</span>${sz?`<span class="mf-sz">${sz}</span>`:''}</span></div>`; }
-    return `<img class="m-img m-loading" src="${esc(src)}" loading="lazy" data-full="${esc(src)}" data-kind="image" data-name="${nm}" alt="${nm}">`;
+    return `<img class="m-img m-loading" style="${(a.width&&a.height)?`aspect-ratio:${a.width}/${a.height};`:''}" src="${esc(src)}" loading="lazy" data-full="${esc(src)}" data-kind="image" data-name="${nm}" alt="${nm}">`;
   }).join('')+`</div>`;
 }
 // Drop the skeleton once each image/video has loaded.
@@ -1375,7 +1394,7 @@ document.getElementById('findPrev').addEventListener('click', ()=>stepFind(-1));
 document.getElementById('findNext').addEventListener('click', ()=>stepFind(1));
 // Jump to latest
 document.getElementById('jumpBtn').addEventListener('click', ()=>{ const el=document.getElementById('msgs'); el.scrollTo({top:el.scrollHeight, behavior:'smooth'}); });
-document.getElementById('msgs').addEventListener('scroll', updateJumpBtn);
+document.getElementById('msgs').addEventListener('scroll', ()=>{ updateJumpBtn(); const el=document.getElementById('msgs'); if(el && el.scrollTop<80) loadOlder(); });
 document.getElementById('composerInput').addEventListener('click', updateMentionBox);
 document.addEventListener('click', e=>{ const pop=document.getElementById('msgPop'); if(!pop) return; if(pop.contains(e.target)) return; if(e.target.closest('.react-btn, .menu-btn')) return; closePopups(); });
 document.addEventListener('keydown', e=>{ if(e.key==='Escape') closePopups(); });

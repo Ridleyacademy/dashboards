@@ -17,6 +17,7 @@
 
   let mSupa = null, me = null, convs = [], usersCache = [], curConv = null, channel = null, panelOpen = false;
   let curMsgs = [];          // messages currently rendered in the open thread (for reaction/edit updates)
+  let curHasMore = false, loadingOlder = false;   // history pagination (load-earlier on scroll-up)
   let editingId = null;      // message id being edited (composer is in edit mode)
   let replyTarget = null;    // { id, sender_name, snippet } message being replied to
   let selectMode = false;    // multi-select (for forwarding) active
@@ -252,7 +253,7 @@
       .mw-cn-pin { color:#8ea2ff; margin-right:4px; vertical-align:-1px; flex-shrink:0; }
       .mw-lp { display:flex; margin-top:7px; border-radius:10px; overflow:hidden; text-decoration:none; background:rgba(0,0,0,0.22); border:1px solid rgba(255,255,255,0.12); max-width:260px; }
       .mw-lp:hover { background:rgba(0,0,0,0.30); }
-      .mw-lp-img { width:100%; height:auto; max-height:240px; object-fit:contain; display:block; background:#0f1120; }
+      .mw-lp-img { width:100%; height:150px; object-fit:contain; display:block; background:#0f1120; }
       .mw-lp { flex-direction:column; }
       .mw-lp-tx { padding:8px 10px; min-width:0; }
       .mw-lp-site { font-size:0.68rem; text-transform:uppercase; letter-spacing:0.03em; color:#8ea2ff; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -505,7 +506,7 @@
     p.querySelector('#mwFindNext').addEventListener('click', () => stepFind(1));
     // Jump to latest + show/hide it based on scroll position
     p.querySelector('#mwJump').addEventListener('click', () => { const el = document.getElementById('mwMsgs'); el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' }); });
-    p.querySelector('#mwMsgs').addEventListener('scroll', updateJumpBtn);
+    p.querySelector('#mwMsgs').addEventListener('scroll', () => { updateJumpBtn(); const el = document.getElementById('mwMsgs'); if (el && el.scrollTop < 80) loadOlder(); });
     p.querySelector('#mwSearch').addEventListener('input', e => renderPicker(e.target.value));
     p.querySelector('#mwPickGo').addEventListener('click', pickerConfirm);
     const inp = p.querySelector('#mwInput');
@@ -626,12 +627,37 @@
     const mEl = document.getElementById('mwMsgs'); mEl.innerHTML = threadSkeleton();
     try {
       const j = await chatFetch('?api=messages&conversation_id=' + id);
-      readCutoff = j.read_cutoff || null;
+      readCutoff = j.read_cutoff || null; curHasMore = !!j.has_more;
       renderMsgs(j.messages || []);
       if (conv) { conv.unread = 0; renderList(); updateBadge(); }
-      if (jumpToMid) { const t = document.querySelector(`#mwMsgs .mw-row[data-mid="${jumpToMid}"]`); if (t) { t.scrollIntoView({ block: 'center' }); t.classList.add('mw-flash'); setTimeout(() => t.classList.remove('mw-flash'), 1400); } jumpToMid = null; }
+      if (jumpToMid) {
+        // A searched message may be older than the first page — page back until we find it.
+        let tries = 0;
+        while (!document.querySelector(`#mwMsgs .mw-row[data-mid="${jumpToMid}"]`) && curHasMore && tries < 8) { await loadOlder(true); tries++; }
+        const t = document.querySelector(`#mwMsgs .mw-row[data-mid="${jumpToMid}"]`);
+        if (t) { t.scrollIntoView({ block: 'center' }); t.classList.add('mw-flash'); setTimeout(() => t.classList.remove('mw-flash'), 1400); }
+        jumpToMid = null;
+      }
     } catch (e) { mEl.innerHTML = `<div class="mw-empty">${esc(e.message)}</div>`; }
     setTimeout(() => { document.getElementById('mwInput').focus(); updateJumpBtn(); }, 40);
+  }
+  // Load an older page and prepend it, keeping the current message under the viewport
+  // (so scroll-up loading doesn't jump). `silent` skips nothing special — just returns.
+  async function loadOlder() {
+    if (loadingOlder || !curHasMore || !curConv || !curMsgs.length) return;
+    loadingOlder = true;
+    const el = document.getElementById('mwMsgs'); const prevH = el.scrollHeight, prevTop = el.scrollTop;
+    try {
+      const before = curMsgs[0].created_at;
+      const j = await chatFetch('?api=messages&conversation_id=' + curConv + '&before=' + encodeURIComponent(before));
+      const older = j.messages || []; curHasMore = !!j.has_more;
+      if (older.length) {
+        curMsgs = older.concat(curMsgs);
+        renderMsgs(curMsgs, true);
+        const el2 = document.getElementById('mwMsgs'); el2.scrollTop = prevTop + (el2.scrollHeight - prevH);
+      }
+    } catch (_) {}
+    loadingOlder = false;
   }
   // ── In-thread find ───────────────────────────────────────────────────────
   function toggleFind() { const bar = document.getElementById('mwFindBar'); if (bar.classList.contains('open')) closeFind(); else { bar.classList.add('open'); const i = document.getElementById('mwFindInput'); i.value = ''; setTimeout(() => i.focus(), 30); } }
@@ -687,10 +713,10 @@
       const src = a.url || a._localUrl || '';
       if (!src) return '';
       const nm = esc(a.name || (a.kind === 'video' ? 'video' : 'image'));
-      if (a.kind === 'video') return `<div class="mw-mtile mw-loading" data-full="${esc(src)}" data-kind="video" data-name="${nm}"><video class="mw-mvid" src="${esc(src)}#t=0.1" preload="metadata" muted playsinline></video><div class="mw-play">▶</div></div>`;
+      if (a.kind === 'video') { const ar = (a.width && a.height) ? `aspect-ratio:${a.width}/${a.height};` : ''; return `<div class="mw-mtile mw-loading" style="${ar}" data-full="${esc(src)}" data-kind="video" data-name="${nm}"><video class="mw-mvid" src="${esc(src)}#t=0.1" preload="metadata" muted playsinline></video><div class="mw-play">▶</div></div>`; }
       if (a.kind === 'audio' || (a.mime || '').startsWith('audio/')) return `<audio class="mw-aud" controls preload="metadata" data-aud="${esc(src)}" data-aud-type="${esc(a.mime || 'audio/wav')}"></audio>`;
       if (a.kind === 'file') { const sz = fmtBytes(a.size); return `<div class="mw-file" data-full="${esc(src)}" data-kind="file" data-name="${nm}" data-mime="${esc(a.mime || '')}"><span class="mw-fico">${FILE_SVG}</span><span class="mw-fmeta"><span class="mw-fname">${nm}</span>${sz ? `<span class="mw-fsz">${sz}</span>` : ''}</span></div>`; }
-      return `<img class="mw-mimg mw-loading" src="${esc(src)}" loading="lazy" data-full="${esc(src)}" data-kind="image" data-name="${nm}" alt="${nm}">`;
+      return `<img class="mw-mimg mw-loading" style="${(a.width && a.height) ? `aspect-ratio:${a.width}/${a.height};` : ''}" src="${esc(src)}" loading="lazy" data-full="${esc(src)}" data-kind="image" data-name="${nm}" alt="${nm}">`;
     }).join('');
     return `<div class="mw-media">${items}</div>`;
   }

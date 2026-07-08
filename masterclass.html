@@ -114,6 +114,7 @@
     .mc-filters select:focus{ border-color:var(--blue); }
     .mc-filter-check{ display:flex; align-items:center; gap:7px; font-size:0.8rem; color:var(--text); cursor:pointer; }
     .mc-filter-check input{ width:15px; height:15px; cursor:pointer; }
+    .mc-loadmore{ width:calc(100% - 24px); margin:8px 12px 4px; justify-content:center; }
     @media(max-width:640px){ .sec-grid{ grid-template-columns:1fr; } }
     .sec{ }
     .sec-t{ font-size:0.7rem; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-dim); font-weight:800; margin:0 0 8px; }
@@ -222,6 +223,7 @@
         <button class="lnk" id="afClear">Clear filters</button>
       </div>
       <div class="mc-list" id="mcList"><div class="mc-empty">Loading…</div></div>
+      <button class="tbtn mc-loadmore hidden" id="mcLoadMore">Load more ↓</button>
     </aside>
 
     <!-- Main -->

@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v471', title: 'Masterclass CRM — full student base imported + fast search', items: [
+      'Imported the full Kajabi masterclass audience — ~28,500 students — with their contact details, tags, products, sign-in/activity history and more (merged with the existing buyers; the complete original record is kept on each student).',
+      'The student list now loads a page at a time with server-side search and filters (plus a “Load more” button), so it stays fast even with tens of thousands of students. New masterclass sales still auto-create a student.',
+    ]},
     { version: 'v470', title: 'Masterclass CRM — notification deep-links, advanced filters, multiple emails/phones', items: [
       'Clicking a Masterclass alert/turn-over notification (bell or phone) now opens the student AND the exact alert/turn-over pop-up.',
       'New Filters panel in the student list: filter by rep, level, rep status, verified, contacted-in-last-7-days, and has-wins (stacks with the status chips).',

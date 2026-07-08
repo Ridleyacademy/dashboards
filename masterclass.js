@@ -57,36 +57,39 @@
     $('cNo').onclick = closeModal; $('cYes').onclick = () => { closeModal(); onYes(); };
   }
 
-  // ── List ──
-  async function loadList() {
+  // ── List (server-side paginated: search + status + filters computed in the fn) ──
+  const PAGE = 100;
+  let listTotal = 0, listOffset = 0, listLoading = false;
+  function listParams() {
+    const p = new URLSearchParams();
+    if (query) p.set('q', query);
+    if (filter && filter !== 'all') p.set('status', filter);
+    if (advFilters.rep) p.set('rep', advFilters.rep);
+    if (advFilters.level) p.set('level', advFilters.level);
+    if (advFilters.verified) p.set('verified', '1');
+    if (advFilters.wins) p.set('has_wins', '1');
+    if (advFilters.repStatus) p.set('rep_status', advFilters.repStatus);
+    if (advFilters.recent) p.set('recent', '1');
+    return p;
+  }
+  async function loadList(reset = true) {
+    if (listLoading) return;
+    listLoading = true;
+    if (reset) { listOffset = 0; students = []; }
+    const p = listParams(); p.set('limit', String(PAGE)); p.set('offset', String(listOffset));
     try {
-      const j = await mcFetch('?api=list');
-      students = j.rows || []; caps = j.capabilities || caps;
-      fillFilterOptions();
+      const j = await mcFetch('?api=list&' + p.toString());
+      caps = j.capabilities || caps; listTotal = j.total || 0;
+      students = reset ? (j.rows || []) : students.concat(j.rows || []);
+      listOffset = students.length;
       renderList();
     } catch (e) { $('mcList').innerHTML = `<div class="mc-empty">${esc(e.message)}</div>`; }
-  }
-  function matchFilter(s) {
-    if (query) { const q = query; const hay = `${s.name || ''} ${s.email || ''} ${s.rep || ''}`.toLowerCase(); if (!hay.includes(q)) return false; }
-    // Advanced filters (all AND-ed with the status chip below).
-    if (advFilters.rep && (s.rep || '') !== advFilters.rep) return false;
-    if (advFilters.level && s.level !== advFilters.level && s.masterclass_level !== advFilters.level) return false;
-    if (advFilters.verified && !s.verified) return false;
-    if (advFilters.wins && !((s.wins_count || 0) > 0)) return false;
-    if (advFilters.repStatus || advFilters.recent) {
-      const rd = repDataMap[s.id];
-      if (advFilters.repStatus && !(rd && rd.status === advFilters.repStatus)) return false;
-      if (advFilters.recent && !(rd && rd.recently_contacted)) return false;
-    }
-    if (filter === 'alerts') return (s.open_alerts_count || 0) > 0;
-    if (filter === 'winning') return !!s.winning_student;
-    if (filter !== 'all' && (s.derived_status || 'Active') !== filter) return false;
-    return true;
+    finally { listLoading = false; }
   }
   // Populate filter dropdowns (reps ∪ distinct student reps; levels; rep statuses).
   function fillFilterOptions() {
     const repSel = $('afRep'); if (repSel) {
-      const set = new Set(); (reps || []).forEach(r => r.display && set.add(r.display)); students.forEach(s => s.rep && set.add(s.rep));
+      const set = new Set(); (reps || []).forEach(r => r.display && set.add(r.display));
       const cur = repSel.value; repSel.innerHTML = '<option value="">Any rep</option>' + [...set].sort((a, b) => a.localeCompare(b)).map(r => `<option value="${esc(r)}">${esc(r)}</option>`).join(''); repSel.value = cur;
     }
     const lvlSel = $('afLevel'); if (lvlSel && lvlSel.options.length <= 1) lvlSel.innerHTML = '<option value="">Any level</option>' + LEVELS.filter(Boolean).map(l => `<option value="${esc(l)}">${esc(l)}</option>`).join('');
@@ -97,9 +100,10 @@
     const el = $('mcFilterCount'); if (el) el.textContent = n ? String(n) : '';
   }
   function renderList() {
-    const rows = students.filter(matchFilter);
-    $('mcCount').textContent = rows.length === students.length ? `${students.length}` : `${rows.length} / ${students.length}`;
-    if (!rows.length) { $('mcList').innerHTML = `<div class="mc-empty">${students.length ? 'No matches.' : 'No students yet.'}</div>`; return; }
+    const rows = students;
+    $('mcCount').textContent = rows.length < listTotal ? `${rows.length} / ${listTotal}` : `${listTotal}`;
+    const lm = $('mcLoadMore'); if (lm) lm.classList.toggle('hidden', rows.length >= listTotal);
+    if (!rows.length) { $('mcList').innerHTML = `<div class="mc-empty">No matches.</div>`; return; }
     $('mcList').innerHTML = rows.map(s => {
       const badges = [];
       const rd = repDataMap[s.id];
@@ -116,14 +120,16 @@
     }).join('');
   }
   $('mcList').addEventListener('click', (e) => { const r = e.target.closest('.mc-row'); if (r) openStudent(Number(r.dataset.id)); });
-  $('mcSearch').addEventListener('input', (e) => { query = e.target.value.trim().toLowerCase(); renderList(); });
-  $('mcChips').addEventListener('click', (e) => { const c = e.target.closest('.mc-chip'); if (!c) return; filter = c.dataset.f; [...$('mcChips').children].forEach(x => x.classList.toggle('active', x === c)); renderList(); });
+  let _searchT;
+  $('mcSearch').addEventListener('input', (e) => { query = e.target.value.trim().toLowerCase(); clearTimeout(_searchT); _searchT = setTimeout(() => loadList(true), 300); });
+  $('mcChips').addEventListener('click', (e) => { const c = e.target.closest('.mc-chip'); if (!c) return; filter = c.dataset.f; [...$('mcChips').children].forEach(x => x.classList.toggle('active', x === c)); loadList(true); });
+  const lmBtn = $('mcLoadMore'); if (lmBtn) lmBtn.addEventListener('click', () => loadList(false));
   // Advanced filter panel
   $('mcFilterToggle').addEventListener('click', () => { const p = $('mcFilters'); p.classList.toggle('hidden'); $('mcFilterToggle').firstChild.textContent = p.classList.contains('hidden') ? '＋ Filters ' : '－ Filters '; });
   const _afApply = () => {
     advFilters.rep = $('afRep').value; advFilters.level = $('afLevel').value; advFilters.repStatus = $('afRepStatus').value;
     advFilters.verified = $('afVerified').checked; advFilters.recent = $('afRecent').checked; advFilters.wins = $('afWins').checked;
-    updateFilterCount(); renderList();
+    updateFilterCount(); loadList(true);
   };
   ['afRep', 'afLevel', 'afRepStatus'].forEach(id => $(id).addEventListener('change', _afApply));
   ['afVerified', 'afRecent', 'afWins'].forEach(id => $(id).addEventListener('change', _afApply));
@@ -614,6 +620,7 @@
     const { data: { session } } = await supa.auth.getSession();
     if (session?.user) { const em = session.user.email || ''; $('userEmail').textContent = em; $('userAvatar').textContent = (em[0] || 'U').toUpperCase(); window.__RIDLEY_USER = session.user; }
     try { const j = await mcFetch('?api=reps'); reps = j.reps || []; } catch (_) {}
+    fillFilterOptions();
     await loadList();
     loadRepData();
     await handleDeepLink(new URLSearchParams(location.search));

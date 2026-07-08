@@ -36,6 +36,9 @@
     .topbar-logo{ width:26px; height:26px; border-radius:8px; background:linear-gradient(135deg,var(--green),#22b07d); display:flex; align-items:center; justify-content:center; }
     .topbar-brand{ font-weight:800; letter-spacing:0.01em; }
     .topbar-spacer{ flex:1; }
+    /* Global-queue bar — under the banner, above the list (like the MS CRM) */
+    .mc-queuebar{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:10px 18px; border-bottom:1px solid var(--border); background:var(--surface); }
+    .mc-queuebar-label{ font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-muted); margin-right:2px; }
     .tbtn{ background:var(--surface2); border:1px solid var(--border); color:var(--text); border-radius:9px; padding:6px 11px; font-size:0.82rem; cursor:pointer; display:inline-flex; align-items:center; gap:6px; font-family:inherit; }
     .tbtn:hover{ border-color:var(--border-light); }
     .tbtn-primary{ background:linear-gradient(135deg,var(--green),#22b07d); color:#06231a; border:none; font-weight:700; }
@@ -162,9 +165,6 @@
   <header class="topbar">
     <div class="topbar-logo"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#06231a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div>
     <div class="topbar-brand">Masterclass CRM</div>
-    <button class="tbtn" id="gqAlerts" title="All alerts (or the ones you're on)">⚠ Alerts</button>
-    <button class="tbtn" id="gqTurnovers" title="All turn-overs (or the ones you're on)">↪ Turn-overs</button>
-    <button class="tbtn" id="gqContacts" title="All logged contacts (or yours)">✆ Contacts</button>
     <div class="topbar-spacer"></div>
     <button class="tbtn" id="refreshBtn" title="Refresh"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> Refresh</button>
     <button class="tbtn" id="themeBtn" style="font-size:1rem;" title="Toggle theme">◐</button>
@@ -172,6 +172,13 @@
     <div class="user-pill"><div class="user-pill-av" id="userAvatar">U</div><div class="user-pill-email" id="userEmail">…</div></div>
     <button class="tbtn" id="signOutBtn"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg> Sign Out</button>
   </header>
+
+  <div class="mc-queuebar">
+    <span class="mc-queuebar-label">Queues:</span>
+    <button class="tbtn" id="gqAlerts" title="All alerts (or the ones you're on)">⚠ Alerts</button>
+    <button class="tbtn" id="gqTurnovers" title="All turn-overs (or the ones you're on)">↪ Turn-overs</button>
+    <button class="tbtn" id="gqContacts" title="All logged contacts (or yours)">✆ Contacts</button>
+  </div>
 
   <div class="mc-wrap">
     <!-- List -->

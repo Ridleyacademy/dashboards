@@ -16,6 +16,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v470', title: 'Masterclass CRM — notification deep-links, advanced filters, multiple emails/phones', items: [
+      'Clicking a Masterclass alert/turn-over notification (bell or phone) now opens the student AND the exact alert/turn-over pop-up.',
+      'New Filters panel in the student list: filter by rep, level, rep status, verified, contacted-in-last-7-days, and has-wins (stacks with the status chips).',
+      'A student can now hold multiple emails and phone numbers — the first is the primary; add or remove more with the + button.',
+    ]},
     { version: 'v469', title: 'Masterclass CRM — global Alerts / Turn-overs / Contacts queues', items: [
       'A Queues bar under the top banner opens cross-student queues for Alerts, Turn-overs and Contacts — managers (admin / I/C) see everything; reps see the ones they filed, are notified on, or are the assigned rep for. Alerts & turn-overs toggle between Open and Resolved/Done, and each row jumps straight to the student.',
     ]},

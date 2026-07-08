@@ -15,6 +15,7 @@
   let filter = 'all';
   let query = '';
   let editing = false;
+  const advFilters = { rep: '', level: '', repStatus: '', verified: false, recent: false, wins: false };
   // Rep Area (contacts + rep status). repDataMap: student_id -> { status, status_at, last_contact_date, recently_contacted }
   let repDataMap = {};
   let repStatusOptions = ['Hot', 'Warm', 'Cold', 'Qualified', 'Not qualified', 'Needs help', 'Do not contact'];
@@ -61,15 +62,39 @@
     try {
       const j = await mcFetch('?api=list');
       students = j.rows || []; caps = j.capabilities || caps;
+      fillFilterOptions();
       renderList();
     } catch (e) { $('mcList').innerHTML = `<div class="mc-empty">${esc(e.message)}</div>`; }
   }
   function matchFilter(s) {
     if (query) { const q = query; const hay = `${s.name || ''} ${s.email || ''} ${s.rep || ''}`.toLowerCase(); if (!hay.includes(q)) return false; }
-    if (filter === 'all') return true;
+    // Advanced filters (all AND-ed with the status chip below).
+    if (advFilters.rep && (s.rep || '') !== advFilters.rep) return false;
+    if (advFilters.level && s.level !== advFilters.level && s.masterclass_level !== advFilters.level) return false;
+    if (advFilters.verified && !s.verified) return false;
+    if (advFilters.wins && !((s.wins_count || 0) > 0)) return false;
+    if (advFilters.repStatus || advFilters.recent) {
+      const rd = repDataMap[s.id];
+      if (advFilters.repStatus && !(rd && rd.status === advFilters.repStatus)) return false;
+      if (advFilters.recent && !(rd && rd.recently_contacted)) return false;
+    }
     if (filter === 'alerts') return (s.open_alerts_count || 0) > 0;
     if (filter === 'winning') return !!s.winning_student;
-    return (s.derived_status || 'Active') === filter;
+    if (filter !== 'all' && (s.derived_status || 'Active') !== filter) return false;
+    return true;
+  }
+  // Populate filter dropdowns (reps ∪ distinct student reps; levels; rep statuses).
+  function fillFilterOptions() {
+    const repSel = $('afRep'); if (repSel) {
+      const set = new Set(); (reps || []).forEach(r => r.display && set.add(r.display)); students.forEach(s => s.rep && set.add(s.rep));
+      const cur = repSel.value; repSel.innerHTML = '<option value="">Any rep</option>' + [...set].sort((a, b) => a.localeCompare(b)).map(r => `<option value="${esc(r)}">${esc(r)}</option>`).join(''); repSel.value = cur;
+    }
+    const lvlSel = $('afLevel'); if (lvlSel && lvlSel.options.length <= 1) lvlSel.innerHTML = '<option value="">Any level</option>' + LEVELS.filter(Boolean).map(l => `<option value="${esc(l)}">${esc(l)}</option>`).join('');
+    const stSel = $('afRepStatus'); if (stSel && stSel.options.length <= 1) stSel.innerHTML = '<option value="">Any rep status</option>' + repStatusOptions.map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('');
+  }
+  function updateFilterCount() {
+    const n = (advFilters.rep ? 1 : 0) + (advFilters.level ? 1 : 0) + (advFilters.repStatus ? 1 : 0) + (advFilters.verified ? 1 : 0) + (advFilters.recent ? 1 : 0) + (advFilters.wins ? 1 : 0);
+    const el = $('mcFilterCount'); if (el) el.textContent = n ? String(n) : '';
   }
   function renderList() {
     const rows = students.filter(matchFilter);
@@ -93,6 +118,20 @@
   $('mcList').addEventListener('click', (e) => { const r = e.target.closest('.mc-row'); if (r) openStudent(Number(r.dataset.id)); });
   $('mcSearch').addEventListener('input', (e) => { query = e.target.value.trim().toLowerCase(); renderList(); });
   $('mcChips').addEventListener('click', (e) => { const c = e.target.closest('.mc-chip'); if (!c) return; filter = c.dataset.f; [...$('mcChips').children].forEach(x => x.classList.toggle('active', x === c)); renderList(); });
+  // Advanced filter panel
+  $('mcFilterToggle').addEventListener('click', () => { const p = $('mcFilters'); p.classList.toggle('hidden'); $('mcFilterToggle').firstChild.textContent = p.classList.contains('hidden') ? '＋ Filters ' : '－ Filters '; });
+  const _afApply = () => {
+    advFilters.rep = $('afRep').value; advFilters.level = $('afLevel').value; advFilters.repStatus = $('afRepStatus').value;
+    advFilters.verified = $('afVerified').checked; advFilters.recent = $('afRecent').checked; advFilters.wins = $('afWins').checked;
+    updateFilterCount(); renderList();
+  };
+  ['afRep', 'afLevel', 'afRepStatus'].forEach(id => $(id).addEventListener('change', _afApply));
+  ['afVerified', 'afRecent', 'afWins'].forEach(id => $(id).addEventListener('change', _afApply));
+  $('afClear').addEventListener('click', () => {
+    ['afRep', 'afLevel', 'afRepStatus'].forEach(id => { $(id).value = ''; });
+    ['afVerified', 'afRecent', 'afWins'].forEach(id => { $(id).checked = false; });
+    _afApply();
+  });
 
   // ── Profile ──
   const LEVELS = ['', 'INTRODUCTION', 'LEVEL 1', 'LEVEL 2', 'LEVEL 3', 'LEVEL 4', 'LEVEL 5', 'LEVEL 6', 'LEVEL 7', 'LEVEL 8', 'LEVEL 9', 'LEVEL 10'];
@@ -107,6 +146,15 @@
     if (type === 'textarea') return `<div class="fld"><label>${esc(label)}</label><textarea id="${id}">${esc(val || '')}</textarea></div>`;
     if (type === 'checkbox') return `<div class="fld fld-row"><input type="checkbox" id="${id}" ${val ? 'checked' : ''} style="width:auto"><label style="margin:0">${esc(label)}</label></div>`;
     return `<div class="fld"><label>${esc(label)}</label><input type="${type}" id="${id}" value="${esc(val == null ? '' : val)}"></div>`;
+  }
+  // Multi-value field (email / phone): first value → the primary column, extras →
+  // metadata[metaKey]. First non-empty is the primary used by dedup / notifications.
+  function multiRow(type, v) { return `<div class="multi-row"><input class="multi-input" type="${type}" value="${esc(v == null ? '' : v)}"><button type="button" class="multi-del" title="Remove">×</button></div>`; }
+  function multiField(label, key, metaKey, type, primary, alts) {
+    const seen = new Set(); const vals = [];
+    [primary, ...(Array.isArray(alts) ? alts : [])].forEach(v => { const t = (v == null ? '' : String(v)).trim(); if (t && !seen.has(t.toLowerCase())) { seen.add(t.toLowerCase()); vals.push(t); } });
+    if (!vals.length) vals.push('');
+    return `<div class="fld full"><label>${esc(label)}</label><div class="multi" data-key="${key}" data-meta="${metaKey}">${vals.map(v => multiRow(type, v)).join('')}<button type="button" class="lnk multi-add">+ Add ${esc(label.toLowerCase())}</button></div></div>`;
   }
 
   function renderProfile() {
@@ -131,7 +179,7 @@
     const collapsed = collapsedSections();
     const sec = (title, inner) => `<details class="mc-sec" data-section="${esc(title)}"${collapsed.has(title) ? '' : ' open'}><summary><span class="mc-sec-title">${esc(title)}</span><span class="mc-sec-line"></span><span class="mc-sec-caret">▾</span></summary><div class="sec-grid">${inner}</div></details>`;
     const form = `<div class="prof-body">
-      ${sec('Identity', `${fld('Name', 'f-name', r.name)}${fld('Email', 'f-email', r.email)}${fld('Phone', 'f-phone', r.phone)}`)}
+      ${sec('Identity', `${fld('Name', 'f-name', r.name)}${multiField('Email', 'email', 'alternate_emails', 'email', r.email, (r.metadata || {}).alternate_emails)}${multiField('Phone', 'phone', 'alternate_phones', 'tel', r.phone, (r.metadata || {}).alternate_phones)}`)}
       ${sec('Rep Area', `<div class="fld full"><label>Assigned rep</label><input id="f-rep" list="repList" value="${esc(r.rep || '')}" placeholder="Type or pick a rep…"><datalist id="repList">${repList}</datalist></div><div class="full" id="repWidgets">${isNew ? '<div class="item-meta" style="padding:2px">Create the student first to log contacts &amp; set a rep status.</div>' : '<div class="item-meta" style="padding:2px">Loading…</div>'}</div>`)}
       ${sec('Purchase', `${fld('First purchase', 'f-first_purchase_date', r.first_purchase_date, 'date')}${fld('Last purchase', 'f-last_purchase_date', r.last_purchase_date, 'date')}${fld('Price', 'f-price', r.price, 'number')}`)}
       ${sec('Course progress', `${fld('Level', 'f-level', r.level, 'select', LEVELS)}${fld('Masterclass level', 'f-masterclass_level', r.masterclass_level, 'select', LEVELS)}${fld('Current module', 'f-current_module', r.current_module)}`)}
@@ -229,7 +277,16 @@
   async function saveProfile() {
     const g = (id) => { const el = $(id); if (!el) return undefined; return el.type === 'checkbox' ? el.checked : el.value; };
     const body = { id: cur.row.id || undefined };
-    ['name', 'email', 'phone', 'rep', 'first_purchase_date', 'last_purchase_date', 'price', 'level', 'masterclass_level', 'current_module', 'status', 'refunded_date', 'refunded_amount', 'verified', 'dead_file', 'winning_student', 'notes'].forEach(k => { body[k] = g('f-' + k); });
+    ['name', 'rep', 'first_purchase_date', 'last_purchase_date', 'price', 'level', 'masterclass_level', 'current_module', 'status', 'refunded_date', 'refunded_amount', 'verified', 'dead_file', 'winning_student', 'notes'].forEach(k => { body[k] = g('f-' + k); });
+    // Multi-value email/phone: first → column, rest → metadata alternates.
+    const meta = { ...(cur.row.metadata || {}) };
+    $('mcProfile').querySelectorAll('.multi').forEach(m => {
+      const seen = new Set(); const vals = [];
+      m.querySelectorAll('.multi-input').forEach(inp => { const t = (inp.value || '').trim(); if (t && !seen.has(t.toLowerCase())) { seen.add(t.toLowerCase()); vals.push(t); } });
+      body[m.dataset.key] = vals[0] || null;
+      if (m.dataset.meta) meta[m.dataset.meta] = vals.slice(1);
+    });
+    body.metadata = meta;
     if (!String(body.name || '').trim()) { toast('Name is required'); return; }
     try {
       const j = await mcFetch('?api=upsert', { method: 'POST', body: JSON.stringify(body) });
@@ -539,6 +596,14 @@
   $('gqTurnovers').addEventListener('click', () => openQueueModal('turnovers', false));
   $('gqContacts').addEventListener('click', () => openQueueModal('contacts', false));
 
+  // Multi-value email/phone add/remove (delegated once; profile re-renders often).
+  $('mcProfile').addEventListener('click', (e) => {
+    const add = e.target.closest('.multi-add');
+    if (add) { const m = add.closest('.multi'); add.insertAdjacentHTML('beforebegin', multiRow(m.dataset.key === 'email' ? 'email' : 'tel', '')); return; }
+    const del = e.target.closest('.multi-del');
+    if (del) { const m = del.closest('.multi'); if (m.querySelectorAll('.multi-row').length > 1) del.closest('.multi-row').remove(); else m.querySelector('.multi-input').value = ''; }
+  });
+
   // ── Top bar wiring ──
   $('refreshBtn').addEventListener('click', () => { loadList(); loadRepData(); if (cur && cur.row.id) openStudent(cur.row.id); });
   $('newBtn').addEventListener('click', newStudent);
@@ -551,8 +616,26 @@
     try { const j = await mcFetch('?api=reps'); reps = j.reps || []; } catch (_) {}
     await loadList();
     loadRepData();
-    const params = new URLSearchParams(location.search);
-    const openId = Number(params.get('id') || 0);
-    if (openId) openStudent(openId);
+    await handleDeepLink(new URLSearchParams(location.search));
   })();
+
+  // Open a student and, if the link points at a specific alert/turnover, the
+  // matching pop-up. Used on load (?id=…&openAlert=…) and on SW notification
+  // clicks while the page is already open.
+  async function handleDeepLink(params) {
+    const openId = Number(params.get('id') || 0);
+    if (!openId) return;
+    await openStudent(openId);
+    if (params.get('openAlert')) openListModal('a');
+    else if (params.get('openTurnover')) openListModal('t');
+  }
+  // When a notification is clicked and this page is already open, the service
+  // worker posts {type:'open-link', link} instead of navigating.
+  if (navigator.serviceWorker) {
+    navigator.serviceWorker.addEventListener('message', (e) => {
+      if (e.data && e.data.type === 'open-link' && e.data.link) {
+        try { const u = new URL(e.data.link, location.origin); if (u.pathname.endsWith('masterclass.html')) handleDeepLink(u.searchParams); } catch (_) {}
+      }
+    });
+  }
 })();

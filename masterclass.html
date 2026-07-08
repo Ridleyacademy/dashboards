@@ -100,6 +100,20 @@
     .mc-sec[open] > summary .mc-sec-caret{ transform:rotate(180deg); }
     .sec-grid{ display:grid; grid-template-columns:1fr 1fr; gap:9px 16px; align-items:start; }
     .sec-grid .full{ grid-column:1/-1; }
+    /* Multi-value email/phone rows */
+    .multi-row{ display:flex; gap:6px; margin-bottom:6px; }
+    .multi-input{ flex:1; background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:8px 10px; color:var(--text); font-size:0.85rem; outline:none; font-family:inherit; }
+    .multi-input:focus{ border-color:var(--blue); }
+    .multi-del{ background:var(--surface2); border:1px solid var(--border); color:var(--text-muted); border-radius:8px; width:32px; cursor:pointer; flex-shrink:0; }
+    .multi-del:hover{ color:var(--red); border-color:var(--red); }
+    /* Advanced filters panel */
+    .mc-filter-toggle{ background:none; border:none; color:var(--blue); font-size:0.76rem; cursor:pointer; padding:2px 0 8px; text-align:left; }
+    .mc-filter-count{ background:var(--blue-bg); color:var(--blue); border-radius:999px; padding:0 6px; font-size:0.66rem; font-weight:700; margin-left:2px; }
+    .mc-filters{ display:flex; flex-direction:column; gap:7px; padding:10px 12px; margin-bottom:8px; background:var(--surface2); border:1px solid var(--border); border-radius:10px; }
+    .mc-filters select{ background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:6px 8px; color:var(--text); font-size:0.8rem; font-family:inherit; outline:none; }
+    .mc-filters select:focus{ border-color:var(--blue); }
+    .mc-filter-check{ display:flex; align-items:center; gap:7px; font-size:0.8rem; color:var(--text); cursor:pointer; }
+    .mc-filter-check input{ width:15px; height:15px; cursor:pointer; }
     @media(max-width:640px){ .sec-grid{ grid-template-columns:1fr; } }
     .sec{ }
     .sec-t{ font-size:0.7rem; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-dim); font-weight:800; margin:0 0 8px; }
@@ -196,6 +210,16 @@
         <button class="mc-chip" data-f="Dead file">Dead file</button>
         <button class="mc-chip" data-f="alerts">Has alerts</button>
         <button class="mc-chip" data-f="winning">Winning</button>
+      </div>
+      <button class="mc-filter-toggle" id="mcFilterToggle">＋ Filters <span class="mc-filter-count" id="mcFilterCount"></span></button>
+      <div class="mc-filters hidden" id="mcFilters">
+        <select id="afRep"><option value="">Any rep</option></select>
+        <select id="afLevel"><option value="">Any level</option></select>
+        <select id="afRepStatus"><option value="">Any rep status</option></select>
+        <label class="mc-filter-check"><input type="checkbox" id="afVerified"> Verified</label>
+        <label class="mc-filter-check"><input type="checkbox" id="afRecent"> Contacted ≤7d</label>
+        <label class="mc-filter-check"><input type="checkbox" id="afWins"> Has wins</label>
+        <button class="lnk" id="afClear">Clear filters</button>
       </div>
       <div class="mc-list" id="mcList"><div class="mc-empty">Loading…</div></div>
     </aside>

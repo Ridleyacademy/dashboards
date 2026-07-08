@@ -84,8 +84,20 @@
     .pbtn:hover{ border-color:var(--border-light); }
     .pbtn .n{ background:var(--surface3); border-radius:999px; padding:0 6px; font-size:0.7rem; font-weight:700; }
     .pbtn.danger:hover{ background:var(--red-bg); color:var(--red); border-color:var(--red); }
-    .prof-body{ padding:16px 18px; display:grid; grid-template-columns:1fr 1fr; gap:22px; align-items:start; }
-    @media(max-width:760px){ .prof-body{ grid-template-columns:1fr; } }
+    .prof-body{ padding:12px 18px 18px; }
+    /* Collapsible profile sections (native <details>), MS-CRM style */
+    .mc-sec{ margin-bottom:4px; }
+    .mc-sec > summary{ display:flex; align-items:center; gap:12px; margin:12px 0 10px; padding-bottom:6px; border-bottom:1px solid var(--border); cursor:pointer; list-style:none; user-select:none; transition:opacity .12s; }
+    .mc-sec > summary::-webkit-details-marker{ display:none; }
+    .mc-sec > summary:hover{ opacity:0.85; }
+    .mc-sec:not([open]) > summary{ margin-bottom:0; }
+    .mc-sec-title{ font-size:0.7rem; font-weight:800; text-transform:uppercase; letter-spacing:0.1em; color:var(--green); }
+    .mc-sec-line{ flex:1; }
+    .mc-sec-caret{ color:var(--text-dim); font-size:0.7rem; transition:transform .15s; flex-shrink:0; }
+    .mc-sec[open] > summary .mc-sec-caret{ transform:rotate(180deg); }
+    .sec-grid{ display:grid; grid-template-columns:1fr 1fr; gap:9px 16px; align-items:start; }
+    .sec-grid .full{ grid-column:1/-1; }
+    @media(max-width:640px){ .sec-grid{ grid-template-columns:1fr; } }
     .sec{ }
     .sec-t{ font-size:0.7rem; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-dim); font-weight:800; margin:0 0 8px; }
     .fld{ margin-bottom:9px; }

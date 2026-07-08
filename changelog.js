@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v466', title: 'Masterclass CRM — collapsible profile sections', items: [
+      'A student’s profile is now split into separate collapsible sections (Identity, Purchase, Course progress, Admin, Notes) just like the Mentorship CRM — click a section header to fold it, and your open/closed choices are remembered.',
+    ]},
     { version: 'v465', title: 'Masterclass CRM — turn-overs, alerts, wins & notes now work like the Mentorship CRM', items: [
       'Each section (Turn-overs, Alerts, Wins, Notes) now opens in its own pop-up from the buttons at the top of a student — the full list, an “+ Add” button, and everything else inside — instead of being stacked under the Save form. Turn-overs and alerts have the same OPEN / IN PROGRESS / RESOLVED states, inline Response/Resolution reply box, threaded responses, resolve-with-note, edit-result, and reassign-to-another-rep as the Mentorship CRM.',
     ]},

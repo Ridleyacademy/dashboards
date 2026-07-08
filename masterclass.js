@@ -113,38 +113,30 @@
       ${caps.is_admin ? '<button class="pbtn danger" data-act="del">Delete</button>' : ''}
     </div>`;
 
+    const collapsed = collapsedSections();
+    const sec = (title, inner) => `<details class="mc-sec" data-section="${esc(title)}"${collapsed.has(title) ? '' : ' open'}><summary><span class="mc-sec-title">${esc(title)}</span><span class="mc-sec-line"></span><span class="mc-sec-caret">▾</span></summary><div class="sec-grid">${inner}</div></details>`;
     const form = `<div class="prof-body">
-      <div class="sec"><div class="sec-t">Identity</div>
-        ${fld('Name', 'f-name', r.name)}${fld('Email', 'f-email', r.email)}${fld('Phone', 'f-phone', r.phone)}
-        <div class="fld"><label>Rep</label><input id="f-rep" list="repList" value="${esc(r.rep || '')}"><datalist id="repList">${repList}</datalist></div>
-      </div>
-      <div class="sec"><div class="sec-t">Purchase</div>
-        ${fld('First purchase', 'f-first_purchase_date', r.first_purchase_date, 'date')}
-        ${fld('Last purchase', 'f-last_purchase_date', r.last_purchase_date, 'date')}
-        ${fld('Price', 'f-price', r.price, 'number')}
-      </div>
-      <div class="sec"><div class="sec-t">Course progress</div>
-        ${fld('Level', 'f-level', r.level, 'select', LEVELS)}
-        ${fld('Masterclass level', 'f-masterclass_level', r.masterclass_level, 'select', LEVELS)}
-        ${fld('Current module', 'f-current_module', r.current_module)}
-      </div>
-      <div class="sec"><div class="sec-t">Admin</div>
-        ${fld('Status', 'f-status', r.status || 'Active', 'select', ['Active', 'Completed', 'Refunded'])}
-        ${fld('Refunded date', 'f-refunded_date', r.refunded_date, 'date')}
-        ${fld('Refunded amount', 'f-refunded_amount', r.refunded_amount, 'number')}
-        ${fld('Verified', 'f-verified', r.verified, 'checkbox')}
-        ${fld('Dead file', 'f-dead_file', r.dead_file, 'checkbox')}
-        ${fld('Winning student', 'f-winning_student', r.winning_student, 'checkbox')}
-      </div>
-      <div class="sec" style="grid-column:1/-1"><div class="sec-t">Notes (profile)</div>${fld('', 'f-notes', r.notes, 'textarea')}</div>
+      ${sec('Identity', `${fld('Name', 'f-name', r.name)}${fld('Email', 'f-email', r.email)}${fld('Phone', 'f-phone', r.phone)}
+        <div class="fld"><label>Rep</label><input id="f-rep" list="repList" value="${esc(r.rep || '')}"><datalist id="repList">${repList}</datalist></div>`)}
+      ${sec('Purchase', `${fld('First purchase', 'f-first_purchase_date', r.first_purchase_date, 'date')}${fld('Last purchase', 'f-last_purchase_date', r.last_purchase_date, 'date')}${fld('Price', 'f-price', r.price, 'number')}`)}
+      ${sec('Course progress', `${fld('Level', 'f-level', r.level, 'select', LEVELS)}${fld('Masterclass level', 'f-masterclass_level', r.masterclass_level, 'select', LEVELS)}${fld('Current module', 'f-current_module', r.current_module)}`)}
+      ${sec('Admin', `${fld('Status', 'f-status', r.status || 'Active', 'select', ['Active', 'Completed', 'Refunded'])}${fld('Refunded date', 'f-refunded_date', r.refunded_date, 'date')}${fld('Refunded amount', 'f-refunded_amount', r.refunded_amount, 'number')}${fld('Verified', 'f-verified', r.verified, 'checkbox')}${fld('Dead file', 'f-dead_file', r.dead_file, 'checkbox')}${fld('Winning student', 'f-winning_student', r.winning_student, 'checkbox')}`)}
+      ${sec('Notes (profile)', `<div class="full">${fld('', 'f-notes', r.notes, 'textarea')}</div>`)}
       ${canEdit ? `<div class="save-row"><button class="tbtn" id="cancelBtn">Cancel</button><button class="tbtn tbtn-primary" id="saveBtn">${isNew ? 'Create student' : 'Save changes'}</button></div>` : ''}
     </div>`;
 
     p.innerHTML = head + actions + form;
 
     p.querySelectorAll('.pbtn').forEach(b => b.addEventListener('click', () => onAction(b.dataset.act)));
+    // Persist collapse state per section title (survives reloads + re-renders).
+    p.querySelectorAll('details.mc-sec').forEach(d => d.addEventListener('toggle', () => {
+      const set = collapsedSections(); const t = d.dataset.section;
+      if (d.open) set.delete(t); else set.add(t);
+      try { localStorage.setItem('mc-collapsed-sections', JSON.stringify([...set])); } catch (_) {}
+    }));
     if (canEdit) { const sb = $('saveBtn'); if (sb) sb.onclick = saveProfile; const cb = $('cancelBtn'); if (cb) cb.onclick = () => { if (isNew) { cur = null; p.classList.add('hidden'); $('mcMainEmpty').classList.remove('hidden'); } else openStudent(r.id); }; }
   }
+  function collapsedSections() { try { return new Set(JSON.parse(localStorage.getItem('mc-collapsed-sections') || '[]')); } catch (_) { return new Set(); } }
 
   async function saveProfile() {
     const g = (id) => { const el = $(id); if (!el) return undefined; return el.type === 'checkbox' ? el.checked : el.value; };

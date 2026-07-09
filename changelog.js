@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v479', title: 'Masterclass CRM — split names into First / Last', items: [
+      'Student names were stored as one combined field. They’re now split into separate First name and Last name fields (all 28,535 students backfilled; first word = first name, the rest = last name).',
+      'The profile Identity section now has First name / Last name inputs; editing either keeps the displayed full name in sync. Lists and headers still show the full name.',
+    ]},
     { version: 'v478', title: 'Masterclass CRM — fix the Dashboards picker', items: [
       'The “Dashboards ▾” picker in the Masterclass CRM top bar did nothing when clicked — the open/close handler was never wired on this page. It now opens and closes like every other dashboard.',
     ]},

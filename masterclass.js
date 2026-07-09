@@ -307,7 +307,7 @@
     const collapsed = collapsedSections();
     const sec = (title, inner) => `<details class="mc-sec" data-section="${esc(title)}"${collapsed.has(title) ? '' : ' open'}><summary><span class="mc-sec-title">${esc(title)}</span><span class="mc-sec-line"></span><span class="mc-sec-caret">▾</span></summary><div class="sec-grid">${inner}</div></details>`;
     const form = `<div class="prof-body">
-      ${sec('Identity', `${fld('Name', 'f-name', r.name)}${multiField('Email', 'email', 'alternate_emails', 'email', r.email, (r.metadata || {}).alternate_emails)}${multiField('Phone', 'phone', 'alternate_phones', 'tel', r.phone, (r.metadata || {}).alternate_phones)}`)}
+      ${sec('Identity', `${fld('First name', 'f-first_name', r.first_name)}${fld('Last name', 'f-last_name', r.last_name)}${multiField('Email', 'email', 'alternate_emails', 'email', r.email, (r.metadata || {}).alternate_emails)}${multiField('Phone', 'phone', 'alternate_phones', 'tel', r.phone, (r.metadata || {}).alternate_phones)}`)}
       ${sec('Rep Area', `<div class="fld full"><label>Assigned rep</label><input id="f-rep" list="repList" value="${esc(r.rep || '')}" placeholder="Type or pick a rep…"><datalist id="repList">${repList}</datalist></div><div class="full" id="repWidgets">${isNew ? '<div class="item-meta" style="padding:2px">Create the student first to log contacts &amp; set a rep status.</div>' : '<div class="item-meta" style="padding:2px">Loading…</div>'}</div>`)}
       ${sec('Purchase', `${fld('First purchase', 'f-first_purchase_date', r.first_purchase_date, 'date')}${fld('Last purchase', 'f-last_purchase_date', r.last_purchase_date, 'date')}${fld('Price', 'f-price', r.price, 'number')}`)}
       ${sec('Course progress', `${fld('Level', 'f-level', r.level, 'select', LEVELS)}${fld('Masterclass level', 'f-masterclass_level', r.masterclass_level, 'select', LEVELS)}${fld('Current module', 'f-current_module', r.current_module)}`)}
@@ -413,7 +413,9 @@
   async function saveProfile() {
     const g = (id) => { const el = $(id); if (!el) return undefined; return el.type === 'checkbox' ? el.checked : el.value; };
     const body = { id: cur.row.id || undefined };
-    ['name', 'rep', 'first_purchase_date', 'last_purchase_date', 'price', 'level', 'masterclass_level', 'current_module', 'status', 'refunded_date', 'refunded_amount', 'verified', 'dead_file', 'winning_student', 'notes', 'mobile_phone', 'address_line1', 'address_line2', 'city', 'state', 'country', 'zip', 'source', 'sms_opt_in', 'sign_in_count'].forEach(k => { const v = g('f-' + k); if (v !== undefined) body[k] = v; });
+    ['first_name', 'last_name', 'rep', 'first_purchase_date', 'last_purchase_date', 'price', 'level', 'masterclass_level', 'current_module', 'status', 'refunded_date', 'refunded_amount', 'verified', 'dead_file', 'winning_student', 'notes', 'mobile_phone', 'address_line1', 'address_line2', 'city', 'state', 'country', 'zip', 'source', 'sms_opt_in', 'sign_in_count'].forEach(k => { const v = g('f-' + k); if (v !== undefined) body[k] = v; });
+    // `name` is derived server-side from first/last; still validate here for the create form.
+    const _combined = [g('f-first_name'), g('f-last_name')].map(x => (x || '').trim()).filter(Boolean).join(' ');
     // Multi-value email/phone: first → column, rest → metadata alternates.
     const meta = { ...(cur.row.metadata || {}) };
     $('mcProfile').querySelectorAll('.multi').forEach(m => {
@@ -425,7 +427,7 @@
     body.metadata = meta;
     // Tags (editable chip editor) — only send when the editor is on screen.
     const te = $('tagEdit'); if (te) body.tags = [...te.querySelectorAll('.tag-chip')].map(c => c.dataset.tag);
-    if (!String(body.name || '').trim()) { toast('Name is required'); return; }
+    if (!_combined) { toast('First name is required'); return; }
     try {
       const j = await mcFetch('?api=upsert', { method: 'POST', body: JSON.stringify(body) });
       toast('Saved'); await loadList(); openStudent(cur.row.id || j.id);

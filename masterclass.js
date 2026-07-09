@@ -196,7 +196,7 @@
       return `<div class="mc-row${cur && cur.row.id === s.id ? ' active' : ''}" data-id="${s.id}">
         <div class="mc-av">${esc(initials(s.name))}</div>
         <div class="mc-rowmid"><div class="mc-rowname">${esc(s.name || '(unnamed)')}</div><div class="mc-rowsub">${esc(sub || s.email || '')}</div></div>
-        <div class="mc-rowbadges"><span class="st ${stCls(s.derived_status)}">${esc(s.derived_status || 'Active')}</span>${badges.join('')}</div>
+        <div class="mc-rowbadges">${(s.derived_status && s.derived_status !== 'Active') ? `<span class="st ${stCls(s.derived_status)}">${esc(s.derived_status)}</span>` : ''}${badges.join('')}</div>
       </div>`;
     }).join('');
   }
@@ -292,7 +292,7 @@
     const head = `<div class="prof-head">
       <div style="flex:1;min-width:0"><div class="prof-name">${esc(r.name || 'New student')}</div>
         <div class="prof-sub">${isNew ? 'Create a new masterclass student' : `${esc(r.email || '')}${r.rep ? ' · Rep: ' + esc(r.rep) : ''}`}</div></div>
-      ${isNew ? '' : `<span class="st ${stCls(r.derived_status)}">${esc(r.derived_status || 'Active')}</span>`}
+      ${(!isNew && r.derived_status && r.derived_status !== 'Active') ? `<span class="st ${stCls(r.derived_status)}">${esc(r.derived_status)}</span>` : ''}
     </div>`;
     const openAlerts = cur.alerts.filter(a => a.status === 'open').length;
     const actions = isNew ? '' : `<div class="prof-actions">

@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v476', title: 'Masterclass CRM — drop the misleading “Active” pill', items: [
+      'Removed the “Active” status pill from student rows and profiles — since masterclass access is lifetime, everyone read as “Active”, which was noise and clashed with the “inactive Nd” engagement flag. Only meaningful statuses (Refunded / Completed / Dead file) now show.',
+    ]},
     { version: 'v475', title: 'Masterclass CRM — quick views, active filters, overview', items: [
       'Quick-filter bar above the list: All / Mine (students assigned to you) / Stale (assigned but no rep contact in 30 days) / Duplicates (same name).',
       'Active-filters bar shows every applied filter as a chip you can remove (plus “Clear all”), and the Filters panel gained a “Joined between” date range.',

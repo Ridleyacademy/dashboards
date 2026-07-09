@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v484', title: 'Masterclass CRM — “Review rows” before importing', items: [
+      'The import preview now has a “Review the N rows to import” link that lists exactly which students will be added (green) or updated (blue), with their email and activity — so you can confirm what’s changing before you commit.',
+    ]},
     { version: 'v483', title: 'Masterclass CRM — import only uploads what changed', items: [
       'Kajabi always exports all ~28k students, so re-importing used to re-send every row. Now the import compares the file against what’s already in the CRM and uploads only students who are new or whose activity actually changed — the unchanged majority is skipped. Re-imports are far lighter and finish in seconds.',
       'The preview now shows the split before you confirm: “X new to add · Y with new activity to update · Z unchanged (skipped).”',

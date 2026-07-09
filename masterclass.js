@@ -920,7 +920,7 @@
     return `${cnt}|${la}|${ls}`;
   }
 
-  let _csvRows = null;
+  let _csvRows = null; let _showImportPreview = null;
   $('gqImport').addEventListener('click', () => { if (caps.can_edit) $('mcCsvFile').click(); });
   $('mcCsvFile').addEventListener('change', async (e) => {
     const file = e.target.files && e.target.files[0]; e.target.value = '';
@@ -947,30 +947,51 @@
         toSend = [];
         for (const n of norm) {
           const cur = index[n.email];
-          if (cur === undefined) { added++; toSend.push(n); }
-          else if (cur !== rowSig(n)) { changed++; toSend.push(n); }
+          if (cur === undefined) { added++; n.__diff = 'new'; toSend.push(n); }
+          else if (cur !== rowSig(n)) { changed++; n.__diff = 'changed'; toSend.push(n); }
           else unchanged++;
         }
       } else {
-        toSend = norm; // fingerprint unavailable → fall back to sending everything
+        toSend = norm.map(n => (n.__diff = 'send', n)); // fingerprint unavailable → send everything
       }
       _csvRows = toSend;
 
       const breakdown = index
         ? `<b>${added.toLocaleString()}</b> new to add · <b>${changed.toLocaleString()}</b> existing with new activity to update · <b>${unchanged.toLocaleString()}</b> unchanged (skipped).`
         : `Couldn’t fetch the change index — will send all <b>${norm.length.toLocaleString()}</b> rows.`;
-      openModal(`<h3>⭱ Import CSV</h3>
-        <p style="color:var(--text-muted);font-size:0.9rem;margin:0 0 6px"><b>${esc(file.name)}</b> · ${rows.length.toLocaleString()} rows${noEmail ? ` · ${noEmail.toLocaleString()} skipped (no email)` : ''}</p>
-        <div class="item-meta" style="line-height:1.7">
-          ${breakdown}<br>
-          Existing students are <b>enriched</b> (activity refreshed, blanks filled, tags merged) — reps, statuses, and notes are never overwritten.
-        </div>
-        ${!hasEmailCol ? '<div class="item-meta" style="color:var(--red);margin-top:8px">⚠ No “Email” column detected — this may not be the Kajabi export.</div>' : ''}
-        <div class="modal-row" style="margin-top:14px"><button class="tbtn" id="imCancel">Cancel</button><button class="tbtn tbtn-primary" id="imGo"${_csvRows.length ? '' : ' disabled'}>${_csvRows.length ? 'Import ' + _csvRows.length.toLocaleString() + ' students' : 'Nothing to import'}</button></div>`);
-      $('imCancel').onclick = closeModal;
-      $('imGo').onclick = () => runImport();
+      _showImportPreview = () => {
+        openModal(`<h3>⭱ Import CSV</h3>
+          <p style="color:var(--text-muted);font-size:0.9rem;margin:0 0 6px"><b>${esc(file.name)}</b> · ${rows.length.toLocaleString()} rows${noEmail ? ` · ${noEmail.toLocaleString()} skipped (no email)` : ''}</p>
+          <div class="item-meta" style="line-height:1.7">
+            ${breakdown}<br>
+            Existing students are <b>enriched</b> (activity refreshed, blanks filled, tags merged) — reps, statuses, and notes are never overwritten.
+          </div>
+          ${!hasEmailCol ? '<div class="item-meta" style="color:var(--red);margin-top:8px">⚠ No “Email” column detected — this may not be the Kajabi export.</div>' : ''}
+          ${_csvRows.length ? '<div style="margin-top:8px"><button class="lnk" id="imReview">🔍 Review the ' + _csvRows.length.toLocaleString() + ' rows to import</button></div>' : ''}
+          <div class="modal-row" style="margin-top:14px"><button class="tbtn" id="imCancel">Cancel</button><button class="tbtn tbtn-primary" id="imGo"${_csvRows.length ? '' : ' disabled'}>${_csvRows.length ? 'Import ' + _csvRows.length.toLocaleString() + ' students' : 'Nothing to import'}</button></div>`);
+        $('imCancel').onclick = closeModal;
+        $('imGo').onclick = () => runImport();
+        if ($('imReview')) $('imReview').onclick = () => reviewImportRows();
+      };
+      _showImportPreview();
     } catch (err) { $('imMsg').innerHTML = `<span style="color:var(--red)">Could not read file: ${esc(err.message)}</span>`; }
   });
+
+  // Inspect exactly which rows will be uploaded (new vs changed) before committing.
+  function reviewImportRows() {
+    const rows = _csvRows || [];
+    const nm = (n) => [n.first_name, n.last_name].filter(Boolean).join(' ') || '(no name)';
+    const badge = (d) => d === 'new'
+      ? '<span class="mc-mini" style="background:var(--green-bg);color:var(--green)">new</span>'
+      : (d === 'changed' ? '<span class="mc-mini" style="background:var(--blue-bg);color:var(--blue)">activity</span>' : '');
+    const list = rows.slice(0, 500).map(n => `<div class="item" style="padding:6px 8px"><div class="item-top"><span class="item-title" style="font-size:0.84rem">${esc(nm(n))} ${badge(n.__diff)}</span><span class="item-meta">${esc(n.email)}</span></div><div class="item-meta">sign-ins: ${esc(String(n.sign_in_count || '0'))}${n.last_activity_at ? ' · last activity ' + esc(n.last_activity_at.slice(0, 10)) : ''}</div></div>`).join('');
+    openModal(`<h3>Rows to import (${rows.length.toLocaleString()})</h3>
+      <div class="item-meta" style="margin:0 0 8px">${rows.length > 500 ? 'Showing the first 500. ' : ''}Green = brand-new · Blue = existing student with new activity.</div>
+      <div style="max-height:52vh;overflow:auto;border:1px solid var(--border);border-radius:8px">${list || '<div class="item-meta" style="padding:16px">Nothing to import.</div>'}</div>
+      <div class="modal-row" style="margin-top:14px"><button class="tbtn" id="rvBack">← Back</button><button class="tbtn tbtn-primary" id="rvGo"${rows.length ? '' : ' disabled'}>Import ${rows.length.toLocaleString()}</button></div>`);
+    $('rvBack').onclick = () => { if (_showImportPreview) _showImportPreview(); else closeModal(); };
+    $('rvGo').onclick = () => runImport();
+  }
 
   async function runImport() {
     const rows = _csvRows || []; if (!rows.length) return;

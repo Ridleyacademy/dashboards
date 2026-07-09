@@ -125,6 +125,26 @@
     .mc-filter-check{ display:flex; align-items:center; gap:7px; font-size:0.8rem; color:var(--text); cursor:pointer; }
     .mc-filter-check input{ width:15px; height:15px; cursor:pointer; }
     .mc-loadmore{ width:calc(100% - 24px); margin:8px 12px 4px; justify-content:center; }
+    /* Quick-filter bar (All/Mine/Stale/Duplicates + Overview) */
+    .mc-quickbar{ display:flex; align-items:center; gap:4px; padding:0 12px 8px; }
+    .mc-qf{ background:none; border:none; color:var(--text-muted); font-size:0.78rem; font-weight:600; padding:4px 8px; border-radius:7px; cursor:pointer; }
+    .mc-qf:hover{ color:var(--text); background:var(--surface2); }
+    .mc-qf.active{ color:var(--blue); background:var(--blue-bg); }
+    /* Active-filters bar */
+    .mc-activebar{ display:flex; flex-wrap:wrap; gap:5px; padding:0 12px 8px; }
+    .afchip{ display:inline-flex; align-items:center; gap:5px; background:var(--surface2); border:1px solid var(--border); border-radius:999px; padding:2px 4px 2px 9px; font-size:0.7rem; color:var(--text); }
+    .afchip button{ background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:0.85rem; line-height:1; padding:0 2px; }
+    .afchip button:hover{ color:var(--red); }
+    .mc-filter-dates{ display:flex; align-items:center; gap:6px; font-size:0.78rem; color:var(--text-muted); }
+    .mc-filter-dates input{ background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:5px 7px; color:var(--text); font-size:0.78rem; font-family:inherit; }
+    /* Overview pane */
+    .mc-overview{ padding:12px; overflow-y:auto; }
+    .ov-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px; }
+    .ov-card{ background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:10px 12px; }
+    .ov-card .n{ font-size:1.4rem; font-weight:800; }
+    .ov-card .l{ font-size:0.7rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; }
+    .ov-reprow{ display:flex; justify-content:space-between; padding:5px 2px; border-bottom:1px solid var(--border); font-size:0.82rem; cursor:pointer; }
+    .ov-reprow:hover{ color:var(--blue); }
     @media(max-width:640px){ .sec-grid{ grid-template-columns:1fr; } }
     .sec{ }
     .sec-t{ font-size:0.7rem; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-dim); font-weight:800; margin:0 0 8px; }
@@ -212,6 +232,14 @@
         <div class="mc-list-title">Students <span class="mc-count" id="mcCount"></span></div>
         <button class="tbtn tbtn-primary" id="newBtn">＋ New</button>
       </div>
+      <div class="mc-quickbar" id="mcQuickBar">
+        <button class="mc-qf active" data-view="all">All</button>
+        <button class="mc-qf" data-view="mine">Mine</button>
+        <button class="mc-qf" data-view="stale">Stale</button>
+        <button class="mc-qf" data-view="duplicates">Duplicates</button>
+        <span style="flex:1"></span>
+        <button class="mc-qf" id="mcOverviewBtn" title="Aggregate stats">▤ Overview</button>
+      </div>
       <input class="mc-search" id="mcSearch" placeholder="Search name, email, rep…">
       <div class="mc-chips" id="mcChips">
         <button class="mc-chip active" data-f="all">All</button>
@@ -233,12 +261,15 @@
         <select id="afInactive"><option value="">Any activity</option><option value="30">Inactive 30d+</option><option value="60">Inactive 60d+</option><option value="90">Inactive 90d+</option><option value="180">Inactive 180d+</option></select>
         <select id="afSms"><option value="">SMS: any</option><option value="1">SMS opted-in</option><option value="0">SMS not opted-in</option></select>
         <select id="afSort"><option value="name">Sort: Name</option><option value="last_activity">Sort: Last active</option><option value="sign_ins">Sort: Most sign-ins</option></select>
+        <div class="mc-filter-dates"><span>Joined</span><input type="date" id="afJoinedFrom"><span>–</span><input type="date" id="afJoinedTo"></div>
         <label class="mc-filter-check"><input type="checkbox" id="afVerified"> Verified</label>
         <label class="mc-filter-check"><input type="checkbox" id="afRecent"> Contacted ≤7d</label>
         <label class="mc-filter-check"><input type="checkbox" id="afWins"> Has wins</label>
         <button class="lnk" id="afClear">Clear filters</button>
       </div>
+      <div class="mc-activebar hidden" id="mcActiveBar"></div>
       <div class="mc-list" id="mcList"><div class="mc-empty">Loading…</div></div>
+      <div class="mc-overview hidden" id="mcOverview"></div>
       <button class="tbtn mc-loadmore hidden" id="mcLoadMore">Load more ↓</button>
     </aside>
 

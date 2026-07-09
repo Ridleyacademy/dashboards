@@ -16,6 +16,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v475', title: 'Masterclass CRM — quick views, active filters, overview', items: [
+      'Quick-filter bar above the list: All / Mine (students assigned to you) / Stale (assigned but no rep contact in 30 days) / Duplicates (same name).',
+      'Active-filters bar shows every applied filter as a chip you can remove (plus “Clear all”), and the Filters panel gained a “Joined between” date range.',
+      'Overview button: a health snapshot — totals by status, no-rep, inactive-90d, open alerts, verified/winning, and students-per-rep (click a rep to filter to them).',
+    ]},
     { version: 'v474', title: 'Masterclass CRM — tags + engagement segmenting', items: [
       'Tags are now editable on a student (add/remove) and filterable in the list — segment by things like “Started course”, “70%+”, “inactive”, “Phone sale”, ad source, etc.',
       'New list filters: by tag, source and SMS opt-in, plus an “Inactive 30/60/90/180 days” filter and Sort by Last active or Most sign-ins. A red “inactive Nd” badge flags students with no activity for 90+ days.',

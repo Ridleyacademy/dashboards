@@ -15,7 +15,9 @@
   let filter = 'all';
   let query = '';
   let editing = false;
-  const advFilters = { rep: '', level: '', repStatus: '', verified: false, recent: false, wins: false, tag: '', source: '', sms: '', inactive: '', sort: 'name' };
+  const advFilters = { rep: '', level: '', repStatus: '', verified: false, recent: false, wins: false, tag: '', source: '', sms: '', inactive: '', sort: 'name', joinedFrom: '', joinedTo: '' };
+  let view = 'all';          // quick-filter bar: all | mine | stale | duplicates
+  let overviewMode = false;
   // Rep Area (contacts + rep status). repDataMap: student_id -> { status, status_at, last_contact_date, recently_contacted }
   let repDataMap = {};
   let repStatusOptions = ['Hot', 'Warm', 'Cold', 'Qualified', 'Not qualified', 'Needs help', 'Do not contact'];
@@ -75,6 +77,9 @@
     if (advFilters.sms) p.set('sms', advFilters.sms);
     if (advFilters.inactive) p.set('inactive_days', advFilters.inactive);
     if (advFilters.sort && advFilters.sort !== 'name') p.set('sort', advFilters.sort);
+    if (advFilters.joinedFrom) p.set('joined_from', advFilters.joinedFrom);
+    if (advFilters.joinedTo) p.set('joined_to', advFilters.joinedTo);
+    if (view && view !== 'all') p.set('view', view);
     return p;
   }
   async function loadList(reset = true) {
@@ -106,7 +111,75 @@
     const n = (advFilters.rep ? 1 : 0) + (advFilters.level ? 1 : 0) + (advFilters.repStatus ? 1 : 0) + (advFilters.verified ? 1 : 0) + (advFilters.recent ? 1 : 0) + (advFilters.wins ? 1 : 0) + (advFilters.tag ? 1 : 0) + (advFilters.source ? 1 : 0) + (advFilters.sms ? 1 : 0) + (advFilters.inactive ? 1 : 0);
     const el = $('mcFilterCount'); if (el) el.textContent = n ? String(n) : '';
   }
+  // Active-filters bar: a removable chip per applied filter.
+  function renderActiveBar() {
+    const bar = $('mcActiveBar'); if (!bar) return;
+    const chips = [];
+    const add = (key, label) => chips.push(`<span class="afchip">${esc(label)}<button data-clear="${key}" title="Remove">×</button></span>`);
+    if (query) add('query', `“${query}”`);
+    if (filter && filter !== 'all') add('filter', filter === 'alerts' ? 'Has alerts' : filter === 'winning' ? 'Winning' : filter);
+    if (advFilters.rep) add('rep', 'Rep: ' + advFilters.rep);
+    if (advFilters.level) add('level', 'Level: ' + advFilters.level);
+    if (advFilters.repStatus) add('repStatus', 'Rep status: ' + advFilters.repStatus);
+    if (advFilters.tag) add('tag', 'Tag: ' + advFilters.tag);
+    if (advFilters.source) add('source', 'Source: ' + advFilters.source);
+    if (advFilters.sms) add('sms', advFilters.sms === '1' ? 'SMS opted-in' : 'SMS not opted-in');
+    if (advFilters.inactive) add('inactive', 'Inactive ' + advFilters.inactive + 'd+');
+    if (advFilters.verified) add('verified', 'Verified');
+    if (advFilters.recent) add('recent', 'Contacted ≤7d');
+    if (advFilters.wins) add('wins', 'Has wins');
+    if (advFilters.joinedFrom || advFilters.joinedTo) add('joined', 'Joined ' + (advFilters.joinedFrom || '…') + '–' + (advFilters.joinedTo || '…'));
+    bar.innerHTML = chips.length ? chips.join('') + '<button class="afchip" data-clear="__all" style="cursor:pointer">Clear all</button>' : '';
+    bar.classList.toggle('hidden', !chips.length);
+  }
+  function clearFilter(key) {
+    if (key === 'query') { query = ''; $('mcSearch').value = ''; }
+    else if (key === 'filter') { filter = 'all'; [...$('mcChips').children].forEach(x => x.classList.toggle('active', x.dataset.f === 'all')); }
+    else if (key === 'joined') { advFilters.joinedFrom = ''; advFilters.joinedTo = ''; $('afJoinedFrom').value = ''; $('afJoinedTo').value = ''; }
+    else if (key === '__all') {
+      query = ''; $('mcSearch').value = ''; filter = 'all'; [...$('mcChips').children].forEach(x => x.classList.toggle('active', x.dataset.f === 'all'));
+      Object.assign(advFilters, { rep: '', level: '', repStatus: '', verified: false, recent: false, wins: false, tag: '', source: '', sms: '', inactive: '', joinedFrom: '', joinedTo: '' });
+      ['afRep', 'afLevel', 'afRepStatus', 'afTag', 'afSource', 'afJoinedFrom', 'afJoinedTo'].forEach(id => { const el = $(id); if (el) el.value = ''; });
+      $('afSms').value = ''; $('afInactive').value = '';
+      ['afVerified', 'afRecent', 'afWins'].forEach(id => { $(id).checked = false; });
+    } else {
+      advFilters[key] = (key === 'verified' || key === 'recent' || key === 'wins') ? false : '';
+      const ctl = { rep: 'afRep', level: 'afLevel', repStatus: 'afRepStatus', tag: 'afTag', source: 'afSource', sms: 'afSms', inactive: 'afInactive', verified: 'afVerified', recent: 'afRecent', wins: 'afWins' }[key];
+      const el = ctl && $(ctl); if (el) { if (el.type === 'checkbox') el.checked = false; else el.value = ''; }
+    }
+    updateFilterCount(); loadList(true);
+  }
+  // ── Overview pane (aggregate health snapshot) ──
+  function toggleOverview(on) {
+    overviewMode = on;
+    $('mcOverviewBtn').classList.toggle('active', on);
+    $('mcList').classList.toggle('hidden', on);
+    $('mcOverview').classList.toggle('hidden', !on);
+    $('mcLoadMore').classList.add('hidden');
+    if (on) loadOverview();
+  }
+  async function loadOverview() {
+    const box = $('mcOverview'); box.innerHTML = '<div class="mc-empty">Loading…</div>';
+    try {
+      const j = await mcFetch('?api=overview');
+      const card = (n, l) => `<div class="ov-card"><div class="n">${(n || 0).toLocaleString()}</div><div class="l">${esc(l)}</div></div>`;
+      const reps = (j.top_reps || []).map(r => `<div class="ov-reprow" data-rep="${esc(r.rep)}"><span>${esc(r.rep)}</span><span>${r.n}</span></div>`).join('') || '<div class="item-meta">No reps assigned yet.</div>';
+      box.innerHTML = `<div class="ov-grid">
+          ${card(j.total, 'Total students')}${card(j.active, 'Active')}
+          ${card(j.completed, 'Completed')}${card(j.refunded, 'Refunded')}
+          ${card(j.dead_file, 'Dead file')}${card(j.no_rep, 'No rep assigned')}
+          ${card(j.inactive_90, 'Inactive 90d+')}${card(j.open_alerts, 'Open alerts')}
+          ${card(j.verified, 'Verified')}${card(j.winning, 'Winning')}
+        </div>
+        <div class="sec-t" style="margin:4px 2px 6px">Students per rep (click to filter)</div>${reps}`;
+      box.querySelectorAll('.ov-reprow').forEach(r => r.addEventListener('click', () => {
+        toggleOverview(false); advFilters.rep = r.dataset.rep; const el = $('afRep'); if (el) el.value = r.dataset.rep; updateFilterCount(); loadList(true);
+      }));
+    } catch (e) { box.innerHTML = `<div class="mc-empty" style="color:var(--red)">${esc(e.message)}</div>`; }
+  }
+
   function renderList() {
+    renderActiveBar();
     const rows = students;
     $('mcCount').textContent = rows.length < listTotal ? `${rows.length} / ${listTotal}` : `${listTotal}`;
     const lm = $('mcLoadMore'); if (lm) lm.classList.toggle('hidden', rows.length >= listTotal);
@@ -139,13 +212,18 @@
     advFilters.verified = $('afVerified').checked; advFilters.recent = $('afRecent').checked; advFilters.wins = $('afWins').checked;
     advFilters.tag = $('afTag').value.trim(); advFilters.source = $('afSource').value.trim();
     advFilters.sms = $('afSms').value; advFilters.inactive = $('afInactive').value; advFilters.sort = $('afSort').value;
+    advFilters.joinedFrom = $('afJoinedFrom').value; advFilters.joinedTo = $('afJoinedTo').value;
     updateFilterCount(); loadList(true);
   };
-  ['afRep', 'afLevel', 'afRepStatus', 'afSms', 'afInactive', 'afSort'].forEach(id => $(id).addEventListener('change', _afApply));
+  ['afRep', 'afLevel', 'afRepStatus', 'afSms', 'afInactive', 'afSort', 'afJoinedFrom', 'afJoinedTo'].forEach(id => $(id).addEventListener('change', _afApply));
+  // Quick-filter bar (All/Mine/Stale/Duplicates)
+  $('mcQuickBar').addEventListener('click', (e) => { const b = e.target.closest('.mc-qf[data-view]'); if (!b) return; view = b.dataset.view; [...document.querySelectorAll('.mc-qf[data-view]')].forEach(x => x.classList.toggle('active', x === b)); if (overviewMode) toggleOverview(false); loadList(true); });
+  $('mcOverviewBtn').addEventListener('click', () => toggleOverview(!overviewMode));
+  $('mcActiveBar').addEventListener('click', (e) => { const b = e.target.closest('[data-clear]'); if (b) clearFilter(b.dataset.clear); });
   ['afVerified', 'afRecent', 'afWins'].forEach(id => $(id).addEventListener('change', _afApply));
   let _afT; ['afTag', 'afSource'].forEach(id => $(id).addEventListener('input', () => { clearTimeout(_afT); _afT = setTimeout(_afApply, 350); }));
   $('afClear').addEventListener('click', () => {
-    ['afRep', 'afLevel', 'afRepStatus', 'afTag', 'afSource'].forEach(id => { $(id).value = ''; });
+    ['afRep', 'afLevel', 'afRepStatus', 'afTag', 'afSource', 'afJoinedFrom', 'afJoinedTo'].forEach(id => { $(id).value = ''; });
     $('afSms').value = ''; $('afInactive').value = ''; $('afSort').value = 'name';
     ['afVerified', 'afRecent', 'afWins'].forEach(id => { $(id).checked = false; });
     _afApply();

@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v482', title: 'Masterclass CRM — import no longer aborts on a bad cell', items: [
+      'Fixed the CSV import failing partway (“invalid input syntax for type integer”) when a stray value — e.g. a date — landed in the Sign-in Count column. Bad numeric/date cells are now safely ignored (treated as 0/empty) instead of stopping the whole run. Re-run the import and it will complete; already-processed rows are unaffected.',
+    ]},
     { version: 'v481', title: 'Masterclass CRM — re-upload the CSV to refresh activity', items: [
       'New “Import CSV” button on the Queues bar (edit access): re-upload the Kajabi export any time to refresh every student’s activity (last sign-in / last activity / sign-in count) and fill in missing contact details. It updates — it never replaces: your reps, statuses, notes and in-CRM tags are kept, tags are merged, and brand-new emails are added.',
       'Parses the file in your browser (handles the semicolon format and day-first dates), shows how many rows will import, then runs in batches with a progress bar and a summary (updated / added / new starters).',

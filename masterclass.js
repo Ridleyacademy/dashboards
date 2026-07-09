@@ -900,7 +900,8 @@
       country: csvFirst(r, ['Country (address_country)', 'Country (custom_2)']),
       zip: csvFirst(r, ['Zip Code (address_zip)']),
       source: csvFirst(r, ['Source (custom_14)']),
-      sign_in_count: csvFirst(r, ['Sign In Count', 'Number of Sing in (custom_17)']),
+      // Digits only — guard against a date landing in this column (custom_17 can hold dates).
+      sign_in_count: (csvFirst(r, ['Sign In Count']).match(/^\d{1,9}$/) || [''])[0],
       last_activity_at: kajabiDateToISO(csvFirst(r, ['Last Activity'])),
       last_sign_in_at: kajabiDateToISO(csvFirst(r, ['Last Sign In At'])),
       tags: splitList(csvFirst(r, ['Tags'])),

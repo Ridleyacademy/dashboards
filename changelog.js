@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v478', title: 'Masterclass CRM — fix the Dashboards picker', items: [
+      'The “Dashboards ▾” picker in the Masterclass CRM top bar did nothing when clicked — the open/close handler was never wired on this page. It now opens and closes like every other dashboard.',
+    ]},
     { version: 'v477', title: 'Masterclass CRM — bulk actions', items: [
       'New “⇉ Bulk actions” button on the Queues bar (edit access): assign a rep, clear the rep, add a tag, or remove a tag across every student matching your current filters — search, status chips, quick-filters, and advanced filters all count.',
       'The dialog shows a live count of exactly how many students will be affected before you confirm, so you can narrow the filters first. Reassigning reps works at any scale; tag changes are capped at 20,000 per run (narrow the filter and repeat for larger sets).',

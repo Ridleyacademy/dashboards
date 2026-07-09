@@ -1,1 +1,1 @@
-2026-07-09T00:00:00Z-v477-masterclass-bulk-actions
+2026-07-09T01:00:00Z-v478-masterclass-picker-fix

@@ -836,6 +836,14 @@
   $('newBtn').addEventListener('click', newStudent);
   $('signOutBtn').addEventListener('click', async () => { try { await supa.auth.signOut(); } catch (_) {} location.href = 'index.html'; });
 
+  // ── Dashboard picker dropdown (nav-menu.js fills the menu; we wire open/close) ──
+  $('navDropdownBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    const m = $('navDropMenu');
+    m.style.display = m.style.display === 'block' ? 'none' : 'block';
+  });
+  document.addEventListener('click', () => { const m = $('navDropMenu'); if (m) m.style.display = 'none'; });
+
   // ── Init ──
   (async function init() {
     const { data: { session } } = await supa.auth.getSession();

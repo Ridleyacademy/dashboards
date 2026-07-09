@@ -149,6 +149,8 @@
     .mc-overview{ padding:12px; overflow-y:auto; }
     .ov-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px; }
     .ov-card{ background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:10px 12px; }
+    .ov-card.ov-clk{ cursor:pointer; transition:border-color 0.12s, background 0.12s; }
+    .ov-card.ov-clk:hover{ border-color:var(--green); background:var(--green-bg); }
     .ov-card .n{ font-size:1.4rem; font-weight:800; }
     .ov-card .l{ font-size:0.7rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; }
     .ov-reprow{ display:flex; justify-content:space-between; padding:5px 2px; border-bottom:1px solid var(--border); font-size:0.82rem; cursor:pointer; }
@@ -232,8 +234,10 @@
     <button class="tbtn" id="gqTurnovers" title="All turn-overs (or the ones you're on)">↪ Turn-overs</button>
     <button class="tbtn" id="gqContacts" title="All logged contacts (or yours)">✆ Contacts</button>
     <span style="flex:1"></span>
+    <button class="tbtn hidden" id="gqImport" title="Re-upload the Kajabi CSV to refresh activity &amp; enrich data (updates, never replaces)"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Import CSV</button>
     <button class="tbtn tbtn-primary hidden" id="gqBulk" title="Assign a rep or add a tag to every student matching the current filters">⇉ Bulk actions</button>
   </div>
+  <input type="file" id="mcCsvFile" accept=".csv,text/csv" style="display:none">
 
   <div class="mc-wrap">
     <!-- List -->
@@ -246,6 +250,8 @@
         <button class="mc-qf active" data-view="all">All</button>
         <button class="mc-qf" data-view="mine">Mine</button>
         <button class="mc-qf" data-view="stale">Stale</button>
+        <button class="mc-qf" data-view="starters" title="Students whose first activity was recorded (Masterclass Starters)">Starters</button>
+        <button class="mc-qf" data-view="active" title="Active this week (Last Activity in the current Thu–Wed week)">Active</button>
         <button class="mc-qf" data-view="duplicates">Duplicates</button>
         <span style="flex:1"></span>
         <button class="mc-qf" id="mcOverviewBtn" title="Aggregate stats">▤ Overview</button>

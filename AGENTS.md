@@ -329,6 +329,34 @@ never a full-color pictographic emoji.
 
 ---
 
+## Masterclass CRM — CSV re-import & engagement tracking (v481+)
+
+The "Import CSV" button (Queues bar, edit-gated) re-uploads the Kajabi export to
+keep the CRM current. Flow: browser parses the file (semicolon-delimited,
+windows-1252, **day-first `DD/MM/YYYY HH:MM` dates** → ISO), maps columns to
+normalized rows, and POSTs to `masterclass?api=import` in 500-row batches. The
+endpoint calls the guarded `mc_import_batch(_rows jsonb)` RPC (SECURITY DEFINER,
+service_role only) which merges **set-based, matched on `lower(email)`**:
+
+- **Enrich, never replace.** Activity (`last_activity_at`, `last_sign_in_at`,
+  `sign_in_count`) is refreshed via `greatest(...)`; other CSV fields only fill
+  blanks; tags/products are **unioned**. CRM-owned fields (rep, status,
+  dead_file/verified, notes) are never touched. New emails are inserted.
+- **`started_at`** (a "Masterclass Starter") is stamped only on the
+  **no-activity → activity transition**, so the ~27,944 already-active students
+  are never counted (their start predates tracking) and only newly-active
+  students register going forward. Do NOT backfill `started_at` from historical
+  `last_activity_at` — that would flood the stat.
+- **Week = current Thu–Wed** (`weekStartDate()`), matching weekly-stats. Overview
+  exposes `starters_total` / `started_week` / `active_week`; list `view=starters`
+  and `view=active` filter to them.
+
+The email index (`mc_students_email_idx`) is **non-unique** (known duplicates),
+so the RPC updates all rows sharing an email. Migrations:
+`masterclass_started_at`, `masterclass_import_batch_rpc`.
+
+---
+
 ## Service worker + version check
 
 `sw.js` does network-first for HTML, stale-while-revalidate for assets,

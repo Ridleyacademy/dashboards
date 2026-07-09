@@ -170,16 +170,24 @@
     const box = $('mcOverview'); box.innerHTML = '<div class="mc-empty">Loading…</div>';
     try {
       const j = await mcFetch('?api=overview');
-      const card = (n, l) => `<div class="ov-card"><div class="n">${(n || 0).toLocaleString()}</div><div class="l">${esc(l)}</div></div>`;
+      const card = (n, l, view) => `<div class="ov-card${view ? ' ov-clk' : ''}"${view ? ` data-view="${view}"` : ''}><div class="n">${(n || 0).toLocaleString()}</div><div class="l">${esc(l)}</div></div>`;
       const reps = (j.top_reps || []).map(r => `<div class="ov-reprow" data-rep="${esc(r.rep)}"><span>${esc(r.rep)}</span><span>${r.n}</span></div>`).join('') || '<div class="item-meta">No reps assigned yet.</div>';
       box.innerHTML = `<div class="ov-grid">
-          ${card(j.total, 'Total students')}${card(j.active, 'Active')}
-          ${card(j.completed, 'Completed')}${card(j.refunded, 'Refunded')}
-          ${card(j.dead_file, 'Dead file')}${card(j.no_rep, 'No rep assigned')}
-          ${card(j.inactive_90, 'Inactive 90d+')}${card(j.open_alerts, 'Open alerts')}
-          ${card(j.verified, 'Verified')}${card(j.winning, 'Winning')}
+          ${card(j.active_week, 'Active Masterclass students (this week)', 'active')}${card(j.started_week, 'New Starters (this week)', 'starters')}
+          ${card(j.starters_total, 'Masterclass Starters (tracked)', 'starters')}${card(j.total, 'Total students')}
+          ${card(j.active, 'Active (status)')}${card(j.completed, 'Completed')}
+          ${card(j.refunded, 'Refunded')}${card(j.dead_file, 'Dead file')}
+          ${card(j.no_rep, 'No rep assigned')}${card(j.inactive_90, 'Inactive 90d+')}
+          ${card(j.open_alerts, 'Open alerts')}${card(j.verified, 'Verified')}
+          ${card(j.winning, 'Winning')}
         </div>
+        <div class="item-meta" style="margin:2px 2px 8px">Week = current Thu–Wed period${j.week_start ? ' (from ' + esc(j.week_start) + ')' : ''}. Starters are tracked from first activity seen going forward.</div>
         <div class="sec-t" style="margin:4px 2px 6px">Students per rep (click to filter)</div>${reps}`;
+      box.querySelectorAll('.ov-card.ov-clk').forEach(c => c.addEventListener('click', () => {
+        const v = c.dataset.view; view = v;
+        [...document.querySelectorAll('.mc-qf[data-view]')].forEach(x => x.classList.toggle('active', x.dataset.view === v));
+        toggleOverview(false); loadList(true);
+      }));
       box.querySelectorAll('.ov-reprow').forEach(r => r.addEventListener('click', () => {
         toggleOverview(false); advFilters.rep = r.dataset.rep; const el = $('afRep'); if (el) el.value = r.dataset.rep; updateFilterCount(); loadList(true);
       }));
@@ -189,6 +197,7 @@
   function renderList() {
     renderActiveBar();
     const gqb = $('gqBulk'); if (gqb) gqb.classList.toggle('hidden', !caps.can_edit);
+    const gqi = $('gqImport'); if (gqi) gqi.classList.toggle('hidden', !caps.can_edit);
     const rows = students;
     $('mcCount').textContent = rows.length < listTotal ? `${rows.length} / ${listTotal}` : `${listTotal}`;
     const lm = $('mcLoadMore'); if (lm) lm.classList.toggle('hidden', rows.length >= listTotal);
@@ -820,6 +829,149 @@
     };
   }
   $('gqBulk').addEventListener('click', openBulkModal);
+
+  // ── CSV re-import (Kajabi export) ──────────────────────────────────────────
+  // Parses the semicolon-delimited, windows-1252 Kajabi CSV in the browser,
+  // maps columns → normalized rows (day-first dates → ISO), and posts them to
+  // ?api=import in batches. Enriches + refreshes activity; never replaces CRM
+  // edits. Stamps started_at on the no-activity→activity transition so we can
+  // track Masterclass Starters + Active-this-week going forward.
+  const CSV_BATCH = 500;
+  // Split one CSV line honoring quoted fields (delimiter is ; for Kajabi).
+  function splitCsvLine(line, delim) {
+    const out = []; let cur = ''; let q = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (q) { if (c === '"') { if (line[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += c; }
+      else if (c === '"') q = true;
+      else if (c === delim) { out.push(cur); cur = ''; }
+      else cur += c;
+    }
+    out.push(cur); return out;
+  }
+  // Full parse: handles quoted fields spanning newlines. Returns {headers, rows}.
+  function parseCsv(text) {
+    // Strip BOM.
+    if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+    // Delimiter: whichever of ; or , appears more in the first line.
+    const firstNL = text.indexOf('\n'); const head = text.slice(0, firstNL < 0 ? text.length : firstNL);
+    const delim = (head.split(';').length > head.split(',').length) ? ';' : ',';
+    // Split into records honoring quotes across newlines.
+    const records = []; let field = ''; let row = []; let q = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (q) { if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else q = false; } else field += c; }
+      else if (c === '"') q = true;
+      else if (c === delim) { row.push(field); field = ''; }
+      else if (c === '\n' || c === '\r') { if (c === '\r' && text[i + 1] === '\n') i++; row.push(field); field = ''; if (row.length > 1 || row[0] !== '') records.push(row); row = []; }
+      else field += c;
+    }
+    if (field !== '' || row.length) { row.push(field); if (row.length > 1 || row[0] !== '') records.push(row); }
+    if (!records.length) return { headers: [], rows: [] };
+    const headers = records[0].map(h => h.trim());
+    const rows = records.slice(1).map(r => { const o = {}; headers.forEach((h, i) => { o[h] = (r[i] == null ? '' : r[i]).trim(); }); return o; });
+    return { headers, rows };
+  }
+  // Day-first "DD/MM/YYYY HH:MM" → ISO (UTC). Returns '' if unparseable.
+  function kajabiDateToISO(s) {
+    if (!s) return '';
+    const m = String(s).trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:[ T](\d{1,2}):(\d{2}))?/);
+    if (!m) return '';
+    const d = new Date(Date.UTC(+m[3], +m[2] - 1, +m[1], +(m[4] || 0), +(m[5] || 0)));
+    return isNaN(d.getTime()) ? '' : d.toISOString();
+  }
+  const csvFirst = (r, keys) => { for (const k of keys) { const v = (r[k] || '').trim(); if (v) return v; } return ''; };
+  const splitList = (s) => (s || '').split(',').map(x => x.trim()).filter(Boolean);
+  // One raw CSV row object → normalized import row (keeps the whole raw row as kajabi).
+  function normalizeCsvRow(r) {
+    const email = csvFirst(r, ['Email', 'Email (email)', 'email']).toLowerCase();
+    if (!email) return null;
+    const smsRaw = csvFirst(r, ['By checking this box, you are opting in to receive SMS messaging and agree to the Terms of Service & Privacy Policy. Reply STOP to cancel, HELP for help. Msg & data rates may apply. Msg frequency varies.  (custom_25)']);
+    const out = {
+      email,
+      first_name: csvFirst(r, ['First Name']),
+      last_name: csvFirst(r, ['Last Name']),
+      phone: csvFirst(r, ['Phone Number', 'Phone (custom_1)', 'Phone Number (phone_number)']),
+      mobile_phone: csvFirst(r, ['Phone Number (phone_number)']),
+      address_line1: csvFirst(r, ['Address (address_line_1)']),
+      address_line2: csvFirst(r, ['Address Line 2 (address_line_2)']),
+      city: csvFirst(r, ['City (address_city)']),
+      state: csvFirst(r, ['State (address_state)']),
+      country: csvFirst(r, ['Country (address_country)', 'Country (custom_2)']),
+      zip: csvFirst(r, ['Zip Code (address_zip)']),
+      source: csvFirst(r, ['Source (custom_14)']),
+      sign_in_count: csvFirst(r, ['Sign In Count', 'Number of Sing in (custom_17)']),
+      last_activity_at: kajabiDateToISO(csvFirst(r, ['Last Activity'])),
+      last_sign_in_at: kajabiDateToISO(csvFirst(r, ['Last Sign In At'])),
+      tags: splitList(csvFirst(r, ['Tags'])),
+      products: splitList(csvFirst(r, ['Products'])),
+      kajabi: r,
+    };
+    if (smsRaw) out.sms_opt_in = true;
+    return out;
+  }
+
+  let _csvRows = null;
+  $('gqImport').addEventListener('click', () => { if (caps.can_edit) $('mcCsvFile').click(); });
+  $('mcCsvFile').addEventListener('change', async (e) => {
+    const file = e.target.files && e.target.files[0]; e.target.value = '';
+    if (!file) return;
+    openModal(`<h3>⭱ Import CSV</h3><p class="item-meta" id="imMsg">Reading <b>${esc(file.name)}</b>…</p>`);
+    try {
+      const buf = await file.arrayBuffer();
+      // Kajabi exports as windows-1252; decode accordingly to keep accents intact.
+      let text; try { text = new TextDecoder('windows-1252').decode(buf); } catch (_) { text = new TextDecoder('utf-8').decode(buf); }
+      const { headers, rows } = parseCsv(text);
+      if (!rows.length) { $('imMsg').innerHTML = 'No rows found in the file.'; return; }
+      const norm = []; let noEmail = 0;
+      for (const r of rows) { const n = normalizeCsvRow(r); if (n) norm.push(n); else noEmail++; }
+      _csvRows = norm;
+      const hasEmailCol = headers.some(h => /^email/i.test(h));
+      openModal(`<h3>⭱ Import CSV</h3>
+        <p style="color:var(--text-muted);font-size:0.9rem;margin:0 0 6px"><b>${esc(file.name)}</b></p>
+        <div class="item-meta" style="line-height:1.7">
+          Parsed <b>${rows.length.toLocaleString()}</b> rows · <b>${norm.length.toLocaleString()}</b> with an email will be imported${noEmail ? ` · <b>${noEmail.toLocaleString()}</b> skipped (no email)` : ''}.<br>
+          Existing students are <b>enriched</b> (activity refreshed, blanks filled, tags merged) — your reps, statuses, and notes are never overwritten. New emails are added.
+        </div>
+        ${!hasEmailCol ? '<div class="item-meta" style="color:var(--red);margin-top:8px">⚠ No “Email” column detected — this may not be the Kajabi export.</div>' : ''}
+        <div class="modal-row" style="margin-top:14px"><button class="tbtn" id="imCancel">Cancel</button><button class="tbtn tbtn-primary" id="imGo"${norm.length ? '' : ' disabled'}>Import ${norm.length.toLocaleString()} students</button></div>`);
+      $('imCancel').onclick = closeModal;
+      $('imGo').onclick = () => runImport();
+    } catch (err) { $('imMsg').innerHTML = `<span style="color:var(--red)">Could not read file: ${esc(err.message)}</span>`; }
+  });
+
+  async function runImport() {
+    const rows = _csvRows || []; if (!rows.length) return;
+    const total = rows.length; let done = 0;
+    const agg = { inserted: 0, updated: 0, new_starters: 0 };
+    openModal(`<h3>Importing…</h3>
+      <div class="item-meta" id="imProg">0 / ${total.toLocaleString()}</div>
+      <div style="height:8px;background:var(--surface2);border-radius:999px;overflow:hidden;margin-top:10px"><div id="imBar" style="height:100%;width:0;background:var(--green);transition:width 0.2s"></div></div>`);
+    try {
+      for (let i = 0; i < total; i += CSV_BATCH) {
+        const batch = rows.slice(i, i + CSV_BATCH);
+        const j = await mcFetch('?api=import', { method: 'POST', body: JSON.stringify({ rows: batch }) });
+        agg.inserted += j.inserted || 0; agg.updated += j.updated || 0; agg.new_starters += j.new_starters || 0;
+        done += batch.length;
+        const pct = Math.round((done / total) * 100);
+        if ($('imProg')) $('imProg').textContent = `${done.toLocaleString()} / ${total.toLocaleString()} (${pct}%)`;
+        if ($('imBar')) $('imBar').style.width = pct + '%';
+      }
+      openModal(`<h3>✓ Import complete</h3>
+        <div class="item-meta" style="line-height:1.8">
+          <b>${agg.updated.toLocaleString()}</b> students updated<br>
+          <b>${agg.inserted.toLocaleString()}</b> new students added<br>
+          <b>${agg.new_starters.toLocaleString()}</b> new Masterclass Starter(s) this week
+        </div>
+        <div class="modal-row" style="margin-top:14px"><button class="tbtn tbtn-primary" id="imDone">Done</button></div>`);
+      $('imDone').onclick = closeModal;
+      _csvRows = null;
+      loadList(true); if (overviewMode) loadOverview();
+    } catch (e) {
+      openModal(`<h3>Import failed</h3><p class="item-meta" style="color:var(--red)">${esc(e.message)}</p><div class="item-meta">${done.toLocaleString()} of ${total.toLocaleString()} rows were processed before the error.</div><div class="modal-row" style="margin-top:12px"><button class="tbtn" id="imErr">Close</button></div>`);
+      $('imErr').onclick = closeModal; loadList(true);
+    }
+  }
 
   // Multi-value email/phone add/remove (delegated once; profile re-renders often).
   $('mcProfile').addEventListener('click', (e) => {

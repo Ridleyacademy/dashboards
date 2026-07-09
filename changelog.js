@@ -16,6 +16,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v481', title: 'Masterclass CRM — re-upload the CSV to refresh activity', items: [
+      'New “Import CSV” button on the Queues bar (edit access): re-upload the Kajabi export any time to refresh every student’s activity (last sign-in / last activity / sign-in count) and fill in missing contact details. It updates — it never replaces: your reps, statuses, notes and in-CRM tags are kept, tags are merged, and brand-new emails are added.',
+      'Parses the file in your browser (handles the semicolon format and day-first dates), shows how many rows will import, then runs in batches with a progress bar and a summary (updated / added / new starters).',
+      'Automatic tracking: the first time an import records activity for a student, that becomes their “Masterclass Starter” date. New quick-filters “Starters” and “Active” (active this week), plus Overview tiles for “Active Masterclass students (this week)” and “New Starters (this week)”. Week = the current Thu–Wed period.',
+    ]},
     { version: 'v480', title: 'Masterclass CRM — Filters button restyled', items: [
       'The “Filters” control is now a proper rounded pill with a funnel icon and a count badge, matching the Mentorship CRM — instead of the plain hyperlink-style text. It turns green when the panel is open or filters are applied.',
     ]},

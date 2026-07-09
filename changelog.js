@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v483', title: 'Masterclass CRM — import only uploads what changed', items: [
+      'Kajabi always exports all ~28k students, so re-importing used to re-send every row. Now the import compares the file against what’s already in the CRM and uploads only students who are new or whose activity actually changed — the unchanged majority is skipped. Re-imports are far lighter and finish in seconds.',
+      'The preview now shows the split before you confirm: “X new to add · Y with new activity to update · Z unchanged (skipped).”',
+    ]},
     { version: 'v482', title: 'Masterclass CRM — import no longer aborts on a bad cell', items: [
       'Fixed the CSV import failing partway (“invalid input syntax for type integer”) when a stray value — e.g. a date — landed in the Sign-in Count column. Bad numeric/date cells are now safely ignored (treated as 0/empty) instead of stopping the whole run. Re-run the import and it will complete; already-processed rows are unaffected.',
     ]},

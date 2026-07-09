@@ -911,6 +911,14 @@
     if (smsRaw) out.sms_opt_in = true;
     return out;
   }
+  // Activity signature — MUST match the server's activity-index format exactly:
+  // "sign_in_count|last_activity_ms|last_sign_in_ms" (empty string when no date).
+  function rowSig(n) {
+    const cnt = parseInt(n.sign_in_count || '0', 10) || 0;
+    const la = n.last_activity_at ? Date.parse(n.last_activity_at) : '';
+    const ls = n.last_sign_in_at ? Date.parse(n.last_sign_in_at) : '';
+    return `${cnt}|${la}|${ls}`;
+  }
 
   let _csvRows = null;
   $('gqImport').addEventListener('click', () => { if (caps.can_edit) $('mcCsvFile').click(); });
@@ -926,16 +934,39 @@
       if (!rows.length) { $('imMsg').innerHTML = 'No rows found in the file.'; return; }
       const norm = []; let noEmail = 0;
       for (const r of rows) { const n = normalizeCsvRow(r); if (n) norm.push(n); else noEmail++; }
-      _csvRows = norm;
       const hasEmailCol = headers.some(h => /^email/i.test(h));
+
+      // Diff against the CRM's activity fingerprint so we only upload what changed.
+      // Kajabi always exports all ~28k rows; most are unchanged week to week.
+      $('imMsg').innerHTML = `Parsed <b>${norm.length.toLocaleString()}</b> students. Checking what changed…`;
+      let index = null;
+      try { const j = await mcFetch('?api=activity-index'); index = j.index || {}; } catch (_) { index = null; }
+
+      let toSend, added = 0, changed = 0, unchanged = 0;
+      if (index) {
+        toSend = [];
+        for (const n of norm) {
+          const cur = index[n.email];
+          if (cur === undefined) { added++; toSend.push(n); }
+          else if (cur !== rowSig(n)) { changed++; toSend.push(n); }
+          else unchanged++;
+        }
+      } else {
+        toSend = norm; // fingerprint unavailable → fall back to sending everything
+      }
+      _csvRows = toSend;
+
+      const breakdown = index
+        ? `<b>${added.toLocaleString()}</b> new to add · <b>${changed.toLocaleString()}</b> existing with new activity to update · <b>${unchanged.toLocaleString()}</b> unchanged (skipped).`
+        : `Couldn’t fetch the change index — will send all <b>${norm.length.toLocaleString()}</b> rows.`;
       openModal(`<h3>⭱ Import CSV</h3>
-        <p style="color:var(--text-muted);font-size:0.9rem;margin:0 0 6px"><b>${esc(file.name)}</b></p>
+        <p style="color:var(--text-muted);font-size:0.9rem;margin:0 0 6px"><b>${esc(file.name)}</b> · ${rows.length.toLocaleString()} rows${noEmail ? ` · ${noEmail.toLocaleString()} skipped (no email)` : ''}</p>
         <div class="item-meta" style="line-height:1.7">
-          Parsed <b>${rows.length.toLocaleString()}</b> rows · <b>${norm.length.toLocaleString()}</b> with an email will be imported${noEmail ? ` · <b>${noEmail.toLocaleString()}</b> skipped (no email)` : ''}.<br>
-          Existing students are <b>enriched</b> (activity refreshed, blanks filled, tags merged) — your reps, statuses, and notes are never overwritten. New emails are added.
+          ${breakdown}<br>
+          Existing students are <b>enriched</b> (activity refreshed, blanks filled, tags merged) — reps, statuses, and notes are never overwritten.
         </div>
         ${!hasEmailCol ? '<div class="item-meta" style="color:var(--red);margin-top:8px">⚠ No “Email” column detected — this may not be the Kajabi export.</div>' : ''}
-        <div class="modal-row" style="margin-top:14px"><button class="tbtn" id="imCancel">Cancel</button><button class="tbtn tbtn-primary" id="imGo"${norm.length ? '' : ' disabled'}>Import ${norm.length.toLocaleString()} students</button></div>`);
+        <div class="modal-row" style="margin-top:14px"><button class="tbtn" id="imCancel">Cancel</button><button class="tbtn tbtn-primary" id="imGo"${_csvRows.length ? '' : ' disabled'}>${_csvRows.length ? 'Import ' + _csvRows.length.toLocaleString() + ' students' : 'Nothing to import'}</button></div>`);
       $('imCancel').onclick = closeModal;
       $('imGo').onclick = () => runImport();
     } catch (err) { $('imMsg').innerHTML = `<span style="color:var(--red)">Could not read file: ${esc(err.message)}</span>`; }

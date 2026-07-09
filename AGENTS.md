@@ -355,6 +355,15 @@ The email index (`mc_students_email_idx`) is **non-unique** (known duplicates),
 so the RPC updates all rows sharing an email. Migrations:
 `masterclass_started_at`, `masterclass_import_batch_rpc`.
 
+**Light re-imports (diff, v483+).** Kajabi always dumps all ~28k rows, so the
+client first GETs `masterclass?api=activity-index` — a compact
+`{ lower(email): "sign_in_count|last_activity_ms|last_sign_in_ms" }` map — and
+uploads only rows that are **new** (email absent) or **changed** (signature
+differs). The client `rowSig()` must stay byte-identical to the server's index
+format (epoch ms via `Date.parse`; empty string when a date is absent), or
+unchanged rows stop matching and get needlessly re-sent. If the index fetch
+fails, the client falls back to sending everything.
+
 ---
 
 ## Service worker + version check

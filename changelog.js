@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v485', title: 'Masterclass CRM — import guards against misaligned rows', items: [
+      'Fixed a bug where a few Kajabi rows with free-text survey answers (which contain line breaks/quotes) parsed with shifted columns — landing a name in the email field and an email in the phone field, and creating junk duplicate students. Those 23 junk rows were removed.',
+      'The importer now rejects any row whose columns don’t line up or whose email isn’t a valid email, and reports them as “skipped (no/invalid email or unparseable)” instead of importing garbage. Clean rows import as normal.',
+    ]},
     { version: 'v484', title: 'Masterclass CRM — “Review rows” before importing', items: [
       'The import preview now has a “Review the N rows to import” link that lists exactly which students will be added (green) or updated (blue), with their email and activity — so you can confirm what’s changing before you commit.',
     ]},

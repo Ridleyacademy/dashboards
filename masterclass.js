@@ -867,10 +867,17 @@
       else field += c;
     }
     if (field !== '' || row.length) { row.push(field); if (row.length > 1 || row[0] !== '') records.push(row); }
-    if (!records.length) return { headers: [], rows: [] };
+    if (!records.length) return { headers: [], rows: [], malformed: 0 };
     const headers = records[0].map(h => h.trim());
-    const rows = records.slice(1).map(r => { const o = {}; headers.forEach((h, i) => { o[h] = (r[i] == null ? '' : r[i]).trim(); }); return o; });
-    return { headers, rows };
+    // A record whose column count != the header count is a desynced parse (an
+    // embedded newline/quote in a free-text field). Drop it rather than map its
+    // values onto the wrong columns.
+    const rows = []; let malformed = 0;
+    for (const r of records.slice(1)) {
+      if (r.length !== headers.length) { malformed++; continue; }
+      const o = {}; headers.forEach((h, i) => { o[h] = (r[i] == null ? '' : r[i]).trim(); }); rows.push(o);
+    }
+    return { headers, rows, malformed };
   }
   // Day-first "DD/MM/YYYY HH:MM" → ISO (UTC). Returns '' if unparseable.
   function kajabiDateToISO(s) {
@@ -882,10 +889,13 @@
   }
   const csvFirst = (r, keys) => { for (const k of keys) { const v = (r[k] || '').trim(); if (v) return v; } return ''; };
   const splitList = (s) => (s || '').split(',').map(x => x.trim()).filter(Boolean);
+  // Basic email shape — rows whose "email" isn't a real email are almost always
+  // a misaligned parse (free-text/survey fields desync columns); we skip them.
+  const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
   // One raw CSV row object → normalized import row (keeps the whole raw row as kajabi).
   function normalizeCsvRow(r) {
     const email = csvFirst(r, ['Email', 'Email (email)', 'email']).toLowerCase();
-    if (!email) return null;
+    if (!EMAIL_RE.test(email)) return null;
     const smsRaw = csvFirst(r, ['By checking this box, you are opting in to receive SMS messaging and agree to the Terms of Service & Privacy Policy. Reply STOP to cancel, HELP for help. Msg & data rates may apply. Msg frequency varies.  (custom_25)']);
     const out = {
       email,
@@ -930,10 +940,11 @@
       const buf = await file.arrayBuffer();
       // Kajabi exports as windows-1252; decode accordingly to keep accents intact.
       let text; try { text = new TextDecoder('windows-1252').decode(buf); } catch (_) { text = new TextDecoder('utf-8').decode(buf); }
-      const { headers, rows } = parseCsv(text);
+      const { headers, rows, malformed } = parseCsv(text);
       if (!rows.length) { $('imMsg').innerHTML = 'No rows found in the file.'; return; }
       const norm = []; let noEmail = 0;
       for (const r of rows) { const n = normalizeCsvRow(r); if (n) norm.push(n); else noEmail++; }
+      const skipped = noEmail + (malformed || 0);
       const hasEmailCol = headers.some(h => /^email/i.test(h));
 
       // Diff against the CRM's activity fingerprint so we only upload what changed.
@@ -961,7 +972,7 @@
         : `Couldn’t fetch the change index — will send all <b>${norm.length.toLocaleString()}</b> rows.`;
       _showImportPreview = () => {
         openModal(`<h3>⭱ Import CSV</h3>
-          <p style="color:var(--text-muted);font-size:0.9rem;margin:0 0 6px"><b>${esc(file.name)}</b> · ${rows.length.toLocaleString()} rows${noEmail ? ` · ${noEmail.toLocaleString()} skipped (no email)` : ''}</p>
+          <p style="color:var(--text-muted);font-size:0.9rem;margin:0 0 6px"><b>${esc(file.name)}</b> · ${(rows.length + (malformed || 0)).toLocaleString()} rows${skipped ? ` · ${skipped.toLocaleString()} skipped (no/invalid email or unparseable)` : ''}</p>
           <div class="item-meta" style="line-height:1.7">
             ${breakdown}<br>
             Existing students are <b>enriched</b> (activity refreshed, blanks filled, tags merged) — reps, statuses, and notes are never overwritten.

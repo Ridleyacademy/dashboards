@@ -364,6 +364,17 @@ format (epoch ms via `Date.parse`; empty string when a date is absent), or
 unchanged rows stop matching and get needlessly re-sent. If the index fetch
 fails, the client falls back to sending everything.
 
+**Parse guards (v485+).** Some Kajabi rows carry free-text survey answers
+(custom_5/6/7) with embedded line breaks/quotes that desync the column split.
+Two guards keep garbage out: `parseCsv` drops any record whose field count ≠
+header count (`malformed`), and `normalizeCsvRow` requires a valid email
+(`EMAIL_RE`) — a misaligned row lands a name in the email cell and is rejected.
+Skipped rows are surfaced in the preview ("skipped (no/invalid email or
+unparseable)"). Affected students are almost always already present under their
+correct row, so skipping loses nothing. (A v484 import created 23 such junk rows
+— name-in-email, email-in-phone — which were deleted; they were the only
+invalid-email rows in the table.)
+
 ---
 
 ## Service worker + version check

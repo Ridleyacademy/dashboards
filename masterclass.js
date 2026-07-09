@@ -109,7 +109,15 @@
   }
   function updateFilterCount() {
     const n = (advFilters.rep ? 1 : 0) + (advFilters.level ? 1 : 0) + (advFilters.repStatus ? 1 : 0) + (advFilters.verified ? 1 : 0) + (advFilters.recent ? 1 : 0) + (advFilters.wins ? 1 : 0) + (advFilters.tag ? 1 : 0) + (advFilters.source ? 1 : 0) + (advFilters.sms ? 1 : 0) + (advFilters.inactive ? 1 : 0);
-    const el = $('mcFilterCount'); if (el) el.textContent = n ? String(n) : '';
+    const el = $('mcFilterCount'); if (el) { el.textContent = String(n); el.style.display = n ? '' : 'none'; }
+    refreshFilterToggle();
+  }
+  // The Filters pill reads "active" (green) when the panel is open OR filters are applied.
+  function refreshFilterToggle() {
+    const btn = $('mcFilterToggle'); if (!btn) return;
+    const open = !$('mcFilters').classList.contains('hidden');
+    const has = (parseInt($('mcFilterCount')?.textContent || '0', 10) || 0) > 0;
+    btn.classList.toggle('active', open || has);
   }
   // Active-filters bar: a removable chip per applied filter.
   function renderActiveBar() {
@@ -207,7 +215,7 @@
   $('mcChips').addEventListener('click', (e) => { const c = e.target.closest('.mc-chip'); if (!c) return; filter = c.dataset.f; [...$('mcChips').children].forEach(x => x.classList.toggle('active', x === c)); loadList(true); });
   const lmBtn = $('mcLoadMore'); if (lmBtn) lmBtn.addEventListener('click', () => loadList(false));
   // Advanced filter panel
-  $('mcFilterToggle').addEventListener('click', () => { const p = $('mcFilters'); p.classList.toggle('hidden'); $('mcFilterToggle').firstChild.textContent = p.classList.contains('hidden') ? '＋ Filters ' : '－ Filters '; });
+  $('mcFilterToggle').addEventListener('click', () => { $('mcFilters').classList.toggle('hidden'); refreshFilterToggle(); });
   const _afApply = () => {
     advFilters.rep = $('afRep').value; advFilters.level = $('afLevel').value; advFilters.repStatus = $('afRepStatus').value;
     advFilters.verified = $('afVerified').checked; advFilters.recent = $('afRecent').checked; advFilters.wins = $('afWins').checked;

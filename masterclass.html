@@ -117,8 +117,16 @@
     .multi-del{ background:var(--surface2); border:1px solid var(--border); color:var(--text-muted); border-radius:8px; width:32px; cursor:pointer; flex-shrink:0; }
     .multi-del:hover{ color:var(--red); border-color:var(--red); }
     /* Advanced filters panel */
-    .mc-filter-toggle{ background:none; border:none; color:var(--blue); font-size:0.76rem; cursor:pointer; padding:2px 0 8px; text-align:left; }
-    .mc-filter-count{ background:var(--blue-bg); color:var(--blue); border-radius:999px; padding:0 6px; font-size:0.66rem; font-weight:700; margin-left:2px; }
+    /* Filters pill — matches the MS CRM list-filter-chip (rounded, bordered, count badge). */
+    .mc-filter-toggle{ align-self:flex-start; margin:2px 0 8px; background:var(--surface2); border:1px solid var(--border); color:var(--text-muted); border-radius:999px; padding:4px 11px; font-size:0.72rem; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:6px; user-select:none; transition:border-color 0.12s, color 0.12s, background 0.12s; }
+    .mc-filter-toggle svg{ width:13px; height:13px; flex-shrink:0; }
+    .mc-filter-toggle:hover{ color:var(--text); border-color:var(--border-light); }
+    .mc-filter-toggle.active{ background:var(--green-bg); border-color:var(--green); color:var(--green); }
+    .mc-filter-count{ background:rgba(255,255,255,0.10); color:var(--text); border-radius:999px; padding:1px 8px; font-size:0.64rem; font-weight:800; min-width:18px; text-align:center; }
+    .mc-filter-toggle:hover .mc-filter-count{ background:rgba(255,255,255,0.16); color:#fff; }
+    .mc-filter-toggle.active .mc-filter-count{ background:var(--green); color:#06231a; }
+    body.light .mc-filter-count{ background:rgba(0,0,0,0.08); color:var(--text); }
+    body.light .mc-filter-toggle:hover .mc-filter-count{ background:rgba(0,0,0,0.14); }
     .mc-filters{ display:flex; flex-direction:column; gap:7px; padding:10px 12px; margin-bottom:8px; background:var(--surface2); border:1px solid var(--border); border-radius:10px; }
     .mc-filters select{ background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:6px 8px; color:var(--text); font-size:0.8rem; font-family:inherit; outline:none; }
     .mc-filters select:focus{ border-color:var(--blue); }
@@ -252,7 +260,7 @@
         <button class="mc-chip" data-f="alerts">Has alerts</button>
         <button class="mc-chip" data-f="winning">Winning</button>
       </div>
-      <button class="mc-filter-toggle" id="mcFilterToggle">＋ Filters <span class="mc-filter-count" id="mcFilterCount"></span></button>
+      <button class="mc-filter-toggle" id="mcFilterToggle" title="Advanced filters: rep, level, rep status, tags, activity, etc."><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg> Filters <span class="mc-filter-count" id="mcFilterCount" style="display:none">0</span></button>
       <div class="mc-filters hidden" id="mcFilters">
         <select id="afRep"><option value="">Any rep</option></select>
         <select id="afLevel"><option value="">Any level</option></select>

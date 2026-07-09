@@ -598,6 +598,21 @@
         <label class="modal-label">Type of Sale</label>
         <input class="modal-input" type="text" id="fTypeOfSale" placeholder="e.g. Organic, Webinar, DM…">
       </div>
+      <!-- Dispute-only fields (shown when the record type is a dispute). -->
+      <div class="modal-field full" id="fDisputeWrap" style="display:none;">
+        <label class="modal-label" style="text-transform:uppercase;letter-spacing:0.06em;font-size:0.72rem;color:var(--text-dim);border-top:1px solid var(--border);padding-top:12px;">Dispute details</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px;">
+          <div><label class="modal-label">Created</label><input class="modal-input" type="date" id="fDCreated"></div>
+          <div><label class="modal-label">Expires</label><input class="modal-input" type="date" id="fDExpires"></div>
+          <div><label class="modal-label">Transaction</label><input class="modal-input" type="text" id="fDTransaction" placeholder="Transaction ID"></div>
+          <div><label class="modal-label">Payment Method</label><input class="modal-input" type="text" id="fDPayMethod" placeholder="e.g. Visa •••• 4242"></div>
+          <div><label class="modal-label">Auth Code</label><input class="modal-input" type="text" id="fDAuthCode"></div>
+          <div><label class="modal-label">Case Number</label><input class="modal-input" type="text" id="fDCaseNumber"></div>
+          <div><label class="modal-label">Merchant</label><input class="modal-input" type="text" id="fDMerchant"></div>
+          <div><label class="modal-label">Status</label><input class="modal-input" type="text" id="fDStatus" placeholder="e.g. Needs response, Won, Lost"></div>
+          <div style="grid-column:1 / -1;"><label class="modal-label">Response</label><textarea class="modal-input" id="fDResponse" placeholder="Response submitted / evidence / outcome notes…"></textarea></div>
+        </div>
+      </div>
       <!-- New record only: the first note. -->
       <div class="modal-field full" id="fNewNoteWrap">
         <label class="modal-label">Note (optional)</label>
@@ -665,6 +680,13 @@ function buildTypeSelectors() {
     RECORD_TYPES.map(t => `<option value="${t.v}">${t.label}</option>`).join('');
   const m = document.getElementById('fType');
   if (m) m.innerHTML = RECORD_TYPES.map(t => `<option value="${t.v}">${t.label}</option>`).join('');
+}
+
+// Dispute fields become available when the record type is any kind of dispute.
+function isDisputeType(v) { return String(v || '').startsWith('dispute'); }
+function toggleDisputeFields() {
+  const wrap = document.getElementById('fDisputeWrap');
+  if (wrap) wrap.style.display = isDisputeType(document.getElementById('fType').value) ? '' : 'none';
 }
 
 function setState(s) { document.body.dataset.state = s; }
@@ -1053,6 +1075,17 @@ function openModal(row) {
   document.getElementById('fAmount').value       = row?.sale_amount ?? '';
   document.getElementById('fTypeOfSale').value   = row?.type_of_sale || '';
   document.getElementById('fPlatform').value     = row?.platform || '';
+  // Dispute-only fields
+  document.getElementById('fDCreated').value      = (row?.dispute_created || '').slice(0,10);
+  document.getElementById('fDExpires').value      = (row?.dispute_expires || '').slice(0,10);
+  document.getElementById('fDTransaction').value  = row?.dispute_transaction || '';
+  document.getElementById('fDPayMethod').value    = row?.dispute_payment_method || '';
+  document.getElementById('fDAuthCode').value     = row?.dispute_auth_code || '';
+  document.getElementById('fDCaseNumber').value   = row?.dispute_case_number || '';
+  document.getElementById('fDMerchant').value     = row?.dispute_merchant || '';
+  document.getElementById('fDStatus').value       = row?.dispute_status || '';
+  document.getElementById('fDResponse').value     = row?.dispute_response || '';
+  toggleDisputeFields();
   document.getElementById('fNote').value         = '';
   document.getElementById('modalErr').textContent = '';
   document.getElementById('modalSaveBtn').disabled = false;
@@ -1066,7 +1099,7 @@ function openModal(row) {
 
   // View-only (no edit permission): lock the fields, hide Save + the add-note
   // composer, but still let them read the full notes + status history.
-  ['fType','fDate','fName','fEmail','fProduct','fAmount','fTypeOfSale','fPlatform','fNote'].forEach(id => {
+  ['fType','fDate','fName','fEmail','fProduct','fAmount','fTypeOfSale','fPlatform','fNote','fOrigDate','fDCreated','fDExpires','fDTransaction','fDPayMethod','fDAuthCode','fDCaseNumber','fDMerchant','fDStatus','fDResponse'].forEach(id => {
     const el = document.getElementById(id); if (el) el.disabled = viewOnly;
   });
   document.getElementById('modalSaveBtn').style.display = viewOnly ? 'none' : '';
@@ -1140,6 +1173,19 @@ document.getElementById('modalSaveBtn').addEventListener('click', async () => {
     platform:     document.getElementById('fPlatform').value    || null,
     note:         document.getElementById('fNote').value.trim() || null,
   };
+  // Dispute fields — only sent when the record type is a dispute (so a
+  // non-dispute save never touches them server-side).
+  if (isDisputeType(rt)) {
+    payload.dispute_created        = document.getElementById('fDCreated').value        || null;
+    payload.dispute_expires        = document.getElementById('fDExpires').value        || null;
+    payload.dispute_transaction    = document.getElementById('fDTransaction').value.trim()   || null;
+    payload.dispute_payment_method = document.getElementById('fDPayMethod').value.trim()      || null;
+    payload.dispute_auth_code      = document.getElementById('fDAuthCode').value.trim()       || null;
+    payload.dispute_case_number    = document.getElementById('fDCaseNumber').value.trim()     || null;
+    payload.dispute_merchant       = document.getElementById('fDMerchant').value.trim()       || null;
+    payload.dispute_status         = document.getElementById('fDStatus').value.trim()         || null;
+    payload.dispute_response       = document.getElementById('fDResponse').value.trim()       || null;
+  }
 
   try {
     const { data: { session } } = await supa.auth.getSession();
@@ -1183,6 +1229,7 @@ async function deleteRow(id, btn) {
 }
 
 // ── Event listeners ───────────────────────────────────────────────
+document.getElementById('fType').addEventListener('change', toggleDisputeFields);
 document.getElementById('addBtn').addEventListener('click', () => openModal(null));
 
 document.getElementById('declBody').addEventListener('click', e => {

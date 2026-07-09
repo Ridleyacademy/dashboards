@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v486', title: 'Refunds — dispute detail fields', items: [
+      'When a record’s type is any kind of dispute (Dispute Started / Won / Lost), the edit form now shows a “Dispute details” section: Created, Expires, Transaction, Payment Method, Auth Code, Case Number, Merchant, Status, and Response. These appear only for disputes and are saved with the record.',
+    ]},
     { version: 'v485', title: 'Masterclass CRM — import guards against misaligned rows', items: [
       'Fixed a bug where a few Kajabi rows with free-text survey answers (which contain line breaks/quotes) parsed with shifted columns — landing a name in the email field and an email in the phone field, and creating junk duplicate students. Those 23 junk rows were removed.',
       'The importer now rejects any row whose columns don’t line up or whose email isn’t a valid email, and reports them as “skipped (no/invalid email or unparseable)” instead of importing garbage. Clean rows import as normal.',

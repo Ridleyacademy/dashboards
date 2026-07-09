@@ -307,6 +307,28 @@ header.
 
 ---
 
+## Button icons / emoji (the user cares about this — do not use random emoji)
+
+Every button glyph must be a **restrained, monochrome line/symbol** that
+literally depicts the action, in the same family as the ones already in the
+UI. Look at the neighbouring buttons and match their style before you pick.
+The established vocabulary (reuse these; don't invent lookalikes):
+
+- ⚠ alert · ↪ turn-over / hand-off · ✆ contact / call · ▤ overview / grid
+- 📋 logs · ＋ add / new · ✎ edit · ⇄ reassign · ⇉ bulk / apply-to-many · ✓ done / resolved
+
+**Never use decorative or "energy/flair" emoji** — no ⚡, 🔥, 🚀, ✨, 🎉, 💥,
+🎯, or similar. They read as toy-like and clash with the rest of the system.
+(⚡ slipped into two older Declarations changelog entries and the first cut of
+the Masterclass "Bulk actions" button — the button was corrected to ⇉ in v477;
+the historical changelog lines are left as-is since they're a frozen log.)
+
+If no existing glyph fits, pick a plain Unicode symbol/arrow that shows the
+*action*, keep it monochrome, and prefer the same weight as its neighbours —
+never a full-color pictographic emoji.
+
+---
+
 ## Service worker + version check
 
 `sw.js` does network-first for HTML, stale-while-revalidate for assets,

@@ -180,6 +180,7 @@
 
   function renderList() {
     renderActiveBar();
+    const gqb = $('gqBulk'); if (gqb) gqb.classList.toggle('hidden', !caps.can_edit);
     const rows = students;
     $('mcCount').textContent = rows.length < listTotal ? `${rows.length} / ${listTotal}` : `${listTotal}`;
     const lm = $('mcLoadMore'); if (lm) lm.classList.toggle('hidden', rows.length >= listTotal);
@@ -732,6 +733,83 @@
   $('gqAlerts').addEventListener('click', () => openQueueModal('alerts', false));
   $('gqTurnovers').addEventListener('click', () => openQueueModal('turnovers', false));
   $('gqContacts').addEventListener('click', () => openQueueModal('contacts', false));
+
+  // ── Bulk actions: apply an assign-rep / clear-rep / add-tag / remove-tag to
+  // every student matching the CURRENT filters (search + chips + advanced). Solves
+  // "28k students with no rep" without touching them one at a time. ──
+  function bulkFilters() { return Object.fromEntries(listParams()); }
+  function bulkFilterSummary() {
+    const bits = [];
+    if (query) bits.push(`search “${query}”`);
+    if (filter && filter !== 'all') bits.push(`status: ${filter}`);
+    if (view && view !== 'all') bits.push(view);
+    if (advFilters.rep) bits.push('rep: ' + advFilters.rep);
+    if (advFilters.level) bits.push('level: ' + advFilters.level);
+    if (advFilters.repStatus) bits.push('rep status: ' + advFilters.repStatus);
+    if (advFilters.tag) bits.push('tag: ' + advFilters.tag);
+    if (advFilters.source) bits.push('source: ' + advFilters.source);
+    if (advFilters.sms) bits.push(advFilters.sms === '1' ? 'SMS opted-in' : 'SMS not opted-in');
+    if (advFilters.inactive) bits.push('inactive ' + advFilters.inactive + 'd+');
+    if (advFilters.verified) bits.push('verified');
+    if (advFilters.recent) bits.push('contacted ≤7d');
+    if (advFilters.wins) bits.push('has wins');
+    if (advFilters.joinedFrom || advFilters.joinedTo) bits.push('joined ' + (advFilters.joinedFrom || '…') + '–' + (advFilters.joinedTo || '…'));
+    return bits.length ? bits.join(' · ') : 'ALL students (no filters)';
+  }
+  async function openBulkModal() {
+    if (!caps.can_edit) return;
+    const filters = bulkFilters();
+    const repList = reps.map(x => `<option value="${esc(x.display)}">`).join('');
+    openModal(`<h3>⇉ Bulk actions</h3>
+      <p style="color:var(--text-muted);font-size:0.86rem;margin:0 0 12px">Applies to <b id="bkCount">…</b> student(s) matching: <span style="color:var(--text)">${esc(bulkFilterSummary())}</span></p>
+      <div class="fld full"><label>Action</label>
+        <select id="bkAction">
+          <option value="assign-rep">Assign rep</option>
+          <option value="clear-rep">Clear rep (unassign)</option>
+          <option value="add-tag">Add tag</option>
+          <option value="remove-tag">Remove tag</option>
+        </select>
+      </div>
+      <div class="fld full" id="bkValWrap"><label id="bkValLabel">Rep</label>
+        <input id="bkValue" list="bkRepList" placeholder="Pick or type a rep name" autocomplete="off">
+        <datalist id="bkRepList">${repList}</datalist>
+        <datalist id="bkTagList"></datalist>
+      </div>
+      <div class="modal-row" style="margin-top:14px"><button class="tbtn" id="bkCancel">Cancel</button><button class="tbtn tbtn-primary" id="bkGo" disabled>Apply</button></div>
+      <div id="bkMsg" class="item-meta" style="margin-top:8px"></div>`);
+    const tagSet = new Set(); students.forEach(s => (s.tags || []).forEach(t => tagSet.add(t)));
+    $('bkTagList').innerHTML = [...tagSet].sort((a, b) => a.localeCompare(b)).map(t => `<option value="${esc(t)}">`).join('');
+    const actionSel = $('bkAction'), valInput = $('bkValue'), valWrap = $('bkValWrap'), valLabel = $('bkValLabel'), goBtn = $('bkGo');
+    const syncAction = () => {
+      const a = actionSel.value;
+      if (a === 'clear-rep') { valWrap.classList.add('hidden'); }
+      else { valWrap.classList.remove('hidden'); valLabel.textContent = a === 'assign-rep' ? 'Rep' : 'Tag'; valInput.setAttribute('list', a === 'assign-rep' ? 'bkRepList' : 'bkTagList'); valInput.placeholder = a === 'assign-rep' ? 'Pick or type a rep name' : 'Type a tag'; }
+      goBtn.disabled = (a !== 'clear-rep') && !valInput.value.trim();
+    };
+    actionSel.addEventListener('change', syncAction);
+    valInput.addEventListener('input', syncAction);
+    syncAction();
+    $('bkCancel').onclick = closeModal;
+    // Live count for the current filter set.
+    try { const c = await mcFetch('?api=bulk-count&' + listParams().toString()); $('bkCount').textContent = (c.count ?? 0).toLocaleString(); }
+    catch (_) { $('bkCount').textContent = '?'; }
+    goBtn.onclick = () => {
+      const action = actionSel.value; const value = valInput.value.trim();
+      if (action !== 'clear-rep' && !value) return;
+      const n = $('bkCount').textContent;
+      const verb = action === 'assign-rep' ? `assign rep “${value}” to` : action === 'clear-rep' ? 'clear the rep on' : action === 'add-tag' ? `add tag “${value}” to` : `remove tag “${value}” from`;
+      confirmDialog(`This will ${verb} ${n} student(s). Continue?`, async () => {
+        openModal(`<h3>Working…</h3><p class="item-meta">Applying to ${esc(n)} student(s). This can take a moment for large segments.</p>`);
+        try {
+          const j = await mcFetch('?api=bulk', { method: 'POST', body: JSON.stringify({ action, value, filters }) });
+          closeModal();
+          toast(`Done — ${(j.affected ?? 0).toLocaleString()} student(s) updated`);
+          await loadList(true); loadRepData();
+        } catch (e) { openModal(`<h3>Bulk action failed</h3><p class="item-meta" style="color:var(--red)">${esc(e.message)}</p><div class="modal-row" style="margin-top:12px"><button class="tbtn" id="bkErrClose">Close</button></div>`); $('bkErrClose').onclick = closeModal; }
+      });
+    };
+  }
+  $('gqBulk').addEventListener('click', openBulkModal);
 
   // Multi-value email/phone add/remove (delegated once; profile re-renders often).
   $('mcProfile').addEventListener('click', (e) => {

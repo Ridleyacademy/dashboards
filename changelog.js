@@ -16,6 +16,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v477', title: 'Masterclass CRM — bulk actions', items: [
+      'New “⇉ Bulk actions” button on the Queues bar (edit access): assign a rep, clear the rep, add a tag, or remove a tag across every student matching your current filters — search, status chips, quick-filters, and advanced filters all count.',
+      'The dialog shows a live count of exactly how many students will be affected before you confirm, so you can narrow the filters first. Reassigning reps works at any scale; tag changes are capped at 20,000 per run (narrow the filter and repeat for larger sets).',
+      'This is the fast way to give the 28k imported students a rep — filter to a segment and assign in one click.',
+    ]},
     { version: 'v476', title: 'Masterclass CRM — drop the misleading “Active” pill', items: [
       'Removed the “Active” status pill from student rows and profiles — since masterclass access is lifetime, everyone read as “Active”, which was noise and clashed with the “inactive Nd” engagement flag. Only meaningful statuses (Refunded / Completed / Dead file) now show.',
     ]},

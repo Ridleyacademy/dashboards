@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v476-masterclass-hide-active-pill';
+const CACHE_NAME = 'ridley-v477-masterclass-bulk-actions';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [

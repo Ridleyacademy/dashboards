@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v487', title: 'Masterclass CRM — weekly stats history', items: [
+      'The Masterclass numbers are now snapshotted once per week (Thu–Wed) and kept forever, so you can look back at engagement at any point in time. The Overview pane shows a “Weekly history” table (active, new starters, cumulative starters, totals, no-rep, inactive) per week.',
+      'Snapshots refresh automatically after each CSV import and via a daily job — so importing during the week keeps the current week’s numbers current, and past weeks stay frozen. Storage stays tiny (~one row per week).',
+    ]},
     { version: 'v486', title: 'Refunds — dispute detail fields', items: [
       'When a record’s type is any kind of dispute (Dispute Started / Won / Lost), the edit form now shows a “Dispute details” section: Created, Expires, Transaction, Payment Method, Auth Code, Case Number, Merchant, Status, and Response. These appear only for disputes and are saved with the record.',
     ]},

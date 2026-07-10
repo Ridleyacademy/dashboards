@@ -182,6 +182,8 @@
           ${card(j.winning, 'Winning')}
         </div>
         <div class="item-meta" style="margin:2px 2px 8px">Week = current Thu–Wed period${j.week_start ? ' (from ' + esc(j.week_start) + ')' : ''}. Starters are tracked from first activity seen going forward.</div>
+        <div class="sec-t" style="margin:4px 2px 6px">Weekly history</div>
+        <div id="ovHistory" class="item-meta" style="margin:0 2px 12px">Loading…</div>
         <div class="sec-t" style="margin:4px 2px 6px">Students per rep (click to filter)</div>${reps}`;
       box.querySelectorAll('.ov-card.ov-clk').forEach(c => c.addEventListener('click', () => {
         const v = c.dataset.view; view = v;
@@ -191,7 +193,32 @@
       box.querySelectorAll('.ov-reprow').forEach(r => r.addEventListener('click', () => {
         toggleOverview(false); advFilters.rep = r.dataset.rep; const el = $('afRep'); if (el) el.value = r.dataset.rep; updateFilterCount(); loadList(true);
       }));
+      loadStatsHistory();
     } catch (e) { box.innerHTML = `<div class="mc-empty" style="color:var(--red)">${esc(e.message)}</div>`; }
+  }
+  // Retained weekly stats history (one row per Thu–Wed week, snapshotted on each import + daily).
+  async function loadStatsHistory() {
+    const el = $('ovHistory'); if (!el) return;
+    try {
+      const j = await mcFetch('?api=stats-history&limit=52');
+      const rows = j.rows || [];
+      if (!rows.length) { el.innerHTML = 'No weekly snapshots yet — they accrue from this week forward (one per week).'; return; }
+      const fmtWk = (d) => { const s = String(d).slice(0, 10); const dt = new Date(s + 'T00:00:00Z'); return isNaN(dt) ? s : dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }); };
+      el.innerHTML = `<div style="overflow:auto;border:1px solid var(--border);border-radius:8px">
+        <table class="ov-hist"><thead><tr>
+          <th>Week of</th><th>Active</th><th>New starters</th><th>Starters (total)</th><th>Total</th><th>No rep</th><th>Inactive 90d+</th>
+        </tr></thead><tbody>
+        ${rows.map(r => `<tr>
+          <td>${esc(fmtWk(r.week_start))}</td>
+          <td>${(r.active||0).toLocaleString()}</td>
+          <td>${(r.new_starters||0).toLocaleString()}</td>
+          <td>${(r.starters_total||0).toLocaleString()}</td>
+          <td>${(r.total||0).toLocaleString()}</td>
+          <td>${(r.no_rep||0).toLocaleString()}</td>
+          <td>${(r.inactive_90||0).toLocaleString()}</td>
+        </tr>`).join('')}
+        </tbody></table></div>`;
+    } catch (e) { el.innerHTML = `<span style="color:var(--red)">${esc(e.message)}</span>`; }
   }
 
   function renderList() {
@@ -1021,6 +1048,8 @@
         if ($('imProg')) $('imProg').textContent = `${done.toLocaleString()} / ${total.toLocaleString()} (${pct}%)`;
         if ($('imBar')) $('imBar').style.width = pct + '%';
       }
+      // Seal this week's stats snapshot with the freshly-imported activity.
+      try { await mcFetch('?api=snapshot-week', { method: 'POST' }); } catch (_) {}
       openModal(`<h3>✓ Import complete</h3>
         <div class="item-meta" style="line-height:1.8">
           <b>${agg.updated.toLocaleString()}</b> students updated<br>

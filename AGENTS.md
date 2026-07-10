@@ -377,6 +377,21 @@ invalid-email rows in the table.)
 
 ---
 
+## Masterclass CRM — weekly stats history (v487+)
+
+`masterclass_stats_weekly` (one row per Thu–Wed `week_start`, ~52/yr) retains the
+Overview metrics over time so the snapshot-overwrite model (activity stored as
+current columns, not per-week history) doesn't lose the past. Populated by
+`mc_snapshot_week(_week date default current-week)` — SECURITY DEFINER,
+service_role only — which **upserts the current week only** (past weeks freeze
+once they pass; we never recompute them since `last_activity_at` is overwritten).
+Triggers: the `masterclass?api=snapshot-week` POST called by the client right
+after a CSV import, plus a daily `pg_cron` job `mc-weekly-snapshot` (06:30 UTC).
+Read via `?api=stats-history` (GET); shown as the "Weekly history" table in the
+Overview pane. Migration: `masterclass_stats_weekly`.
+
+---
+
 ## Service worker + version check
 
 `sw.js` does network-first for HTML, stale-while-revalidate for assets,

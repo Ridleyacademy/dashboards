@@ -155,6 +155,11 @@
     .ov-card .l{ font-size:0.7rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; }
     .ov-reprow{ display:flex; justify-content:space-between; padding:5px 2px; border-bottom:1px solid var(--border); font-size:0.82rem; cursor:pointer; }
     .ov-reprow:hover{ color:var(--blue); }
+    .ov-hist{ width:100%; border-collapse:collapse; font-size:0.8rem; }
+    .ov-hist th, .ov-hist td{ padding:6px 10px; text-align:right; white-space:nowrap; border-bottom:1px solid var(--border); }
+    .ov-hist th:first-child, .ov-hist td:first-child{ text-align:left; }
+    .ov-hist thead th{ position:sticky; top:0; background:var(--surface2); color:var(--text-muted); font-weight:700; font-size:0.72rem; text-transform:uppercase; letter-spacing:0.04em; }
+    .ov-hist tbody tr:first-child td{ color:var(--green); font-weight:700; }
     @media(max-width:640px){ .sec-grid{ grid-template-columns:1fr; } }
     .sec{ }
     .sec-t{ font-size:0.7rem; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-dim); font-weight:800; margin:0 0 8px; }

@@ -39,6 +39,8 @@
     { href: 'daily-reports.html', id: 'daily_reports', roles: ['daily_reports'], granular: 'daily_reports.view' },
     { href: 'students.html',     id: 'students',     roles: ['students', 'mentorship', 'sales_manager', 'coach', 'ms_ic', 'delivery_ic', 'ms_rep'], granular: 'students.view' },
     { href: 'masterclass.html',  id: 'masterclass',  roles: ['mentorship', 'sales_manager', 'ms_ic', 'delivery_ic', 'ms_rep', 'rep'], granular: 'masterclass.view' },
+    // MS Alerts/Turn-overs analytics — managers only (no ms_rep/coach).
+    { href: 'ms-alerts.html',    id: 'ms_analytics', roles: ['mentorship', 'sales_manager', 'ms_ic', 'delivery_ic'], granular: 'ms_analytics.view' },
     // Coach Dashboard: only true editors. Primary gate is the GRANULAR
     // `coach.edit` permission. Legacy fallback includes `coach` /
     // `ms_ic` / `delivery_ic` for users whose JWT predates the

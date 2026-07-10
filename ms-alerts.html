@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg?v=303">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=303">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=303">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MS Alerts / Turn-overs</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <script src="permissions.js"></script>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#000000">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Ridleyacademy">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=303">
+  <link rel="stylesheet" href="mobile.css">
+  <style>
+    :root{
+      --bg:#080a14; --surface:#0f1120; --surface2:#141728; --surface3:#191e30;
+      --border:#1f2438; --border-light:#272d45;
+      --text:#eaecf8; --text-muted:#7880a8; --text-dim:#3e4668;
+      --blue:#6b9eff; --blue-bg:rgba(107,158,255,0.12);
+      --green:#34d399; --green-bg:rgba(52,211,153,0.12);
+      --gold:#fbbf24; --gold-bg:rgba(251,191,36,0.12);
+      --red:#f87171; --red-bg:rgba(248,113,113,0.12);
+      --purple:#a78bfa;
+    }
+    body.light{ --bg:#f3f4fb; --surface:#fff; --surface2:#f6f7fc; --surface3:#eef0f8; --border:#e2e5f0; --border-light:#d3d7e6; --text:#1a1d2e; --text-muted:#5a6180; --text-dim:#9aa1bd; }
+    *{ box-sizing:border-box; }
+    body{ margin:0; background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:14px; }
+    a{ color:var(--blue); }
+    .topbar{ display:flex; align-items:center; gap:10px; padding:10px 18px; background:linear-gradient(180deg,rgba(15,17,32,0.96),rgba(8,10,20,0.92)); border-bottom:1px solid var(--border); position:sticky; top:0; z-index:100; backdrop-filter:blur(14px); }
+    body.light .topbar{ background:linear-gradient(180deg,#fff,#f6f7fc); }
+    .topbar-logo{ width:26px; height:26px; border-radius:8px; background:linear-gradient(135deg,var(--green),#22b07d); display:flex; align-items:center; justify-content:center; }
+    .topbar-brand{ font-weight:800; letter-spacing:0.01em; }
+    .topbar-spacer{ flex:1; }
+    .tbtn{ background:var(--surface2); border:1px solid var(--border); color:var(--text); border-radius:9px; padding:7px 12px; font-size:0.82rem; cursor:pointer; display:inline-flex; align-items:center; gap:6px; }
+    .tbtn:hover{ border-color:var(--border-light); }
+    .nav-dropdown{ position:relative; }
+    .nav-dropdown-menu{ display:none; position:absolute; top:100%; right:0; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:6px; margin-top:6px; min-width:210px; z-index:200; max-height:70vh; overflow:auto; }
+    .nav-menu-link{ display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:8px; color:var(--text); text-decoration:none; font-size:0.85rem; }
+    .nav-menu-link:hover{ background:var(--surface2); }
+    .nav-menu-link.active{ background:var(--blue-bg); color:var(--blue); }
+    .user-pill{ display:flex; align-items:center; gap:8px; background:var(--surface2); border:1px solid var(--border); border-radius:999px; padding:4px 10px 4px 4px; }
+    .user-pill-av{ width:26px; height:26px; border-radius:999px; background:linear-gradient(135deg,#6b9eff,#a78bfa); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:0.8rem; }
+    .user-pill-email{ font-size:0.78rem; color:var(--text-muted); max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+    .wrap{ max-width:1180px; margin:0 auto; padding:18px; }
+    .sec-title{ font-size:1.05rem; font-weight:800; margin:24px 2px 12px; display:flex; align-items:center; gap:8px; }
+    .sec-title:first-child{ margin-top:6px; }
+    .sec-title .ic{ color:var(--text-muted); }
+    .kpis{ display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; }
+    .kpi{ background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:14px 16px; }
+    .kpi .n{ font-size:1.5rem; font-weight:800; }
+    .kpi .l{ font-size:0.72rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; margin-top:3px; }
+    .kpi .sub{ font-size:0.72rem; color:var(--text-dim); margin-top:4px; }
+    .kpi.accent-red .n{ color:var(--red); } .kpi.accent-green .n{ color:var(--green); }
+    .kpi.accent-blue .n{ color:var(--blue); } .kpi.accent-gold .n{ color:var(--gold); }
+    .kpi.accent-purple .n{ color:var(--purple); }
+    .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:14px; }
+    @media(max-width:820px){ .grid2{ grid-template-columns:1fr; } }
+    .card{ background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:14px 16px; }
+    .card h4{ margin:0 0 10px; font-size:0.82rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; font-weight:700; }
+    .chart-wrap{ position:relative; height:240px; }
+    table.tbl{ width:100%; border-collapse:collapse; font-size:0.82rem; }
+    table.tbl th, table.tbl td{ padding:7px 10px; text-align:right; white-space:nowrap; border-bottom:1px solid var(--border); }
+    table.tbl th:first-child, table.tbl td:first-child{ text-align:left; white-space:normal; }
+    table.tbl thead th{ color:var(--text-muted); font-weight:700; font-size:0.7rem; text-transform:uppercase; letter-spacing:0.04em; }
+    .age-pill{ display:inline-block; padding:1px 8px; border-radius:999px; font-weight:700; font-size:0.74rem; }
+    .age-hot{ background:var(--red-bg); color:var(--red); } .age-warm{ background:var(--gold-bg); color:var(--gold); } .age-ok{ background:var(--surface3); color:var(--text-muted); }
+    .muted{ color:var(--text-muted); }
+    .empty{ padding:26px; text-align:center; color:var(--text-muted); }
+    .lnk{ background:none; border:none; color:var(--blue); cursor:pointer; padding:0; font:inherit; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-logo"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#06231a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4"/><path d="M12 18v4"/><path d="m4.9 4.9 2.8 2.8"/><path d="m16.3 16.3 2.8 2.8"/><path d="M2 12h4"/><path d="M18 12h4"/></svg></div>
+    <div class="topbar-brand">MS Alerts / Turn-overs</div>
+    <div class="topbar-spacer"></div>
+    <button class="tbtn" id="refreshBtn" title="Refresh"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> Refresh</button>
+    <button class="tbtn" id="themeBtn" style="font-size:1rem;" title="Toggle theme">◐</button>
+    <div class="nav-dropdown" id="navDropdown"><button class="tbtn" id="navDropdownBtn">Dashboards ▾</button><div class="nav-dropdown-menu" id="navDropMenu"></div></div>
+    <div class="user-pill"><div class="user-pill-av" id="userAvatar">U</div><div class="user-pill-email" id="userEmail">…</div></div>
+    <button class="tbtn" id="signOutBtn"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg> Sign Out</button>
+  </header>
+
+  <div class="wrap" id="wrap">
+    <div class="empty" id="loading">Loading analytics…</div>
+    <div id="content" style="display:none">
+      <!-- ALERTS -->
+      <div class="sec-title"><span class="ic">⚠</span> Alerts</div>
+      <div class="kpis" id="aKpis"></div>
+      <div class="grid2">
+        <div class="card"><h4>Created vs Resolved (per week)</h4><div class="chart-wrap"><canvas id="aWeekly"></canvas></div></div>
+        <div class="card"><h4>Open alerts by age</h4><div class="chart-wrap"><canvas id="aAge"></canvas></div></div>
+      </div>
+      <div class="grid2">
+        <div class="card"><h4>Longest not handled (open, oldest first)</h4><div id="aOldest"></div></div>
+        <div class="card"><h4>Resolutions by person</h4><div id="aResolver"></div></div>
+      </div>
+
+      <!-- TURN-OVERS -->
+      <div class="sec-title" style="margin-top:30px"><span class="ic">↪</span> Turn-overs <span class="muted" style="font-size:0.72rem;font-weight:500">(auto-expiry excluded)</span></div>
+      <div class="kpis" id="tKpis"></div>
+      <div class="grid2">
+        <div class="card"><h4>Created (per week)</h4><div class="chart-wrap"><canvas id="tWeekly"></canvas></div></div>
+        <div class="card"><h4>Open turn-overs by rep</h4><div class="chart-wrap"><canvas id="tRep"></canvas></div></div>
+      </div>
+      <div class="grid2">
+        <div class="card" style="grid-column:1 / -1"><h4>Longest not handled (open, oldest first)</h4><div id="tOldest"></div></div>
+      </div>
+      <div class="muted" style="font-size:0.72rem;margin:16px 2px">Generated <span id="genAt">—</span> · weeks are Thu–Wed.</div>
+    </div>
+  </div>
+
+<script>
+  const SUPABASE_URL = 'https://pojqljrhhtnigyrtzdzz.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBvanFsanJoaHRuaWd5cnR6ZHp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTA3ODMsImV4cCI6MjA5MTM4Njc4M30.PcSBDqOzbiZxZ7IAs5efqx0gsAlAG0cj3GqUOkAmxos';
+  const BASE = SUPABASE_URL + '/functions/v1/ms-analytics';
+  const supa = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  window.supa = supa;
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const cssv = (n) => getComputedStyle(document.body).getPropertyValue(n).trim() || '#888';
+
+  // Format an hours value as a human duration.
+  function dur(h) {
+    if (h == null) return '—';
+    if (h < 1) return Math.round(h * 60) + 'm';
+    if (h < 48) return (Math.round(h * 10) / 10) + 'h';
+    return (Math.round(h / 24 * 10) / 10) + 'd';
+  }
+  function agePill(days) {
+    const cls = days >= 7 ? 'age-hot' : days >= 3 ? 'age-warm' : 'age-ok';
+    return `<span class="age-pill ${cls}">${days}d</span>`;
+  }
+  function fmtWk(w) { const d = new Date(w + 'T00:00:00Z'); return isNaN(d) ? w : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' }); }
+
+  let charts = [];
+  function chart(id, cfg) { const c = charts.find(x => x.id === id); if (c) c.ch.destroy(); const ch = new Chart($(id), cfg); charts.push({ id, ch }); }
+
+  function kpi(n, l, sub, accent) {
+    return `<div class="kpi${accent ? ' accent-' + accent : ''}"><div class="n">${n}</div><div class="l">${esc(l)}</div>${sub ? `<div class="sub">${esc(sub)}</div>` : ''}</div>`;
+  }
+
+  function render(d) {
+    const a = d.alerts, t = d.turnovers;
+    const grid = cssv('--border'), muted = cssv('--text-muted');
+    Chart.defaults.color = muted; Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+    Chart.defaults.plugins.legend.labels.boxWidth = 12;
+
+    // Alert KPIs
+    $('aKpis').innerHTML =
+      kpi(a.open, 'Open now', null, 'red') +
+      kpi(a.resolved, 'Resolved (all-time)', null, 'green') +
+      kpi(dur(a.avg_handle_hours), 'Avg time to handle', 'median ' + dur(a.median_handle_hours), 'blue') +
+      kpi(a.avg_first_response_hours == null ? '—' : dur(a.avg_first_response_hours), 'Avg 1st response', null, 'gold') +
+      kpi(a.longest_open_days + 'd', 'Longest open', a.longest_open_student || '', 'red');
+
+    // Alert weekly
+    chart('aWeekly', { type: 'bar', data: { labels: a.weekly.map(w => fmtWk(w.week)), datasets: [
+      { label: 'Created', data: a.weekly.map(w => w.created), backgroundColor: cssv('--blue') },
+      { label: 'Resolved', data: a.weekly.map(w => w.resolved), backgroundColor: cssv('--green') },
+    ] }, options: { maintainAspectRatio: false, scales: { x: { grid: { display: false } }, y: { grid: { color: grid }, ticks: { precision: 0 }, beginAtZero: true } } } });
+
+    // Alert age buckets
+    const ab = a.age_buckets;
+    chart('aAge', { type: 'bar', data: { labels: Object.keys(ab), datasets: [{ label: 'Open alerts', data: Object.values(ab), backgroundColor: [cssv('--green'), cssv('--blue'), cssv('--gold'), '#fb923c', cssv('--red')] }] },
+      options: { maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false } }, y: { grid: { color: grid }, ticks: { precision: 0 }, beginAtZero: true } } } });
+
+    // Alert oldest-open table
+    $('aOldest').innerHTML = a.oldest_open.length ? `<table class="tbl"><thead><tr><th>Student</th><th>Alert</th><th>Age</th></tr></thead><tbody>${
+      a.oldest_open.map(r => `<tr><td><a href="students.html?id=${r.student_id}">${esc(r.student)}</a></td><td class="muted">${esc(r.title || '')}</td><td>${agePill(r.days_open)}</td></tr>`).join('')
+    }</tbody></table>` : '<div class="empty">No open alerts. 🎉</div>';
+
+    // Alert resolver leaderboard
+    $('aResolver').innerHTML = a.by_resolver.length ? `<table class="tbl"><thead><tr><th>Person</th><th>Resolved</th><th>Avg handle</th></tr></thead><tbody>${
+      a.by_resolver.map(r => `<tr><td>${esc((r.who || '').split('@')[0])}</td><td>${r.resolved}</td><td>${dur(r.avg_handle_hours)}</td></tr>`).join('')
+    }</tbody></table>` : '<div class="empty">No resolutions yet.</div>';
+
+    // Turn-over KPIs
+    $('tKpis').innerHTML =
+      kpi(t.open, 'Open now', null, 'red') +
+      kpi(t.resulted, 'With result', null, 'green') +
+      kpi(dur(t.avg_result_hours), 'Avg time to result', 'median ' + dur(t.median_result_hours), 'blue') +
+      kpi(t.longest_open_days + 'd', 'Longest open', [t.longest_open_student, t.longest_open_rep].filter(Boolean).join(' → '), 'red');
+
+    // Turn-over weekly
+    chart('tWeekly', { type: 'bar', data: { labels: t.weekly.map(w => fmtWk(w.week)), datasets: [{ label: 'Created', data: t.weekly.map(w => w.created), backgroundColor: cssv('--purple') }] },
+      options: { maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false } }, y: { grid: { color: grid }, ticks: { precision: 0 }, beginAtZero: true } } } });
+
+    // Turn-over by rep
+    chart('tRep', { type: 'bar', data: { labels: t.by_rep_open.map(r => r.rep), datasets: [{ label: 'Open', data: t.by_rep_open.map(r => r.open), backgroundColor: cssv('--blue') }] },
+      options: { indexAxis: 'y', maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { color: grid }, ticks: { precision: 0 }, beginAtZero: true }, y: { grid: { display: false } } } } });
+
+    // Turn-over oldest-open table
+    $('tOldest').innerHTML = t.oldest_open.length ? `<table class="tbl"><thead><tr><th>Student</th><th>Rep</th><th>Age</th></tr></thead><tbody>${
+      t.oldest_open.map(r => `<tr><td><a href="students.html?id=${r.student_id}">${esc(r.student)}</a></td><td class="muted">${esc(r.rep)}</td><td>${agePill(r.days_open)}</td></tr>`).join('')
+    }</tbody></table>` : '<div class="empty">No open turn-overs. 🎉</div>';
+
+    $('genAt').textContent = new Date(d.generated_at).toLocaleString();
+    $('loading').style.display = 'none'; $('content').style.display = '';
+  }
+
+  async function load() {
+    $('loading').style.display = ''; $('loading').textContent = 'Loading analytics…'; $('content').style.display = 'none';
+    try {
+      const { data: { session } } = await supa.auth.getSession();
+      if (!session) { location.replace('index.html'); return; }
+      const res = await fetch(BASE + '?api=summary', { headers: { Authorization: 'Bearer ' + session.access_token } });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error || ('HTTP ' + res.status));
+      render(j);
+    } catch (e) { $('loading').innerHTML = `<span style="color:var(--red)">${esc(e.message)}</span>`; }
+  }
+
+  // Topbar wiring
+  $('refreshBtn').addEventListener('click', load);
+  $('signOutBtn').addEventListener('click', async () => { try { await supa.auth.signOut(); } catch (_) {} location.href = 'index.html'; });
+  $('navDropdownBtn').addEventListener('click', (e) => { e.stopPropagation(); const m = $('navDropMenu'); m.style.display = m.style.display === 'block' ? 'none' : 'block'; });
+  document.addEventListener('click', () => { const m = $('navDropMenu'); if (m) m.style.display = 'none'; });
+
+  (async function init() {
+    const { data: { session } } = await supa.auth.getSession();
+    if (session?.user) { const em = session.user.email || ''; $('userEmail').textContent = em; $('userAvatar').textContent = (em[0] || 'U').toUpperCase(); window.__RIDLEY_USER = session.user; }
+    load();
+  })();
+</script>
+<script src="access-guard.js"></script>
+<script src="theme.js"></script>
+<script src="changelog.js"></script>
+<script src="notifications.js"></script>
+<script src="messages-widget.js"></script>
+<script src="nav-menu.js"></script>
+</body>
+</html>

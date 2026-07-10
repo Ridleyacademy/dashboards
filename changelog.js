@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v488', title: 'New: MS Alerts / Turn-overs analytics', items: [
+      'A new managers dashboard with the numbers behind Mentorship alerts and turn-overs: how many open vs resolved, average and median time to handle, average first-response time, the longest-open items, weekly created-vs-resolved trends, open-by-age, and per-person / per-rep breakdowns.',
+      'Find it in the Dashboards picker and on Home (visible to admins, ms_ic, delivery_ic, mentorship, sales_manager). Auto-expiry turn-overs are excluded from the turn-over stats.',
+    ], roles: ['mentorship', 'sales_manager', 'ms_ic', 'delivery_ic'] },
     { version: 'v487', title: 'Masterclass CRM — weekly stats history', items: [
       'The Masterclass numbers are now snapshotted once per week (Thu–Wed) and kept forever, so you can look back at engagement at any point in time. The Overview pane shows a “Weekly history” table (active, new starters, cumulative starters, totals, no-rep, inactive) per week.',
       'Snapshots refresh automatically after each CSV import and via a daily job — so importing during the week keeps the current week’s numbers current, and past weeks stay frozen. Storage stays tiny (~one row per week).',

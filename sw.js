@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v487-masterclass-weekly-history';
+const CACHE_NAME = 'ridley-v488-ms-alerts-analytics';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [
@@ -22,6 +22,7 @@ const PRECACHE = [
   '/students.js',
   '/masterclass.html',
   '/masterclass.js',
+  '/ms-alerts.html',
   '/coach.js',
   '/email-automations.js',
   '/access.html',

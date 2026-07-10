@@ -480,7 +480,20 @@ Each rep's stats include `declarationCredits` (count) and
 `declarationCreditsGI` (€) so the UI can show how much of a rep's GI
 came from declarations vs the affiliate path.
 
-**Rebills are excluded** in both paths. Don't add them.
+**Rebills are excluded from GI** in both paths — never add them to `grossIncome`
+or the product buckets. As of v57 they ARE tallied into a separate per-rep
+`rebill` bucket + `overall.totalGiRebill`/`totalSalesRebill` purely for display
+(the "Rebills" KPI box on the Sales Reps page); the new-sales GI stays
+rebill-free. The product breakdown reconciles as
+Experience (`nashville` bucket) matches **multiple product names** via
+`EXPERIENCE_PRODUCTS` (`'A Luxury Music Retreat in Nashville'` + `'CW Experience'`) —
+add new Experience SKUs there. Most Experience sales are phone-sold with a blank
+Affiliate, so they only count once a rep declares them and the declaration is
+verified (`sales_check='Yes'`); unverified/`No`/`Maybe` declarations are excluded.
+GI = masterclass + mentorship + nashville + **other** (the `other` bucket —
+non-PMC/MS/Experience products — was the reason the old breakdown didn't sum to
+the total; the UI now shows an "Other" chip). The page (calls.html) is titled
+**"Sales Reps"** (the `calls` id/permission/route are unchanged).
 
 If you change the dedup key or the date filter for declarations, audit
 both paths together — they have to use the same key shape and the same

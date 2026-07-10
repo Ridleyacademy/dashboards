@@ -16,6 +16,12 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v489', title: 'Calls → “Sales Reps” + rebills split out', items: [
+      'Renamed the Calls dashboard to “Sales Reps” — it covers rep GI and product performance, not just calls.',
+      'Gross Income was already rebill-free; the reason the PMC / Mentorship / Experience breakdown didn’t add up to the total was an “Other products” bucket, now shown as its own “Other” product chip (so GI = Masterclass + Mentorship + Experience + Other).',
+      'Rebills now have their own box (recurring revenue, kept out of GI) instead of being invisible.',
+      'Experience now also counts the “CW Experience” product (was landing in Other). Experience GI = affiliate-attributed + verified rep declarations; sales reps declared but not yet verified (or with a failed auto-match) still need verifying on the Declarations board to show up.',
+    ] },
     { version: 'v488', title: 'New: MS Alerts / Turn-overs analytics', items: [
       'A new managers dashboard with the numbers behind Mentorship alerts and turn-overs: how many open vs resolved, average and median time to handle, average first-response time, the longest-open items, weekly created-vs-resolved trends, open-by-age, and per-person / per-rep breakdowns.',
       'Find it in the Dashboards picker and on Home (visible to admins, ms_ic, delivery_ic, mentorship, sales_manager). Auto-expiry turn-overs are excluded from the turn-over stats.',

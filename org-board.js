@@ -108,7 +108,10 @@ async function init() {
     toggle.style.display = canEditAny ? 'inline-flex' : 'none';
     toggle.addEventListener('click', () => _setEditMode(!orgCanEdit()));
   }
-  _setEditMode(false); // always start read-only
+  // Editing is on by default for anyone with edit rights — no mode to enter to
+  // move things. The toggle just lets them hide the edit controls if they want
+  // a clean read-only view. Users without edit rights stay read-only.
+  _setEditMode(canEditAny);
 
   // Catalog gives roles (post role chips); users give holder name resolution.
   // Both best-effort — a pure viewer without users.view still sees the board,

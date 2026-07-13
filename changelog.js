@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v498', title: 'Org Board — move things without an edit mode', items: [
+      'If you have edit rights, the move handles (✥) and add buttons are on by default now — no need to enter an Edit mode first. Tap a move handle, then a green slot, and it moves. The top-right toggle now just hides the edit controls if you want a clean read-only view. People without edit rights still see a clean, view-only board.',
+    ] },
     { version: 'v497', title: 'Org Board — tap-to-move (no more dragging)', items: [
       'Moving things no longer uses drag-and-drop (which was unreliable, especially on touch). In Edit mode each division, department and post has a small move handle (✥). Tap it to pick the item up — the board fills with green slots at every valid position; tap a slot to drop it there. To reparent, just tap a slot in a different department/division. To assign someone, tap a person (in the tray or on a post) then tap the target post. A banner shows what you’re moving, with Cancel.',
     ] },

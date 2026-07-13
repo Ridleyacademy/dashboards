@@ -1035,6 +1035,24 @@
   .org-stat-label { font-size: 0.76rem; color: var(--text-muted); font-weight: 600; }
   .org-stat-val { font-size: 1.05rem; font-weight: 800; color: var(--text); }
   .org-stat-chartwrap { height: 60px; position: relative; }
+  /* ── Unified drag: insertion marker + person-drop highlight ── */
+  .org-drop-marker { background: var(--accent); border-radius: 3px; box-shadow: 0 0 10px rgba(52,211,153,0.65); animation: orgPulse 1s ease-in-out infinite; }
+  .org-drop-marker.h { height: 4px; margin: 3px 8px; }
+  .org-drop-marker.v { width: 4px; align-self: stretch; margin: 8px 3px; min-height: 60px; }
+  @keyframes orgPulse { 0%,100% { opacity: 1; } 50% { opacity: .55; } }
+  .org-userdrop { outline: 2px solid var(--accent) !important; outline-offset: -2px; box-shadow: 0 0 0 4px rgba(52,211,153,0.18) !important; }
+  .org-post-card.dragging, .org-col-division.dragging, .org-col-department.dragging { opacity: .4; }
+  body[data-org-edit="1"] .org-post-card, body[data-org-edit="1"] .org-col-division-head, body[data-org-edit="1"] .org-col-department-head { cursor: grab; }
+  body[data-org-edit="1"] .dragging { cursor: grabbing; }
+  /* ── Visual polish ── */
+  .org-post-card { transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease; }
+  .org-post-card:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(0,0,0,0.30); border-color: var(--border-light); }
+  .org-col-division { transition: box-shadow .15s ease; }
+  .org-col-division:hover { box-shadow: 0 8px 26px rgba(0,0,0,0.20); }
+  .org-post-card-holders .havatar, .org-head-pill .havatar { box-shadow: 0 1px 3px rgba(0,0,0,0.35); }
+  .org-people-tray { position: sticky; top: 0; z-index: 5; backdrop-filter: blur(4px); }
+  #orgBoardView .org-board-header h3 { letter-spacing: .01em; }
+  .org-stat-btn svg { display: block; }
 </style>
 </head>
 <body data-state="loading">

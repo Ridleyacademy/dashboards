@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v494', title: 'Org Board — drag anything, anywhere', items: [
+      'Drag-and-drop now works on every level: pick up a whole division, a department, or a single post and drop it into any valid position — reorder among its siblings or move it under a different parent (a post into another department, a department into another division). A glowing insertion line shows exactly where it will land.',
+      'Visual polish: cards lift on hover, cleaner drag feedback, and the unposted-people tray sticks to the top while you work.',
+    ] },
     { version: 'v493', title: 'Org Board — drag-and-drop, orders & stats', items: [
       'In Edit mode you can now rearrange the board by drag-and-drop: drag a post into another department, drag a department to another division, and drag a person (from a post or the “unposted people” tray) onto a post to assign them.',
       'Posts and divisions carry policies AND orders (directives) — add either from the item’s editor.',

@@ -1035,12 +1035,13 @@
   .org-stat-label { font-size: 0.76rem; color: var(--text-muted); font-weight: 600; }
   .org-stat-val { font-size: 1.05rem; font-weight: 800; color: var(--text); }
   .org-stat-chartwrap { height: 60px; position: relative; }
-  /* ── Unified drag: insertion marker + person-drop highlight ── */
-  .org-drop-marker { background: var(--accent); border-radius: 3px; box-shadow: 0 0 10px rgba(52,211,153,0.65); animation: orgPulse 1s ease-in-out infinite; }
-  .org-drop-marker.h { height: 4px; margin: 3px 8px; }
-  .org-drop-marker.v { width: 4px; align-self: stretch; margin: 8px 3px; min-height: 60px; }
-  @keyframes orgPulse { 0%,100% { opacity: 1; } 50% { opacity: .55; } }
-  .org-userdrop { outline: 2px solid var(--accent) !important; outline-offset: -2px; box-shadow: 0 0 0 4px rgba(52,211,153,0.18) !important; }
+  /* ── Unified drag: edge-highlight drop indicator (no layout shift) ── */
+  .org-hl-top    { box-shadow: inset 0 4px 0 var(--accent) !important; }
+  .org-hl-bottom { box-shadow: inset 0 -4px 0 var(--accent) !important; }
+  .org-hl-left   { box-shadow: inset 4px 0 0 var(--accent) !important; }
+  .org-hl-right  { box-shadow: inset -4px 0 0 var(--accent) !important; }
+  .org-hl-empty  { box-shadow: inset 0 0 0 2px var(--accent) !important; border-radius: 8px; }
+  .org-userdrop  { outline: 2px solid var(--accent) !important; outline-offset: -2px; box-shadow: 0 0 0 4px rgba(52,211,153,0.18) !important; }
   .org-post-card.dragging, .org-col-division.dragging, .org-col-department.dragging { opacity: .4; }
   body[data-org-edit="1"] .org-post-card, body[data-org-edit="1"] .org-col-division-head, body[data-org-edit="1"] .org-col-department-head { cursor: grab; }
   body[data-org-edit="1"] .dragging { cursor: grabbing; }

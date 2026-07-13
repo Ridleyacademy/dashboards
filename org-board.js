@@ -1249,7 +1249,10 @@ let _drag = null; // { type:'division'|'department'|'post'|'user', id }
 function _deptIdOf(col) { const h = col && col.querySelector('.org-col-department-head'); return h ? Number(h.dataset.id) : null; }
 function _itemId(level, el) { return level === 'division' ? Number(el.dataset.divId) : level === 'department' ? _deptIdOf(el) : Number(el.dataset.id); }
 
-function _clearMarker() { const m = document.getElementById('orgDropMarker'); if (m) m.remove(); document.querySelectorAll('.org-userdrop').forEach(e => e.classList.remove('org-userdrop')); }
+const _HL = ['org-hl-top', 'org-hl-bottom', 'org-hl-left', 'org-hl-right', 'org-hl-empty', 'org-userdrop'];
+// Clear all drag affordances. Class-based (box-shadow) — never mutates the DOM
+// structure, so the flex layout doesn't reflow/jitter under the cursor.
+function _clearMarker() { document.querySelectorAll('.' + _HL.join(',.')).forEach(e => e.classList.remove(..._HL)); }
 function _nearestIndex(items, e, axis) {
   for (let i = 0; i < items.length; i++) {
     const r = items[i].getBoundingClientRect();
@@ -1259,13 +1262,13 @@ function _nearestIndex(items, e, axis) {
   }
   return items.length;
 }
+// Show the drop position by edge-highlighting the item we'd insert before (or
+// after the last item, or the whole list if empty). No node insertion.
 function _placeMarker(container, items, idx, axis) {
   _clearMarker();
-  const m = document.createElement('div');
-  m.id = 'orgDropMarker'; m.className = 'org-drop-marker ' + (axis === 'x' ? 'v' : 'h');
-  if (idx < items.length) container.insertBefore(m, items[idx]);
-  else if (items.length) items[items.length - 1].insertAdjacentElement('afterend', m);
-  else container.insertBefore(m, container.firstChild);
+  if (!items.length) { container.classList.add('org-hl-empty'); return; }
+  if (idx < items.length) items[idx].classList.add(axis === 'x' ? 'org-hl-left' : 'org-hl-top');
+  else items[items.length - 1].classList.add(axis === 'x' ? 'org-hl-right' : 'org-hl-bottom');
 }
 function _liveItems(container, sel) { return [...container.querySelectorAll(':scope > ' + sel)].filter(el => !el.classList.contains('dragging')); }
 
@@ -1334,7 +1337,7 @@ function enhanceBoard() {
     if (editing) {
       _makeDraggable(col, 'division');
       const list = col.querySelector('.org-col-departments');
-      if (list) _wireList(list, '.org-col-department', 'y', 'department');
+      if (list) _wireList(list, '.org-col-department', 'x', 'department'); // departments are laid out horizontally
     }
   });
 

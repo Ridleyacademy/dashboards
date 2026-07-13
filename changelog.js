@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v495', title: 'Org Board — drag-and-drop fixed', items: [
+      'Fixed the drag-and-drop: departments now drop correctly (their drop position was being read on the wrong axis), and the jumpy “glitch” while dragging is gone (the drop indicator no longer reflows the board). Divisions, departments and posts all move and land where the highlighted line shows.',
+    ] },
     { version: 'v494', title: 'Org Board — drag anything, anywhere', items: [
       'Drag-and-drop now works on every level: pick up a whole division, a department, or a single post and drop it into any valid position — reorder among its siblings or move it under a different parent (a post into another department, a department into another division). A glowing insertion line shows exactly where it will land.',
       'Visual polish: cards lift on hover, cleaner drag feedback, and the unposted-people tray sticks to the top while you work.',

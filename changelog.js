@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v491', title: 'Masterclass CRM — Export to CSV', items: [
+      'New “Export” button in the Masterclass students queue bar downloads the current list as a CSV. It respects everything on screen — search, the status chips, the view, and every advanced filter (rep, level, tags, source, activity, etc.) — so you can build any filtered list and export exactly that. Export with no filters for the full roster. Read-only: exporting never changes any student data.',
+    ] },
     { version: 'v490', title: 'Mentorship CRM — Export to CSV', items: [
       'New “Export” button on the students list downloads the current list as a CSV. It respects whatever you have on screen — search, the All/Mine/Stale/Duplicates/No-video chips, the date range, and the advanced filters — so you can build any filtered list (e.g. active-only, a specific coach) and export exactly that. Export with no filters for the full roster.',
     ] },

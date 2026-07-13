@@ -857,6 +857,62 @@
   }
   $('gqBulk').addEventListener('click', openBulkModal);
 
+  // ── CSV export (read-only) ─────────────────────────────────────────────────
+  // Pages the SAME filtered list the fn returns (search + chip + advanced
+  // filters + view), then builds a CSV in the browser. No writes — download only.
+  const EXPORT_COLS = ['name','first_name','last_name','email','phone','derived_status','status','rep','level','masterclass_level','current_module','price','first_purchase_date','last_purchase_date','verified','dead_file','winning_student','refunded_date','refunded_amount','tags','source','sms_opt_in','sign_in_count','last_activity_at','updated_at'];
+  function _csvCell(v) {
+    if (v === null || v === undefined) return '';
+    let x = Array.isArray(v) ? v.join('; ') : (typeof v === 'object' ? JSON.stringify(v) : String(v));
+    if (/[",\n\r]/.test(x) || /^\s|\s$/.test(x)) x = '"' + x.replace(/"/g, '""') + '"';
+    return x;
+  }
+  let _exporting = false;
+  async function exportMasterclassCsv() {
+    if (_exporting) return;
+    _exporting = true;
+    const btn = $('gqExport'); const origHtml = btn.innerHTML; btn.disabled = true;
+    const rows = [];
+    const STEP = 200; // fn caps page size at 200
+    let offset = 0, total = 0;
+    try {
+      do {
+        const p = listParams(); p.set('limit', String(STEP)); p.set('offset', String(offset));
+        const j = await mcFetch('?api=list&' + p.toString());
+        total = j.total || 0;
+        const batch = j.rows || [];
+        rows.push(...batch);
+        offset += batch.length;
+        btn.textContent = `Exporting ${rows.length.toLocaleString()} / ${total.toLocaleString()}…`;
+        if (!batch.length) break;           // safety: no progress → stop
+      } while (offset < total && rows.length < 60000);
+      if (!rows.length) { toast('Nothing to export for the current filters'); return; }
+      const lines = [EXPORT_COLS.join(',')];
+      for (const s of rows) lines.push(EXPORT_COLS.map(c => _csvCell(s[c])).join(','));
+      const csv = '﻿' + lines.join('\r\n') + '\r\n';
+      const parts = [];
+      if (query) parts.push('search');
+      if (filter && filter !== 'all') parts.push(filter);
+      if (view && view !== 'all') parts.push(view);
+      ['rep','level','repStatus','tag','source','sms','inactive','recent','verified','wins'].forEach(k => { if (advFilters[k]) parts.push(k); });
+      const label = parts.length ? '-filtered' : '';
+      const date = new Date().toISOString().slice(0, 10);
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `Masterclass-students${label}-${rows.length}-${date}.csv`;
+      document.body.appendChild(a); a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+      toast(`Exported ${rows.length.toLocaleString()} student(s)`);
+    } catch (e) {
+      openModal(`<h3>Export failed</h3><p class="item-meta" style="color:var(--red)">${esc(e.message)}</p><div class="modal-row" style="margin-top:12px"><button class="tbtn" id="exErrClose">Close</button></div>`);
+      $('exErrClose').onclick = closeModal;
+    } finally {
+      btn.disabled = false; btn.innerHTML = origHtml; _exporting = false;
+    }
+  }
+  $('gqExport').addEventListener('click', exportMasterclassCsv);
+
   // ── CSV re-import (Kajabi export) ──────────────────────────────────────────
   // Parses the semicolon-delimited, windows-1252 Kajabi CSV in the browser,
   // maps columns → normalized rows (day-first dates → ISO), and posts them to

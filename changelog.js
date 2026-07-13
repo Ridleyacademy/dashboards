@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v490', title: 'Mentorship CRM — Export to CSV', items: [
+      'New “Export” button on the students list downloads the current list as a CSV. It respects whatever you have on screen — search, the All/Mine/Stale/Duplicates/No-video chips, the date range, and the advanced filters — so you can build any filtered list (e.g. active-only, a specific coach) and export exactly that. Export with no filters for the full roster.',
+    ] },
     { version: 'v489', title: 'Calls → “Sales Reps” + rebills split out', items: [
       'Renamed the Calls dashboard to “Sales Reps” — it covers rep GI and product performance, not just calls.',
       'Gross Income was already rebill-free; the reason the PMC / Mentorship / Experience breakdown didn’t add up to the total was an “Other products” bucket, now shown as its own “Other” product chip (so GI = Masterclass + Mentorship + Experience + Other).',

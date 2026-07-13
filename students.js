@@ -1081,6 +1081,49 @@ document.getElementById('overviewToggleBtn').addEventListener('click', () => {
   }
 });
 
+// ── Export the current list to CSV (read-only; respects search + chips + filters) ──
+// Mirrors the exact filter chain in renderStudentList() so the CSV = what's on screen.
+function _exportFilteredRows() {
+  const q = (document.getElementById('studentSearch').value || '').toLowerCase().trim();
+  _dupCache = _computeDuplicateIds(students);
+  let rows = students;
+  const wideRange = drFrom === '0001-01-01' && drTo === '9999-12-31';
+  if (!wideRange) rows = rows.filter(s => { const raw = s[drField]; if (!raw) return false; const d = String(raw).slice(0, 10); return d >= drFrom && d <= drTo; });
+  const mineSet = _myCoachIdentities();
+  if (listFilter === 'mine')            rows = rows.filter(s => _isMine(s, mineSet));
+  else if (listFilter === 'stale')      rows = rows.filter(_isStale);
+  else if (listFilter === 'duplicates') rows = rows.filter(s => _dupCache.has(s.id));
+  else if (listFilter === 'novideo')    rows = rows.filter(_isNoVideoOnboarded);
+  if (q) rows = rows.filter(s =>
+    (s.name || '').toLowerCase().includes(q) || (s.email || '').toLowerCase().includes(q) ||
+    (s.mentor || '').toLowerCase().includes(q) || (s.coach || '').toLowerCase().includes(q) ||
+    (s.product || '').toLowerCase().includes(q));
+  return _applyAdvFilters(rows);
+}
+const EXPORT_COLS = ['name','email','phone','derived_status','status','rep','coach','mentor','product','level','masterclass_level','months_count','days_left','joined_at','first_purchase_date','last_purchase_date','last_activity_date','welcome_call_date','student_onboarded_date','verified','winning_student','dead_file','refunded_date','refunded_amount','end_date','location','current_module'];
+function _csvCell(v) {
+  if (v === null || v === undefined) return '';
+  let x = (typeof v === 'object') ? JSON.stringify(v) : String(v);
+  if (/[",\n\r]/.test(x) || /^\s|\s$/.test(x)) x = '"' + x.replace(/"/g, '""') + '"';
+  return x;
+}
+function exportStudentsCsv() {
+  const rows = _exportFilteredRows();
+  if (!rows.length) { alert('Nothing to export — the current filter matches 0 students.'); return; }
+  const lines = [EXPORT_COLS.join(',')];
+  for (const s of rows) lines.push(EXPORT_COLS.map(c => _csvCell(s[c])).join(','));
+  const csv = '﻿' + lines.join('\r\n') + '\r\n';   // BOM so Excel reads UTF-8
+  const label = (listFilter && listFilter !== 'all') ? '-' + listFilter : '';
+  const date = new Date().toISOString().slice(0, 10);
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `MS-students${label}-${rows.length}-${date}.csv`;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+document.getElementById('exportCsvBtn').addEventListener('click', exportStudentsCsv);
+
 function renderOverviewPane() {
   const card = document.getElementById('profileCard');
   // Build same filtered set as the sidebar list (search + chip + date range).

@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v489-sales-reps-rebills';
+const CACHE_NAME = 'ridley-v490-ms-export-csv';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [

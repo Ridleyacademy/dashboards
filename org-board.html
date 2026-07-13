@@ -1054,6 +1054,16 @@
   .org-people-tray { position: sticky; top: 0; z-index: 5; backdrop-filter: blur(4px); }
   #orgBoardView .org-board-header h3 { letter-spacing: .01em; }
   .org-stat-btn svg { display: block; }
+  /* ── Pointer-drag: floating ghost + touch handling ── */
+  .org-drag-ghost { position: fixed; z-index: 10000; pointer-events: none; padding: 6px 12px; background: var(--accent); color: #06231a; font-size: 0.8rem; font-weight: 700; border-radius: 8px; box-shadow: 0 8px 22px rgba(0,0,0,0.45); opacity: .96; max-width: 240px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  body.org-dragging { user-select: none; -webkit-user-select: none; cursor: grabbing !important; }
+  body.org-dragging .org-board { scroll-snap-type: none; }
+  /* In edit mode the drag handles capture the gesture (so touch drags instead of scrolling the board). */
+  body[data-org-edit="1"] .org-col-division-head,
+  body[data-org-edit="1"] .org-col-department-head,
+  body[data-org-edit="1"] .org-post-card,
+  body[data-org-edit="1"] .org-post-card-holders,
+  body[data-org-edit="1"] .org-person-chip { touch-action: none; }
 </style>
 </head>
 <body data-state="loading">

@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v496', title: 'Org Board — drag-and-drop now works on touch', items: [
+      'Rebuilt drag-and-drop to work with touch and mouse alike (the old version relied on desktop-only browser drag, so it did nothing on iPad/touch). Turn on Edit mode, then press-and-drag a division (by its header), a department (by its header), or a post — a floating label follows your finger and a green line shows where it lands. Same for dragging a person onto a post to assign them.',
+    ] },
     { version: 'v495', title: 'Org Board — drag-and-drop fixed', items: [
       'Fixed the drag-and-drop: departments now drop correctly (their drop position was being read on the wrong axis), and the jumpy “glitch” while dragging is gone (the drop indicator no longer reflows the board). Divisions, departments and posts all move and land where the highlighted line shows.',
     ] },

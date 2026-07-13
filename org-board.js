@@ -1227,144 +1227,180 @@ async function openPolicyEditModal(policyId, scopeType, scopeId) {
 // ═══════════════════════════════════════════════════════════════════════
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ORG BOARD EXTRAS — unified drag-and-drop + stats popups.
+// ORG BOARD EXTRAS — pointer-based drag-and-drop + stats popups.
 // Wraps renderOrgBoard() so every render is enhanced. Stats buttons show
-// always; full drag-and-drop is edit-mode only.
+// always; drag is edit-mode only.
 //
-// Drag model (insertion-line): every division, department and post is a
-// draggable item; each sibling list (#orgBoard for divisions, .org-col-departments
-// for departments, .org-col-department-posts for posts) is a drop zone that shows
-// a live insertion marker and, on drop, REORDERS within the list and REPARENTS
-// if the item came from a different parent. Persisted via the existing
-// access-control endpoints (reorder / department-update / post-update).
-// A person (holder pill or tray chip) can also be dragged onto a post/exec post
-// to assign them (post-add-holder / exec-post-add-holder).
+// Drag uses POINTER events (mouse + touch), NOT native HTML5 drag — native DnD
+// doesn't fire on touch devices and is flaky nested. A press-and-move past a
+// small threshold starts a drag with a floating ghost; the drop position is
+// shown as a glowing edge line on the item you'd land next to. On release we
+// reorder within the target list and reparent if it changed parents.
+// Levels: division (horizontal), department (horizontal), post (vertical).
+// A person (holder pill / unposted-people chip) can be dragged onto a post or
+// exec post to assign them. All persisted via the access-control endpoints.
 // ═══════════════════════════════════════════════════════════════════════════
 (function () {
   const _orig = renderOrgBoard;
   renderOrgBoard = function () { const r = _orig.apply(this, arguments); try { enhanceBoard(); } catch (e) { console.warn('[org enhance]', e); } return r; };
 })();
 
-let _drag = null; // { type:'division'|'department'|'post'|'user', id }
 function _deptIdOf(col) { const h = col && col.querySelector('.org-col-department-head'); return h ? Number(h.dataset.id) : null; }
 function _itemId(level, el) { return level === 'division' ? Number(el.dataset.divId) : level === 'department' ? _deptIdOf(el) : Number(el.dataset.id); }
-
-const _HL = ['org-hl-top', 'org-hl-bottom', 'org-hl-left', 'org-hl-right', 'org-hl-empty', 'org-userdrop'];
-// Clear all drag affordances. Class-based (box-shadow) — never mutates the DOM
-// structure, so the flex layout doesn't reflow/jitter under the cursor.
-function _clearMarker() { document.querySelectorAll('.' + _HL.join(',.')).forEach(e => e.classList.remove(..._HL)); }
-function _nearestIndex(items, e, axis) {
+function _nearestIndex(items, x, y, axis) {
   for (let i = 0; i < items.length; i++) {
     const r = items[i].getBoundingClientRect();
     const mid = axis === 'x' ? r.left + r.width / 2 : r.top + r.height / 2;
-    const pos = axis === 'x' ? e.clientX : e.clientY;
-    if (pos < mid) return i;
+    if ((axis === 'x' ? x : y) < mid) return i;
   }
   return items.length;
 }
-// Show the drop position by edge-highlighting the item we'd insert before (or
-// after the last item, or the whole list if empty). No node insertion.
+const _HL = ['org-hl-top', 'org-hl-bottom', 'org-hl-left', 'org-hl-right', 'org-hl-empty', 'org-userdrop'];
+function _clearMarker() { document.querySelectorAll('.' + _HL.join(',.')).forEach(e => e.classList.remove(..._HL)); }
 function _placeMarker(container, items, idx, axis) {
-  _clearMarker();
   if (!items.length) { container.classList.add('org-hl-empty'); return; }
   if (idx < items.length) items[idx].classList.add(axis === 'x' ? 'org-hl-left' : 'org-hl-top');
   else items[items.length - 1].classList.add(axis === 'x' ? 'org-hl-right' : 'org-hl-bottom');
 }
-function _liveItems(container, sel) { return [...container.querySelectorAll(':scope > ' + sel)].filter(el => !el.classList.contains('dragging')); }
+function _liveItems(container, sel, exclude) { return [...container.querySelectorAll(':scope > ' + sel)].filter(el => el !== exclude); }
 
-// Wire one sibling list as a reorder/reparent drop zone.
-function _wireList(container, itemSel, axis, level) {
-  container.addEventListener('dragover', e => {
-    if (!orgCanEdit() || !_drag || _drag.type !== level) return;
-    e.preventDefault(); e.dataTransfer.dropEffect = 'move';
-    const items = _liveItems(container, itemSel);
-    _placeMarker(container, items, _nearestIndex(items, e, axis), axis);
-  });
-  container.addEventListener('dragleave', e => { if (e.target === container) _clearMarker(); });
-  container.addEventListener('drop', async e => {
-    if (!orgCanEdit() || !_drag || _drag.type !== level) return;
-    e.preventDefault(); e.stopPropagation();
-    const dragged = _drag; const items = _liveItems(container, itemSel);
-    const idx = _nearestIndex(items, e, axis);
-    _clearMarker();
+// ── Pointer drag engine ──────────────────────────────────────────────────────
+const _pd = { down: false, active: false, level: null, id: null, src: null, ghost: null, x0: 0, y0: 0, target: null };
+const _LEVELS = {
+  division:   { sel: '.org-col-division',        listSel: '.org-board',              itemSel: '.org-col-division',   axis: 'x' },
+  department: { sel: '.org-col-department',       listSel: '.org-col-departments',    itemSel: '.org-col-department', axis: 'x' },
+  post:       { sel: '.org-post-card',            listSel: '.org-col-department-posts', itemSel: '.org-post-card',    axis: 'y' },
+};
+function _label(level, id) {
+  if (level === 'post') { const p = postsData.find(x => x.id === id); return p ? p.name : 'Post'; }
+  if (level === 'department') { const d = departmentsData.find(x => x.id === id); return d ? d.name : 'Department'; }
+  if (level === 'division') { const d = divisionsData.find(x => x.id === id); return d ? d.name : 'Division'; }
+  if (level === 'user') return _displayOf(id) || 'Person';
+  return '';
+}
+function _startPointerDrag(e, level, id, srcEl) {
+  if (!orgCanEdit()) return;
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  if (e.target.closest('.org-stat-btn, a, input, select, textarea, .user-post-remove')) return;
+  _pd.down = true; _pd.active = false; _pd.level = level; _pd.id = id; _pd.src = srcEl; _pd.x0 = e.clientX; _pd.y0 = e.clientY; _pd.target = null; _pd.pointerId = e.pointerId; _pd.moved = false;
+  // The list ITEM (column/card) — distinct from the drag handle (header) for
+  // divisions/departments. Excluded from the sibling list so the moved piece
+  // isn't double-counted in the new order.
+  _pd.itemEl = level === 'division' ? srcEl.closest('.org-col-division') : level === 'department' ? srcEl.closest('.org-col-department') : srcEl;
+  window.addEventListener('pointermove', _onPointerMove, { passive: false });
+  window.addEventListener('pointerup', _onPointerUp, true);
+  window.addEventListener('pointercancel', _endPointerDrag, true);
+}
+function _onPointerMove(e) {
+  if (!_pd.down) return;
+  const dx = e.clientX - _pd.x0, dy = e.clientY - _pd.y0;
+  if (!_pd.active) {
+    if (Math.hypot(dx, dy) < 6) return;              // below threshold → still a tap/scroll
+    _pd.active = true; _pd.moved = true;
+    (_pd.itemEl || _pd.src).classList.add('dragging');
+    const g = document.createElement('div'); g.className = 'org-drag-ghost'; g.textContent = _label(_pd.level, _pd.id);
+    document.body.appendChild(g); _pd.ghost = g;
+    document.body.classList.add('org-dragging');
+  }
+  e.preventDefault();                                  // stop scroll / text-select while dragging
+  _pd.ghost.style.left = (e.clientX + 12) + 'px';
+  _pd.ghost.style.top = (e.clientY + 12) + 'px';
+  _clearMarker();
+  const under = document.elementFromPoint(e.clientX, e.clientY);
+  if (!under) return;
+  if (_pd.level === 'user') {
+    const t = under.closest('.org-post-card, .org-exec-card');
+    _pd.target = t ? { kind: 'user', el: t } : null;
+    if (t) t.classList.add('org-userdrop');
+    return;
+  }
+  const L = _LEVELS[_pd.level];
+  let container = under.closest(L.listSel);
+  if (!container && _pd.level === 'post') { const dc = under.closest('.org-col-department'); container = dc && dc.querySelector('.org-col-department-posts'); }
+  if (!container && _pd.level === 'department') { const dv = under.closest('.org-col-division'); container = dv && dv.querySelector('.org-col-departments'); }
+  if (!container) { _pd.target = null; return; }
+  const items = _liveItems(container, L.itemSel, _pd.itemEl);
+  const idx = _nearestIndex(items, e.clientX, e.clientY, L.axis);
+  _placeMarker(container, items, idx, L.axis);
+  _pd.target = { kind: 'list', container, idx };
+}
+async function _onPointerUp(e) {
+  if (!_pd.down) return;
+  const wasActive = _pd.active, tgt = _pd.target, level = _pd.level, id = _pd.id, srcEl = _pd.src, itemEl = _pd.itemEl;
+  _endPointerDrag();
+  if (!wasActive) return;                              // was a tap → let click open the editor
+  // Suppress the click that follows a real drag on the source element.
+  if (srcEl) { const sw = ev => { ev.stopPropagation(); ev.preventDefault(); }; srcEl.addEventListener('click', sw, { capture: true, once: true }); setTimeout(() => srcEl.removeEventListener('click', sw, true), 350); }
+  if (!tgt) return;
+  try {
+    if (tgt.kind === 'user') {
+      const card = tgt.el;
+      if (card.classList.contains('org-exec-card')) await api('?api=exec-post-add-holder', { method: 'POST', body: { exec_post_id: Number(card.dataset.id), user_id: id } });
+      else await api('?api=post-add-holder', { method: 'POST', body: { post_id: Number(card.dataset.id), user_id: id } });
+      await loadOrgTab(); return;
+    }
+    const L = _LEVELS[level];
+    const items = _liveItems(tgt.container, L.itemSel, itemEl);
     const ids = items.map(el => _itemId(level, el)).filter(x => x != null);
-    ids.splice(idx, 0, dragged.id);
-    try {
-      if (level === 'division') {
-        await api('?api=reorder', { method: 'POST', body: { kind: 'divisions', order: ids } });
-      } else if (level === 'department') {
-        const destDiv = Number(container.closest('.org-col-division').dataset.divId);
-        const dep = departmentsData.find(x => x.id === dragged.id);
-        if (dep && dep.division_id !== destDiv) await api('?api=department-update&id=' + dragged.id, { method: 'POST', body: { division_id: destDiv } });
-        await api('?api=reorder', { method: 'POST', body: { kind: 'departments', order: ids } });
-      } else if (level === 'post') {
-        const destDept = _deptIdOf(container.closest('.org-col-department'));
-        const post = postsData.find(x => x.id === dragged.id);
-        if (post && post.department_id !== destDept) await api('?api=post-update&id=' + dragged.id, { method: 'POST', body: { department_id: destDept } });
-        await api('?api=reorder', { method: 'POST', body: { kind: 'posts', order: ids } });
-      }
-      await loadOrgTab();
-    } catch (err) { alert(err.message); await loadOrgTab(); }
-  });
+    ids.splice(tgt.idx, 0, id);
+    if (level === 'division') {
+      await api('?api=reorder', { method: 'POST', body: { kind: 'divisions', order: ids } });
+    } else if (level === 'department') {
+      const destDiv = Number(tgt.container.closest('.org-col-division').dataset.divId);
+      const dep = departmentsData.find(x => x.id === id);
+      if (dep && dep.division_id !== destDiv) await api('?api=department-update&id=' + id, { method: 'POST', body: { division_id: destDiv } });
+      await api('?api=reorder', { method: 'POST', body: { kind: 'departments', order: ids } });
+    } else if (level === 'post') {
+      const destDept = _deptIdOf(tgt.container.closest('.org-col-department'));
+      const post = postsData.find(x => x.id === id);
+      if (post && post.department_id !== destDept) await api('?api=post-update&id=' + id, { method: 'POST', body: { department_id: destDept } });
+      await api('?api=reorder', { method: 'POST', body: { kind: 'posts', order: ids } });
+    }
+    await loadOrgTab();
+  } catch (err) { alert(err.message); await loadOrgTab(); }
 }
-function _makeDraggable(el, level) {
-  el.setAttribute('draggable', 'true');
-  el.addEventListener('dragstart', e => { e.stopPropagation(); _drag = { type: level, id: _itemId(level, el) }; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', level); el.classList.add('dragging'); });
-  el.addEventListener('dragend', () => { el.classList.remove('dragging'); _clearMarker(); _drag = null; });
+function _endPointerDrag() {
+  _pd.down = false; _pd.active = false;
+  if (_pd.ghost) { _pd.ghost.remove(); _pd.ghost = null; }
+  if (_pd.itemEl) _pd.itemEl.classList.remove('dragging');
+  if (_pd.src) _pd.src.classList.remove('dragging');
+  document.body.classList.remove('org-dragging');
+  _clearMarker();
+  _pd.src = null; _pd.itemEl = null; _pd.target = null; _pd.level = null; _pd.id = null;
+  window.removeEventListener('pointermove', _onPointerMove, { passive: false });
+  window.removeEventListener('pointerup', _onPointerUp, true);
+  window.removeEventListener('pointercancel', _endPointerDrag, true);
 }
-// Person drop target (assign a holder).
-function _wirePersonTarget(el, assign) {
-  el.addEventListener('dragover', e => { if (!orgCanEdit() || !_drag || _drag.type !== 'user') return; e.preventDefault(); e.stopPropagation(); el.classList.add('org-userdrop'); });
-  el.addEventListener('dragleave', () => el.classList.remove('org-userdrop'));
-  el.addEventListener('drop', async e => {
-    if (!orgCanEdit() || !_drag || _drag.type !== 'user') return;
-    e.preventDefault(); e.stopPropagation(); const uid = _drag.id; el.classList.remove('org-userdrop');
-    try { await assign(uid); await loadOrgTab(); } catch (err) { alert(err.message); }
-  });
-}
+function _dragHandle(el, level, id) { el.addEventListener('pointerdown', e => _startPointerDrag(e, level, id, el)); }
 
 function enhanceBoard() {
   const editing = orgCanEdit();
-  _renderPeopleTray(editing);
 
-  const board = document.getElementById('orgBoard');
-  if (board && editing && !board.__dndWired) { _wireList(board, '.org-col-division', 'x', 'division'); board.__dndWired = true; }
+  _renderPeopleTray(editing);
 
   document.querySelectorAll('.org-col-division').forEach(col => {
     const divId = Number(col.dataset.divId);
     const head = col.querySelector('.org-col-division-head');
-    if (head && !head.querySelector('.org-stat-btn')) head.appendChild(_statBtn('Division stats', e => { e.stopPropagation(); openDivisionStats(divId); }));
-    if (editing) {
-      _makeDraggable(col, 'division');
-      const list = col.querySelector('.org-col-departments');
-      if (list) _wireList(list, '.org-col-department', 'x', 'department'); // departments are laid out horizontally
-    }
+    if (head && !head.querySelector('.org-stat-btn')) head.appendChild(_statBtn('Division stats', ev => { ev.stopPropagation(); openDivisionStats(divId); }));
+    if (editing && head) _dragHandle(head, 'division', divId);   // drag a division by its header
   });
-
   document.querySelectorAll('.org-col-department').forEach(col => {
-    if (editing) {
-      _makeDraggable(col, 'department');
-      const list = col.querySelector('.org-col-department-posts');
-      if (list) _wireList(list, '.org-post-card', 'y', 'post');
-    }
+    const head = col.querySelector('.org-col-department-head');
+    if (editing && head) _dragHandle(head, 'department', _deptIdOf(col)); // drag a department by its header
   });
-
   document.querySelectorAll('.org-post-card').forEach(card => {
     const postId = Number(card.dataset.id);
-    if (!card.querySelector('.org-stat-btn')) card.appendChild(_statBtn('Post & holder stats', e => { e.stopPropagation(); openPostStats(postId); }));
+    if (!card.querySelector('.org-stat-btn')) card.appendChild(_statBtn('Post & holder stats', ev => { ev.stopPropagation(); openPostStats(postId); }));
     if (editing) {
-      _makeDraggable(card, 'post');
-      _wirePersonTarget(card, uid => api('?api=post-add-holder', { method: 'POST', body: { post_id: postId, user_id: uid } }));
+      _dragHandle(card, 'post', postId);
       const holderEl = card.querySelector('.org-post-card-holders');
       const hs = activeHoldersByPost[postId] || [];
-      if (holderEl && hs[0]) { holderEl.setAttribute('draggable', 'true'); holderEl.addEventListener('dragstart', e => { e.stopPropagation(); _drag = { type: 'user', id: hs[0].user_id }; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', 'user'); }); holderEl.addEventListener('dragend', () => { _clearMarker(); _drag = null; }); }
+      if (holderEl && hs[0]) holderEl.addEventListener('pointerdown', e => { e.stopPropagation(); _startPointerDrag(e, 'user', hs[0].user_id, holderEl); });
     }
   });
-
   document.querySelectorAll('.org-exec-card').forEach(card => {
     const epId = Number(card.dataset.id);
-    if (!card.querySelector('.org-stat-btn')) card.appendChild(_statBtn('Executive post stats', e => { e.stopPropagation(); openExecStats(epId); }));
-    if (editing) _wirePersonTarget(card, uid => api('?api=exec-post-add-holder', { method: 'POST', body: { exec_post_id: epId, user_id: uid } }));
+    if (!card.querySelector('.org-stat-btn')) card.appendChild(_statBtn('Executive post stats', ev => { ev.stopPropagation(); openExecStats(epId); }));
   });
 }
 
@@ -1388,12 +1424,9 @@ function _renderPeopleTray(editing) {
   if (!tray) { tray = document.createElement('div'); tray.id = 'orgPeopleTray'; tray.className = 'org-people-tray'; view.insertBefore(tray, document.getElementById('orgBoardZoomWrap')); }
   tray.innerHTML = '<span class="org-tray-label">Unposted people — drag onto a post to assign</span>' +
     (unposted.length
-      ? unposted.map(u => `<span class="org-person-chip" draggable="true" data-uid="${u.id}" title="${escapeHtml(u.email || '')}"><span class="havatar small">${escapeHtml(_initialOf(u.id))}</span>${escapeHtml(_displayOf(u.id))}</span>`).join('')
+      ? unposted.map(u => `<span class="org-person-chip" data-uid="${u.id}" title="${escapeHtml(u.email || '')}"><span class="havatar small">${escapeHtml(_initialOf(u.id))}</span>${escapeHtml(_displayOf(u.id))}</span>`).join('')
       : '<span style="color:var(--text-dim);font-size:0.78rem;">Everyone is posted 🎉</span>');
-  tray.querySelectorAll('.org-person-chip').forEach(ch => {
-    ch.addEventListener('dragstart', e => { _drag = { type: 'user', id: ch.dataset.uid }; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', 'user'); });
-    ch.addEventListener('dragend', () => { _clearMarker(); _drag = null; });
-  });
+  tray.querySelectorAll('.org-person-chip').forEach(ch => ch.addEventListener('pointerdown', e => _startPointerDrag(e, 'user', ch.dataset.uid, ch)));
 }
 
 // ── Stats popups (weekly-stats data via org-scoped endpoints) ────────────────

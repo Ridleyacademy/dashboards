@@ -1362,12 +1362,24 @@ function _showBanner() {
   document.getElementById('orgMoveCancel').addEventListener('click', () => _cancelMove());
 }
 
-function _moveBtn(kind, id) {
+function _editBtn(onClick) {
   const b = document.createElement('button');
-  b.className = 'org-move-btn'; b.type = 'button'; b.title = 'Move this ' + kind;
-  b.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/></svg>';
-  b.addEventListener('click', e => { e.stopPropagation(); e.preventDefault(); if (_mv && _mv.kind === kind && _mv.id === id) _cancelMove(); else _pickUp(kind, id); });
+  b.className = 'org-edit-btn'; b.type = 'button'; b.title = 'Edit';
+  b.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>';
+  b.addEventListener('click', onClick);
   return b;
+}
+// Make the whole item pick itself up on tap (capture phase so it beats the
+// core's open-editor click). Editing opens via the dedicated ✎ button instead.
+function _wholeItemPickup(el, kind, id) {
+  if (el.dataset.mvPick) return; el.dataset.mvPick = '1';
+  el.addEventListener('click', ev => {
+    if (!orgCanEdit()) return;
+    if (ev.target.closest('.org-stat-btn, .org-edit-btn, .org-post-card-holders, .org-slot, button, a, input, select, textarea')) return;
+    if (_mv) return; // a move is already in progress — tap a slot or Cancel
+    ev.stopPropagation(); ev.preventDefault();
+    _pickUp(kind, id);
+  }, true);
 }
 
 function enhanceBoard() {
@@ -1379,20 +1391,21 @@ function enhanceBoard() {
     const divId = Number(col.dataset.divId);
     const head = col.querySelector('.org-col-division-head');
     if (head && !head.querySelector('.org-stat-btn')) head.appendChild(_statBtn('Division stats', ev => { ev.stopPropagation(); openDivisionStats(divId); }));
-    if (editing && head && !head.querySelector('.org-move-btn')) head.insertBefore(_moveBtn('division', divId), head.firstChild);
+    if (editing && head) { _wholeItemPickup(head, 'division', divId); if (!head.querySelector('.org-edit-btn')) head.appendChild(_editBtn(ev => { ev.stopPropagation(); openOrgEditor('division', divId); })); }
   });
   document.querySelectorAll('.org-col-department').forEach(col => {
     const head = col.querySelector('.org-col-department-head');
-    if (editing && head && !head.querySelector('.org-move-btn')) head.insertBefore(_moveBtn('department', _deptIdOf(col)), head.firstChild);
+    if (editing && head) { _wholeItemPickup(head, 'department', _deptIdOf(col)); if (!head.querySelector('.org-edit-btn')) head.appendChild(_editBtn(ev => { ev.stopPropagation(); openOrgEditor('department', _deptIdOf(col)); })); }
   });
   document.querySelectorAll('.org-post-card').forEach(card => {
     const postId = Number(card.dataset.id);
     if (!card.querySelector('.org-stat-btn')) card.appendChild(_statBtn('Post & holder stats', ev => { ev.stopPropagation(); openPostStats(postId); }));
-    if (editing && !card.querySelector('.org-move-btn')) card.appendChild(_moveBtn('post', postId));
     if (editing) {
+      _wholeItemPickup(card, 'post', postId);
+      if (!card.querySelector('.org-edit-btn')) card.appendChild(_editBtn(ev => { ev.stopPropagation(); openOrgEditor('post', postId); }));
       const holderEl = card.querySelector('.org-post-card-holders');
       const hs = activeHoldersByPost[postId] || [];
-      if (holderEl && hs[0] && !holderEl.dataset.mvWired) { holderEl.dataset.mvWired = '1'; holderEl.style.cursor = 'pointer'; holderEl.title = 'Move this person to another post'; holderEl.addEventListener('click', e => { e.stopPropagation(); _pickUp('user', hs[0].user_id); }); }
+      if (holderEl && hs[0] && !holderEl.dataset.mvWired) { holderEl.dataset.mvWired = '1'; holderEl.style.cursor = 'pointer'; holderEl.title = 'Move this person to another post'; holderEl.addEventListener('click', e => { e.stopPropagation(); _pickUp('user', hs[0].user_id); }, true); }
     }
   });
   document.querySelectorAll('.org-exec-card').forEach(card => {

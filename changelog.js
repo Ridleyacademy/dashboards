@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v499', title: 'Org Board — tap the item itself to move it', items: [
+      'Moving is now a big, easy target: tap anywhere on a division, department or post to pick it up (no tiny handle to hit), then tap a glowing green slot to drop it. To edit an item instead, use the small ✎ button on it; 📊 shows its stats. Tap a person to assign them to a post.',
+    ] },
     { version: 'v498', title: 'Org Board — move things without an edit mode', items: [
       'If you have edit rights, the move handles (✥) and add buttons are on by default now — no need to enter an Edit mode first. Tap a move handle, then a green slot, and it moves. The top-right toggle now just hides the edit controls if you want a clean read-only view. People without edit rights still see a clean, view-only board.',
     ] },

@@ -1055,10 +1055,12 @@
   #orgBoardView .org-board-header h3 { letter-spacing: .01em; }
   .org-stat-btn svg { display: block; }
   /* ── Tap-to-move ── */
-  .org-move-btn { position: absolute; top: 6px; left: 6px; width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; padding: 0; min-height: 0; border: 1px solid var(--border); border-radius: 6px; background: var(--surface2); color: var(--text-muted); cursor: pointer; opacity: .65; z-index: 3; }
-  .org-move-btn:hover { opacity: 1; color: var(--accent); border-color: var(--accent); }
-  .org-col-division-head .org-move-btn, .org-col-department-head .org-move-btn { position: static; margin-right: 6px; flex: 0 0 auto; }
-  .org-move-btn svg { display: block; }
+  .org-edit-btn { position: absolute; top: 6px; right: 32px; width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; padding: 0; min-height: 0; border: 1px solid var(--border); border-radius: 6px; background: var(--surface2); color: var(--text-muted); cursor: pointer; opacity: .6; z-index: 3; }
+  .org-edit-btn:hover { opacity: 1; color: var(--accent); border-color: var(--accent); }
+  .org-edit-btn svg { display: block; }
+  /* Whole item is a tap-to-move target in edit mode. */
+  body[data-org-edit="1"] .org-post-card, body[data-org-edit="1"] .org-col-division-head, body[data-org-edit="1"] .org-col-department-head { cursor: grab; }
+  body[data-org-edit="1"] .org-post-card:hover, body[data-org-edit="1"] .org-col-division-head:hover, body[data-org-edit="1"] .org-col-department-head:hover { outline: 1px dashed var(--border-light); outline-offset: -2px; }
   .org-picking { outline: 2px solid var(--accent) !important; outline-offset: -2px; opacity: .55; }
   .org-slot { border: 2px dashed var(--accent); background: rgba(52,211,153,0.10); border-radius: 8px; cursor: pointer; padding: 0; animation: orgSlotPulse 1.1s ease-in-out infinite; }
   .org-slot:hover { background: rgba(52,211,153,0.32); }
@@ -1121,7 +1123,7 @@
     <div class="page-head">
       <div>
         <h1 class="page-title">🏛 Org Board</h1>
-        <div class="page-sub">The org structure — divisions → departments → posts, plus the executive layer. Anyone can view. If you have edit rights, rearrange it right away: tap a move handle (✥) on any division, department or post, then tap a green slot to place it; tap a person to assign them to a post. Click a post or division for its stats. (Use the top-right toggle to hide the edit controls for a clean view.)</div>
+        <div class="page-sub">The org structure — divisions → departments → posts, plus the executive layer. Anyone can view. If you have edit rights, rearrange it right away: <strong>tap any division, department or post to pick it up</strong>, then tap a glowing green slot to drop it there (drop it in another department/division to move it across). Tap a person to assign them to a post. Use the small <strong>✎</strong> on an item to edit it, or <strong>📊</strong> for its stats. (Top-right toggle hides the edit controls for a clean view.)</div>
       </div>
       <span id="axCount" style="font-size:0.72rem;color:var(--text-dim);align-self:center;">—</span>
     </div>

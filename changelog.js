@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v497', title: 'Org Board — tap-to-move (no more dragging)', items: [
+      'Moving things no longer uses drag-and-drop (which was unreliable, especially on touch). In Edit mode each division, department and post has a small move handle (✥). Tap it to pick the item up — the board fills with green slots at every valid position; tap a slot to drop it there. To reparent, just tap a slot in a different department/division. To assign someone, tap a person (in the tray or on a post) then tap the target post. A banner shows what you’re moving, with Cancel.',
+    ] },
     { version: 'v496', title: 'Org Board — drag-and-drop now works on touch', items: [
       'Rebuilt drag-and-drop to work with touch and mouse alike (the old version relied on desktop-only browser drag, so it did nothing on iPad/touch). Turn on Edit mode, then press-and-drag a division (by its header), a department (by its header), or a post — a floating label follows your finger and a green line shows where it lands. Same for dragging a person onto a post to assign them.',
     ] },

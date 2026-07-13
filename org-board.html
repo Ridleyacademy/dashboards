@@ -1054,16 +1054,21 @@
   .org-people-tray { position: sticky; top: 0; z-index: 5; backdrop-filter: blur(4px); }
   #orgBoardView .org-board-header h3 { letter-spacing: .01em; }
   .org-stat-btn svg { display: block; }
-  /* ── Pointer-drag: floating ghost + touch handling ── */
-  .org-drag-ghost { position: fixed; z-index: 10000; pointer-events: none; padding: 6px 12px; background: var(--accent); color: #06231a; font-size: 0.8rem; font-weight: 700; border-radius: 8px; box-shadow: 0 8px 22px rgba(0,0,0,0.45); opacity: .96; max-width: 240px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  body.org-dragging { user-select: none; -webkit-user-select: none; cursor: grabbing !important; }
-  body.org-dragging .org-board { scroll-snap-type: none; }
-  /* In edit mode the drag handles capture the gesture (so touch drags instead of scrolling the board). */
-  body[data-org-edit="1"] .org-col-division-head,
-  body[data-org-edit="1"] .org-col-department-head,
-  body[data-org-edit="1"] .org-post-card,
-  body[data-org-edit="1"] .org-post-card-holders,
-  body[data-org-edit="1"] .org-person-chip { touch-action: none; }
+  /* ── Tap-to-move ── */
+  .org-move-btn { position: absolute; top: 6px; left: 6px; width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; padding: 0; min-height: 0; border: 1px solid var(--border); border-radius: 6px; background: var(--surface2); color: var(--text-muted); cursor: pointer; opacity: .65; z-index: 3; }
+  .org-move-btn:hover { opacity: 1; color: var(--accent); border-color: var(--accent); }
+  .org-col-division-head .org-move-btn, .org-col-department-head .org-move-btn { position: static; margin-right: 6px; flex: 0 0 auto; }
+  .org-move-btn svg { display: block; }
+  .org-picking { outline: 2px solid var(--accent) !important; outline-offset: -2px; opacity: .55; }
+  .org-slot { border: 2px dashed var(--accent); background: rgba(52,211,153,0.10); border-radius: 8px; cursor: pointer; padding: 0; animation: orgSlotPulse 1.1s ease-in-out infinite; }
+  .org-slot:hover { background: rgba(52,211,153,0.32); }
+  .org-slot.h { height: 30px; width: 100%; margin: 3px 0; }
+  .org-slot.v { width: 34px; align-self: stretch; min-height: 90px; margin: 0 3px; flex: 0 0 auto; }
+  @keyframes orgSlotPulse { 0%,100% { opacity: 1; } 50% { opacity: .5; } }
+  .org-target { outline: 2px dashed var(--accent) !important; outline-offset: -2px; cursor: pointer; }
+  .org-target:hover { background: rgba(52,211,153,0.18); }
+  .org-move-banner { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 10000; display: flex; align-items: center; gap: 14px; background: var(--surface); border: 1px solid var(--accent); border-radius: 999px; padding: 8px 10px 8px 18px; box-shadow: 0 8px 26px rgba(0,0,0,0.4); font-size: 0.85rem; }
+  .org-move-banner button { background: var(--accent); color: #06231a; border: 0; border-radius: 999px; padding: 6px 14px; font-weight: 700; cursor: pointer; }
 </style>
 </head>
 <body data-state="loading">

@@ -16,6 +16,12 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v493', title: 'Org Board — drag-and-drop, orders & stats', items: [
+      'In Edit mode you can now rearrange the board by drag-and-drop: drag a post into another department, drag a department to another division, and drag a person (from a post or the “unposted people” tray) onto a post to assign them.',
+      'Posts and divisions carry policies AND orders (directives) — add either from the item’s editor.',
+      'Click the 📊 on any post, executive post, or division to see its stats: a post shows its holder’s numbers, a division shows the combined stats of everyone posted in it. Stats come straight from Weekly Stats.',
+      'The Org Board tab has been removed from the Access & Org dashboard — it now lives only on its own dashboard. No data changed.',
+    ] },
     { version: 'v492', title: 'Org Board — its own dashboard', items: [
       'The Org Board now has its own dashboard (in Dashboards ▸ Org Board and on the home screen) instead of living inside the Access board. Anyone signed in can view the full structure — divisions, departments, posts and the executive layer.',
       'Editing is gated: an “Edit mode” toggle appears only for users granted org edit permissions. Everyone else sees a clean read-only board. All existing org data carried over unchanged.',

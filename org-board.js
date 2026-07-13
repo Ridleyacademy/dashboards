@@ -1276,3 +1276,223 @@ async function openPolicyEditModal(policyId, scopeType, scopeId) {
 // ═══════════════════════════════════════════════════════════════════════
 // INVITE MODAL — guided, with quick presets and live permission preview
 // ═══════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ORG BOARD EXTRAS — drag-and-drop moves + stats popups (Stage C).
+// Appended after the ported core. Wraps renderOrgBoard() so every render gets
+// enhanced: stats buttons (always) + full drag-and-drop (edit mode only).
+// ═══════════════════════════════════════════════════════════════════════════
+(function () {
+  const _origRenderOrgBoard = renderOrgBoard;
+  renderOrgBoard = function () {
+    const r = _origRenderOrgBoard.apply(this, arguments);
+    try { enhanceBoard(); } catch (e) { console.warn('[org enhance]', e); }
+    return r;
+  };
+})();
+
+function _deptIdOf(col) { const h = col.querySelector('.org-col-department-head'); return h ? Number(h.dataset.id) : null; }
+function _dzOver(e) { if (!orgCanEdit()) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; e.currentTarget.classList.add('org-dz'); }
+function _dzLeave(e) { e.currentTarget.classList.remove('org-dz'); }
+
+function enhanceBoard() {
+  const editing = orgCanEdit();
+  _renderPeopleTray(editing);
+
+  // Divisions — stats button + accept department reparent (edit).
+  document.querySelectorAll('.org-col-division').forEach(col => {
+    const divId = Number(col.dataset.divId);
+    const head = col.querySelector('.org-col-division-head');
+    if (head && !head.querySelector('.org-stat-btn')) head.appendChild(_statBtn('Division stats', e => { e.stopPropagation(); openDivisionStats(divId); }));
+    if (editing) {
+      col.addEventListener('dragover', _dzOver);
+      col.addEventListener('dragleave', _dzLeave);
+      col.addEventListener('drop', e => _onDropDivision(e, divId));
+    }
+  });
+
+  // Departments — draggable by header (reparent to a division) + accept posts.
+  document.querySelectorAll('.org-col-department').forEach(col => {
+    const depId = _deptIdOf(col);
+    if (editing && depId != null) {
+      const head = col.querySelector('.org-col-department-head');
+      if (head) {
+        head.setAttribute('draggable', 'true');
+        head.addEventListener('dragstart', e => { e.stopPropagation(); e.dataTransfer.setData('text/plain', 'dept:' + depId); e.dataTransfer.effectAllowed = 'move'; });
+      }
+      col.addEventListener('dragover', _dzOver);
+      col.addEventListener('dragleave', _dzLeave);
+      col.addEventListener('drop', e => _onDropDepartment(e, depId));
+    }
+  });
+
+  // Posts — stats button; drag to reparent; accept a person drop; holder drag.
+  document.querySelectorAll('.org-post-card').forEach(card => {
+    const postId = Number(card.dataset.id);
+    if (!card.querySelector('.org-stat-btn')) card.appendChild(_statBtn('Post & holder stats', e => { e.stopPropagation(); openPostStats(postId); }));
+    if (editing) {
+      card.setAttribute('draggable', 'true');
+      card.addEventListener('dragstart', e => { e.stopPropagation(); e.dataTransfer.setData('text/plain', 'post:' + postId); e.dataTransfer.effectAllowed = 'move'; card.classList.add('dragging'); });
+      card.addEventListener('dragend', () => card.classList.remove('dragging'));
+      card.addEventListener('dragover', e => { if (!orgCanEdit()) return; if ((e.dataTransfer.types || []).includes('text/plain')) { e.preventDefault(); card.classList.add('org-dz'); } });
+      card.addEventListener('dragleave', () => card.classList.remove('org-dz'));
+      card.addEventListener('drop', e => _onDropPost(e, postId, card));
+      const holderEl = card.querySelector('.org-post-card-holders');
+      const hs = activeHoldersByPost[postId] || [];
+      if (holderEl && hs[0]) {
+        holderEl.setAttribute('draggable', 'true');
+        holderEl.addEventListener('dragstart', e => { e.stopPropagation(); e.dataTransfer.setData('text/plain', 'user:' + hs[0].user_id); e.dataTransfer.effectAllowed = 'move'; });
+      }
+    }
+  });
+
+  // Executive cards — stats button (union of holders) + accept a person drop.
+  document.querySelectorAll('.org-exec-card').forEach(card => {
+    const epId = Number(card.dataset.id);
+    if (!card.querySelector('.org-stat-btn')) card.appendChild(_statBtn('Executive post stats', e => { e.stopPropagation(); openExecStats(epId); }));
+    if (editing) {
+      card.addEventListener('dragover', e => { if (!orgCanEdit()) return; if ((e.dataTransfer.types || []).includes('text/plain')) { e.preventDefault(); card.classList.add('org-dz'); } });
+      card.addEventListener('dragleave', () => card.classList.remove('org-dz'));
+      card.addEventListener('drop', async e => {
+        card.classList.remove('org-dz');
+        const p = e.dataTransfer.getData('text/plain') || ''; if (!p.startsWith('user:')) return;
+        e.preventDefault(); e.stopPropagation();
+        try { await api('?api=exec-post-add-holder', { method: 'POST', body: { exec_post_id: epId, user_id: p.slice(5) } }); await loadOrgTab(); } catch (err) { alert(err.message); }
+      });
+    }
+  });
+}
+
+function _statBtn(title, onClick) {
+  const b = document.createElement('button');
+  b.className = 'org-stat-btn'; b.title = title; b.type = 'button';
+  b.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="20" x2="4" y2="12"/><line x1="10" y1="20" x2="10" y2="5"/><line x1="16" y1="20" x2="16" y2="9"/><line x1="22" y1="20" x2="22" y2="14"/></svg>';
+  b.addEventListener('click', onClick);
+  return b;
+}
+
+async function _onDropDepartment(e, depId) {
+  e.currentTarget.classList.remove('org-dz');
+  const p = e.dataTransfer.getData('text/plain') || '';
+  if (!p.startsWith('post:')) return;
+  e.preventDefault(); e.stopPropagation();
+  const id = Number(p.slice(5)); const post = postsData.find(x => x.id === id);
+  if (!post || post.department_id === depId) return;
+  try { await api('?api=post-update&id=' + id, { method: 'POST', body: { department_id: depId } }); await loadOrgTab(); } catch (err) { alert(err.message); }
+}
+async function _onDropDivision(e, divId) {
+  e.currentTarget.classList.remove('org-dz');
+  const p = e.dataTransfer.getData('text/plain') || '';
+  if (!p.startsWith('dept:')) return;   // posts land on departments, not divisions
+  e.preventDefault(); e.stopPropagation();
+  const id = Number(p.slice(5)); const dep = departmentsData.find(x => x.id === id);
+  if (!dep || dep.division_id === divId) return;
+  try { await api('?api=department-update&id=' + id, { method: 'POST', body: { division_id: divId } }); await loadOrgTab(); } catch (err) { alert(err.message); }
+}
+async function _onDropPost(e, postId, card) {
+  card.classList.remove('org-dz');
+  const p = e.dataTransfer.getData('text/plain') || '';
+  if (!p.startsWith('user:')) return;   // only person drops assign; post moves bubble to the dept
+  e.preventDefault(); e.stopPropagation();
+  try { await api('?api=post-add-holder', { method: 'POST', body: { post_id: postId, user_id: p.slice(5) } }); await loadOrgTab(); } catch (err) { alert(err.message); }
+}
+
+// ── Unposted-people tray (edit mode) ────────────────────────────────────────
+function _renderPeopleTray(editing) {
+  let tray = document.getElementById('orgPeopleTray');
+  if (!editing) { if (tray) tray.remove(); return; }
+  const view = document.getElementById('orgBoardView'); if (!view) return;
+  const posted = new Set();
+  Object.values(activeHoldersByPost).forEach(a => a.forEach(h => posted.add(h.user_id)));
+  Object.values(execHoldersByExecPost).forEach(a => a.forEach(h => posted.add(h.user_id)));
+  const unposted = usersData.filter(u => !posted.has(u.id));
+  if (!tray) { tray = document.createElement('div'); tray.id = 'orgPeopleTray'; tray.className = 'org-people-tray'; view.insertBefore(tray, document.getElementById('orgBoardZoomWrap')); }
+  tray.innerHTML = '<span class="org-tray-label">Unposted people — drag onto a post to assign</span>' +
+    (unposted.length
+      ? unposted.map(u => `<span class="org-person-chip" draggable="true" data-uid="${u.id}" title="${escapeHtml(u.email || '')}"><span class="havatar small">${escapeHtml(_initialOf(u.id))}</span>${escapeHtml(_displayOf(u.id))}</span>`).join('')
+      : '<span style="color:var(--text-dim);font-size:0.78rem;">Everyone is posted 🎉</span>');
+  tray.querySelectorAll('.org-person-chip').forEach(ch => {
+    ch.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', 'user:' + ch.dataset.uid); e.dataTransfer.effectAllowed = 'move'; });
+  });
+}
+
+// ── Stats popups (weekly-stats data via the org-scoped endpoints) ────────────
+function _fmtStat(v, unit) {
+  v = Number(v) || 0;
+  if (unit === 'usd') return '$' + Math.round(v).toLocaleString();
+  if (unit === 'pct') return (Math.round(v * 10) / 10) + '%';
+  return (Math.round(v * 10) / 10).toLocaleString();
+}
+let _statCharts = [];
+function _closeStats() { _statCharts.forEach(c => { try { c.destroy(); } catch (_) {} }); _statCharts = []; const m = document.getElementById('orgStatsModal'); if (m) m.remove(); }
+function _openStatsShell(title, sub) {
+  _closeStats();
+  const root = document.getElementById('modalRoot');
+  const el = document.createElement('div');
+  el.id = 'orgStatsModal'; el.className = 'org-stats-overlay';
+  el.innerHTML = `<div class="org-stats-card">
+    <div class="org-stats-head"><div><h3>${escapeHtml(title)}</h3>${sub ? `<div class="org-stats-sub">${escapeHtml(sub)}</div>` : ''}</div><button id="orgStatsClose" title="Close (Esc)">×</button></div>
+    <div class="org-stats-body" id="orgStatsBody"><div style="padding:28px;color:var(--text-dim);font-size:0.85rem;">Loading stats…</div></div>
+  </div>`;
+  root.appendChild(el);
+  el.addEventListener('click', e => { if (e.target === el) _closeStats(); });
+  document.getElementById('orgStatsClose').onclick = _closeStats;
+}
+function _renderStats(metrics, series) {
+  const body = document.getElementById('orgStatsBody'); if (!body) return;
+  const sMap = new Map((series || []).map(s => [s.metric_key, s.points || []]));
+  if (!metrics || !metrics.length) { body.innerHTML = '<div style="padding:28px;color:var(--text-dim);font-size:0.85rem;">No stats are assigned here yet. (Stats are linked to people in Weekly Stats.)</div>'; return; }
+  body.innerHTML = metrics.map((m, i) => {
+    const pts = sMap.get(m.key) || []; const last = pts.length ? pts[pts.length - 1].value : 0;
+    return `<div class="org-stat-card"><div class="org-stat-top"><span class="org-stat-label">${escapeHtml(m.label)}</span><span class="org-stat-val">${_fmtStat(last, m.unit)}</span></div><div class="org-stat-chartwrap"><canvas id="orgsc_${i}"></canvas></div></div>`;
+  }).join('');
+  metrics.forEach((m, i) => {
+    const pts = sMap.get(m.key) || []; const ctx = document.getElementById('orgsc_' + i); if (!ctx || !window.Chart) return;
+    const c = new Chart(ctx, {
+      type: 'line',
+      data: { labels: pts.map(p => p.period_start), datasets: [{ data: pts.map(p => Number(p.value) || 0), borderColor: '#34d399', backgroundColor: 'rgba(52,211,153,0.12)', fill: true, tension: 0.3, pointRadius: 0, borderWidth: 2 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { title: items => items[0]?.label || '', label: it => _fmtStat(it.parsed.y, m.unit) } } }, scales: { x: { display: false }, y: { display: false } } },
+    });
+    _statCharts.push(c);
+  });
+}
+async function _loadUserStats(uid) { return wsApi('?api=stats-for-user&user_id=' + encodeURIComponent(uid)); }
+
+async function openPostStats(postId) {
+  const po = postsData.find(x => x.id === postId);
+  const holder = (activeHoldersByPost[postId] || [])[0];
+  _openStatsShell((po ? po.name : 'Post') + ' — stats', holder ? _displayOf(holder.user_id) : 'Vacant post');
+  if (!holder) { _renderStats([], []); return; }
+  try { const j = await _loadUserStats(holder.user_id); _renderStats(j.metrics || [], j.series || []); }
+  catch (e) { const b = document.getElementById('orgStatsBody'); if (b) b.innerHTML = `<div style="padding:28px;color:var(--red);font-size:0.85rem;">${escapeHtml(e.message)}</div>`; }
+}
+async function openUserStats(uid) {
+  _openStatsShell(_displayOf(uid) + ' — stats', _emailOf(uid) || '');
+  try { const j = await _loadUserStats(uid); _renderStats(j.metrics || [], j.series || []); }
+  catch (e) { const b = document.getElementById('orgStatsBody'); if (b) b.innerHTML = `<div style="padding:28px;color:var(--red);font-size:0.85rem;">${escapeHtml(e.message)}</div>`; }
+}
+async function _unionStatsForUsers(uids) {
+  const results = await Promise.all(uids.map(uid => _loadUserStats(uid).catch(() => ({ metrics: [], series: [] }))));
+  const mMap = new Map(), sMap = new Map();
+  results.forEach(r => { (r.metrics || []).forEach(m => { if (!mMap.has(m.key)) mMap.set(m.key, m); }); (r.series || []).forEach(s => { if (!sMap.has(s.metric_key)) sMap.set(s.metric_key, s); }); });
+  return { metrics: [...mMap.values()], series: [...sMap.values()] };
+}
+async function openDivisionStats(divId) {
+  const d = divisionsData.find(x => x.id === divId);
+  _openStatsShell((d ? d.name : 'Division') + ' — division stats', 'Combined stats of everyone posted in this division');
+  const depIds = departmentsData.filter(x => x.division_id === divId).map(x => x.id);
+  const postIds = postsData.filter(p => depIds.includes(p.department_id)).map(p => p.id);
+  const uids = [...new Set(postIds.flatMap(pid => (activeHoldersByPost[pid] || []).map(h => h.user_id)))];
+  if (!uids.length) { _renderStats([], []); return; }
+  try { const { metrics, series } = await _unionStatsForUsers(uids); _renderStats(metrics, series); }
+  catch (e) { const b = document.getElementById('orgStatsBody'); if (b) b.innerHTML = `<div style="padding:28px;color:var(--red);font-size:0.85rem;">${escapeHtml(e.message)}</div>`; }
+}
+async function openExecStats(epId) {
+  const ep = execPostsData.find(x => x.id === epId);
+  const uids = [...new Set((execHoldersByExecPost[epId] || []).map(h => h.user_id))];
+  _openStatsShell((ep ? ep.name : 'Executive post') + ' — stats', uids.map(u => _displayOf(u)).join(', ') || 'Vacant');
+  if (!uids.length) { _renderStats([], []); return; }
+  try { const { metrics, series } = await _unionStatsForUsers(uids); _renderStats(metrics, series); }
+  catch (e) { const b = document.getElementById('orgStatsBody'); if (b) b.innerHTML = `<div style="padding:28px;color:var(--red);font-size:0.85rem;">${escapeHtml(e.message)}</div>`; }
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.getElementById('orgStatsModal')) _closeStats(); });

@@ -1050,7 +1050,6 @@
     <div class="ax-tabs">
       <button class="ax-tab active" data-tab="users">👥 Users</button>
       <button class="ax-tab" data-tab="roles">🎭 Roles</button>
-      <button class="ax-tab" data-tab="org">🏛 Org Board</button>
       <button class="ax-tab" data-tab="activity">📜 Activity</button>
       <button class="ax-tab" data-tab="sessions">🔐 Sessions</button>
     </div>
@@ -1076,44 +1075,9 @@
       </div>
     </div>
 
-    <!-- Full-width column board: only visible when tab=org -->
-    <div id="orgBoardView">
-      <div class="org-board-header">
-        <h3>🏛 Org Board</h3>
-        <span class="hint">Divisions = columns · Departments = sub-columns · Posts = cards. The Executive Division sits on the left. Click anything to edit.</span>
-        <!-- Zoom controls — apply CSS scale to #orgBoardZoom so the whole
-             board fits in a small viewport. "Fit" auto-shrinks to width,
-             "1:1" resets, ± step by 10%. Persisted in localStorage. -->
-        <div class="org-zoom" style="margin-left:auto;display:inline-flex;align-items:center;gap:6px;">
-          <button class="small-btn" id="orgZoomOut" title="Zoom out (5%)" style="background:var(--surface3);">−</button>
-          <input type="range" id="orgZoomRange" min="10" max="300" step="1" value="100"
-            title="Drag for continuous zoom (10% – 300%)"
-            style="width:160px;accent-color:var(--accent);">
-          <button class="small-btn" id="orgZoomIn"  title="Zoom in (5%)"  style="background:var(--surface3);">+</button>
-          <button class="small-btn" id="orgZoomReset" title="Reset to 100%" style="background:var(--surface3);min-width:50px;"><span id="orgZoomPct">100%</span></button>
-          <button class="small-btn" id="orgZoomFit" title="Shrink to fit the full board on screen" style="background:var(--surface3);">⤢ Fit</button>
-        </div>
-        <button class="small-btn" id="orgSeedBtn" style="background:var(--surface3);" title="Create the canonical 6 divisions + 18 departments + 3 executive posts. Idempotent — won't duplicate existing items.">🏛 Seed standard org board</button>
-      </div>
-      <!-- Executive layer: posts that sit ABOVE the divisions. Each can
-           cover >=1 divisions (chosen in the editor) and be held by >=1
-           users. Renderered by renderTopTier() in access.js. -->
-      <!-- Three-layer zoom rig:
-           1) wrap = scrollable viewport (overflow: auto)
-           2) sizer = explicit width/height = naturalWidth × zoom, so the
-              wrapper's scrollbars reflect the *scaled* size correctly
-           3) inner = the actual content at natural size; CSS transform
-              scales it visually. transform-origin: top-left keeps the
-              upper-left anchored. -->
-      <div class="org-board-zoom-wrap" id="orgBoardZoomWrap">
-        <div class="org-board-zoom-sizer" id="orgBoardZoomSizer">
-          <div class="org-board-zoom-inner" id="orgBoardZoom">
-            <div class="org-top-tier" id="orgTopTier"></div>
-            <div class="org-board" id="orgBoard"></div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <!-- The Org Board moved to its own dashboard (org-board.html) in v492.
+         Its data still lives in the org_* tables; the org endpoints in the
+         access-control edge fn are shared by the new page. Removed from here. -->
 
     <!-- Rep Mapping merged into the User editor (v246) — the standalone view
          is removed. Each user's profile now includes a Rep Mapping section. -->

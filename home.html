@@ -826,6 +826,13 @@ const BOARDS = [
     tags: [{ label: 'Analytics', bg: 'rgba(34,211,238,0.12)', color: '#22d3ee' }, { label: 'Staff Meeting', bg: 'rgba(167,139,250,0.12)', color: '#a78bfa' }],
   },
   {
+    id: 'org', href: 'org-board.html', title: 'Org Board', permission: '*',
+    color: '#34d399', glow: 'rgba(52,211,153,0.18)', bg: 'rgba(52,211,153,0.12)',
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="8.5" y="14" width="7" height="7" rx="1"/><path d="M6.5 10v2h11v-2M12 12v2"/></svg>`,
+    desc: 'The org structure — divisions, departments, posts and the executive layer. Anyone can view; editors rearrange by drag-and-drop, assign people, and manage purposes, policies & orders. Click a post or division for its stats.',
+    tags: [{ label: 'Everyone', bg: 'rgba(52,211,153,0.12)', color: '#34d399' }, { label: 'Org', bg: 'rgba(167,139,250,0.12)', color: '#a78bfa' }],
+  },
+  {
     id: 'weekly_stats_entry', href: 'weekly-stats-entry.html', title: 'Stats Entry', permission: 'weekly_stats',
     color: '#34d399', glow: 'rgba(52,211,153,0.18)', bg: 'rgba(52,211,153,0.12)',
     icon: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>`,

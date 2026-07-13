@@ -57,6 +57,10 @@
     // Weekly Stats data entry — same gate as the view (edit permission is
     // checked server-side; the page renders read-only for viewers).
     { href: 'weekly-stats-entry.html', id: 'weekly_stats_entry', roles: ['weekly_stats'], granular: 'weekly_stats.view' },
+    // Org Board — anyone signed in can VIEW the org structure (roles:'*').
+    // Editing is gated in-page + server-side by org.edit_structure /
+    // org.assign_holders / org.edit_policies.
+    { href: 'org-board.html', id: 'org', roles: '*', granular: 'org.view' },
   ];
 
   // Resolve impersonation: when an admin "Views as" another user, all UI

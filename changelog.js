@@ -16,6 +16,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v492', title: 'Org Board — its own dashboard', items: [
+      'The Org Board now has its own dashboard (in Dashboards ▸ Org Board and on the home screen) instead of living inside the Access board. Anyone signed in can view the full structure — divisions, departments, posts and the executive layer.',
+      'Editing is gated: an “Edit mode” toggle appears only for users granted org edit permissions. Everyone else sees a clean read-only board. All existing org data carried over unchanged.',
+      'More to come here — drag-and-drop rearranging, orders/directives on posts, and click-through stats for a post, person, or whole division.',
+    ] },
     { version: 'v491', title: 'Masterclass CRM — Export to CSV', items: [
       'New “Export” button in the Masterclass students queue bar downloads the current list as a CSV. It respects everything on screen — search, the status chips, the view, and every advanced filter (rep, level, tags, source, activity, etc.) — so you can build any filtered list and export exactly that. Export with no filters for the full roster. Read-only: exporting never changes any student data.',
     ] },

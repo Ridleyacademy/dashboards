@@ -188,10 +188,10 @@
     const refreshAssignees = () => _renderAssignees(card.querySelector('#twAssignees'), t, ce, refreshAssignees);
     refreshAssignees();
 
-    // Field auto-save (change only) — never reloads the modal; just tells the
-    // background board (if any) something changed so its row can refresh.
+    // Field auto-save (change only) — fire-and-forget; the input already shows
+    // the new value, so no waiting. Reverts nothing (rare failure → alert).
     if (ce) {
-      const save = async (body) => { try { await _api('?api=update&id=' + t.id, { method: 'POST', body }); Object.assign(t, body); opts.onChange && opts.onChange(); } catch (e) { alert(e.message); } };
+      const save = (body) => { Object.assign(t, body); opts.onChange && opts.onChange(); _api('?api=update&id=' + t.id, { method: 'POST', body }).catch(e => alert(e.message)); };
       const f = id => card.querySelector(id);
       f('#twTitle').addEventListener('change', e => save({ title: e.target.value }));
       f('#twStatus').addEventListener('change', e => save({ status: e.target.value }));
@@ -203,32 +203,51 @@
       f('#twPost').addEventListener('change', e => save({ post_id: e.target.value ? Number(e.target.value) : null }));
       f('#twDesc').addEventListener('change', e => save({ details: e.target.value }));
 
-      // Checklist — append/toggle/remove IN PLACE, no modal reload.
+      // Checklist — OPTIMISTIC: UI updates instantly, request goes in the
+      // background, only reverts if the server rejects it.
       const ciList = f('#twChecklist');
       const wireCi = (el) => {
-        const cid = Number(el.dataset.id);
-        el.querySelector('.tw-ci-box').addEventListener('click', async () => { const done = !el.classList.contains('done'); try { await _api('?api=checklist-update&id=' + cid, { method: 'POST', body: { done } }); el.classList.toggle('done', done); el.querySelector('.tw-ci-box').textContent = done ? '✓' : ''; } catch (e) { alert(e.message); } });
-        el.querySelector('.tw-del').addEventListener('click', async () => { try { await _api('?api=checklist-delete&id=' + cid, { method: 'POST', body: {} }); el.remove(); if (!ciList.querySelector('.tw-check-item')) ciList.innerHTML = '<div class="tw-empty">No items.</div>'; } catch (e) { alert(e.message); } });
+        const box = el.querySelector('.tw-ci-box');
+        box.addEventListener('click', () => {
+          const done = !el.classList.contains('done');
+          el.classList.toggle('done', done); box.textContent = done ? '✓' : '';
+          _api('?api=checklist-update&id=' + el.dataset.id, { method: 'POST', body: { done } }).catch(e => { el.classList.toggle('done', !done); box.textContent = !done ? '✓' : ''; alert(e.message); });
+        });
+        el.querySelector('.tw-del').addEventListener('click', () => {
+          const next = el.nextSibling, parent = el.parentNode; el.remove();
+          if (!ciList.querySelector('.tw-check-item')) ciList.innerHTML = '<div class="tw-empty">No items.</div>';
+          _api('?api=checklist-delete&id=' + el.dataset.id, { method: 'POST', body: {} }).catch(e => { const em = ciList.querySelector('.tw-empty'); if (em) em.remove(); parent.insertBefore(el, next); alert(e.message); });
+        });
       };
       ciList.querySelectorAll('.tw-check-item').forEach(wireCi);
-      const ciAdd = f('#twCiAdd'); if (ciAdd) { const go = async () => { const inp = f('#twCiNew'); const v = inp.value.trim(); if (!v) return; try { const r = await _api('?api=checklist-add', { method: 'POST', body: { target_id: t.id, text: v } }); const em = ciList.querySelector('.tw-empty'); if (em) em.remove(); const wrap = document.createElement('div'); wrap.innerHTML = _ciHtml(r.row); const el = wrap.firstElementChild; ciList.appendChild(el); wireCi(el); inp.value = ''; inp.focus(); } catch (e) { alert(e.message); } }; ciAdd.addEventListener('click', go); f('#twCiNew').addEventListener('keydown', e => { if (e.key === 'Enter') go(); }); }
+      const ciAdd = f('#twCiAdd'); if (ciAdd) { const go = () => { const inp = f('#twCiNew'); const v = inp.value.trim(); if (!v) return; const em = ciList.querySelector('.tw-empty'); if (em) em.remove(); const wrap = document.createElement('div'); wrap.innerHTML = _ciHtml({ id: 'tmp', text: v, done: false }); const el = wrap.firstElementChild; ciList.appendChild(el); wireCi(el); inp.value = ''; inp.focus(); _api('?api=checklist-add', { method: 'POST', body: { target_id: t.id, text: v } }).then(r => { el.dataset.id = r.row.id; }).catch(e => { el.remove(); alert(e.message); }); }; ciAdd.addEventListener('click', go); f('#twCiNew').addEventListener('keydown', e => { if (e.key === 'Enter') go(); }); }
 
-      // Subtasks — append/toggle in place; open a subtask in its own popup.
+      // Subtasks — optimistic like checklist.
       const subList = f('#twSubs');
       const wireSub = (el) => {
-        const sid = Number(el.dataset.id);
-        el.querySelector('.tw-si-box').addEventListener('click', async () => { const done = !el.classList.contains('done'); try { await _api('?api=update&id=' + sid, { method: 'POST', body: { status: done ? 'done' : 'todo' } }); el.classList.toggle('done', done); el.querySelector('.tw-si-box').textContent = done ? '✓' : ''; } catch (e) { alert(e.message); } });
-        el.querySelector('.tw-si-text').addEventListener('click', () => openDetail(sid, {}));
+        const box = el.querySelector('.tw-si-box');
+        box.addEventListener('click', () => {
+          const done = !el.classList.contains('done');
+          el.classList.toggle('done', done); box.textContent = done ? '✓' : '';
+          _api('?api=update&id=' + el.dataset.id, { method: 'POST', body: { status: done ? 'done' : 'todo' } }).catch(e => { el.classList.toggle('done', !done); box.textContent = !done ? '✓' : ''; alert(e.message); });
+        });
+        el.querySelector('.tw-si-text').addEventListener('click', () => { if (el.dataset.id !== 'tmp') openDetail(Number(el.dataset.id), {}); });
       };
       subList.querySelectorAll('.tw-sub-item').forEach(wireSub);
-      const subAdd = f('#twSubAdd'); if (subAdd) { const go = async () => { const inp = f('#twSubNew'); const v = inp.value.trim(); if (!v) return; try { const r = await _api('?api=create', { method: 'POST', body: { title: v, parent_target_id: t.id, post_id: t.post_id } }); const em = subList.querySelector('.tw-empty'); if (em) em.remove(); const wrap = document.createElement('div'); wrap.innerHTML = _subHtml(r.row); const el = wrap.firstElementChild; subList.appendChild(el); wireSub(el); inp.value = ''; inp.focus(); } catch (e) { alert(e.message); } }; subAdd.addEventListener('click', go); f('#twSubNew').addEventListener('keydown', e => { if (e.key === 'Enter') go(); }); }
+      const subAdd = f('#twSubAdd'); if (subAdd) { const go = () => { const inp = f('#twSubNew'); const v = inp.value.trim(); if (!v) return; const em = subList.querySelector('.tw-empty'); if (em) em.remove(); const wrap = document.createElement('div'); wrap.innerHTML = _subHtml({ id: 'tmp', title: v, status: 'todo' }); const el = wrap.firstElementChild; subList.appendChild(el); wireSub(el); inp.value = ''; inp.focus(); _api('?api=create', { method: 'POST', body: { title: v, parent_target_id: t.id, post_id: t.post_id } }).then(r => { el.dataset.id = r.row.id; }).catch(e => { el.remove(); alert(e.message); }); }; subAdd.addEventListener('click', go); f('#twSubNew').addEventListener('keydown', e => { if (e.key === 'Enter') go(); }); }
     }
 
-    // Comments — append in place (anyone can comment).
+    // Comments — OPTIMISTIC: the comment shows the instant you hit send.
     const cmtList = card.querySelector('#twComments');
-    const wireCmt = (el) => { const b = el.querySelector('[data-del-cmt]'); if (b) b.addEventListener('click', async () => { try { await _api('?api=comment-delete&id=' + b.dataset.delCmt, { method: 'POST', body: {} }); el.remove(); if (!cmtList.querySelector('.tw-comment')) cmtList.innerHTML = '<div class="tw-empty">No comments yet.</div>'; } catch (e) { alert(e.message); } }); };
+    const wireCmt = (el) => { const b = el.querySelector('[data-del-cmt]'); if (b) b.addEventListener('click', () => { const next = el.nextSibling, parent = el.parentNode; el.remove(); if (!cmtList.querySelector('.tw-comment')) cmtList.innerHTML = '<div class="tw-empty">No comments yet.</div>'; _api('?api=comment-delete&id=' + b.dataset.delCmt, { method: 'POST', body: {} }).catch(e => { const em = cmtList.querySelector('.tw-empty'); if (em) em.remove(); parent.insertBefore(el, next); alert(e.message); }); }); };
     cmtList.querySelectorAll('.tw-comment').forEach(wireCmt);
-    const goC = async () => { const inp = card.querySelector('#twCmtNew'); const v = inp.value.trim(); if (!v) return; try { const r = await _api('?api=comment-add', { method: 'POST', body: { target_id: t.id, body: v } }); const em = cmtList.querySelector('.tw-empty'); if (em) em.remove(); const wrap = document.createElement('div'); wrap.innerHTML = _cmtHtml(r.row); const el = wrap.firstElementChild; cmtList.appendChild(el); wireCmt(el); inp.value = ''; inp.focus(); } catch (e) { alert(e.message); } };
+    const goC = () => {
+      const inp = card.querySelector('#twCmtNew'); const v = inp.value.trim(); if (!v) return;
+      const em = cmtList.querySelector('.tw-empty'); if (em) em.remove();
+      const temp = { id: 'tmp', user_id: window.session.user.id, body: v, created_at: new Date().toISOString() };
+      const wrap = document.createElement('div'); wrap.innerHTML = _cmtHtml(temp); const el = wrap.firstElementChild; el.style.opacity = '0.6'; cmtList.appendChild(el); inp.value = ''; inp.focus();
+      _api('?api=comment-add', { method: 'POST', body: { target_id: t.id, body: v } }).then(r => { const nw = document.createElement('div'); nw.innerHTML = _cmtHtml(r.row); const rel = nw.firstElementChild; el.replaceWith(rel); wireCmt(rel); }).catch(e => { el.remove(); alert(e.message); });
+    };
     card.querySelector('#twCmtAdd').addEventListener('click', goC);
     card.querySelector('#twCmtNew').addEventListener('keydown', e => { if (e.key === 'Enter') goC(); });
   }

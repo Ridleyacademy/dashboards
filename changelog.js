@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v523', title: 'Targets — instant checklist ticks & comments', items: [
+      'Ticking a checklist item, adding a comment or subtask, and editing task fields now update the moment you click — the request saves in the background instead of making you wait for it.',
+    ] },
     { version: 'v522', title: 'Targets — task popup no longer reloads on every change', items: [
       'Fixed the task detail popup rebuilding itself whenever you ticked a checklist item, added a comment, changed status, or edited a field. Now only the part you touched updates — the popup stays put and feels instant.',
     ] },

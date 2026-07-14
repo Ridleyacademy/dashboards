@@ -1246,7 +1246,7 @@ function _deptIdOf(col) { const h = col && col.querySelector('.org-col-departmen
 function _itemId(kind, el) { return kind === 'division' ? Number(el.dataset.divId) : kind === 'department' ? _deptIdOf(el) : Number(el.dataset.id); }
 const _MVCFG = {
   division:   { listSel: '.org-board',                itemSel: '.org-col-division',   horiz: true,  addSel: '.org-add-division' },
-  department: { listSel: '.org-col-departments',       itemSel: '.org-col-department', horiz: true,  addSel: '.org-add-btn' },
+  department: { listSel: '.org-col-departments',       itemSel: '.org-col-department', horiz: false, addSel: '.org-add-btn' },
   post:       { listSel: '.org-col-department-posts',  itemSel: '.org-post-card',      horiz: false, addSel: null },
 };
 
@@ -1369,6 +1369,63 @@ function _editBtn(onClick) {
   b.addEventListener('click', onClick);
   return b;
 }
+function _hexToRgba(hex, a) { hex = String(hex || '').replace('#', ''); if (hex.length === 3) hex = hex.split('').map(c => c + c).join(''); const n = parseInt(hex || '6b9eff', 16); return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`; }
+
+// Color picker (swatch) on a division header — opens the native color input.
+function _colorSwatch(divId, color) {
+  const w = document.createElement('label');
+  w.className = 'org-color-swatch'; w.title = 'Division color'; w.style.background = color;
+  const inp = document.createElement('input'); inp.type = 'color'; inp.value = color;
+  inp.style.cssText = 'position:absolute;opacity:0;width:100%;height:100%;left:0;top:0;cursor:pointer;';
+  w.appendChild(inp);
+  w.addEventListener('click', e => e.stopPropagation());
+  inp.addEventListener('input', e => { e.stopPropagation(); w.style.background = inp.value; });
+  inp.addEventListener('change', async e => { e.stopPropagation(); try { await api('?api=division-update&id=' + divId, { method: 'POST', body: { color: inp.value } }); await loadOrgTab(); } catch (err) { alert(err.message); } });
+  return w;
+}
+
+// Inline person picker (data picker) — a ▾ on a post that opens a searchable
+// people popover; picking one sets the holder without opening the drawer.
+function _pickerBtn(postId) {
+  const b = document.createElement('button');
+  b.className = 'org-pick-btn'; b.type = 'button'; b.title = 'Assign / change person'; b.textContent = '▾';
+  b.addEventListener('click', e => { e.stopPropagation(); e.preventDefault(); _openPersonPicker(postId, b); });
+  return b;
+}
+function _closePicker() { const p = document.getElementById('orgPersonPop'); if (p) p.remove(); document.removeEventListener('click', _closePickerOutside, true); }
+function _closePickerOutside(e) { if (!e.target.closest('#orgPersonPop, .org-pick-btn')) _closePicker(); }
+function _openPersonPicker(postId, anchor) {
+  _closePicker();
+  const pop = document.createElement('div'); pop.id = 'orgPersonPop'; pop.className = 'org-person-pop';
+  pop.innerHTML = '<input type="text" class="org-pop-search" placeholder="Search people…"><div class="org-pop-list"></div>';
+  document.body.appendChild(pop);
+  const r = anchor.getBoundingClientRect();
+  pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 246)) + 'px';
+  pop.style.top = Math.min(r.bottom + 4, window.innerHeight - 320) + 'px';
+  const list = pop.querySelector('.org-pop-list'), search = pop.querySelector('.org-pop-search');
+  const cur = (activeHoldersByPost[postId] || [])[0];
+  const render = (q) => {
+    const ql = (q || '').toLowerCase();
+    const rows = usersData
+      .filter(u => !ql || (_displayOf(u.id) || '').toLowerCase().includes(ql) || (u.email || '').toLowerCase().includes(ql))
+      .slice(0, 60)
+      .map(u => `<button type="button" class="org-pop-item" data-uid="${u.id}">${escapeHtml(_pickerLabelFor(u))}</button>`);
+    list.innerHTML = (cur ? '<button type="button" class="org-pop-item org-pop-clear" data-uid="">✕ Make vacant</button>' : '') + (rows.join('') || '<div style="padding:8px;color:var(--text-dim);font-size:0.78rem;">No matches</div>');
+    list.querySelectorAll('.org-pop-item').forEach(it => it.addEventListener('click', async e => {
+      e.stopPropagation(); const uid = it.dataset.uid; _closePicker();
+      try {
+        if (uid) await api('?api=post-add-holder', { method: 'POST', body: { post_id: postId, user_id: uid } });
+        else if (cur) await api('?api=post-remove-holder', { method: 'POST', body: { post_id: postId, user_id: cur.user_id } });
+        await loadOrgTab();
+      } catch (err) { alert(err.message); }
+    }));
+  };
+  render(''); search.focus();
+  search.addEventListener('input', () => render(search.value));
+  search.addEventListener('click', e => e.stopPropagation());
+  setTimeout(() => document.addEventListener('click', _closePickerOutside, true), 0);
+}
+
 // Make the whole item pick itself up on tap (capture phase so it beats the
 // core's open-editor click). Editing opens via the dedicated ✎ button instead.
 function _wholeItemPickup(el, kind, id) {
@@ -1389,9 +1446,17 @@ function enhanceBoard() {
 
   document.querySelectorAll('.org-col-division').forEach(col => {
     const divId = Number(col.dataset.divId);
+    const d = divisionsData.find(x => x.id === divId);
+    const color = (d && d.color) || '#6b9eff';
+    col.style.setProperty('--divc', color);
+    col.style.setProperty('--divc-soft', _hexToRgba(color, 0.13));
     const head = col.querySelector('.org-col-division-head');
     if (head && !head.querySelector('.org-stat-btn')) head.appendChild(_statBtn('Division stats', ev => { ev.stopPropagation(); openDivisionStats(divId); }));
-    if (editing && head) { _wholeItemPickup(head, 'division', divId); if (!head.querySelector('.org-edit-btn')) head.appendChild(_editBtn(ev => { ev.stopPropagation(); openOrgEditor('division', divId); })); }
+    if (editing && head) {
+      _wholeItemPickup(head, 'division', divId);
+      if (!head.querySelector('.org-color-swatch')) head.insertBefore(_colorSwatch(divId, color), head.firstChild);
+      if (!head.querySelector('.org-edit-btn')) head.appendChild(_editBtn(ev => { ev.stopPropagation(); openOrgEditor('division', divId); }));
+    }
   });
   document.querySelectorAll('.org-col-department').forEach(col => {
     const head = col.querySelector('.org-col-department-head');
@@ -1403,6 +1468,7 @@ function enhanceBoard() {
     if (editing) {
       _wholeItemPickup(card, 'post', postId);
       if (!card.querySelector('.org-edit-btn')) card.appendChild(_editBtn(ev => { ev.stopPropagation(); openOrgEditor('post', postId); }));
+      if (!card.querySelector('.org-pick-btn')) card.appendChild(_pickerBtn(postId));
       const holderEl = card.querySelector('.org-post-card-holders');
       const hs = activeHoldersByPost[postId] || [];
       if (holderEl && hs[0] && !holderEl.dataset.mvWired) { holderEl.dataset.mvWired = '1'; holderEl.style.cursor = 'pointer'; holderEl.title = 'Move this person to another post'; holderEl.addEventListener('click', e => { e.stopPropagation(); _pickUp('user', hs[0].user_id); }, true); }

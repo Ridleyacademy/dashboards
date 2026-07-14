@@ -1071,6 +1071,53 @@
   .org-target:hover { background: rgba(52,211,153,0.18); }
   .org-move-banner { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 10000; display: flex; align-items: center; gap: 14px; background: var(--surface); border: 1px solid var(--accent); border-radius: 999px; padding: 8px 10px 8px 18px; box-shadow: 0 8px 26px rgba(0,0,0,0.4); font-size: 0.85rem; }
   .org-move-banner button { background: var(--accent); color: #06231a; border: 0; border-radius: 999px; padding: 6px 14px; font-weight: 700; cursor: pointer; }
+
+  /* ═══════════ MAKH-style compact, colored org chart ═══════════ */
+  #orgBoardView .org-board { gap: 8px !important; padding: 4px 2px 16px !important; }
+  .org-col-division { min-width: 206px !important; width: 206px !important; border-radius: 8px !important; border: 1px solid var(--divc, var(--border)) !important; }
+  .org-col-division-head { padding: 6px 8px !important; background: var(--divc, var(--surface2)) !important; border-bottom: 0 !important; gap: 5px !important; align-items: center; }
+  .org-col-division-head:hover { background: var(--divc, var(--surface2)) !important; filter: brightness(1.08); }
+  .org-col-division-stripe { display: none !important; }
+  .org-col-division-title { font-size: 0.76rem !important; color: #fff !important; text-shadow: 0 1px 2px rgba(0,0,0,0.4); line-height: 1.1; }
+  .org-col-division-meta { font-size: 0.58rem !important; color: rgba(255,255,255,0.82) !important; }
+  .org-col-division-head .org-head-pill { background: rgba(0,0,0,0.22) !important; color: #fff !important; font-size: 0.58rem !important; padding: 1px 6px !important; }
+  .org-col-division-head .org-head-pill .havatar { width: 13px !important; height: 13px !important; font-size: 0.5rem !important; border: 0 !important; }
+  /* Departments stack vertically; whole division column tinted with its color */
+  .org-col-departments { flex-direction: column !important; gap: 5px !important; padding: 5px !important; min-height: 0 !important; }
+  .org-col-department { width: auto !important; min-width: 0 !important; max-height: none !important; padding: 5px !important; border-radius: 6px !important; background: var(--divc-soft, var(--surface2)) !important; border: 1px solid transparent !important; gap: 4px !important; }
+  .org-col-department-head { font-size: 0.66rem !important; padding: 1px 3px !important; }
+  .org-col-department-head .count { font-size: 0.54rem !important; }
+  .org-dept-head { font-size: 0.58rem !important; padding: 2px 6px !important; }
+  .org-dept-head .havatar.small { width: 13px !important; height: 13px !important; font-size: 0.5rem !important; }
+  .org-col-department-posts { gap: 4px !important; }
+  /* Compact post boxes */
+  .org-post-card { padding: 4px 6px !important; border-radius: 6px !important; gap: 2px !important; }
+  .org-post-card-title { font-size: 0.68rem !important; font-weight: 700 !important; line-height: 1.15 !important; }
+  .org-post-card-purpose { font-size: 0.56rem !important; -webkit-line-clamp: 1 !important; }
+  .org-post-card-meta { font-size: 0.54rem !important; gap: 3px !important; }
+  .org-post-card-role { font-size: 0.52rem !important; padding: 0 4px !important; }
+  .org-post-card-holders .havatar { width: 14px !important; height: 14px !important; font-size: 0.5rem !important; }
+  .org-post-card-holders .hname { font-size: 0.62rem !important; margin-left: 4px !important; }
+  .org-post-card-holders .vacant { font-size: 0.56rem !important; }
+  .org-post-card-reports { font-size: 0.52rem !important; }
+  /* Exec layer compact */
+  .org-top-tier-label { font-size: 0.58rem !important; }
+  .org-exec-card { padding: 5px 8px !important; }
+  /* Smaller controls to fit */
+  .org-stat-btn, .org-edit-btn { width: 18px !important; height: 18px !important; top: 4px !important; }
+  .org-stat-btn { right: 4px !important; }
+  .org-edit-btn { right: 25px !important; }
+  .org-add-btn, .org-add-division, .org-add-exec { font-size: 0.6rem !important; padding: 3px 8px !important; min-height: 0 !important; }
+  /* Inline person picker (data picker) + color swatch */
+  .org-pick-btn { position: absolute; bottom: 4px; right: 4px; width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--border); border-radius: 5px; background: var(--surface2); color: var(--text-muted); cursor: pointer; font-size: 0.7rem; line-height: 1; z-index: 3; opacity: .6; padding: 0; }
+  .org-pick-btn:hover { opacity: 1; color: var(--accent); border-color: var(--accent); }
+  .org-color-swatch { width: 15px; height: 15px; border-radius: 4px; border: 1.5px solid rgba(255,255,255,0.55); cursor: pointer; flex: 0 0 auto; position: relative; overflow: hidden; }
+  .org-person-pop { position: fixed; z-index: 10001; width: 234px; max-height: 300px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 12px 34px rgba(0,0,0,0.55); display: flex; flex-direction: column; overflow: hidden; }
+  .org-pop-search { margin: 8px; padding: 6px 8px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font: inherit; font-size: 0.8rem; }
+  .org-pop-list { overflow-y: auto; padding: 0 6px 8px; display: flex; flex-direction: column; gap: 2px; }
+  .org-pop-item { text-align: left; padding: 6px 8px; background: transparent; border: 0; border-radius: 6px; color: var(--text); font-size: 0.78rem; cursor: pointer; }
+  .org-pop-item:hover { background: var(--surface2); color: var(--accent); }
+  .org-pop-clear { color: var(--text-dim); }
 </style>
 </head>
 <body data-state="loading">
@@ -1131,7 +1178,7 @@
     <div id="orgBoardView">
       <div class="org-board-header">
         <h3>🏛 Org Board</h3>
-        <span class="hint">Divisions = columns · Departments = sub-columns · Posts = cards. Click anything to open it.</span>
+        <span class="hint">Colored columns = divisions · departments stack inside · posts = boxes. Use the ▾ on a post to set who holds it, the swatch to recolor a division.</span>
         <div class="org-zoom" style="margin-left:auto;display:inline-flex;align-items:center;gap:6px;">
           <button class="small-btn" id="orgZoomOut" title="Zoom out (5%)" style="background:var(--surface3);">−</button>
           <input type="range" id="orgZoomRange" min="10" max="300" step="1" value="100" title="Drag for continuous zoom (10% – 300%)" style="width:160px;accent-color:var(--accent);">

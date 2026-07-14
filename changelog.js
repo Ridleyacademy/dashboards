@@ -16,6 +16,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v500', title: 'Org Board — compact, colored redesign', items: [
+      'The board is now much more compact and colorful — each division is a tight colored column (departments stack inside it) so far more fits on one screen at once.',
+      'New inline person picker: tap the ▾ on any post to search and set who holds it, right there — no need to open the editor.',
+      'New color picker: tap the little swatch on a division header to recolor the whole division on the spot.',
+    ] },
     { version: 'v499', title: 'Org Board — tap the item itself to move it', items: [
       'Moving is now a big, easy target: tap anywhere on a division, department or post to pick it up (no tiny handle to hit), then tap a glowing green slot to drop it. To edit an item instead, use the small ✎ button on it; 📊 shows its stats. Tap a person to assign them to a post.',
     ] },

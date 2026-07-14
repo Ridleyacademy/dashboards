@@ -99,6 +99,9 @@
     .tw-comment{display:flex;gap:8px;padding:7px 0;} .tw-comment .tw-c-body{flex:1;}
     .tw-c-who{font-size:0.72rem;color:rgba(255,255,255,.7);font-weight:700;} .tw-c-when{font-size:0.62rem;color:rgba(255,255,255,.4);margin-left:6px;}
     .tw-c-text{font-size:0.84rem;color:var(--text,#eee);margin-top:2px;white-space:pre-wrap;}
+    .tw-activity{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:0.76rem;color:rgba(255,255,255,.55);}
+    .tw-activity .tw-act-dot{width:6px;height:6px;border-radius:50%;background:var(--border-light,#3a3a3a);flex:0 0 auto;margin:0 6px;}
+    .tw-activity .tw-act-txt{flex:1;} .tw-activity b{color:rgba(255,255,255,.75);font-weight:600;}
     .tw-mention{color:#93c5fd;font-weight:600;}
     .tw-mention-menu{z-index:1400;}
     .tw-assignpick{position:relative;} .tw-assignmenu{position:absolute;top:100%;left:0;z-index:5;background:var(--surface2,#161616);border:1px solid var(--border-light,#333);border-radius:8px;min-width:200px;max-height:230px;overflow-y:auto;box-shadow:0 12px 30px rgba(0,0,0,.5);padding:4px;}
@@ -296,6 +299,7 @@
     const card = wrap.querySelector('.tw-card');
     card.innerHTML = `
       <div class="tw-head"><span class="tw-crumb">${post ? esc(post.name) : 'Task'} · #${t.id}</span>
+        <button class="tw-btn" id="twWatch">${j.watching ? '★ Watching' : '☆ Watch'}</button>
         ${ce ? '<button class="tw-btn danger" id="twDel">Delete</button>' : ''}
         <button class="tw-x" id="twX">✕</button></div>
       <div class="tw-body">
@@ -316,6 +320,9 @@
         <div class="tw-sec"><h4>Activity</h4><div id="twComments">${(j.comments || []).map(_cmtHtml).join('') || '<div class="tw-empty">No comments yet.</div>'}</div><div class="tw-addrow"><input class="tw-inp" id="twCmtNew" placeholder="Write a comment…"><button class="tw-btn primary" id="twCmtAdd">Send</button></div></div>
       </div>`;
     card.querySelector('#twX').addEventListener('click', () => { _close(); opts.onClose && opts.onClose(); });
+    // Watch / unwatch (any user) — follow a task to get its notifications.
+    const watchBtn = card.querySelector('#twWatch'); let _watching = !!j.watching;
+    watchBtn.addEventListener('click', () => { const next = !_watching; _watching = next; watchBtn.textContent = next ? '★ Watching' : '☆ Watch'; _api('?api=' + (next ? 'watch' : 'unwatch'), { method: 'POST', body: { target_id: t.id } }).catch(e => { _watching = !next; watchBtn.textContent = _watching ? '★ Watching' : '☆ Watch'; alert(e.message); }); });
     if (ce) card.querySelector('#twDel').addEventListener('click', async () => { if (!confirm('Delete this task?')) return; try { await _api('?api=delete&id=' + t.id, { method: 'POST', body: {} }); _close(); opts.onClose && opts.onClose(); } catch (e) { alert(e.message); } });
     // Assignees re-render only their own section (never the whole modal).
     const refreshAssignees = () => _renderAssignees(card.querySelector('#twAssignees'), t, ce, refreshAssignees);
@@ -490,6 +497,9 @@
   function _cmtHtml(c) {
     const when = c.created_at ? new Date(c.created_at).toLocaleString() : '';
     const who = c.user_id ? userName(c.user_id) : (c.user_email || 'System');
+    // Auto-logged activity (status/assignee/due changes, reminders) renders as a
+    // compact muted line rather than a full comment bubble.
+    if (c.kind === 'activity') return `<div class="tw-activity"><span class="tw-act-dot"></span><span class="tw-act-txt"><b>${esc(who)}</b> ${esc(c.body)}</span><span class="tw-c-when">${esc(when)}</span></div>`;
     const init = (c.user_id ? userInit(c.user_id) : (who[0] || 'R')).toUpperCase();
     const sys = !c.user_id;
     return `<div class="tw-comment"><span class="tw-avatar sm" ${sys ? 'style="background:#a78bfa"' : ''}>${esc(init)}</span><div class="tw-c-body"><span class="tw-c-who">${esc(who)}</span><span class="tw-c-when">${esc(when)}</span><div class="tw-c-text">${_mentionText(c.body)}</div></div>${sys ? '' : `<button class="tw-del" data-del-cmt="${c.id}">✕</button>`}</div>`;

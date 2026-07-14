@@ -16,6 +16,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v531', title: 'Targets — activity log, watchers & due-today reminders', items: [
+      'Every task now shows an activity log in its feed — status changes, assignee changes, due-date and priority edits are recorded automatically so you can see who changed what.',
+      'Watch any task with the ☆ Watch button to get its notifications (comments, status changes) even if you’re not assigned. You automatically follow tasks you create.',
+      'You now also get a reminder the day a task is due — not only once it’s already overdue.',
+    ] },
     { version: 'v530', title: 'Targets — attachment viewer', items: [
       'Click an image, video, or PDF attachment to open it in an in-app viewer (just like Messages) instead of a new tab — with a Download button. Click an image to zoom; press Esc to close.',
     ] },

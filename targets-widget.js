@@ -364,15 +364,15 @@
             if (file.size > 20 * 1024 * 1024) { alert(file.name + ' is larger than 20MB.'); return; }
             const em = attList.querySelector('.tw-empty'); if (em) em.remove();
             const ph = document.createElement('div'); ph.innerHTML = _attHtml({ id: 'tmp', name: file.name, size: file.size, mime: file.type }, true); const el = ph.firstElementChild; attList.appendChild(el);
-            const reader = new FileReader();
-            reader.onload = () => {
-              const data = String(reader.result).split(',')[1] || '';
-              _api('?api=attachment-upload', { method: 'POST', body: { target_id: t.id, name: file.name, mime: file.type || null, data } })
-                .then(r => { const nw = document.createElement('div'); nw.innerHTML = _attHtml(r.row); const rel = nw.firstElementChild; el.replaceWith(rel); wireAtt(rel); })
-                .catch(e => { el.remove(); if (!attList.querySelector('.tw-att')) attList.innerHTML = '<div class="tw-empty">No files.</div>'; alert(e.message); });
-            };
-            reader.onerror = () => { el.remove(); alert('Could not read ' + file.name); };
-            reader.readAsDataURL(file);
+            // Stream the raw file as the request body (query-param metadata) — no
+            // base64/JSON bloat; matches the chat attachment upload.
+            fetch(TGURL() + '?api=attachment-upload&target_id=' + t.id + '&filename=' + encodeURIComponent(file.name), {
+              method: 'POST',
+              headers: { Authorization: 'Bearer ' + window.session.access_token, 'Content-Type': file.type || 'application/octet-stream' },
+              body: file,
+            }).then(async r => { const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status)); return j; })
+              .then(j => { const nw = document.createElement('div'); nw.innerHTML = _attHtml(j.row); const rel = nw.firstElementChild; el.replaceWith(rel); wireAtt(rel); })
+              .catch(e => { el.remove(); if (!attList.querySelector('.tw-att')) attList.innerHTML = '<div class="tw-empty">No files.</div>'; alert(e.message); });
           });
         });
       }

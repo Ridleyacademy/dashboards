@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v529', title: 'Targets — attachments upload fixed', items: [
+      'Fixed file attachments failing to upload. You can now attach images and files to a task reliably.',
+    ] },
     { version: 'v528', title: 'Targets — file attachments', items: [
       'Attach files to any task — click “Attach files” in a task’s Attachments section to add images, PDFs, or documents (up to 20MB each).',
       'Images show a thumbnail you can click to view full-size; other files download in one click. Remove an attachment with the ✕.',

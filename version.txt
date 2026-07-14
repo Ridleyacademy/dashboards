@@ -1,1 +1,1 @@
-2026-07-15T08:50:00Z-v531-targets-activity-watchers
+2026-07-15T09:30:00Z-v532-targets-topbar-fix

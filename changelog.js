@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v532', title: 'Targets — fixed top bar', items: [
+      'The Targets top bar and Dashboards picker now match every other dashboard — the picker menu is styled correctly, the theme toggle uses the shared light/dark/auto control, and the page now gets PWA update prompts.',
+    ] },
     { version: 'v531', title: 'Targets — activity log, watchers & due-today reminders', items: [
       'Every task now shows an activity log in its feed — status changes, assignee changes, due-date and priority edits are recorded automatically so you can see who changed what.',
       'Watch any task with the ☆ Watch button to get its notifications (comments, status changes) even if you’re not assigned. You automatically follow tasks you create.',

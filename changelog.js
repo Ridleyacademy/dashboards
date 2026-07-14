@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v507', title: 'Org Board — put executives above other executives (Reports to)', items: [
+      'The executive editor now has a “Reports to” picker under “Chain of command”, so you can place an executive above or below other executives — build a real command channel (e.g. CEO → secretaries → divisions), not just executive-over-division. “Divisions overseen” is now optional, so a pure management post (a CEO above other execs) can oversee no divisions directly and just sit above the executives that report to it — which also declutters the chart.',
+    ] },
     { version: 'v506', title: 'Org Board — fix: connector lines missing when an executive looped', items: [
       'Fixed a case where no connector lines showed and executive boxes piled on top of each other. It happened when an executive post ended up listed as its own manager (a bad loop in the data) — the chart now ignores such loops and draws every line correctly. Cleaned up one such loop (CEO) in the data.',
     ] },

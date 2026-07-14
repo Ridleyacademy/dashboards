@@ -603,8 +603,12 @@ function openExecPostEditor(epId) {
     <div class="ax-editor-row"><label>Holders</label><span style="color:var(--text-dim);font-size:0.78rem;">Save this exec post first, then assign holders.</span></div>
     `}
 
+    <h3>Chain of command</h3>
+    <div style="font-size:0.74rem;color:var(--text-dim);margin-bottom:6px;">Place this executive under another executive (like MAKH). Leave as “Top-level” for the highest post. Its box centers over whatever reports to it — other exec posts and/or divisions.</div>
+    <div class="ax-editor-row"><label>Reports to</label><select id="ep-parent"></select></div>
+
     <h3>Divisions overseen</h3>
-    <div style="font-size:0.74rem;color:var(--text-dim);margin-bottom:6px;">Pick every division this person is in charge of. Hover the card on the board to see them highlighted.</div>
+    <div style="font-size:0.74rem;color:var(--text-dim);margin-bottom:6px;">Optional — pick divisions this executive is directly in charge of. A pure management post (e.g. a CEO above other execs) can leave these all unchecked.</div>
     <div id="ep-divs" style="display:flex;flex-wrap:wrap;gap:6px;">${divChecks}</div>
 
     <div class="ax-actions">
@@ -616,6 +620,12 @@ function openExecPostEditor(epId) {
   </div>`;
 
   document.getElementById('ep-role').innerHTML = '<option value="">— No default role —</option>' + roles.map(r => `<option value="${r.id}" ${ep.default_role_id === r.id ? 'selected' : ''}>${escapeHtml(r.name)}</option>`).join('');
+  // "Reports to" — any other exec post except self and its own descendants (no cycles).
+  const _descend = new Set();
+  if (ep.id) { const walk = (pid) => execPostsData.filter(x => x.parent_exec_post_id === pid && x.id !== pid).forEach(c => { if (_descend.has(c.id)) return; _descend.add(c.id); walk(c.id); }); walk(ep.id); }
+  const parentOpts = execPostsData.filter(x => x.id !== ep.id && !_descend.has(x.id)).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  document.getElementById('ep-parent').innerHTML = '<option value="">— Top-level (reports to no one) —</option>' +
+    parentOpts.map(x => `<option value="${x.id}" ${ep.parent_exec_post_id === x.id ? 'selected' : ''}>${escapeHtml(x.name)}</option>`).join('');
   if (ep.id) {
     document.getElementById('ep-holder-pick').innerHTML = _userOptions(null, false);
     refreshExecPostHolders(ep.id);
@@ -647,6 +657,7 @@ function openExecPostEditor(epId) {
         color: document.getElementById('ep-color').value,
         default_role_id: document.getElementById('ep-role').value ? Number(document.getElementById('ep-role').value) : null,
         division_ids: [...document.querySelectorAll('#ep-divs input:checked')].map(cb => Number(cb.dataset.divId)),
+        parent_exec_post_id: document.getElementById('ep-parent').value ? Number(document.getElementById('ep-parent').value) : null,
         sort_order: ep.sort_order || 0,
         purpose: document.getElementById('ep-purpose').value.trim(),
         valuable_final_product: document.getElementById('ep-vfp').value.trim(),

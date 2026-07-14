@@ -46,6 +46,13 @@ first try.
 | `calls.html`        | Calls                     | `calls`, `sales_manager`, `rep` |
 | `declarations.html` | Declarations              | `rep`, `sales_manager` |
 | `students.html`     | Mentorship CRM            | `mentorship`, `sales_manager`, `coach` |
+| `org-board.html`    | Org Board                 | anyone signed in (`roles:'*'`; edit gated by `org.*` keys) |
+| `targets.html`      | Targets (tasks)           | anyone signed in (`roles:'*'`) |
+
+> This table is a curated subset, not exhaustive — other registered pages
+> (`weekly-stats.html`, `messages.html`, `refunds.html`, `support.html`,
+> `subscriptions.html`, `collections.html`, `daily-reports.html`, `coach.html`,
+> `ms-alerts.html`, …) exist too. `permissions.js` `PAGES` is the real list.
 
 `is_admin: true` overrides every check.
 
@@ -1006,6 +1013,64 @@ autocomplete from `?api=coaches`). Users without an account can still
 be entered as coaches — just type their name. Don't revert to a
 `<select>`.
 
+## Org Board + Targets — the task system (org-board.html, targets.html)
+
+The **Org Board** (`org-board.html` / `org-board.js`) is a standalone dashboard
+(moved out of the Access admin tab in v492/493) that renders the whole org tree
+— divisions ▸ departments ▸ posts ▸ exec posts, with holders — as a layered,
+zoomable chart with connector lines and full drag-and-drop (reparent posts,
+move departments across divisions, reorder), edit-gated by the `org.*` keys.
+`org-board.js` is **built by concatenation** — do not edit it directly:
+
+```
+cat org-board-boot.js org-core.js org-extras.js > org-board.js
+```
+
+Everyone can open the board and click **"My Post"** to see their own post's
+purpose, senior, orders/policies, stats (via `weekly-stats ?api=stats-for-user`),
+and their assigned tasks. The board reads org data from the **`access-control`**
+edge fn (unchanged) and stats from `weekly-stats` scoped endpoints.
+
+### Targets (ClickUp-style tasks)
+
+`targets.html` is the standalone task dashboard; the **detail popup, board list,
+and all task UI live in `targets-widget.js`** — a shared, self-contained module
+(injects its own `.tw-*` CSS) reused by both `targets.html` and the org board's
+My Post panel. The host page must set `window.session`, `window.TG_DIRECTORY`
+(`[{id,first_name,email}]`), `window.TG_POSTS` (`[{id,name}]`), and
+`window.SUPABASE_URL`. Public API: `Targets.renderBoard(el, opts)`,
+`Targets.openDetail(id, opts)`, `Targets.openNew(defaults)`. `opts.filterPost`
+filters the list; `opts.postId` is only the default post for NEW tasks.
+
+**Backend:** the `org-targets` edge fn (verify_jwt:true) — see Part II. Data:
+`org_targets` (post_id nullable = standalone or post-bound; status
+todo/in_progress/done/cancelled, priority, start/due dates, estimate, tags[],
+assignee_ids uuid[], parent_target_id for subtasks) plus `org_target_comments`
+(kind = 'comment' | 'activity'), `org_target_checklist`, `org_target_attachments`,
+`org_target_watchers`. All RLS-on with **0 policies** (service-role via the edge
+fn — intentional; the security advisor flags this as INFO, ignore it).
+
+Key behaviours, and the traps that already bit us:
+
+- **Optimistic UI everywhere** — status/checklist/comment/assignee changes update
+  the DOM instantly and only revert on server error. The detail modal never full-
+  reloads on an edit; it refreshes the board once on close.
+- **Attachments: stream the RAW file body, never base64-in-JSON.** The upload
+  endpoint takes the file as the POST body (`?api=attachment-upload&target_id=&filename=`,
+  mime from Content-Type) and streams it to a Dropbox upload session — same recipe
+  as the `chat` fn. An earlier base64-in-JSON version failed on the edge runtime.
+  Files render via a public Dropbox shared link (`?raw=1` inline, `?dl=1` download);
+  clicking one opens the in-app lightbox (`_openLightbox`, ported from
+  `messages-widget.js`) — image zoom, inline video, PDF-via-blob.
+- **Activity log** = `org_target_comments` rows with `kind='activity'`, auto-written
+  by the `update` endpoint on status/assignee/due/priority/title changes; rendered
+  as compact muted lines interleaved with human comments.
+- **Watchers/followers** (`org_target_watchers`): ☆ Watch toggle in the modal;
+  notifications target **watchers ∪ assignees** (creators auto-follow). @mentions,
+  assignment, comment, status-change, overdue and due-today all fan out through the
+  standard `notify()` (insert `notifications` + `push-subscribe?api=dispatch`).
+- Deep link `targets.html?task=<id>` opens that task directly.
+
 ## When in doubt
 
 Ask the user. They prefer being asked over a wrong fix. Things they
@@ -1037,6 +1102,7 @@ particularly care about, based on past sessions:
 - **Finance & Support** — refunds, collections, support, subscriptions, double-payment-detector, fanbasis-*
 - **Analytics & coach** — weekly-stats, coach-hours, meta-ads, sync-meta-ads, sync-accel-calls
 - **Ingest, integrations & notifications** — ingest-*, survey-intake, dropbox-*, push-subscribe, typeform-help, kajabi-probe, bulk-import-mentorship
+- **Org Board & Targets (tasks)** — org-targets (task CRUD + comments/checklist/attachments/watchers/activity), targets-reminders (daily overdue + due-today cron); org tree served by access-control, stats by weekly-stats `stats-for-*`
 - **Operations reference** — cron jobs, database tables, secrets, deploy + verify procedure, knowledge graph
 ## Zoom system
 
@@ -1915,6 +1981,25 @@ Most public ingest endpoints are authed by a shared `?token=`/`?key=` query secr
 
 ---
 
+### org-targets (v6; `verify_jwt:true`)
+
+- **Purpose:** ClickUp-style task backend for the Targets dashboard + org board My Post. Powers `targets-widget.js`.
+- **Auth:** verifies the Bearer JWT via `getUser`; then a service-role DB client. Reads (list/for-post/get) = any authed user. Writes gated by `canManageTarget` = admin OR `org.edit_structure`/`org.assign_holders` OR the task's creator OR an assignee OR (if post-bound) the post's holder / senior holder. Any authed user may `create`, `comment-add`, `watch`/`unwatch`.
+- **Tables:** `org_targets` (post_id nullable, status/priority/dates/estimate/tags[]/assignee_ids[], parent_target_id = subtasks, last_reminded_on), `org_target_comments` (**kind** 'comment'|'activity'), `org_target_checklist`, `org_target_attachments` (Dropbox), `org_target_watchers` (unique target_id+user_id). All RLS-on, **0 policies** (service-role only — advisor INFO is expected).
+- **APIs:** list / for-post / get / create / update / delete / comment-add / comment-delete / checklist-add|update|delete / **watch** / **unwatch** / **attachment-upload** / attachment-delete.
+- **Activity log:** `update` diffs old→new and writes `kind='activity'` comment rows ("changed status to Done", "set the due date to …", "updated the assignees", …). Reminders write activity rows too (`user_id` null).
+- **Watchers/notifications:** recipients = **watchers ∪ assignees** (creator auto-follows on create). `notify()` (standard `notifications` row + `push-subscribe?api=dispatch`) fires on assignment (`target_assigned`), @mention (`target_mention`), comment (`target_comment`), status change (`target_status`).
+- **Attachments — the rule:** `attachment-upload` reads the **raw request body stream** (`?target_id=&filename=`, mime from Content-Type) → Dropbox **upload session** (8 MB chunks, 20 MB cap) → public shared link. **Never base64-in-JSON** (an earlier version did and failed on the edge runtime). Same recipe as `chat`. `dbxToken()` uses the shared `DROPBOX_APP_KEY/SECRET/REFRESH_TOKEN`.
+- **Gotcha:** `org-board.js` is a build artifact (`cat org-board-boot.js org-core.js org-extras.js > org-board.js`); the widget is used by both the dashboard and the board.
+
+### targets-reminders (v4; `verify_jwt:false`, secret-gated)
+
+- **Purpose:** Daily cron. Notifies on **overdue** (due_date < ET today) and **due-today** open tasks; recipients = assignees ∪ watchers. Overdue also posts an activity note. Dedupe via `org_targets.last_reminded_on` (once/day per task).
+- **Auth:** `X-Dispatch-Secret` gate; service-role client.
+- **Cron:** pg_cron `targets-overdue-reminders` `30 13 * * *` → the fn with the vault dispatch secret.
+
+---
+
 ## Operations reference
 
 ### Cron jobs (pg_cron)
@@ -1933,8 +2018,11 @@ All HTTP-triggered jobs call an edge function via `net.http_post`/`net.http_get`
 | 9 | `zoom-room-roll` | `0 9 * * *` | edge fn `zoom-room-migrate?action=roll` — trim every recurring room to next 2 occurrences so it never expires |
 | 10 | `email-drainer-every-min` | `* * * * *` | edge fn: drain `email_outbox` → Resend (sole sender) |
 | 11 | `queue-watchdog-5min` | `*/5 * * * *` | edge fn: alert if the email queue stalls |
+| – | `daily-reports-evening-nudge` | `0 21 * * *` | edge fn `daily-reports?api=run` — nudge people who haven't submitted |
+| – | `mentorship-expiry-turnovers-daily` | `0 13 * * *` | edge fn: create expiry-milestone turnovers at 90/30/7 days before eff_end |
+| – | `targets-overdue-reminders` | `30 13 * * *` | edge fn `targets-reminders` — overdue + due-today task notifications |
 
-### Database tables (public schema, ~76)
+### Database tables (public schema, ~80)
 
 - **Mentorship CRM:** `mentorship_students` (67 cols, the core record), `mentorship_activity_log`, `mentorship_alerts` + `mentorship_alert_comments`, `mentorship_turnovers` + `mentorship_turnover_comments`, `mentorship_coach_notes`, `mentorship_ic_notes`, `mentorship_rep_notes`, `mentorship_pauses`, `mentorship_pins`, `mentorship_resigns`, `mentorship_session_groups`, `mentorship_wins`, `mentorship_survey_responses`, `coach_work_hours`
 - **Zoom:** `mentorship_zoom_sessions` (one row per class, shares the coach's room id+link), `mentorship_zoom_attendance`, `zoom_scheduler_runs`
@@ -1944,6 +2032,8 @@ All HTTP-triggered jobs call an edge function via `net.http_post`/`net.http_get`
 - **Finance / support:** `refunds` + `refund_events`, `collections`, `support_tickets` + `support_events`, `subscriptions` + `subscription_events`, `fanbasis_webhooks_raw`
 - **Meta ads:** `meta_ads_ads`, `meta_ads_adsets`, `meta_ads_campaigns`, `meta_ads_insights`, `meta_ads_totals`, `meta_ads_sync_runs`
 - **Weekly stats:** `weekly_stats` (manual values), `weekly_stats_metrics` (catalog)
+- **Tasks (Targets):** `org_targets`, `org_target_comments` (kind comment|activity), `org_target_checklist`, `org_target_attachments`, `org_target_watchers`
+- **Messaging:** `chat_conversations`, `chat_members`, `chat_messages` (+ reactions/reads) — internal Slack-style chat via the `chat` fn
 - **Integrations / misc:** `dropbox_state`, `survey_intake_debug`
 
 RLS is enabled on all tables. Edge functions use the service-role key (bypasses RLS) and enforce access in code (legacy role + `permissions_v2` granular key — see *Backend RBAC*).

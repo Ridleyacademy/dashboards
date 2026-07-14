@@ -1344,10 +1344,10 @@ function _renderExecTree() {
       addSub.addEventListener('click', e => { e.stopPropagation(); _createExecUnder(id); }); node.appendChild(addSub);
       const pk = document.createElement('button'); pk.className = 'org-pick-btn'; pk.type = 'button'; pk.title = 'Assign / change person'; pk.textContent = '▾';
       pk.addEventListener('click', e => { e.stopPropagation(); _openExecPersonPicker(id, pk); }); node.appendChild(pk);
-      _wholeItemPickup(node, 'exec', id);
+      // Executive hierarchy is set in the editor ("Sits above / oversees"), so
+      // executives are no longer tap-to-move — no "tap a green slot" mode.
     }
   });
-  if (_mv && _mv.kind === 'exec') _renderExecTargets();
 }
 
 async function _createExecUnder(parentId) {

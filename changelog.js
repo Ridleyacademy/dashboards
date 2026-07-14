@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v517', title: 'Org Board — executives no longer enter “tap a green slot” move mode', items: [
+      'Tapping an executive box no longer starts the old “Moving — tap a green slot” mode. Set an executive’s place in the chain of command from its editor (“Sits above / oversees”); its ✎ edit, ▾ assign, 📊 stats and ＋ add-below buttons all still work.',
+    ] },
     { version: 'v516', title: 'Org Board — removed the “Make top-level (no boss)” chip', items: [
       'Removed the “⊤ Make top-level (no boss)” button that popped up when moving an executive — an executive’s place in the chain of command is now set in its editor under “Sits above / oversees”.',
     ] },

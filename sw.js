@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v516-org-board-rm-toplevel-chip';
+const CACHE_NAME = 'ridley-v517-org-board-rm-exec-tapmove';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [

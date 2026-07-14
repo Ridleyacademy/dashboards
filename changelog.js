@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v525', title: 'Org Board — fix: targets now load in the “My Post” panel', items: [
+      'Fixed the error where “Your targets” failed to load on the org board. Your tasks now show right inside My Post, where you can add, tick, and open them just like on the Targets dashboard.',
+    ] },
     { version: 'v524', title: 'Targets — fast list: inline edit, quick-add, filters & deep links', items: [
       'Edit a task right from the list: click its priority, due date, assignees, or status to change them without opening it.',
       'Add a task straight into any column with the "+ Add task…" row under each group.',

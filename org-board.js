@@ -1893,7 +1893,8 @@ function _ppdUp() {
 function enhanceBoard() {
   const editing = orgCanEdit();
   if (!editing) _cancelMove();
-  // Feed the shared targets-widget the people directory + post names.
+  // Feed the shared targets-widget the session, people directory + post names.
+  window.session = session;
   window.TG_DIRECTORY = usersData;
   window.TG_POSTS = postsData.map(p => ({ id: p.id, name: p.name }));
   // One global, capture-phase suppressor kills the browser's native drag for any

@@ -1368,12 +1368,8 @@ function _renderExecTargets() {
     node.classList.add('org-target');
     node.addEventListener('click', _onExecTargetClick, { capture: true });
   });
-  const tier = document.getElementById('orgTopTier');
-  if (tier && !document.getElementById('orgExecTopDrop')) {
-    const chip = document.createElement('button'); chip.id = 'orgExecTopDrop'; chip.className = 'org-exec-topdrop'; chip.type = 'button'; chip.textContent = '⊤ Make top-level (no boss)';
-    chip.addEventListener('click', async e => { e.stopPropagation(); const mid = _mv.id; _cancelMove(); try { await api('?api=exec-post-update&id=' + mid, { method: 'POST', body: { parent_exec_post_id: null } }); await loadOrgTab(); } catch (err) { alert(err.message); } });
-    tier.insertBefore(chip, tier.firstChild);
-  }
+  // (The "⊤ Make top-level (no boss)" chip was removed — an executive's place in
+  // the chain of command is now set in its editor's "Sits above / oversees".)
 }
 function _onExecTargetClick(e) {
   if (!_mv) return;

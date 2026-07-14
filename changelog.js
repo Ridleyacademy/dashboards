@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v516', title: 'Org Board — removed the “Make top-level (no boss)” chip', items: [
+      'Removed the “⊤ Make top-level (no boss)” button that popped up when moving an executive — an executive’s place in the chain of command is now set in its editor under “Sits above / oversees”.',
+    ] },
     { version: 'v515', title: 'Org Board — fix: dragging a post over its person no longer grabs the photo', items: [
       'Fixed grabbing a post that has someone assigned: dragging on the person’s avatar used to drag the little photo instead of the post (and never showed the moving copy). Now the whole card — avatar included — drags the post properly, and tapping the person still opens the assign menu.',
     ] },

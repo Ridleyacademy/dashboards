@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v513', title: 'Org Board — drag posts too (reorder, or move to another department)', items: [
+      'Posts now drag like everything else: pick up a post card and drop it higher/lower to reorder it in its department, or drop it into another department — in the same division or a different one. The other posts shift to make room and the move is saved. Divisions, departments, and posts all move the same way now; Esc cancels.',
+    ] },
     { version: 'v512', title: 'Org Board — drag departments (reorder, or move to another division)', items: [
       'Departments now drag just like divisions: pick one up by its header and a floating copy follows your cursor. Drop it higher or lower to reorder it inside its division, or drop it into a different division’s stack — the other departments slide to make room, and the move is saved. Esc cancels.',
     ] },

@@ -1751,6 +1751,93 @@ function _dpdUp() {
   })();
 }
 
+// ── Post drag-to-move (reorder in a department OR into another department) ────
+// The whole card is the handle; drop target is whichever department's post list
+// the pointer is over — across departments and even across divisions.
+let _ppd = null, _ppdAbort = false;
+function _wirePostDrag(card, postId) {
+  if (card.dataset.ppdWired) return; card.dataset.ppdWired = '1';
+  card.style.touchAction = 'none';
+  card.addEventListener('dragstart', e => e.preventDefault());
+  card.addEventListener('pointerdown', e => {
+    if (!orgCanEdit() || _ppd || _dd || _dpd) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    if (e.target.closest('.org-stat-btn, .org-edit-btn, .org-pick-btn, .org-post-card-holders, button, a, input, select, textarea')) return;
+    e.preventDefault();
+    _ppd = { card, postId, startX: e.clientX, startY: e.clientY, active: false };
+    window.addEventListener('pointermove', _ppdMove);
+    window.addEventListener('pointerup', _ppdUp);
+    window.addEventListener('pointercancel', _ppdUp);
+    window.addEventListener('keydown', _ppdKey);
+  });
+}
+function _ppdMove(e) {
+  if (!_ppd) return;
+  if (!_ppd.active) {
+    if (Math.abs(e.clientX - _ppd.startX) < 5 && Math.abs(e.clientY - _ppd.startY) < 5) return;
+    _ppdBegin(e);
+  }
+  _ppd.ghost.style.left = (e.clientX - _ppd.grabDX) + 'px';
+  _ppd.ghost.style.top = (e.clientY - _ppd.grabDY) + 'px';
+  _ppdReflow(e.clientX, e.clientY);
+}
+function _ppdBegin(e) {
+  _ppd.active = true;
+  const card = _ppd.card, rect = card.getBoundingClientRect(), z = _currentZoom();
+  const srcDiv = card.closest('.org-col-division');
+  const ghost = card.cloneNode(true);
+  ghost.classList.add('org-post-ghost');
+  ghost.style.cssText = 'position:fixed;z-index:9999;pointer-events:none;margin:0;width:' + card.offsetWidth + 'px;transform:scale(' + z + ');transform-origin:top left;left:' + rect.left + 'px;top:' + rect.top + 'px;';
+  if (srcDiv) { ghost.style.setProperty('--divc', srcDiv.style.getPropertyValue('--divc')); ghost.style.setProperty('--divc-soft', srcDiv.style.getPropertyValue('--divc-soft')); }
+  document.body.appendChild(ghost);
+  _ppd.ghost = ghost;
+  _ppd.grabDX = e.clientX - rect.left;
+  _ppd.grabDY = e.clientY - rect.top;
+  card.classList.add('org-post-dragging');
+  document.body.classList.add('org-dragging');
+  const svg = document.getElementById('orgLinkSvg'); if (svg) svg.style.opacity = '0.15';
+}
+function _ppdReflow(cx, cy) {
+  let target = null;
+  for (const c of document.querySelectorAll('.org-col-department-posts')) {
+    const r = c.getBoundingClientRect();
+    if (cx >= r.left && cx <= r.right && cy >= r.top - 40 && cy <= r.bottom + 40) { target = c; break; }
+  }
+  if (!target) target = _ppd.card.parentElement;
+  const others = [...target.querySelectorAll(':scope > .org-post-card')].filter(c => c !== _ppd.card);
+  let ref = null;
+  for (const c of others) { const r = c.getBoundingClientRect(); if (cy < r.top + r.height / 2) { ref = c; break; } }
+  const addBtn = target.querySelector(':scope > .org-add-post, :scope > .org-add-btn');
+  target.insertBefore(_ppd.card, ref || addBtn || null);
+}
+function _ppdKey(e) { if (e.key === 'Escape' && _ppd) { _ppdAbort = true; _ppdUp(); } }
+function _ppdUp() {
+  window.removeEventListener('pointermove', _ppdMove);
+  window.removeEventListener('pointerup', _ppdUp);
+  window.removeEventListener('pointercancel', _ppdUp);
+  window.removeEventListener('keydown', _ppdKey);
+  const ppd = _ppd; _ppd = null;
+  if (!ppd) return;
+  if (ppd.ghost) ppd.ghost.remove();
+  ppd.card.classList.remove('org-post-dragging');
+  document.body.classList.remove('org-dragging');
+  const svg = document.getElementById('orgLinkSvg'); if (svg) svg.style.opacity = '';
+  if (!ppd.active) return;
+  if (_ppdAbort) { _ppdAbort = false; loadOrgTab(); return; }
+  const container = ppd.card.parentElement;
+  const destDeptEl = container.closest('.org-col-department');
+  const destDept = destDeptEl ? _deptIdOf(destDeptEl) : null;
+  const order = [...container.querySelectorAll(':scope > .org-post-card')].map(c => Number(c.dataset.id)).filter(x => !isNaN(x));
+  const post = postsData.find(x => x.id === ppd.postId);
+  (async () => {
+    try {
+      if (post && destDept != null && post.department_id !== destDept) await api('?api=post-update&id=' + ppd.postId, { method: 'POST', body: { department_id: destDept } });
+      await api('?api=reorder', { method: 'POST', body: { kind: 'posts', order } });
+    } catch (err) { alert(err.message); }
+    await loadOrgTab();
+  })();
+}
+
 function enhanceBoard() {
   const editing = orgCanEdit();
   if (!editing) _cancelMove();
@@ -1778,7 +1865,7 @@ function enhanceBoard() {
     const postId = Number(card.dataset.id);
     if (!card.querySelector('.org-stat-btn')) card.appendChild(_statBtn('Post & holder stats', ev => { ev.stopPropagation(); openPostStats(postId); }));
     if (editing) {
-      _wholeItemPickup(card, 'post', postId);
+      _wirePostDrag(card, postId);
       if (!card.querySelector('.org-edit-btn')) card.appendChild(_editBtn(ev => { ev.stopPropagation(); openOrgEditor('post', postId); }));
       if (!card.querySelector('.org-pick-btn')) card.appendChild(_pickerBtn(postId));
       const holderEl = card.querySelector('.org-post-card-holders');

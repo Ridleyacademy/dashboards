@@ -1151,6 +1151,62 @@
   .org-col-division, .org-col-department, .org-post-card, .org-col-division *, .org-col-department *, .org-post-card * { -webkit-user-drag: none; }
   .org-post-card.org-post-dragging { opacity: .28; filter: grayscale(.3); }
   .org-post-ghost { box-shadow: 0 8px 22px rgba(0,0,0,.5); border-radius: 7px; opacity: .96; }
+  /* "You hold this" highlight + badge */
+  .org-post-card.org-post-mine { outline: 2px solid var(--accent); outline-offset: -1px; box-shadow: 0 0 0 3px rgba(52,211,153,0.18); }
+  .org-mine-badge { position: absolute; top: -7px; left: 8px; background: var(--accent); color: #08211a; font-size: 0.54rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; padding: 1px 6px; border-radius: 999px; z-index: 4; }
+  /* My Post panel */
+  .org-mp-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1000; display: flex; align-items: flex-start; justify-content: center; padding: 40px 16px; overflow-y: auto; }
+  .org-mp-card { width: 100%; max-width: 640px; background: var(--surface); border: 1px solid var(--border-light); border-radius: 16px; box-shadow: 0 24px 70px rgba(0,0,0,0.6); overflow: hidden; }
+  .org-mp-head { display: flex; align-items: flex-start; gap: 12px; padding: 18px 20px; border-bottom: 1px solid var(--border); background: var(--surface2); }
+  .org-mp-head h2 { margin: 2px 0; font-size: 1.15rem; color: var(--text); }
+  .org-mp-crumb { font-size: 0.68rem; text-transform: uppercase; letter-spacing: .06em; color: rgba(255,255,255,0.6); font-weight: 700; }
+  .org-mp-sep { opacity: .5; }
+  .org-mp-holder { font-size: 0.82rem; color: rgba(255,255,255,0.85); display: flex; align-items: center; gap: 6px; margin-top: 3px; }
+  .org-mp-close { margin-left: auto; background: var(--surface3); border: 1px solid var(--border); color: var(--text); width: 30px; height: 30px; border-radius: 8px; cursor: pointer; font-size: 0.9rem; flex: 0 0 auto; }
+  .org-mp-close:hover { color: var(--red); border-color: var(--red); }
+  .org-mp-body { padding: 8px 20px 20px; }
+  .org-mp-sec { padding: 14px 0; border-bottom: 1px solid var(--border); }
+  .org-mp-sec:last-child { border-bottom: 0; }
+  .org-mp-sec h3 { font-size: 0.72rem; text-transform: uppercase; letter-spacing: .06em; color: rgba(255,255,255,0.6); margin: 0 0 8px; font-weight: 700; }
+  .org-mp-kv { display: flex; gap: 10px; font-size: 0.86rem; color: var(--text); margin-bottom: 5px; }
+  .org-mp-k { flex: 0 0 78px; color: rgba(255,255,255,0.6); font-size: 0.74rem; text-transform: uppercase; letter-spacing: .04em; padding-top: 1px; }
+  .org-mp-senior { font-size: 0.9rem; color: var(--text); display: flex; align-items: center; gap: 6px; }
+  .org-mp-empty { font-size: 0.82rem; color: rgba(255,255,255,0.55); font-style: italic; }
+  .org-mp-loading { font-size: 0.82rem; color: rgba(255,255,255,0.55); }
+  .org-mp-policy { padding: 8px 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 6px; }
+  .org-mp-policy-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 0.86rem; color: var(--text); }
+  .org-mp-policy-body { font-size: 0.8rem; color: rgba(255,255,255,0.78); margin-top: 4px; white-space: pre-wrap; }
+  .org-mp-kind { font-size: 0.56rem; font-weight: 800; letter-spacing: .05em; padding: 1px 6px; border-radius: 4px; }
+  .org-mp-kind-order, .org-mp-kind-directive { background: rgba(251,191,36,0.2); color: #fbbf24; }
+  .org-mp-kind-policy { background: rgba(96,165,250,0.2); color: #93c5fd; }
+  .org-mp-from { font-size: 0.62rem; color: rgba(255,255,255,0.5); }
+  .org-mp-exp { font-size: 0.62rem; color: #fbbf24; margin-left: auto; }
+  .org-mp-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .org-mp-stat { display: flex; justify-content: space-between; gap: 8px; padding: 6px 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; font-size: 0.82rem; }
+  .org-mp-stat-label { color: rgba(255,255,255,0.75); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .org-mp-stat-val { color: var(--text); font-weight: 700; flex: 0 0 auto; }
+  .org-mp-up { color: var(--accent); } .org-mp-down { color: var(--red); } .org-mp-flat { color: rgba(255,255,255,0.4); }
+  .org-mp-target { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid var(--border); }
+  .org-mp-target:first-child { border-top: 1px solid var(--border); }
+  .org-mp-target.done .org-mp-target-title { text-decoration: line-through; color: rgba(255,255,255,0.45); }
+  .org-mp-check { flex: 0 0 auto; width: 20px; height: 20px; border-radius: 6px; border: 1.5px solid var(--border-light); background: var(--surface2); color: var(--accent); font-weight: 800; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; margin-top: 1px; }
+  .org-mp-target.done .org-mp-check { background: var(--accent); color: #08211a; border-color: var(--accent); }
+  .org-mp-check:disabled { cursor: default; opacity: .5; }
+  .org-mp-target-main { flex: 1; min-width: 0; }
+  .org-mp-target-title { font-size: 0.88rem; color: var(--text); }
+  .org-mp-inprog { font-size: 0.58rem; background: rgba(251,191,36,0.2); color: #fbbf24; padding: 1px 6px; border-radius: 999px; font-weight: 700; text-transform: uppercase; }
+  .org-mp-target-details { font-size: 0.78rem; color: rgba(255,255,255,0.7); margin-top: 2px; }
+  .org-mp-target-meta { display: flex; gap: 10px; align-items: center; margin-top: 4px; }
+  .org-mp-due { font-size: 0.68rem; color: rgba(255,255,255,0.6); }
+  .org-mp-due.org-mp-overdue { color: var(--red); font-weight: 700; }
+  .org-mp-mini { background: none; border: 0; color: var(--accent); font-size: 0.7rem; cursor: pointer; padding: 0; }
+  .org-mp-mini.org-mp-del { color: rgba(255,255,255,0.45); }
+  .org-mp-mini.org-mp-del:hover { color: var(--red); }
+  .org-mp-addtarget { display: flex; gap: 6px; margin-top: 10px; }
+  .org-mp-addtarget input[type="text"] { flex: 1; }
+  .org-mp-addtarget input, .org-mp-addtarget button { padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface2); color: var(--text); font-size: 0.84rem; }
+  .org-mp-pick { display: block; width: 100%; text-align: left; padding: 12px 14px; margin-bottom: 6px; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; color: var(--text); font-size: 0.92rem; cursor: pointer; }
+  .org-mp-pick:hover { border-color: var(--accent); }
   .org-tree-label { font-size: 0.58rem; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); font-weight: 700; margin-bottom: 2px; }
   .org-tree-scroll { overflow-x: auto; padding-bottom: 6px; }
   .org-tree, .org-tree ul { display: flex; list-style: none; margin: 0; padding: 0; }
@@ -1243,6 +1299,7 @@
     <div id="orgBoardView">
       <div class="org-board-header">
         <h3>Org Board</h3>
+        <button class="small-btn" id="orgMyPostBtn" title="See your post: senior, orders & policies, stats, and your targets" style="background:var(--accent);color:#08211a;border-color:var(--accent);font-weight:700;">◎ My Post</button>
         <span class="hint">Colored columns = divisions · departments stack inside · posts = boxes. Use the ▾ on a post to set who holds it, the swatch to recolor a division.</span>
         <div class="org-zoom" style="margin-left:auto;display:inline-flex;align-items:center;gap:6px;">
           <button class="small-btn" id="orgZoomOut" title="Zoom out (5%)" style="background:var(--surface3);">−</button>

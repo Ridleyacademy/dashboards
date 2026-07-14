@@ -14,6 +14,7 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const supa = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: true, autoRefreshToken: true } });
 const AC_BASE = SUPABASE_URL + '/functions/v1/access-control';
 const WS_BASE = SUPABASE_URL + '/functions/v1/weekly-stats';
+const TG_BASE = SUPABASE_URL + '/functions/v1/org-targets';
 
 let session = null;
 
@@ -35,6 +36,17 @@ async function api(path, opts = {}) {
 // Weekly-stats fetch (stats popups). Read-only; org.view is enough server-side.
 async function wsApi(path) {
   const r = await fetch(WS_BASE + path, { headers: { Authorization: 'Bearer ' + session.access_token } });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+  return j;
+}
+// Targets (org-targets edge fn): staff self-assign / seniors assign per post.
+async function tgApi(path, opts = {}) {
+  const r = await fetch(TG_BASE + path, {
+    method: opts.method || 'GET',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
   return j;
@@ -1925,6 +1937,17 @@ function enhanceBoard() {
     const epId = Number(card.dataset.id);
     if (!card.querySelector('.org-stat-btn')) card.appendChild(_statBtn('Executive post stats', ev => { ev.stopPropagation(); openExecStats(epId); }));
   });
+  // Highlight the post(s) the signed-in user holds, and wire the "My Post" button.
+  const myIds = new Set(_myPostIds());
+  document.querySelectorAll('.org-post-card').forEach(card => {
+    const mine = myIds.has(Number(card.dataset.id));
+    card.classList.toggle('org-post-mine', mine);
+    if (mine && !card.querySelector('.org-mine-badge')) { const b = document.createElement('span'); b.className = 'org-mine-badge'; b.textContent = 'You'; card.insertBefore(b, card.firstChild); }
+    else if (!mine) { const b = card.querySelector('.org-mine-badge'); if (b) b.remove(); }
+  });
+  const myBtn = document.getElementById('orgMyPostBtn');
+  if (myBtn) { if (!myBtn.dataset.wired) { myBtn.dataset.wired = '1'; myBtn.addEventListener('click', _onMyPostClick); } myBtn.style.display = myIds.size ? '' : ''; }
+
   try { _weaveTree(); } catch (e) { console.warn('[weave]', e); }
   // If a move is in progress across a re-render, restore its targets.
   if (_mv) { document.body.classList.add('org-placing'); _renderTargets(); }
@@ -2057,6 +2080,153 @@ async function _setDivisionExec(did, execId) {
     else if (has) await api('?api=exec-post-update&id=' + ep.id, { method: 'POST', body: { division_ids: (ep.division_ids || []).filter(x => x !== did) } });
   }
 }
+
+// ─────────────────────── "My Post" panel (staff self-service) ───────────────
+// Any signed-in staffer clicks "My Post" (or their highlighted card) to see, for
+// the post they hold: identity + direct senior + orders/policies + stats + their
+// targets (ClickUp-style tasks they and their senior can add / check off).
+function _myPostIds() {
+  const uid = session?.user?.id; if (!uid) return [];
+  return postsData.filter(p => (activeHoldersByPost[p.id] || []).some(h => h.user_id === uid)).map(p => p.id);
+}
+function _onMyPostClick() {
+  const ids = _myPostIds();
+  if (!ids.length) { alert("You don't hold a post yet — ask your senior to assign you one."); return; }
+  if (ids.length === 1) return openMyPostPanel(ids[0]);
+  _closeMyPost();
+  const root = document.getElementById('modalRoot');
+  root.innerHTML = `<div class="org-mp-overlay" id="orgMpOverlay"><div class="org-mp-card" style="max-width:420px;">
+    <div class="org-mp-head"><h2>Your posts</h2><button class="org-mp-close" id="orgMpClose">✕</button></div>
+    <div class="org-mp-body">${ids.map(id => { const p = postsData.find(x => x.id === id); return `<button class="org-mp-pick" data-id="${id}">${escapeHtml(p ? p.name : 'Post')}</button>`; }).join('')}</div></div></div>`;
+  root.querySelector('#orgMpClose').addEventListener('click', _closeMyPost);
+  root.querySelector('#orgMpOverlay').addEventListener('click', e => { if (e.target.id === 'orgMpOverlay') _closeMyPost(); });
+  root.querySelectorAll('.org-mp-pick').forEach(b => b.addEventListener('click', () => openMyPostPanel(Number(b.dataset.id))));
+}
+function _closeMyPost() { const o = document.getElementById('orgMpOverlay'); if (o) o.remove(); }
+
+function openMyPostPanel(postId) {
+  const po = postsData.find(x => x.id === postId); if (!po) return;
+  const dep = departmentsData.find(d => d.id === po.department_id);
+  const div = dep ? divisionsData.find(v => v.id === dep.division_id) : null;
+  const holder = (activeHoldersByPost[postId] || [])[0];
+  const senior = po.senior_post_id ? postsData.find(x => x.id === po.senior_post_id) : null;
+  const seniorHolder = senior ? (activeHoldersByPost[senior.id] || [])[0] : null;
+  const crumb = [div && div.name, dep && dep.name].filter(Boolean).map(escapeHtml).join(' <span class="org-mp-sep">▸</span> ');
+  _closeMyPost();
+  const root = document.getElementById('modalRoot');
+  root.innerHTML = `<div class="org-mp-overlay" id="orgMpOverlay"><div class="org-mp-card">
+    <div class="org-mp-head">
+      <div style="min-width:0;">
+        <div class="org-mp-crumb">${crumb || 'Org'}</div>
+        <h2>${escapeHtml(po.name)}</h2>
+        <div class="org-mp-holder">${holder ? '<span class="havatar small" style="background:' + (div?.color || '#6b9eff') + '">' + escapeHtml(_initialOf(holder.user_id)) + '</span> ' + escapeHtml(_displayOf(holder.user_id)) : '<span style="color:var(--text-dim);font-style:italic;">Vacant</span>'}</div>
+      </div>
+      <button class="org-mp-close" id="orgMpClose">✕</button>
+    </div>
+    <div class="org-mp-body">
+      ${(po.purpose || po.valuable_final_product || po.description) ? `<section class="org-mp-sec">
+        ${po.purpose ? `<div class="org-mp-kv"><span class="org-mp-k">Purpose</span><span>${escapeHtml(po.purpose)}</span></div>` : ''}
+        ${po.valuable_final_product ? `<div class="org-mp-kv"><span class="org-mp-k">Produces</span><span>${escapeHtml(po.valuable_final_product)}</span></div>` : ''}
+        ${po.description ? `<div class="org-mp-kv"><span class="org-mp-k">Notes</span><span>${escapeHtml(po.description)}</span></div>` : ''}
+      </section>` : ''}
+      <section class="org-mp-sec"><h3>Your direct senior</h3>
+        ${senior ? `<div class="org-mp-senior">${seniorHolder ? '<span class="havatar small">' + escapeHtml(_initialOf(seniorHolder.user_id)) + '</span> <strong>' + escapeHtml(_displayOf(seniorHolder.user_id)) + '</strong> · ' : ''}${escapeHtml(senior.name)}</div>` : '<div class="org-mp-empty">No senior post set for this post.</div>'}
+      </section>
+      <section class="org-mp-sec"><h3>Orders &amp; policies</h3><div id="orgMpPolicies"><div class="org-mp-loading">Loading…</div></div></section>
+      <section class="org-mp-sec"><div style="display:flex;align-items:center;gap:8px;"><h3 style="margin:0;flex:1;">Your stats</h3><button class="small-btn" id="orgMpFullStats" style="background:var(--surface3);">Open full charts</button></div><div id="orgMpStats"><div class="org-mp-loading">Loading…</div></div></section>
+      <section class="org-mp-sec"><h3>Your targets</h3><div id="orgMpTargets"><div class="org-mp-loading">Loading…</div></div></section>
+    </div>
+  </div></div>`;
+  root.querySelector('#orgMpClose').addEventListener('click', _closeMyPost);
+  root.querySelector('#orgMpOverlay').addEventListener('click', e => { if (e.target.id === 'orgMpOverlay') _closeMyPost(); });
+  root.querySelector('#orgMpFullStats').addEventListener('click', () => openPostStats(postId));
+  _mpLoadPolicies(postId);
+  _mpLoadStats(holder ? holder.user_id : null);
+  _mpLoadTargets(postId);
+}
+
+async function _mpLoadPolicies(postId) {
+  const el = document.getElementById('orgMpPolicies'); if (!el) return;
+  try {
+    const j = await api('?api=policies-for-scope&scope_type=post&scope_id=' + postId);
+    const rows = j.rows || j.policies || [];
+    if (!rows.length) { el.innerHTML = '<div class="org-mp-empty">No orders or policies apply to this post.</div>'; return; }
+    el.innerHTML = rows.map(p => {
+      const kind = p.kind === 'order' ? 'ORDER' : p.kind === 'directive' ? 'DIRECTIVE' : 'POLICY';
+      const from = (p.scope_type && p.scope_type !== 'post') ? `<span class="org-mp-from">↑ from ${escapeHtml(p.scope_type)}</span>` : '';
+      const exp = p.expires_at ? `<span class="org-mp-exp">expires ${escapeHtml(String(p.expires_at).slice(0, 10))}</span>` : '';
+      return `<div class="org-mp-policy"><div class="org-mp-policy-top"><span class="org-mp-kind org-mp-kind-${(p.kind || 'policy')}">${kind}</span><strong>${escapeHtml(p.title || '')}</strong>${from}${exp}</div>${p.body ? `<div class="org-mp-policy-body">${escapeHtml(p.body)}</div>` : ''}</div>`;
+    }).join('');
+  } catch (e) { el.innerHTML = `<div class="org-mp-empty" style="color:var(--red);">${escapeHtml(e.message)}</div>`; }
+}
+
+async function _mpLoadStats(uid) {
+  const el = document.getElementById('orgMpStats'); if (!el) return;
+  if (!uid) { el.innerHTML = '<div class="org-mp-empty">This post is vacant — no stats.</div>'; return; }
+  try {
+    const j = await wsApi('?api=stats-for-user&user_id=' + encodeURIComponent(uid));
+    const metrics = j.metrics || [], series = j.series || [];
+    if (!metrics.length) { el.innerHTML = '<div class="org-mp-empty">No stats are linked to you yet.</div>'; return; }
+    const sMap = new Map(series.map(s => [s.metric_key, s.points || []]));
+    el.innerHTML = '<div class="org-mp-stats">' + metrics.map(m => {
+      const pts = sMap.get(m.key) || [];
+      const last = pts.length ? Number(pts[pts.length - 1].value) || 0 : 0;
+      const prev = pts.length > 1 ? Number(pts[pts.length - 2].value) || 0 : null;
+      const arrow = prev == null ? '' : (last > prev ? '<span class="org-mp-up">▲</span>' : last < prev ? '<span class="org-mp-down">▼</span>' : '<span class="org-mp-flat">—</span>');
+      return `<div class="org-mp-stat"><span class="org-mp-stat-label">${escapeHtml(m.label)}</span><span class="org-mp-stat-val">${_fmtStat(last, m.unit)} ${arrow}</span></div>`;
+    }).join('') + '</div>';
+  } catch (e) { el.innerHTML = `<div class="org-mp-empty" style="color:var(--red);">${escapeHtml(e.message)}</div>`; }
+}
+
+const _TG_STATUS = { open: 'Open', in_progress: 'In progress', done: 'Done' };
+async function _mpLoadTargets(postId) {
+  const el = document.getElementById('orgMpTargets'); if (!el) return;
+  try {
+    const j = await tgApi('?api=for-post&post_id=' + postId);
+    const rows = (j.rows || []).filter(t => t.status !== 'cancelled');
+    const canEdit = !!j.can_edit;
+    const rowHtml = rows.map(t => {
+      const done = t.status === 'done';
+      const due = t.due_date ? `<span class="org-mp-due${_tgOverdue(t) ? ' org-mp-overdue' : ''}">due ${escapeHtml(String(t.due_date).slice(0, 10))}</span>` : '';
+      return `<div class="org-mp-target${done ? ' done' : ''}" data-id="${t.id}">
+        <button class="org-mp-check" data-act="toggle" title="${done ? 'Mark not done' : 'Mark done'}" ${canEdit ? '' : 'disabled'}>${done ? '✓' : ''}</button>
+        <div class="org-mp-target-main">
+          <div class="org-mp-target-title">${escapeHtml(t.title)}${!done && t.status === 'in_progress' ? ' <span class="org-mp-inprog">In progress</span>' : ''}</div>
+          ${t.details ? `<div class="org-mp-target-details">${escapeHtml(t.details)}</div>` : ''}
+          <div class="org-mp-target-meta">${due}${canEdit && !done ? `<button class="org-mp-mini" data-act="progress">${t.status === 'in_progress' ? 'Back to open' : 'Start'}</button>` : ''}${canEdit ? '<button class="org-mp-mini org-mp-del" data-act="del">Delete</button>' : ''}</div>
+        </div>
+      </div>`;
+    }).join('');
+    el.innerHTML = (rows.length ? rowHtml : '<div class="org-mp-empty">No targets yet.</div>') +
+      (canEdit ? `<div class="org-mp-addtarget">
+        <input type="text" id="orgMpTgTitle" placeholder="New target…" maxlength="200">
+        <input type="date" id="orgMpTgDue" title="Due date (optional)">
+        <button class="btn-primary" id="orgMpTgAdd">Add</button>
+      </div>` : '<div class="org-mp-empty" style="margin-top:6px;">Only you (the holder) or your senior can add targets.</div>');
+    el.querySelectorAll('.org-mp-target').forEach(row => {
+      const id = Number(row.dataset.id);
+      row.querySelectorAll('[data-act]').forEach(btn => btn.addEventListener('click', async () => {
+        const t = rows.find(x => x.id === id); if (!t) return;
+        try {
+          if (btn.dataset.act === 'toggle') await tgApi('?api=update&id=' + id, { method: 'POST', body: { status: t.status === 'done' ? 'open' : 'done' } });
+          else if (btn.dataset.act === 'progress') await tgApi('?api=update&id=' + id, { method: 'POST', body: { status: t.status === 'in_progress' ? 'open' : 'in_progress' } });
+          else if (btn.dataset.act === 'del') { if (!confirm('Delete this target?')) return; await tgApi('?api=delete&id=' + id, { method: 'POST', body: {} }); }
+          _mpLoadTargets(postId);
+        } catch (e) { alert(e.message); }
+      }));
+    });
+    if (canEdit) {
+      const add = async () => {
+        const title = document.getElementById('orgMpTgTitle').value.trim(); if (!title) return;
+        const due = document.getElementById('orgMpTgDue').value || null;
+        try { await tgApi('?api=create', { method: 'POST', body: { post_id: postId, title, due_date: due } }); _mpLoadTargets(postId); } catch (e) { alert(e.message); }
+      };
+      el.querySelector('#orgMpTgAdd').addEventListener('click', add);
+      el.querySelector('#orgMpTgTitle').addEventListener('keydown', e => { if (e.key === 'Enter') add(); });
+    }
+  } catch (e) { el.innerHTML = `<div class="org-mp-empty" style="color:var(--red);">${escapeHtml(e.message)}</div>`; }
+}
+function _tgOverdue(t) { return t.due_date && t.status !== 'done' && String(t.due_date).slice(0, 10) < new Date().toISOString().slice(0, 10); }
 
 function _statBtn(title, onClick) {
   const b = document.createElement('button');

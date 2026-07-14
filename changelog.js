@@ -16,6 +16,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v519', title: 'Org Board — “My Post” for every staff member', items: [
+      'Your own post is now highlighted with a “You” badge, and a “My Post” button up top opens one panel showing everything about your post in one place.',
+      'The panel shows: your post’s purpose, your direct senior, the orders & policies that apply to you (including ones inherited from your department/division), your stats, and your targets.',
+      'Targets are simple tasks: you can add your own and check them off, and your senior can assign them to you. Mark them Start / Done, set a due date, and overdue ones turn red.',
+    ] },
     { version: 'v518', title: 'Org Board — visual cleanup (compact + Division, no emojis, brighter text)', items: [
       '“+ Division” is now a small button in the top-right toolbar instead of a full-height empty column.',
       'Replaced the emoji (crown / hat / star / building / party) with clean monochrome symbols so it looks consistent.',

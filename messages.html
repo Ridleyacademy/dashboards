@@ -73,6 +73,11 @@
   .nav-dropdown-item { display:block; padding:8px 12px; border-radius:8px; font-size:0.78rem; color:var(--text-muted); text-decoration:none; }
   .nav-dropdown-item:hover { background:var(--surface2); color:var(--text); }
   .nav-dropdown-item.active { color:var(--green); }
+  /* nav-menu.js injects .nav-menu-link items (not .nav-dropdown-item) — style them so the picker isn't unstyled. */
+  .nav-menu-link { display:flex; align-items:center; gap:9px; padding:8px 12px; border-radius:8px; font-size:0.78rem; font-weight:600; color:var(--text-muted); text-decoration:none; transition:background .12s,color .12s; }
+  .nav-menu-link:hover { background:var(--surface2); color:var(--text); }
+  .nav-menu-link.active { color:var(--green); background:rgba(52,211,153,0.1); }
+  .nav-menu-link svg { flex-shrink:0; }
 
   /* ── Chat layout ── */
   .chat-wrap { display:flex; height:calc(100vh - 56px); overflow:hidden; }

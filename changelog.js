@@ -16,8 +16,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v533', title: 'Fixed the Dashboards picker on Targets & Messages', items: [
+      'The Dashboards menu on Targets and Messages now opens pinned to the top-right and scrolls if it’s long, so it never runs off the screen, and its items are styled like every other dashboard.',
+    ] },
     { version: 'v532', title: 'Targets — fixed top bar', items: [
-      'The Targets top bar and Dashboards picker now match every other dashboard — the picker menu is styled correctly, the theme toggle uses the shared light/dark/auto control, and the page now gets PWA update prompts.',
+      'The Targets top bar and Dashboards picker now match every other dashboard — the theme toggle uses the shared light/dark/auto control, and the page now gets PWA update prompts.',
     ] },
     { version: 'v531', title: 'Targets — activity log, watchers & due-today reminders', items: [
       'Every task now shows an activity log in its feed — status changes, assignee changes, due-date and priority edits are recorded automatically so you can see who changed what.',

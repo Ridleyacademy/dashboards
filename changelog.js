@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v509', title: 'Org Board — fix: connector lines now meet the executive boxes exactly', items: [
+      'Fixed the executive connector lines being offset from the boxes (they looked like they didn’t connect). Lines between executives — and from an executive down to a division — now land precisely on each box. The whole chain (top post → executives → divisions) reads as one connected chart.',
+    ] },
     { version: 'v508', title: 'Org Board — pick everything a post sits above (execs + divisions, mixed)', items: [
       'The executive editor’s “Sits above / oversees” section now lets you tick any mix of other executive posts AND divisions. One post can sit above another executive and above a division at the same time — e.g. a post above the LRH Comm and above Division 1, while the LRH Comm is above Divisions 2–4. No more picking a “level”; just choose what each post is over, and the chart arranges and connects itself.',
     ] },

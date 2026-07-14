@@ -1692,26 +1692,31 @@ function _weaveTree() {
     const gap = _EXECW + 18;
     for (let i = 1; i < arr.length; i++) if (cx.get(arr[i].id) - cx.get(arr[i - 1].id) < gap) cx.set(arr[i].id, cx.get(arr[i - 1].id) + gap);
   });
-  // 5. Position the nodes.
+  // 5. Position the nodes. cx/cy are in ZOOM space; node.style.left/top are
+  //    relative to the layer (its offsetParent), so subtract the layer origin.
+  const layerOrigin = layer ? off(layer) : { x: 0, y: 0 };
   execPostsData.forEach(p => {
     const node = document.querySelector('.org-exec-node[data-id="' + p.id + '"]'); if (!node) return;
     node.style.position = 'absolute';
-    node.style.left = Math.round(cx.get(p.id) - _EXECW / 2) + 'px';
-    node.style.top = cy.get(p.id) + 'px';
+    node.style.left = Math.round(cx.get(p.id) - _EXECW / 2 - layerOrigin.x) + 'px';
+    node.style.top = Math.round(cy.get(p.id) - layerOrigin.y) + 'px';
   });
 
-  // 6. Draw all connector lines (exec → child exec, exec → division).
+  // 6. Draw all connector lines (exec → child exec, exec → division) from the
+  //    ACTUAL rendered positions (measured in zoom space) so lines always meet
+  //    the boxes exactly, regardless of any layer offset.
   let svg = document.getElementById('orgLinkSvg');
   if (!svg) { svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.id = 'orgLinkSvg'; svg.setAttribute('class', 'org-link-svg'); zoom.insertBefore(svg, zoom.firstChild); }
   const W = zoom.scrollWidth, Ht = zoom.scrollHeight;
   svg.setAttribute('width', W); svg.setAttribute('height', Ht); svg.setAttribute('viewBox', '0 0 ' + W + ' ' + Ht);
-  const layerTop = layer ? off(layer).y : 0;
+  const centerTop = (el) => { const b = off(el); return { x: Math.round(b.x + b.w / 2), top: b.y, bottom: b.y + b.h }; };
   let paths = '';
   execPostsData.forEach(p => {
-    const fx = cx.get(p.id), fy = layerTop + cy.get(p.id) + _EXECH;   // this exec's bottom centre
+    const selfNode = document.querySelector('.org-exec-node[data-id="' + p.id + '"]'); if (!selfNode) return;
+    const me = centerTop(selfNode); const fx = me.x, fy = me.bottom;   // this exec's bottom centre
     const targets = [];
-    childrenOf(p.id).forEach(k => targets.push({ x: cx.get(k.id), y: layerTop + cy.get(k.id) }));
-    (p.division_ids || []).forEach(did => { if (divCenter.has(did)) targets.push({ x: divCenter.get(did), y: divTopByPos[did] }); });
+    childrenOf(p.id).forEach(k => { const kn = document.querySelector('.org-exec-node[data-id="' + k.id + '"]'); if (kn) { const c = centerTop(kn); targets.push({ x: c.x, y: c.top }); } });
+    (p.division_ids || []).forEach(did => { const col = board.querySelector(':scope > .org-col-division[data-div-id="' + did + '"]'); if (col) { const c = centerTop(col); targets.push({ x: c.x, y: c.top }); } });
     if (!targets.length) return;
     const col = p.color || '#fbbf24';
     const minTY = Math.min(...targets.map(t => t.y));

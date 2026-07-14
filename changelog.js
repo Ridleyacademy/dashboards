@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v515', title: 'Org Board — fix: dragging a post over its person no longer grabs the photo', items: [
+      'Fixed grabbing a post that has someone assigned: dragging on the person’s avatar used to drag the little photo instead of the post (and never showed the moving copy). Now the whole card — avatar included — drags the post properly, and tapping the person still opens the assign menu.',
+    ] },
     { version: 'v514', title: 'Org Board — fix: no more full-screen reload/flash after a drag', items: [
       'Fixed the whole board flashing black after moving something. Dropping an item no longer reloads everything from the server — it updates instantly and saves in the background. And if you drop something back where it started, nothing happens at all (no save, no reload).',
     ] },

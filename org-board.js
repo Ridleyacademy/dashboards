@@ -1801,7 +1801,7 @@ function _wirePostDrag(card, postId) {
   card.addEventListener('pointerdown', e => {
     if (!orgCanEdit() || _ppd || _dd || _dpd) return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
-    if (e.target.closest('.org-stat-btn, .org-edit-btn, .org-pick-btn, .org-post-card-holders, button, a, input, select, textarea')) return;
+    if (e.target.closest('.org-stat-btn, .org-edit-btn, .org-pick-btn, button, a, input, select, textarea')) return;
     e.preventDefault();
     _ppd = { card, postId, startX: e.clientX, startY: e.clientY, active: false };
     window.addEventListener('pointermove', _ppdMove);
@@ -1884,6 +1884,15 @@ function _ppdUp() {
 function enhanceBoard() {
   const editing = orgCanEdit();
   if (!editing) _cancelMove();
+  // One global, capture-phase suppressor kills the browser's native drag for any
+  // org element (incl. holder avatar <img>s) — so a drag NEVER shows the native
+  // image fragment regardless of where the card is grabbed or how it was re-rendered.
+  if (!window.__orgDragSuppressor) {
+    window.__orgDragSuppressor = true;
+    document.addEventListener('dragstart', e => {
+      const t = e.target; if (t && t.closest && t.closest('.org-col-division, .org-col-department, .org-post-card, .org-exec-node')) e.preventDefault();
+    }, true);
+  }
   _renderPeopleTray(editing);
 
   document.querySelectorAll('.org-col-division').forEach(col => {

@@ -1138,7 +1138,8 @@
   .org-dept-ghost { box-shadow: 0 10px 26px rgba(0,0,0,.5); border-radius: 8px; opacity: .96; }
   /* Post drag-to-move (within a department or across departments/divisions) */
   body[data-org-edit="1"] .org-post-card { cursor: grab; }
-  .org-post-card, .org-post-card * { -webkit-user-drag: none; }
+  body[data-org-edit="1"] .org-col-division, body[data-org-edit="1"] .org-col-department, body[data-org-edit="1"] .org-post-card { -webkit-user-select: none; user-select: none; }
+  .org-col-division, .org-col-department, .org-post-card, .org-col-division *, .org-col-department *, .org-post-card * { -webkit-user-drag: none; }
   .org-post-card.org-post-dragging { opacity: .28; filter: grayscale(.3); }
   .org-post-ghost { box-shadow: 0 8px 22px rgba(0,0,0,.5); border-radius: 7px; opacity: .96; }
   .org-tree-label { font-size: 0.58rem; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); font-weight: 700; margin-bottom: 2px; }

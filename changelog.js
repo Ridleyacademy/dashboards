@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v530', title: 'Targets — attachment viewer', items: [
+      'Click an image, video, or PDF attachment to open it in an in-app viewer (just like Messages) instead of a new tab — with a Download button. Click an image to zoom; press Esc to close.',
+    ] },
     { version: 'v529', title: 'Targets — attachments upload fixed', items: [
       'Fixed file attachments failing to upload. You can now attach images and files to a task reliably.',
     ] },

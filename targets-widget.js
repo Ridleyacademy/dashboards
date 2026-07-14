@@ -115,6 +115,25 @@
     .tw-att-name:hover{color:var(--accent,#34d399);}
     .tw-att-sz{font-size:0.62rem;color:rgba(255,255,255,.45);}
     .tw-att.pending{opacity:.55;}
+    .tw-att-open{cursor:pointer;}
+    /* attachment lightbox (mirrors the messaging viewer) */
+    .tw-lb{position:fixed;inset:0;background:rgba(0,0,0,0.9);z-index:10050;display:none;}
+    .tw-lb.open{display:block;}
+    .tw-lb-stage{position:absolute;inset:0;overflow:auto;display:flex;align-items:center;justify-content:center;-webkit-overflow-scrolling:touch;}
+    .tw-lb-stage img{max-width:94vw;max-height:92vh;border-radius:10px;display:block;cursor:zoom-in;}
+    .tw-lb-stage video{max-width:94vw;max-height:92vh;border-radius:10px;display:block;}
+    .tw-lb-frame{width:94vw;max-width:900px;height:90vh;border:0;border-radius:10px;background:#fff;}
+    .tw-lb-file{display:flex;flex-direction:column;align-items:center;gap:12px;color:#eaecf8;text-align:center;padding:24px;}
+    .tw-lb-file .tw-lb-fico{color:#8ea2ff;font-size:3rem;line-height:1;}
+    .tw-lb-file .tw-lb-fname{font-weight:700;word-break:break-word;max-width:80vw;}
+    .tw-lb-file .tw-lb-fhint{color:#9aa2c8;font-size:0.84rem;}
+    .tw-lb-spin{width:34px;height:34px;border:3px solid rgba(255,255,255,0.25);border-top-color:#fff;border-radius:50%;animation:twspin 0.7s linear infinite;}
+    @keyframes twspin{to{transform:rotate(360deg);}}
+    .tw-lb-stage.zoomed{align-items:flex-start;justify-content:flex-start;}
+    .tw-lb-stage.zoomed img{max-width:none;max-height:none;margin:auto;cursor:zoom-out;}
+    .tw-lb-bar{position:absolute;top:14px;right:14px;z-index:2;display:flex;gap:10px;}
+    .tw-lb-btn{background:rgba(255,255,255,0.16);color:#fff;border:none;border-radius:9px;padding:9px 13px;font-size:0.85rem;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;text-decoration:none;}
+    .tw-lb-btn:hover{background:rgba(255,255,255,0.3);}
     `;
     document.head.appendChild(s);
   }
@@ -394,6 +413,11 @@
     cmtInput.addEventListener('keydown', e => { if (e.key === 'Enter' && !document.querySelector('.tw-mention-menu')) goC(); });
     cmtInput.placeholder = 'Write a comment… (@ to mention)';
     _wireMentions(cmtInput);
+
+    // Attachment viewing works for everyone (incl. view-only): delegate clicks on
+    // the attachments container so image/video/PDF open in the in-app lightbox.
+    const attsEl = card.querySelector('#twAtts');
+    if (attsEl) attsEl.addEventListener('click', (e) => { const o = e.target.closest('.tw-att-open'); if (o && o.dataset.full) _openLightbox(o.dataset.full, o.dataset.kind, o.dataset.name, o.dataset.mime); });
   }
 
   function _renderAssignees(el, t, ce, refresh) {
@@ -416,14 +440,50 @@
   }
 
   function fmtBytes(n) { n = Number(n) || 0; if (n < 1024) return n + ' B'; if (n < 1048576) return (n / 1024).toFixed(0) + ' KB'; return (n / 1048576).toFixed(1) + ' MB'; }
-  // Dropbox shared links come as ?dl=0. ?raw=1 serves inline (image src),
+  // Dropbox shared links come as ?dl=0. ?raw=1 serves inline (image/video src),
   // ?dl=1 forces download.
   function attUrl(a, mode) { const u = a.external_url || ''; if (!u) return '#'; const base = u.replace(/([?&])dl=\d/, '$1').replace(/[?&]$/, ''); const sep = base.includes('?') ? '&' : '?'; return base + sep + (mode === 'raw' ? 'raw=1' : 'dl=1'); }
+  function _attKind(a) { const m = (a.mime || '').toLowerCase(), n = (a.name || '').toLowerCase(); if (/^image\//.test(m) || /\.(png|jpe?g|gif|webp|svg|bmp)$/.test(n)) return 'image'; if (/^video\//.test(m) || /\.(mp4|mov|webm|m4v|ogv)$/.test(n)) return 'video'; return 'file'; }
   function _attHtml(a, pending) {
-    const isImg = /^image\//.test(a.mime || '') || /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(a.name || '');
-    const dl = pending ? '#' : attUrl(a, 'dl');
-    const thumb = pending ? '<span class="tw-att-thumb">…</span>' : (isImg && a.external_url ? `<a class="tw-att-thumb" href="${esc(attUrl(a, 'raw'))}" target="_blank" rel="noopener"><img src="${esc(attUrl(a, 'raw'))}" alt=""></a>` : `<a class="tw-att-thumb" href="${esc(dl)}" target="_blank" rel="noopener">▤</a>`);
-    return `<div class="tw-att${pending ? ' pending' : ''}" data-id="${a.id}">${thumb}<div class="tw-att-meta"><a class="tw-att-name" href="${esc(dl)}" target="_blank" rel="noopener" title="${esc(a.name || 'file')}">${esc(a.name || 'file')}</a><div class="tw-att-sz">${esc(fmtBytes(a.size))}${pending ? ' · uploading…' : ''}</div></div>${pending ? '' : `<button class="tw-del" data-id="${a.id}" title="Remove">✕</button>`}</div>`;
+    if (pending) return `<div class="tw-att pending" data-id="${a.id}"><span class="tw-att-thumb">…</span><div class="tw-att-meta"><span class="tw-att-name" title="${esc(a.name || 'file')}">${esc(a.name || 'file')}</span><div class="tw-att-sz">${esc(fmtBytes(a.size))} · uploading…</div></div></div>`;
+    const kind = _attKind(a), raw = attUrl(a, 'raw');
+    const data = `data-full="${esc(raw)}" data-kind="${kind}" data-name="${esc(a.name || '')}" data-mime="${esc(a.mime || '')}"`;
+    const thumb = (kind === 'image' && a.external_url) ? `<span class="tw-att-thumb tw-att-open" ${data}><img src="${esc(raw)}" alt=""></span>` : `<span class="tw-att-thumb tw-att-open" ${data}>${kind === 'video' ? '▶' : '▤'}</span>`;
+    return `<div class="tw-att" data-id="${a.id}">${thumb}<div class="tw-att-meta"><span class="tw-att-name tw-att-open" ${data} title="${esc(a.name || 'file')}">${esc(a.name || 'file')}</span><div class="tw-att-sz">${esc(fmtBytes(a.size))}</div></div><button class="tw-del" data-id="${a.id}" title="Remove">✕</button></div>`;
+  }
+  // ── In-app attachment lightbox (image zoom / video / PDF), mirrors messaging ──
+  let _lbBlob = null;
+  function _revokeLb() { if (_lbBlob) { try { URL.revokeObjectURL(_lbBlob); } catch (_) {} _lbBlob = null; } }
+  function _lbOpen() { const lb = document.getElementById('twLb'); return !!(lb && lb.classList.contains('open')); }
+  function _closeLightbox() { const lb = document.getElementById('twLb'); if (lb) { lb.classList.remove('open'); const s = lb.querySelector('.tw-lb-stage'); s.classList.remove('zoomed'); s.innerHTML = ''; } _revokeLb(); }
+  function _dlMedia(url, name) {
+    fetch(url).then(r => r.blob()).then(b => { const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = name || 'download'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 15000); })
+      .catch(() => { const a = document.createElement('a'); a.href = url; a.download = name || 'download'; a.target = '_blank'; a.rel = 'noopener'; document.body.appendChild(a); a.click(); a.remove(); });
+  }
+  function _renderPdf(stage, url, name) {
+    stage.innerHTML = `<div class="tw-lb-file"><div class="tw-lb-spin"></div><div class="tw-lb-fhint">Loading “${esc(name || 'document')}”…</div></div>`;
+    _revokeLb();
+    fetch(url).then(r => r.blob()).then(b => { const blob = b.type === 'application/pdf' ? b : new Blob([b], { type: 'application/pdf' }); _lbBlob = URL.createObjectURL(blob); if (_lbOpen()) stage.innerHTML = `<iframe class="tw-lb-frame" src="${_lbBlob}" title="${esc(name || 'Document')}"></iframe>`; })
+      .catch(() => { stage.innerHTML = `<div class="tw-lb-file"><div class="tw-lb-fico">▤</div><div class="tw-lb-fname">${esc(name || 'File')}</div><div class="tw-lb-fhint">Couldn’t preview — open or download instead.</div><a class="tw-lb-btn" href="${esc(url)}" target="_blank" rel="noopener">Open in new tab</a></div>`; });
+  }
+  function _openLightbox(url, kind, name, mime) {
+    if (!url || url === '#') return;
+    let lb = document.getElementById('twLb');
+    if (!lb) {
+      lb = document.createElement('div'); lb.id = 'twLb'; lb.className = 'tw-lb';
+      lb.innerHTML = `<div class="tw-lb-bar"><button class="tw-lb-btn" id="twLbDl">⬇ Download</button><button class="tw-lb-btn" id="twLbX">✕ Close</button></div><div class="tw-lb-stage"></div>`;
+      document.body.appendChild(lb);
+      const stage = lb.querySelector('.tw-lb-stage');
+      stage.addEventListener('click', (e) => { if (e.target.tagName === 'IMG') { stage.classList.toggle('zoomed'); stage.scrollTop = 0; stage.scrollLeft = 0; } else if (e.target === stage) _closeLightbox(); });
+      lb.querySelector('#twLbX').addEventListener('click', _closeLightbox);
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') _closeLightbox(); });
+    }
+    const stage = lb.querySelector('.tw-lb-stage'); stage.classList.remove('zoomed');
+    if (kind === 'video') stage.innerHTML = `<video src="${esc(url)}" controls autoplay playsinline></video>`;
+    else if (kind === 'file') { const isPdf = /pdf/i.test(mime || '') || /\.pdf$/i.test(name || ''); if (isPdf) _renderPdf(stage, url, name); else stage.innerHTML = `<div class="tw-lb-file"><div class="tw-lb-fico">▤</div><div class="tw-lb-fname">${esc(name || 'File')}</div><div class="tw-lb-fhint">This file type can’t be previewed here.</div><a class="tw-lb-btn" href="${esc(url)}" target="_blank" rel="noopener">Open in new tab</a></div>`; }
+    else stage.innerHTML = `<img src="${esc(url)}" alt="${esc(name || '')}">`;
+    lb.querySelector('#twLbDl').onclick = () => _dlMedia(url, name);
+    lb.classList.add('open');
   }
   function _ciHtml(c) { return `<div class="tw-check-item${c.done ? ' done' : ''}" data-id="${c.id}"><span class="tw-ci-box">${c.done ? '✓' : ''}</span><span class="tw-ci-text">${esc(c.text)}</span><button class="tw-del">✕</button></div>`; }
   function _subHtml(s) { const done = s.status === 'done'; return `<div class="tw-sub-item${done ? ' done' : ''}" data-id="${s.id}"><span class="tw-si-box">${done ? '✓' : ''}</span><span class="tw-si-text">${esc(s.title)}</span></div>`; }

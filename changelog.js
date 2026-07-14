@@ -16,6 +16,12 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v518', title: 'Org Board — visual cleanup (compact + Division, no emojis, brighter text)', items: [
+      '“+ Division” is now a small button in the top-right toolbar instead of a full-height empty column.',
+      'Replaced the emoji (crown / hat / star / building / party) with clean monochrome symbols so it looks consistent.',
+      'Lightened the faint gray labels (vacant posts, “No … Head”, counts, hints) to near-white so they’re always readable on the dark board.',
+      'The edit and stats buttons on a division no longer overlap the division name.',
+    ] },
     { version: 'v517', title: 'Org Board — executives no longer enter “tap a green slot” move mode', items: [
       'Tapping an executive box no longer starts the old “Moving — tap a green slot” mode. Set an executive’s place in the chain of command from its editor (“Sits above / oversees”); its ✎ edit, ▾ assign, 📊 stats and ＋ add-below buttons all still work.',
     ] },

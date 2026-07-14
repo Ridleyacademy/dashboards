@@ -325,7 +325,7 @@ function renderTopTier() {
     return `<div class="org-exec-card" data-kind="exec-post" data-id="${ep.id}" draggable="true" style="border-color:${ep.color || '#fbbf24'}66;">
       <div class="org-exec-card-stripe" style="background:${ep.color || '#fbbf24'};"></div>
       <div class="org-exec-card-body">
-        <div class="org-exec-card-title">⭐ ${escapeHtml(ep.name)}</div>
+        <div class="org-exec-card-title">◆ ${escapeHtml(ep.name)}</div>
         <div class="org-exec-card-holders">${holderHtml}</div>
         <div class="org-exec-card-divs">${divChips}</div>
         ${role ? `<div class="org-exec-card-role" style="color:${role.color || '#a78bfa'};">Auto-role: ${escapeHtml(role.name)}</div>` : ''}
@@ -357,7 +357,7 @@ function renderTopTier() {
     return `
       <div class="org-exec-card" data-exec-id="${ep.id}" style="--exec-color:${ep.color || '#fbbf24'};">
         <div class="org-exec-card-stripe"></div>
-        <div class="org-exec-card-title">⭐ ${escapeHtml(ep.name)}</div>
+        <div class="org-exec-card-title">◆ ${escapeHtml(ep.name)}</div>
         ${holderHtml}
         ${role ? `<span class="org-exec-card-role">${escapeHtml(role.name)}</span>` : ''}
         <div class="org-exec-card-divs">${divChips}</div>
@@ -396,7 +396,7 @@ async function seedStandardOrg() {
     const c = res.created || {};
     alert(`✓ Seed complete — ${c.divisions || 0} divisions, ${c.departments || 0} departments, ${c.posts || 0} posts, ${c.exec_posts || 0} exec posts added.`);
   } catch (e) { alert('Seed failed: ' + e.message); }
-  finally { if (seedBtn) { seedBtn.disabled = false; seedBtn.textContent = '🏛 Seed standard org board'; } }
+  finally { if (seedBtn) { seedBtn.disabled = false; seedBtn.textContent = 'Seed standard org board'; } }
 }
 
 function renderOrgBoard() {
@@ -412,7 +412,7 @@ function renderOrgBoard() {
   if (!divisionsData.length) {
     board.innerHTML = `
       <div style="display:flex;flex-direction:column;align-items:center;gap:12px;padding:40px 16px;">
-        <button class="org-add-division" id="org-seed-empty" style="background:rgba(167,139,250,.10);color:#a78bfa;border-color:#a78bfa;font-size:0.92rem;padding:14px 22px;min-height:auto;">🏛 Seed standard Scientology org board</button>
+        <button class="org-add-division" id="org-seed-empty" style="background:rgba(167,139,250,.10);color:#a78bfa;border-color:#a78bfa;font-size:0.92rem;padding:14px 22px;min-height:auto;">Seed standard Scientology org board</button>
         <span style="color:var(--text-dim);font-size:0.78rem;">— or —</span>
         <button class="org-add-division" id="org-first-div" style="min-height:auto;">+ Add your first division (start blank)</button>
       </div>`;
@@ -427,8 +427,8 @@ function renderOrgBoard() {
       `<button class="org-add-btn" style="align-self:flex-start;margin-top:4px;" data-add-dept="${d.id}">+ Department</button>`;
     const headDisplay = _displayOf(d.head_user_id);
     const headBadge = headDisplay
-      ? `<span class="org-head-pill" title="Division Head: ${escapeHtml(_emailOf(d.head_user_id) || '')} — click to change"><span class="havatar" style="background:${d.color || '#6b9eff'};">${escapeHtml(_initialOf(d.head_user_id))}</span><span>👑 ${escapeHtml(headDisplay)}</span></span>`
-      : `<span class="org-head-pill vacant" title="No Division Head — click to assign">👑 No Division Head</span>`;
+      ? `<span class="org-head-pill" title="Division Head: ${escapeHtml(_emailOf(d.head_user_id) || '')} — click to change"><span class="havatar" style="background:${d.color || '#6b9eff'};">${escapeHtml(_initialOf(d.head_user_id))}</span><span>${escapeHtml(headDisplay)}</span></span>`
+      : `<span class="org-head-pill vacant" title="No Division Head — click to assign">No Division Head</span>`;
     return `
       <div class="org-col-division" data-div-id="${d.id}" draggable="true">
         <div class="org-col-division-head" data-kind="division" data-id="${d.id}">
@@ -445,8 +445,7 @@ function renderOrgBoard() {
         <div class="org-col-departments">${deptsHtml}</div>
       </div>`;
   }).join('');
-  board.innerHTML = divsHtml +
-    '<button class="org-add-division" id="org-add-div">+ Division</button>';
+  board.innerHTML = divsHtml;   // "+ Division" is now a small button in the header toolbar
 
   // Wire clicks
   board.querySelectorAll('.org-col-division-head').forEach(el => el.addEventListener('click', e => {
@@ -469,7 +468,8 @@ function renderOrgBoard() {
     e.stopPropagation();
     openCreatePostModal(Number(el.dataset.addPost));
   }));
-  document.getElementById('org-add-div')?.addEventListener('click', openCreateDivisionModal);
+  const _addDivBtn = document.getElementById('orgAddDivBtn');
+  if (_addDivBtn && !_addDivBtn.dataset.wired) { _addDivBtn.dataset.wired = '1'; _addDivBtn.addEventListener('click', openCreateDivisionModal); }
 
   // Division / department / post drag-and-drop (reorder + reparent) is wired by
   // org-extras' unified insertion-line system (enhanceBoard), edit mode only.
@@ -481,8 +481,8 @@ function renderDepartmentSubColumn(dep) {
     '<div style="color:var(--text-dim);font-size:0.74rem;font-style:italic;padding:6px;">No posts yet</div>';
   const headDisplay = _displayOf(dep.head_user_id);
   const headLine = headDisplay
-    ? `<div class="org-dept-head" title="${escapeHtml(_emailOf(dep.head_user_id) || '')}"><span class="havatar small">${escapeHtml(_initialOf(dep.head_user_id))}</span><span>🎩 ${escapeHtml(headDisplay)}</span></div>`
-    : `<div class="org-dept-head vacant">🎩 No Dept Head</div>`;
+    ? `<div class="org-dept-head" title="${escapeHtml(_emailOf(dep.head_user_id) || '')}"><span class="havatar small">${escapeHtml(_initialOf(dep.head_user_id))}</span><span>${escapeHtml(headDisplay)}</span></div>`
+    : `<div class="org-dept-head vacant">No Dept Head</div>`;
   return `
     <div class="org-col-department">
       <div class="org-col-department-head" data-kind="department" data-id="${dep.id}">
@@ -584,12 +584,12 @@ function openExecPostEditor(epId) {
     const checked = ep.id && x.parent_exec_post_id === ep.id;
     return `<label class="exec-check" style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--border);border-radius:999px;cursor:pointer;font-size:0.78rem;${checked ? 'background:rgba(59,130,246,.18);color:#93c5fd;border-color:rgba(59,130,246,.5);' : ''}">
       <input type="checkbox" data-exec-id="${x.id}" ${checked ? 'checked' : ''} style="margin:0;">
-      ⭐ ${escapeHtml(x.name)}
+      ◆ ${escapeHtml(x.name)}
     </label>`;
   }).join('');
   ed.innerHTML = `<div class="ax-editor">
     <div class="breadcrumb">Top tier · Executive post</div>
-    <h2>${ep.id ? '⭐ ' + escapeHtml(ep.name) : '⭐ New executive post'}</h2>
+    <h2>${ep.id ? '◆ ' + escapeHtml(ep.name) : '◆ New executive post'}</h2>
     <div style="color:var(--text-dim);font-size:0.78rem;margin-bottom:6px;">Sits ABOVE divisions. One person, in charge of one or more divisions. The default role is auto-conferred to whoever holds this post.</div>
 
     <div class="ax-editor-row"><label>Name</label><input id="ep-name" value="${escapeHtml(ep.name)}" placeholder="e.g. COO"></div>
@@ -728,7 +728,7 @@ function renderDivisionEditor(d) {
     <div class="ax-editor-row"><label>Color</label><input id="d-color" type="color" value="${escapeHtml(d.color || '#6b9eff')}" style="max-width:80px;"></div>
     <div class="ax-editor-row"><label>Sort order</label><input id="d-sort" type="number" value="${d.sort_order || 0}" style="max-width:120px;"></div>
 
-    <h3>👑 Division Head</h3>
+    <h3>Division Head</h3>
     <div style="font-size:0.74rem;color:var(--text-dim);margin-bottom:6px;">The single person in charge of this whole division. The default role here is auto-conferred to them.</div>
     <div class="ax-editor-row"><label>Head user</label><select id="d-head-user"></select></div>
     <div class="ax-editor-row"><label>Auto-assigned role</label><select id="d-head-role"></select></div>
@@ -818,7 +818,7 @@ function renderDepartmentEditor(dep) {
     <div class="ax-editor-row"><label>Description</label><textarea id="dep-desc">${escapeHtml(dep.description || '')}</textarea></div>
     <div class="ax-editor-row"><label>Sort order</label><input id="dep-sort" type="number" value="${dep.sort_order || 0}" style="max-width:120px;"></div>
 
-    <h3>🎩 Department Head</h3>
+    <h3>Department Head</h3>
     <div style="font-size:0.74rem;color:var(--text-dim);margin-bottom:6px;">The single person in charge of this department. The default role here is auto-conferred to them.</div>
     <div class="ax-editor-row"><label>Head user</label><select id="dep-head-user"></select></div>
     <div class="ax-editor-row"><label>Auto-assigned role</label><select id="dep-head-role"></select></div>
@@ -2079,7 +2079,7 @@ function _renderPeopleTray(editing) {
   tray.innerHTML = '<span class="org-tray-label">Unposted people — tap one, then tap a post to assign</span>' +
     (unposted.length
       ? unposted.map(u => `<button type="button" class="org-person-chip" data-uid="${u.id}" title="${escapeHtml(u.email || '')}"><span class="havatar small">${escapeHtml(_initialOf(u.id))}</span>${escapeHtml(_displayOf(u.id))}</button>`).join('')
-      : '<span style="color:var(--text-dim);font-size:0.78rem;">Everyone is posted 🎉</span>');
+      : '<span style="color:var(--text-dim);font-size:0.78rem;">Everyone is posted</span>');
   tray.querySelectorAll('.org-person-chip').forEach(ch => ch.addEventListener('click', e => { e.stopPropagation(); _pickUp('user', ch.dataset.uid); }));
 }
 

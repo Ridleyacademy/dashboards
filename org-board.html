@@ -1003,6 +1003,7 @@
   body:not([data-org-edit="1"]) .org-add-division,
   body:not([data-org-edit="1"]) .org-add-exec,
   body:not([data-org-edit="1"]) #orgSeedBtn,
+  body:not([data-org-edit="1"]) #orgAddDivBtn,
   body:not([data-org-edit="1"]) .org-div-drag-handle { display: none !important; }
   /* Drawer opens read-only in view mode: no save/delete, inert inputs */
   body:not([data-org-edit="1"]) #orgDrawer .ax-editor button:not(#orgDrawerCloseBtn),
@@ -1075,7 +1076,15 @@
   /* ═══════════ MAKH-style compact, colored org chart ═══════════ */
   #orgBoardView .org-board { gap: 8px !important; padding: 4px 2px 16px !important; }
   .org-col-division { min-width: 206px !important; width: 206px !important; border-radius: 8px !important; border: 1px solid var(--divc, var(--border)) !important; }
-  .org-col-division-head { padding: 6px 8px !important; background: var(--divc, var(--surface2)) !important; border-bottom: 0 !important; gap: 5px !important; align-items: center; }
+  .org-col-division-head { padding: 6px 30px 6px 8px !important; background: var(--divc, var(--surface2)) !important; border-bottom: 0 !important; gap: 5px !important; align-items: center; }
+  body[data-org-edit="1"] .org-col-division-head { padding-right: 50px !important; }  /* room for stat + edit buttons so they never overlap the name */
+  /* Legibility: never gray-on-dark — lift the dim/muted text toward white */
+  #orgBoardView { --text-dim: rgba(255,255,255,0.72); --text-muted: rgba(255,255,255,0.86); }
+  #orgBoardView .org-post-card .org-post-card-vacant,
+  #orgBoardView .org-dept-head.vacant,
+  #orgBoardView .org-tray-label,
+  #orgBoardView .org-col-department-meta,
+  #orgBoardView .hint { color: rgba(255,255,255,0.72) !important; }
   .org-col-division-head:hover { background: var(--divc, var(--surface2)) !important; filter: brightness(1.08); }
   .org-col-division-stripe { display: none !important; }
   .org-col-division-title { font-size: 0.76rem !important; color: #fff !important; text-shadow: 0 1px 2px rgba(0,0,0,0.4); line-height: 1.1; }
@@ -1181,7 +1190,7 @@
 <div id="boot">Loading Org Board…</div>
 
 <div id="login">
-  <h1 style="margin-top:0;">🏛 Org Board</h1>
+  <h1 style="margin-top:0;">Org Board</h1>
   <p style="color:var(--text-muted);">Sign in with your Ridley Academy account.</p>
   <form id="loginForm" style="display:flex;flex-direction:column;gap:10px;">
     <input type="email" id="loginEmail" placeholder="email@ridleyacademy.team" required autocomplete="email">
@@ -1225,15 +1234,15 @@
   <main class="main">
     <div class="page-head">
       <div>
-        <h1 class="page-title">🏛 Org Board</h1>
-        <div class="page-sub">One connected org chart: the executive posts up top connect down to the divisions they oversee, and each division holds its departments &amp; posts. If you have edit rights: build the top with <strong>+ Add top post</strong> and the <strong>＋</strong> on any box; move a post/department by tapping it then tapping a green slot; move a division (or re-boss an exec box) by tapping it then tapping its new manager. Tap a person to assign them, the <strong>▾</strong> to pick who holds a post, <strong>✎</strong> to edit, <strong>📊</strong> for stats. (Top-right toggle hides the edit controls.)</div>
+        <h1 class="page-title">Org Board</h1>
+        <div class="page-sub">One connected org chart: the executive posts up top connect down to the divisions they oversee, and each division holds its departments and posts. If you have edit rights: build the top with <strong>+ Add top post</strong> and the <strong>＋</strong> on any box; drag a division, department or post to reorder it or move it somewhere else. Tap a person to assign them, the <strong>▾</strong> to pick who holds a post, <strong>✎</strong> to edit (incl. an executive’s place in the chain of command), and the chart icon for stats. (Top-right toggle hides the edit controls.)</div>
       </div>
       <span id="axCount" style="font-size:0.72rem;color:var(--text-dim);align-self:center;">—</span>
     </div>
 
     <div id="orgBoardView">
       <div class="org-board-header">
-        <h3>🏛 Org Board</h3>
+        <h3>Org Board</h3>
         <span class="hint">Colored columns = divisions · departments stack inside · posts = boxes. Use the ▾ on a post to set who holds it, the swatch to recolor a division.</span>
         <div class="org-zoom" style="margin-left:auto;display:inline-flex;align-items:center;gap:6px;">
           <button class="small-btn" id="orgZoomOut" title="Zoom out (5%)" style="background:var(--surface3);">−</button>
@@ -1242,7 +1251,8 @@
           <button class="small-btn" id="orgZoomReset" title="Reset to 100%" style="background:var(--surface3);min-width:50px;"><span id="orgZoomPct">100%</span></button>
           <button class="small-btn" id="orgZoomFit" title="Shrink to fit the full board on screen" style="background:var(--surface3);">⤢ Fit</button>
         </div>
-        <button class="small-btn" id="orgSeedBtn" style="background:var(--surface3);" title="Create the canonical divisions + departments + executive posts. Idempotent.">🏛 Seed standard org board</button>
+        <button class="small-btn" id="orgAddDivBtn" title="Add a new division" style="background:var(--surface3);">+ Division</button>
+        <button class="small-btn" id="orgSeedBtn" style="background:var(--surface3);" title="Create the canonical divisions + departments + executive posts. Idempotent.">Seed standard org board</button>
       </div>
       <div class="org-board-zoom-wrap" id="orgBoardZoomWrap">
         <div class="org-board-zoom-sizer" id="orgBoardZoomSizer">

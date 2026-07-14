@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v514', title: 'Org Board — fix: no more full-screen reload/flash after a drag', items: [
+      'Fixed the whole board flashing black after moving something. Dropping an item no longer reloads everything from the server — it updates instantly and saves in the background. And if you drop something back where it started, nothing happens at all (no save, no reload).',
+    ] },
     { version: 'v513', title: 'Org Board — drag posts too (reorder, or move to another department)', items: [
       'Posts now drag like everything else: pick up a post card and drop it higher/lower to reorder it in its department, or drop it into another department — in the same division or a different one. The other posts shift to make room and the move is saved. Divisions, departments, and posts all move the same way now; Esc cancels.',
     ] },

@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v513-org-board-post-drag';
+const CACHE_NAME = 'ridley-v514-org-board-no-reload-drop';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [

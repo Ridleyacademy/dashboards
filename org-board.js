@@ -1581,6 +1581,38 @@ function _wholeItemPickup(el, kind, id) {
   }, true);
 }
 
+// After a drag, sync the in-memory model from the (already-correct) DOM and
+// re-render locally — NO network round-trip, NO "Loading…" blank. The server is
+// updated in the background. This is what stops the whole board flashing black
+// on every drop.
+function _syncMemoryFromDom() {
+  const board = document.getElementById('orgBoard');
+  if (!board) return;
+  const divEls = [...board.querySelectorAll(':scope > .org-col-division')];
+  const divOrder = divEls.map(e => Number(e.dataset.divId));
+  divisionsData.sort((a, b) => divOrder.indexOf(a.id) - divOrder.indexOf(b.id));
+  divisionsData.forEach((d, i) => { d.sort_order = i; });
+  divEls.forEach(divEl => {
+    const divId = Number(divEl.dataset.divId);
+    [...divEl.querySelectorAll('.org-col-departments > .org-col-department')].forEach((deptEl, di) => {
+      const deptId = _deptIdOf(deptEl);
+      const dep = departmentsData.find(x => x.id === deptId);
+      if (dep) { dep.division_id = divId; dep.sort_order = di; }
+      [...deptEl.querySelectorAll('.org-col-department-posts > .org-post-card')].forEach((pEl, pi) => {
+        const p = postsData.find(x => x.id === Number(pEl.dataset.id));
+        if (p) { p.department_id = deptId; p.sort_order = pi; }
+      });
+    });
+  });
+  departmentsData.sort((a, b) => (a.division_id - b.division_id) || (a.sort_order - b.sort_order));
+  postsData.sort((a, b) => (a.department_id - b.department_id) || (a.sort_order - b.sort_order));
+}
+function _reRenderInPlace() {
+  _syncMemoryFromDom();
+  try { renderOrgBoard(); } catch (e) { console.warn('[org rerender]', e); }
+  try { applyOrgZoom(_currentZoom()); } catch (e) {}
+}
+
 // ── Division drag-to-reorder (live reflow, MAKH-style) ───────────────────────
 // Pick up a division by its header, a ghost follows the pointer, the other
 // divisions shift to open a gap where it will land, drop to commit the order.
@@ -1616,7 +1648,9 @@ function _ddMove(e) {
 }
 function _ddBegin(e) {
   _dd.active = true;
-  const col = _dd.col, rect = col.getBoundingClientRect(), z = _currentZoom();
+  const col = _dd.col;
+  _dd.origParent = col.parentElement; _dd.origNext = col.nextElementSibling;   // for no-op detection
+  const rect = col.getBoundingClientRect(), z = _currentZoom();
   const ghost = col.cloneNode(true);
   ghost.classList.add('org-div-ghost');
   ghost.style.cssText = 'position:fixed;z-index:9999;pointer-events:none;margin:0;width:' + col.offsetWidth + 'px;transform:scale(' + z + ');transform-origin:top left;left:' + rect.left + 'px;top:' + rect.top + 'px;';
@@ -1655,10 +1689,11 @@ function _ddUp() {
   const svg = document.getElementById('orgLinkSvg'); if (svg) svg.style.opacity = '';
   if (!dd.active) return;               // was a click, not a drag
   if (_ddAbortOrder) { _ddAbortOrder = false; loadOrgTab(); return; }  // Esc → reload original order
+  if (dd.col.parentElement === dd.origParent && dd.col.nextElementSibling === dd.origNext) return;  // no-op: dropped back
   const board = document.getElementById('orgBoard');
   const order = [...board.querySelectorAll(':scope > .org-col-division')].map(c => Number(c.dataset.divId));
-  try { _weaveTree(); } catch (e) {}   // instantly re-draw connector lines at the new spot
-  (async () => { try { await api('?api=reorder', { method: 'POST', body: { kind: 'divisions', order } }); } catch (err) { alert(err.message); } await loadOrgTab(); })();
+  _reRenderInPlace();                   // instant local re-render, no network blank
+  (async () => { try { await api('?api=reorder', { method: 'POST', body: { kind: 'divisions', order } }); } catch (err) { alert(err.message); loadOrgTab(); } })();
 }
 
 // ── Department drag-to-move (reorder within a division OR into another) ───────
@@ -1694,7 +1729,9 @@ function _dpdMove(e) {
 }
 function _dpdBegin(e) {
   _dpd.active = true;
-  const col = _dpd.col, rect = col.getBoundingClientRect(), z = _currentZoom();
+  const col = _dpd.col;
+  _dpd.origParent = col.parentElement; _dpd.origNext = col.nextElementSibling;
+  const rect = col.getBoundingClientRect(), z = _currentZoom();
   const srcDiv = col.closest('.org-col-division');
   const ghost = col.cloneNode(true);
   ghost.classList.add('org-dept-ghost');
@@ -1737,17 +1774,19 @@ function _dpdUp() {
   const svg = document.getElementById('orgLinkSvg'); if (svg) svg.style.opacity = '';
   if (!dpd.active) return;
   if (_dpdAbort) { _dpdAbort = false; loadOrgTab(); return; }
+  if (dpd.col.parentElement === dpd.origParent && dpd.col.nextElementSibling === dpd.origNext) return;  // no-op
   const container = dpd.col.parentElement;
   const destDivEl = container.closest('.org-col-division');
   const destDiv = destDivEl ? Number(destDivEl.dataset.divId) : null;
   const order = [...container.querySelectorAll(':scope > .org-col-department')].map(c => _deptIdOf(c)).filter(x => x != null);
   const dep = departmentsData.find(x => x.id === dpd.deptId);
+  const changedDiv = dep && destDiv != null && dep.division_id !== destDiv;
+  _reRenderInPlace();
   (async () => {
     try {
-      if (dep && destDiv != null && dep.division_id !== destDiv) await api('?api=department-update&id=' + dpd.deptId, { method: 'POST', body: { division_id: destDiv } });
+      if (changedDiv) await api('?api=department-update&id=' + dpd.deptId, { method: 'POST', body: { division_id: destDiv } });
       await api('?api=reorder', { method: 'POST', body: { kind: 'departments', order } });
-    } catch (err) { alert(err.message); }
-    await loadOrgTab();
+    } catch (err) { alert(err.message); loadOrgTab(); }
   })();
 }
 
@@ -1783,7 +1822,9 @@ function _ppdMove(e) {
 }
 function _ppdBegin(e) {
   _ppd.active = true;
-  const card = _ppd.card, rect = card.getBoundingClientRect(), z = _currentZoom();
+  const card = _ppd.card;
+  _ppd.origParent = card.parentElement; _ppd.origNext = card.nextElementSibling;
+  const rect = card.getBoundingClientRect(), z = _currentZoom();
   const srcDiv = card.closest('.org-col-division');
   const ghost = card.cloneNode(true);
   ghost.classList.add('org-post-ghost');
@@ -1824,17 +1865,19 @@ function _ppdUp() {
   const svg = document.getElementById('orgLinkSvg'); if (svg) svg.style.opacity = '';
   if (!ppd.active) return;
   if (_ppdAbort) { _ppdAbort = false; loadOrgTab(); return; }
+  if (ppd.card.parentElement === ppd.origParent && ppd.card.nextElementSibling === ppd.origNext) return;  // no-op
   const container = ppd.card.parentElement;
   const destDeptEl = container.closest('.org-col-department');
   const destDept = destDeptEl ? _deptIdOf(destDeptEl) : null;
   const order = [...container.querySelectorAll(':scope > .org-post-card')].map(c => Number(c.dataset.id)).filter(x => !isNaN(x));
   const post = postsData.find(x => x.id === ppd.postId);
+  const changedDept = post && destDept != null && post.department_id !== destDept;
+  _reRenderInPlace();
   (async () => {
     try {
-      if (post && destDept != null && post.department_id !== destDept) await api('?api=post-update&id=' + ppd.postId, { method: 'POST', body: { department_id: destDept } });
+      if (changedDept) await api('?api=post-update&id=' + ppd.postId, { method: 'POST', body: { department_id: destDept } });
       await api('?api=reorder', { method: 'POST', body: { kind: 'posts', order } });
-    } catch (err) { alert(err.message); }
-    await loadOrgTab();
+    } catch (err) { alert(err.message); loadOrgTab(); }
   })();
 }
 

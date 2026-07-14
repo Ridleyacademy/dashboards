@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v505', title: 'Org Board — executives centered over what they oversee (true org chart)', items: [
+      'Each executive box now sits centered over everything it connects to — its divisions and/or the posts reporting to it — like a real org chart. You can have several executives side by side in the same row, each above its own divisions, and stack executives above those (a top post over other posts over divisions). Everything auto-positions and the connector lines follow.',
+    ] },
     { version: 'v504', title: 'Org Board — every division always visible + connector lines', items: [
       'Divisions no longer move around or hide when you connect an executive. All divisions now stay in one row, always visible. Connecting an executive draws a connector line down to the divisions it oversees (proper org-chart elbows) — divisions with no executive above them simply have no line, and you connect one by tapping it, then tapping an executive.',
     ] },

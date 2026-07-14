@@ -1139,7 +1139,10 @@
   .org-tree ul::before { content: ''; position: absolute; top: 0; left: 50%; width: 0; height: 16px; border-left: 2px solid var(--border-light); }
   .org-tree > li { padding-top: 0; }
   .org-tree > li::before, .org-tree > li::after { display: none; }
-  .org-exec-node { position: relative; min-width: 138px; max-width: 200px; background: var(--surface); border: 1.5px solid var(--nc, #fbbf24); border-top: 4px solid var(--nc, #fbbf24); border-radius: 8px; padding: 6px 8px; cursor: grab; box-shadow: 0 2px 8px rgba(0,0,0,0.25); text-align: left; }
+  /* Absolutely-positioned exec chart: each node is placed by _weaveTree over what it connects to */
+  .org-exec-layer { position: relative; width: 100%; }
+  .org-exec-node { position: relative; width: 184px; box-sizing: border-box; background: var(--surface); border: 1.5px solid var(--nc, #fbbf24); border-top: 4px solid var(--nc, #fbbf24); border-radius: 8px; padding: 6px 8px; cursor: grab; box-shadow: 0 2px 8px rgba(0,0,0,0.25); text-align: left; }
+  .org-exec-layer .org-exec-node { position: absolute; }
   .org-exec-node-title { font-size: 0.72rem; font-weight: 700; line-height: 1.15; padding-right: 34px; }
   .org-exec-node-holder { font-size: 0.62rem; color: var(--text-muted); margin-top: 3px; display: flex; align-items: center; gap: 4px; }
   .org-exec-node-holder .havatar.small { width: 13px; height: 13px; font-size: 0.5rem; }

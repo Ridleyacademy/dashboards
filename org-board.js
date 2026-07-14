@@ -1281,25 +1281,23 @@ renderTopTier = function () { try { _renderExecTree(); } catch (e) { console.war
 function _renderExecTree() {
   const tier = document.getElementById('orgTopTier'); if (!tier) return;
   const editing = orgCanEdit();
-  const byParent = new Map();
-  execPostsData.forEach(p => { const k = p.parent_exec_post_id || 'root'; if (!byParent.has(k)) byParent.set(k, []); byParent.get(k).push(p); });
-  for (const arr of byParent.values()) arr.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+  // Flat render: every exec node is an absolutely-positioned box inside the
+  // layer. Positions + connector lines are computed later in _weaveTree() so
+  // each exec sits centred over everything it connects to (child execs and/or
+  // divisions), MAKH-style. parent_exec_post_id still defines the hierarchy.
   const nodeHtml = (p) => {
-    const kids = byParent.get(p.id) || [];
     const holder = (execHoldersByExecPost[p.id] || [])[0];
     const color = p.color || '#fbbf24';
     const holderHtml = holder
       ? `<span class="havatar small">${escapeHtml(_initialOf(holder.user_id))}</span>${escapeHtml(_displayOf(holder.user_id))}`
       : '<span class="org-exec-vac">Vacant</span>';
-    return `<li><div class="org-exec-node" data-id="${p.id}" style="--nc:${color}">
+    return `<div class="org-exec-node" data-id="${p.id}" style="--nc:${color}">
         <div class="org-exec-node-title">${escapeHtml(p.name)}</div>
         <div class="org-exec-node-holder">${holderHtml}</div>
-      </div>${kids.length ? '<ul>' + kids.map(nodeHtml).join('') + '</ul>' : ''}</li>`;
+      </div>`;
   };
-  const roots = byParent.get('root') || [];
-  tier.innerHTML = `<div class="org-tree-label">Executive structure</div>
-    <div class="org-tree-scroll"><ul class="org-tree">${roots.length ? roots.map(nodeHtml).join('') : '<li><div class="org-exec-empty">No executive posts yet</div></li>'}</ul></div>
-    ${editing ? '<button class="org-add-exec" id="org-add-exec-root">+ Add top post</button>' : ''}`;
+  tier.innerHTML = `<div class="org-tree-label">Executive structure${editing ? ' <button class="org-add-exec" id="org-add-exec-root">+ Add top post</button>' : ''}</div>
+    <div class="org-exec-layer" id="orgExecLayer">${execPostsData.length ? execPostsData.map(nodeHtml).join('') : '<div class="org-exec-empty">No executive posts yet</div>'}</div>`;
   document.getElementById('org-add-exec-root')?.addEventListener('click', () => _createExecUnder(null));
   tier.querySelectorAll('.org-exec-node').forEach(node => {
     const id = Number(node.dataset.id);
@@ -1591,45 +1589,89 @@ function enhanceBoard() {
   if (_mv) { document.body.classList.add('org-placing'); _renderTargets(); }
 }
 
-// ALL divisions stay in the flat #orgBoard row (always visible — nothing hides).
-// The compact executive tree sits above (in #orgTopTier). We connect them by
-// drawing SVG connector lines from each exec node down to the division columns
-// it oversees (org_executive_post_divisions), MAKH-style. Divisions are ordered
-// so each executive's divisions cluster together, minimising line crossings.
+// Layered org-chart layout. ALL divisions stay in the flat #orgBoard row (always
+// visible — nothing hides). Above them, each executive box is absolutely
+// positioned so it sits CENTRED over everything it connects to: its child exec
+// posts and/or the divisions it oversees. Executives that manage divisions
+// directly share the row just above the divisions (so there can be several side
+// by side, MAKH-style); their parents stack in rows above, centred over their
+// children. Connector lines (exec→exec and exec→division) are drawn as SVG
+// org-chart elbows. Runs at the end of enhanceBoard, after divisions render.
+const _EXECW = 184, _EXECH = 46, _EXECROW = 78;  // node width/height, row pitch
 function _weaveTree() {
-  const zoom = document.getElementById('orgBoardZoom'), board = document.getElementById('orgBoard');
+  const zoom = document.getElementById('orgBoardZoom'), board = document.getElementById('orgBoard'), layer = document.getElementById('orgExecLayer');
   if (!zoom || !board) return;
   zoom.style.position = 'relative';
-  // Cluster divisions by their overseeing exec (exec order), then their own order.
+  // 1. Cluster divisions so each exec's divisions sit contiguously (fewer crossings).
   const execOrder = new Map();
   execPostsData.forEach((ep, i) => (ep.division_ids || []).forEach(did => { if (!execOrder.has(did)) execOrder.set(did, i); }));
   const addBtn = board.querySelector(':scope > #org-add-div');
   [...board.querySelectorAll(':scope > .org-col-division')]
     .sort((a, b) => (execOrder.has(+a.dataset.divId) ? execOrder.get(+a.dataset.divId) : 999) - (execOrder.has(+b.dataset.divId) ? execOrder.get(+b.dataset.divId) : 999))
     .forEach(c => board.insertBefore(c, addBtn || null));
-  // Draw the exec → division lines.
+
+  // 2. Exec hierarchy + height (longest downward chain of exec posts).
+  const byId = new Map(execPostsData.map(p => [p.id, p]));
+  const childrenOf = (id) => execPostsData.filter(p => p.parent_exec_post_id === id && byId.has(id)).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+  const heightMemo = new Map();
+  const height = (p) => { if (heightMemo.has(p.id)) return heightMemo.get(p.id); const kids = childrenOf(p.id); const h = kids.length ? 1 + Math.max(...kids.map(height)) : 1; heightMemo.set(p.id, h); return h; };
+  const H = execPostsData.length ? Math.max(...execPostsData.map(height)) : 0;
+
+  // Size the exec layer so the divisions row sits below it, then measure divisions.
+  const off = (el) => { let x = 0, y = 0, n = el; while (n && n !== zoom) { x += n.offsetLeft; y += n.offsetTop; n = n.offsetParent; } return { x, y, w: el.offsetWidth, h: el.offsetHeight }; };
+  if (layer) layer.style.height = H > 0 ? (H * _EXECROW) + 'px' : '';
+  const divCenter = new Map(), divTopByPos = {};
+  board.querySelectorAll(':scope > .org-col-division').forEach(c => { const b = off(c); divCenter.set(+c.dataset.divId, Math.round(b.x + b.w / 2)); divTopByPos[+c.dataset.divId] = b.y; });
+
+  // 3. Compute each exec's centre-x bottom-up (leaves over their divisions,
+  //    parents over their children), and its row-y from its height.
+  const cx = new Map(), cy = new Map();
+  const execY = (p) => (H - height(p)) * _EXECROW + 8;   // leaves near the divisions, root at top
+  let orphanCursor = 40;
+  [...execPostsData].sort((a, b) => height(a) - height(b)).forEach(p => {
+    cy.set(p.id, execY(p));
+    const targets = [];
+    childrenOf(p.id).forEach(k => { if (cx.has(k.id)) targets.push(cx.get(k.id)); });
+    (p.division_ids || []).forEach(did => { if (divCenter.has(did)) targets.push(divCenter.get(did)); });
+    if (targets.length) cx.set(p.id, Math.round((Math.min(...targets) + Math.max(...targets)) / 2));
+    else { cx.set(p.id, orphanCursor + _EXECW / 2); orphanCursor += _EXECW + 24; }
+  });
+  // 4. De-overlap execs that share a row (keep a minimum gap, preserve order).
+  const rows = new Map();
+  execPostsData.forEach(p => { const y = cy.get(p.id); if (!rows.has(y)) rows.set(y, []); rows.get(y).push(p); });
+  rows.forEach(arr => {
+    arr.sort((a, b) => cx.get(a.id) - cx.get(b.id));
+    const gap = _EXECW + 18;
+    for (let i = 1; i < arr.length; i++) if (cx.get(arr[i].id) - cx.get(arr[i - 1].id) < gap) cx.set(arr[i].id, cx.get(arr[i - 1].id) + gap);
+  });
+  // 5. Position the nodes.
+  execPostsData.forEach(p => {
+    const node = document.querySelector('.org-exec-node[data-id="' + p.id + '"]'); if (!node) return;
+    node.style.position = 'absolute';
+    node.style.left = Math.round(cx.get(p.id) - _EXECW / 2) + 'px';
+    node.style.top = cy.get(p.id) + 'px';
+  });
+
+  // 6. Draw all connector lines (exec → child exec, exec → division).
   let svg = document.getElementById('orgLinkSvg');
   if (!svg) { svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.id = 'orgLinkSvg'; svg.setAttribute('class', 'org-link-svg'); zoom.insertBefore(svg, zoom.firstChild); }
-  const W = zoom.scrollWidth, H = zoom.scrollHeight;
-  svg.setAttribute('width', W); svg.setAttribute('height', H); svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
-  const off = (el) => { let x = 0, y = 0, n = el; while (n && n !== zoom) { x += n.offsetLeft; y += n.offsetTop; n = n.offsetParent; } return { x, y, w: el.offsetWidth, h: el.offsetHeight }; };
+  const W = zoom.scrollWidth, Ht = zoom.scrollHeight;
+  svg.setAttribute('width', W); svg.setAttribute('height', Ht); svg.setAttribute('viewBox', '0 0 ' + W + ' ' + Ht);
+  const layerTop = layer ? off(layer).y : 0;
   let paths = '';
-  execPostsData.forEach(ep => {
-    const node = document.querySelector('.org-exec-node[data-id="' + ep.id + '"]'); if (!node) return;
-    const cols = (ep.division_ids || []).map(did => document.querySelector('.org-col-division[data-div-id="' + did + '"]')).filter(Boolean);
-    if (!cols.length) return;
-    const a = off(node); const fx = Math.round(a.x + a.w / 2), fy = a.y + a.h;
-    const tops = cols.map(c => { const b = off(c); return { x: Math.round(b.x + b.w / 2), y: b.y }; });
-    const ty = Math.min(...tops.map(t => t.y));      // divisions share a top edge (flex row)
-    const busY = fy + Math.round((ty - fy) * 0.5);    // horizontal distribution bus, midway down
-    const col = ep.color || '#fbbf24';
-    // stem down from the exec box to the bus
+  execPostsData.forEach(p => {
+    const fx = cx.get(p.id), fy = layerTop + cy.get(p.id) + _EXECH;   // this exec's bottom centre
+    const targets = [];
+    childrenOf(p.id).forEach(k => targets.push({ x: cx.get(k.id), y: layerTop + cy.get(k.id) }));
+    (p.division_ids || []).forEach(did => { if (divCenter.has(did)) targets.push({ x: divCenter.get(did), y: divTopByPos[did] }); });
+    if (!targets.length) return;
+    const col = p.color || '#fbbf24';
+    const minTY = Math.min(...targets.map(t => t.y));
+    const busY = fy + Math.round((minTY - fy) * 0.5);
     paths += `<path d="M ${fx} ${fy} L ${fx} ${busY}" fill="none" stroke="${col}" stroke-width="2.5" stroke-linecap="round"/>`;
-    // horizontal bus spanning from the exec across to the furthest division
-    const minX = Math.min(fx, ...tops.map(t => t.x)), maxX = Math.max(fx, ...tops.map(t => t.x));
+    const minX = Math.min(fx, ...targets.map(t => t.x)), maxX = Math.max(fx, ...targets.map(t => t.x));
     paths += `<path d="M ${minX} ${busY} L ${maxX} ${busY}" fill="none" stroke="${col}" stroke-width="2.5" stroke-linecap="round"/>`;
-    // drop from the bus down to each division
-    tops.forEach(t => {
+    targets.forEach(t => {
       paths += `<path d="M ${t.x} ${busY} L ${t.x} ${t.y}" fill="none" stroke="${col}" stroke-width="2.5" stroke-linecap="round"/>`;
       paths += `<circle cx="${t.x}" cy="${t.y}" r="3.5" fill="${col}"/>`;
     });

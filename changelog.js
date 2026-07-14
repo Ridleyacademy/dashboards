@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v503', title: 'Org Board — fix: unconnected divisions no longer hide', items: [
+      'Fixed a bug where connecting an executive to some divisions made the rest seem to vanish. Divisions that aren’t under any executive now sit in a clearly labeled row below the chart — tap one, then tap an executive to connect it up.',
+    ] },
     { version: 'v502', title: 'Org Board — one connected chart (exec → divisions)', items: [
       'The whole board is now a single connected org chart: each executive post sits above the divisions it oversees, with lines running from it down into those division columns — the classic command-channel layout. Move a division under a different executive by tapping the division, then tapping its new manager (or “make top-level”). Build the top freely and it all connects automatically.',
     ] },

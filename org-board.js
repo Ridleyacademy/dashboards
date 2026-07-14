@@ -1615,13 +1615,16 @@ function _weaveTree() {
       assigned.add(did);
     });
   });
-  // Unassigned divisions → top-level nodes in the tree.
-  [...board.querySelectorAll(':scope > .org-col-division')].forEach(col => {
-    const wrap = document.createElement('li'); wrap.className = 'org-div-leaf'; wrap.appendChild(col); treeUl.appendChild(wrap);
-  });
-  // Keep the "+ Division" button reachable (as a trailing top-level node).
-  const addDiv = board.querySelector('#org-add-div');
-  if (addDiv) { const wrap = document.createElement('li'); wrap.className = 'org-div-leaf org-div-leaf-add'; wrap.appendChild(addDiv); treeUl.appendChild(wrap); }
+  // Divisions NOT under any executive stay in #orgBoard as a labeled flat row
+  // BELOW the tree (they don't get forced into the tree, which mis-positioned
+  // them). The "+ Division" button stays there too.
+  const zoom = document.getElementById('orgBoardZoom');
+  const remaining = board.querySelectorAll(':scope > .org-col-division').length;
+  let label = document.getElementById('orgUnassignedLabel');
+  if (remaining > 0 && zoom) {
+    if (!label) { label = document.createElement('div'); label.id = 'orgUnassignedLabel'; label.className = 'org-tree-label'; label.style.marginTop = '12px'; zoom.insertBefore(label, board); }
+    label.textContent = 'Divisions not under an executive yet — tap one, then tap an executive to connect it';
+  } else if (label) { label.remove(); }
 }
 
 // Division movement is reparent-under-an-exec (target-based), since divisions

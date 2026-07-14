@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v522', title: 'Targets — task popup no longer reloads on every change', items: [
+      'Fixed the task detail popup rebuilding itself whenever you ticked a checklist item, added a comment, changed status, or edited a field. Now only the part you touched updates — the popup stays put and feels instant.',
+    ] },
     { version: 'v521', title: 'Targets — overdue reminders', items: [
       'Overdue tasks now nudge their assignees automatically each morning: an in-app notification + phone push, and a reminder note is posted on the task itself. Reminders repeat once a day until the task is updated or completed.',
     ] },

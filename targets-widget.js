@@ -124,7 +124,7 @@
       </div>`).join('');
     container.querySelectorAll('.tw-row').forEach(row => {
       const id = Number(row.dataset.id);
-      row.addEventListener('click', e => { if (e.target.closest('.tw-row-check')) return; openDetail(id, opts); });
+      row.addEventListener('click', e => { if (e.target.closest('.tw-row-check')) return; openDetail(id, { ...opts, onClose: () => renderBoard(container, opts) }); });
       const chk = row.querySelector('.tw-row-check');
       if (chk) chk.addEventListener('click', async e => {
         e.stopPropagation(); const t = rows.find(x => x.id === id); if (!t) return;
@@ -162,7 +162,6 @@
     const dis = ce ? '' : 'disabled';
     const post = t.post_id ? posts().find(p => p.id === t.post_id) : null;
     const card = wrap.querySelector('.tw-card');
-    const reload = () => openDetail(t.id, opts);
     card.innerHTML = `
       <div class="tw-head"><span class="tw-crumb">${post ? esc(post.name) : 'Task'} · #${t.id}</span>
         ${ce ? '<button class="tw-btn danger" id="twDel">Delete</button>' : ''}
@@ -185,11 +184,14 @@
       </div>`;
     card.querySelector('#twX').addEventListener('click', () => { _close(); opts.onClose && opts.onClose(); });
     if (ce) card.querySelector('#twDel').addEventListener('click', async () => { if (!confirm('Delete this task?')) return; try { await _api('?api=delete&id=' + t.id, { method: 'POST', body: {} }); _close(); opts.onClose && opts.onClose(); } catch (e) { alert(e.message); } });
-    _renderAssignees(card.querySelector('#twAssignees'), t, ce, reload);
+    // Assignees re-render only their own section (never the whole modal).
+    const refreshAssignees = () => _renderAssignees(card.querySelector('#twAssignees'), t, ce, refreshAssignees);
+    refreshAssignees();
 
-    // Field auto-save (blur/change).
+    // Field auto-save (change only) — never reloads the modal; just tells the
+    // background board (if any) something changed so its row can refresh.
     if (ce) {
-      const save = async (body) => { try { await _api('?api=update&id=' + t.id, { method: 'POST', body }); opts.onChange && opts.onChange(); } catch (e) { alert(e.message); } };
+      const save = async (body) => { try { await _api('?api=update&id=' + t.id, { method: 'POST', body }); Object.assign(t, body); opts.onChange && opts.onChange(); } catch (e) { alert(e.message); } };
       const f = id => card.querySelector(id);
       f('#twTitle').addEventListener('change', e => save({ title: e.target.value }));
       f('#twStatus').addEventListener('change', e => save({ status: e.target.value }));
@@ -200,35 +202,44 @@
       f('#twTags').addEventListener('change', e => save({ tags: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }));
       f('#twPost').addEventListener('change', e => save({ post_id: e.target.value ? Number(e.target.value) : null }));
       f('#twDesc').addEventListener('change', e => save({ details: e.target.value }));
-      // checklist
-      const ciAdd = f('#twCiAdd'); if (ciAdd) { const go = async () => { const v = f('#twCiNew').value.trim(); if (!v) return; try { await _api('?api=checklist-add', { method: 'POST', body: { target_id: t.id, text: v } }); reload(); } catch (e) { alert(e.message); } }; ciAdd.addEventListener('click', go); f('#twCiNew').addEventListener('keydown', e => { if (e.key === 'Enter') go(); }); }
-      card.querySelectorAll('.tw-check-item').forEach(el => {
+
+      // Checklist — append/toggle/remove IN PLACE, no modal reload.
+      const ciList = f('#twChecklist');
+      const wireCi = (el) => {
         const cid = Number(el.dataset.id);
-        el.querySelector('.tw-ci-box').addEventListener('click', async () => { try { await _api('?api=checklist-update&id=' + cid, { method: 'POST', body: { done: !el.classList.contains('done') } }); reload(); } catch (e) { alert(e.message); } });
-        el.querySelector('.tw-del').addEventListener('click', async () => { try { await _api('?api=checklist-delete&id=' + cid, { method: 'POST', body: {} }); reload(); } catch (e) { alert(e.message); } });
-      });
-      // subtasks
-      const subAdd = f('#twSubAdd'); if (subAdd) { const go = async () => { const v = f('#twSubNew').value.trim(); if (!v) return; try { await _api('?api=create', { method: 'POST', body: { title: v, parent_target_id: t.id, post_id: t.post_id } }); reload(); } catch (e) { alert(e.message); } }; subAdd.addEventListener('click', go); f('#twSubNew').addEventListener('keydown', e => { if (e.key === 'Enter') go(); }); }
-      card.querySelectorAll('.tw-sub-item').forEach(el => {
+        el.querySelector('.tw-ci-box').addEventListener('click', async () => { const done = !el.classList.contains('done'); try { await _api('?api=checklist-update&id=' + cid, { method: 'POST', body: { done } }); el.classList.toggle('done', done); el.querySelector('.tw-ci-box').textContent = done ? '✓' : ''; } catch (e) { alert(e.message); } });
+        el.querySelector('.tw-del').addEventListener('click', async () => { try { await _api('?api=checklist-delete&id=' + cid, { method: 'POST', body: {} }); el.remove(); if (!ciList.querySelector('.tw-check-item')) ciList.innerHTML = '<div class="tw-empty">No items.</div>'; } catch (e) { alert(e.message); } });
+      };
+      ciList.querySelectorAll('.tw-check-item').forEach(wireCi);
+      const ciAdd = f('#twCiAdd'); if (ciAdd) { const go = async () => { const inp = f('#twCiNew'); const v = inp.value.trim(); if (!v) return; try { const r = await _api('?api=checklist-add', { method: 'POST', body: { target_id: t.id, text: v } }); const em = ciList.querySelector('.tw-empty'); if (em) em.remove(); const wrap = document.createElement('div'); wrap.innerHTML = _ciHtml(r.row); const el = wrap.firstElementChild; ciList.appendChild(el); wireCi(el); inp.value = ''; inp.focus(); } catch (e) { alert(e.message); } }; ciAdd.addEventListener('click', go); f('#twCiNew').addEventListener('keydown', e => { if (e.key === 'Enter') go(); }); }
+
+      // Subtasks — append/toggle in place; open a subtask in its own popup.
+      const subList = f('#twSubs');
+      const wireSub = (el) => {
         const sid = Number(el.dataset.id);
-        el.querySelector('.tw-si-box').addEventListener('click', async () => { try { await _api('?api=update&id=' + sid, { method: 'POST', body: { status: el.classList.contains('done') ? 'todo' : 'done' } }); reload(); } catch (e) { alert(e.message); } });
-        el.querySelector('.tw-si-text').addEventListener('click', () => openDetail(sid, { onClose: reload }));
-      });
+        el.querySelector('.tw-si-box').addEventListener('click', async () => { const done = !el.classList.contains('done'); try { await _api('?api=update&id=' + sid, { method: 'POST', body: { status: done ? 'done' : 'todo' } }); el.classList.toggle('done', done); el.querySelector('.tw-si-box').textContent = done ? '✓' : ''; } catch (e) { alert(e.message); } });
+        el.querySelector('.tw-si-text').addEventListener('click', () => openDetail(sid, {}));
+      };
+      subList.querySelectorAll('.tw-sub-item').forEach(wireSub);
+      const subAdd = f('#twSubAdd'); if (subAdd) { const go = async () => { const inp = f('#twSubNew'); const v = inp.value.trim(); if (!v) return; try { const r = await _api('?api=create', { method: 'POST', body: { title: v, parent_target_id: t.id, post_id: t.post_id } }); const em = subList.querySelector('.tw-empty'); if (em) em.remove(); const wrap = document.createElement('div'); wrap.innerHTML = _subHtml(r.row); const el = wrap.firstElementChild; subList.appendChild(el); wireSub(el); inp.value = ''; inp.focus(); } catch (e) { alert(e.message); } }; subAdd.addEventListener('click', go); f('#twSubNew').addEventListener('keydown', e => { if (e.key === 'Enter') go(); }); }
     }
-    // comments (anyone can comment)
-    const cmtAdd = card.querySelector('#twCmtAdd');
-    const goC = async () => { const v = card.querySelector('#twCmtNew').value.trim(); if (!v) return; try { await _api('?api=comment-add', { method: 'POST', body: { target_id: t.id, body: v } }); reload(); } catch (e) { alert(e.message); } };
-    cmtAdd.addEventListener('click', goC);
+
+    // Comments — append in place (anyone can comment).
+    const cmtList = card.querySelector('#twComments');
+    const wireCmt = (el) => { const b = el.querySelector('[data-del-cmt]'); if (b) b.addEventListener('click', async () => { try { await _api('?api=comment-delete&id=' + b.dataset.delCmt, { method: 'POST', body: {} }); el.remove(); if (!cmtList.querySelector('.tw-comment')) cmtList.innerHTML = '<div class="tw-empty">No comments yet.</div>'; } catch (e) { alert(e.message); } }); };
+    cmtList.querySelectorAll('.tw-comment').forEach(wireCmt);
+    const goC = async () => { const inp = card.querySelector('#twCmtNew'); const v = inp.value.trim(); if (!v) return; try { const r = await _api('?api=comment-add', { method: 'POST', body: { target_id: t.id, body: v } }); const em = cmtList.querySelector('.tw-empty'); if (em) em.remove(); const wrap = document.createElement('div'); wrap.innerHTML = _cmtHtml(r.row); const el = wrap.firstElementChild; cmtList.appendChild(el); wireCmt(el); inp.value = ''; inp.focus(); } catch (e) { alert(e.message); } };
+    card.querySelector('#twCmtAdd').addEventListener('click', goC);
     card.querySelector('#twCmtNew').addEventListener('keydown', e => { if (e.key === 'Enter') goC(); });
-    card.querySelectorAll('.tw-comment [data-del-cmt]').forEach(b => b.addEventListener('click', async () => { try { await _api('?api=comment-delete&id=' + b.dataset.delCmt, { method: 'POST', body: {} }); reload(); } catch (e) { alert(e.message); } }));
   }
 
-  function _renderAssignees(el, t, ce, reload) {
+  function _renderAssignees(el, t, ce, refresh) {
     const ids = t.assignee_ids || [];
     el.innerHTML = ids.map(u => `<span class="tw-avatar" title="${esc(userName(u))}" data-uid="${u}" style="cursor:${ce ? 'pointer' : 'default'}">${esc(userInit(u))}</span>`).join('') +
       (ce ? '<span class="tw-assignpick"><button class="tw-add-assignee" id="twAddAssignee">+</button></span>' : (ids.length ? '' : '<span style="color:rgba(255,255,255,.4);font-size:0.78rem;">Unassigned</span>'));
     if (!ce) return;
-    if (ids.length) el.querySelectorAll('.tw-avatar[data-uid]').forEach(a => a.addEventListener('click', async () => { const uid = a.dataset.uid; if (!confirm('Remove ' + userName(uid) + '?')) return; try { await _api('?api=update&id=' + t.id, { method: 'POST', body: { assignee_ids: ids.filter(x => x !== uid) } }); reload(); } catch (e) { alert(e.message); } }));
+    const apply = async (nextIds) => { try { const r = await _api('?api=update&id=' + t.id, { method: 'POST', body: { assignee_ids: nextIds } }); t.assignee_ids = (r.row && r.row.assignee_ids) || nextIds; refresh(); } catch (e) { alert(e.message); } };
+    if (ids.length) el.querySelectorAll('.tw-avatar[data-uid]').forEach(a => a.addEventListener('click', () => { const uid = a.dataset.uid; if (!confirm('Remove ' + userName(uid) + '?')) return; apply(ids.filter(x => x !== uid)); }));
     el.querySelector('#twAddAssignee').addEventListener('click', () => {
       const existing = el.querySelector('.tw-assignmenu'); if (existing) { existing.remove(); return; }
       const menu = document.createElement('div'); menu.className = 'tw-assignmenu';
@@ -237,7 +248,7 @@
       el.querySelector('.tw-assignpick').appendChild(menu);
       const search = menu.querySelector('#twAssignSearch'); search.focus();
       search.addEventListener('input', () => { const q = search.value.toLowerCase(); menu.querySelectorAll('button[data-uid]').forEach(b => { b.style.display = b.textContent.toLowerCase().includes(q) ? '' : 'none'; }); });
-      menu.querySelectorAll('button[data-uid]').forEach(b => b.addEventListener('click', async () => { try { await _api('?api=update&id=' + t.id, { method: 'POST', body: { assignee_ids: [...ids, b.dataset.uid] } }); reload(); } catch (e) { alert(e.message); } }));
+      menu.querySelectorAll('button[data-uid]').forEach(b => b.addEventListener('click', () => apply([...ids, b.dataset.uid])));
     });
   }
 

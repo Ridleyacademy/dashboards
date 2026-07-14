@@ -2189,7 +2189,8 @@ function _mpLoadTargets(postId) {
   const el = document.getElementById('orgMpTargets'); if (!el) return;
   if (!window.Targets) { el.innerHTML = '<div class="org-mp-empty">Targets unavailable.</div>'; return; }
   el.innerHTML = '<div id="orgMpTgBoard"></div><div style="margin-top:8px;"><button class="small-btn" id="orgMpTgNew" style="background:var(--surface3);">+ New task</button></div>';
-  Targets.renderBoard(document.getElementById('orgMpTgBoard'), { postId });
+  // "Your targets" = tasks assigned to you; new ones default to attaching to this post.
+  Targets.renderBoard(document.getElementById('orgMpTgBoard'), { assignee: 'me', postId });
   document.getElementById('orgMpTgNew').addEventListener('click', () => Targets.openNew({ post_id: postId, assignee_ids: [session.user.id], opts: { onClose: () => _mpLoadTargets(postId), onChange: () => _mpLoadTargets(postId) } }));
 }
 

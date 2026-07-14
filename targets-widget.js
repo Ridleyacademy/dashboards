@@ -137,7 +137,7 @@
     try {
       const qs = ['include_done=1'];
       if (opts.assignee) qs.push('assignee=' + encodeURIComponent(opts.assignee));
-      if (opts.postId) qs.push('post_id=' + opts.postId);
+      if (opts.filterPost) qs.push('post_id=' + opts.filterPost);   // opts.postId is only the default post for NEW tasks
       const j = await _api('?api=list&' + qs.join('&'));
       container._twRows = j.rows || [];
       _drawBoard(container, opts);

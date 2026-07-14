@@ -575,6 +575,18 @@ function openExecPostEditor(epId) {
       ${escapeHtml(d.name)}
     </label>`;
   }).join('');
+  // Exec posts this one can sit above = every other exec except self and this
+  // post's own ancestors (picking an ancestor would make a cycle). A candidate
+  // is "checked" when it already reports to this post.
+  const _ancestors = new Set();
+  if (ep.id) { let cur = ep.parent_exec_post_id; const guard = new Set(); while (cur && !guard.has(cur)) { guard.add(cur); _ancestors.add(cur); const par = execPostsData.find(x => x.id === cur); cur = par ? par.parent_exec_post_id : null; } }
+  const execChecks = execPostsData.filter(x => x.id !== ep.id && !_ancestors.has(x.id)).map(x => {
+    const checked = ep.id && x.parent_exec_post_id === ep.id;
+    return `<label class="exec-check" style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--border);border-radius:999px;cursor:pointer;font-size:0.78rem;${checked ? 'background:rgba(59,130,246,.18);color:#93c5fd;border-color:rgba(59,130,246,.5);' : ''}">
+      <input type="checkbox" data-exec-id="${x.id}" ${checked ? 'checked' : ''} style="margin:0;">
+      ⭐ ${escapeHtml(x.name)}
+    </label>`;
+  }).join('');
   ed.innerHTML = `<div class="ax-editor">
     <div class="breadcrumb">Top tier · Executive post</div>
     <h2>${ep.id ? '⭐ ' + escapeHtml(ep.name) : '⭐ New executive post'}</h2>
@@ -603,12 +615,11 @@ function openExecPostEditor(epId) {
     <div class="ax-editor-row"><label>Holders</label><span style="color:var(--text-dim);font-size:0.78rem;">Save this exec post first, then assign holders.</span></div>
     `}
 
-    <h3>Chain of command</h3>
-    <div style="font-size:0.74rem;color:var(--text-dim);margin-bottom:6px;">Place this executive under another executive (like MAKH). Leave as “Top-level” for the highest post. Its box centers over whatever reports to it — other exec posts and/or divisions.</div>
-    <div class="ax-editor-row"><label>Reports to</label><select id="ep-parent"></select></div>
-
-    <h3>Divisions overseen</h3>
-    <div style="font-size:0.74rem;color:var(--text-dim);margin-bottom:6px;">Optional — pick divisions this executive is directly in charge of. A pure management post (e.g. a CEO above other execs) can leave these all unchecked.</div>
+    <h3>Sits above / oversees</h3>
+    <div style="font-size:0.74rem;color:var(--text-dim);margin-bottom:6px;">Pick everything this post sits above — any mix of other executive posts and divisions. Its box centers over whatever you pick. (e.g. this post can be above the LRH Comm AND above Division 1, while the LRH Comm is above Divisions 2–4.)</div>
+    <div style="font-weight:600;font-size:0.76rem;margin:4px 0;">Executive posts reporting to this</div>
+    <div id="ep-execs" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">${execChecks || '<span style="color:var(--text-dim);font-size:0.76rem;">No other executive posts yet.</span>'}</div>
+    <div style="font-weight:600;font-size:0.76rem;margin:4px 0;">Divisions</div>
     <div id="ep-divs" style="display:flex;flex-wrap:wrap;gap:6px;">${divChecks}</div>
 
     <div class="ax-actions">
@@ -620,12 +631,6 @@ function openExecPostEditor(epId) {
   </div>`;
 
   document.getElementById('ep-role').innerHTML = '<option value="">— No default role —</option>' + roles.map(r => `<option value="${r.id}" ${ep.default_role_id === r.id ? 'selected' : ''}>${escapeHtml(r.name)}</option>`).join('');
-  // "Reports to" — any other exec post except self and its own descendants (no cycles).
-  const _descend = new Set();
-  if (ep.id) { const walk = (pid) => execPostsData.filter(x => x.parent_exec_post_id === pid && x.id !== pid).forEach(c => { if (_descend.has(c.id)) return; _descend.add(c.id); walk(c.id); }); walk(ep.id); }
-  const parentOpts = execPostsData.filter(x => x.id !== ep.id && !_descend.has(x.id)).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-  document.getElementById('ep-parent').innerHTML = '<option value="">— Top-level (reports to no one) —</option>' +
-    parentOpts.map(x => `<option value="${x.id}" ${ep.parent_exec_post_id === x.id ? 'selected' : ''}>${escapeHtml(x.name)}</option>`).join('');
   if (ep.id) {
     document.getElementById('ep-holder-pick').innerHTML = _userOptions(null, false);
     refreshExecPostHolders(ep.id);
@@ -645,6 +650,13 @@ function openExecPostEditor(epId) {
       else label.style.cssText = 'display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--border);border-radius:999px;cursor:pointer;font-size:0.78rem;';
     });
   });
+  ed.querySelectorAll('#ep-execs input[type="checkbox"]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const label = cb.closest('label');
+      if (cb.checked) label.style.cssText = 'display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid rgba(59,130,246,.5);border-radius:999px;cursor:pointer;font-size:0.78rem;background:rgba(59,130,246,.18);color:#93c5fd;';
+      else label.style.cssText = 'display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--border);border-radius:999px;cursor:pointer;font-size:0.78rem;';
+    });
+  });
 
   document.getElementById('ep-save').addEventListener('click', async () => {
     const msg = document.getElementById('ep-msg');
@@ -657,7 +669,6 @@ function openExecPostEditor(epId) {
         color: document.getElementById('ep-color').value,
         default_role_id: document.getElementById('ep-role').value ? Number(document.getElementById('ep-role').value) : null,
         division_ids: [...document.querySelectorAll('#ep-divs input:checked')].map(cb => Number(cb.dataset.divId)),
-        parent_exec_post_id: document.getElementById('ep-parent').value ? Number(document.getElementById('ep-parent').value) : null,
         sort_order: ep.sort_order || 0,
         purpose: document.getElementById('ep-purpose').value.trim(),
         valuable_final_product: document.getElementById('ep-vfp').value.trim(),
@@ -666,9 +677,23 @@ function openExecPostEditor(epId) {
       let res;
       if (ep.id) res = await api('?api=exec-post-update&id=' + ep.id, { method: 'POST', body });
       else       res = await api('?api=exec-post-create', { method: 'POST', body });
+      // Reparent the exec posts this one sits above: checked → parent = this;
+      // any that were this post's children but got unchecked → parent = null.
+      const thisId = ep.id || res?.row?.id;
+      if (thisId) {
+        const checkedExecs = new Set([...document.querySelectorAll('#ep-execs input:checked')].map(cb => Number(cb.dataset.execId)));
+        const shownExecs = [...document.querySelectorAll('#ep-execs input[data-exec-id]')].map(cb => Number(cb.dataset.execId));
+        for (const eid of shownExecs) {
+          const child = execPostsData.find(x => x.id === eid);
+          const want = checkedExecs.has(eid) ? thisId : (child && child.parent_exec_post_id === thisId ? null : undefined);
+          if (want === undefined) continue;                        // no change
+          if (child && child.parent_exec_post_id === want) continue; // already correct
+          await api('?api=exec-post-update&id=' + eid, { method: 'POST', body: { parent_exec_post_id: want } });
+        }
+      }
       msg.className = 'ax-msg ok'; msg.textContent = '✓ Saved';
       await loadOrgTab();
-      if (res?.row?.id) openExecPostEditor(res.row.id);
+      if (thisId) openExecPostEditor(thisId);
     } catch (e) { msg.className = 'ax-msg err'; msg.textContent = e.message; }
   });
   document.getElementById('ep-duplicate')?.addEventListener('click', async () => {

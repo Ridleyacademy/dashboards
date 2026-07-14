@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v506', title: 'Org Board — fix: connector lines missing when an executive looped', items: [
+      'Fixed a case where no connector lines showed and executive boxes piled on top of each other. It happened when an executive post ended up listed as its own manager (a bad loop in the data) — the chart now ignores such loops and draws every line correctly. Cleaned up one such loop (CEO) in the data.',
+    ] },
     { version: 'v505', title: 'Org Board — executives centered over what they oversee (true org chart)', items: [
       'Each executive box now sits centered over everything it connects to — its divisions and/or the posts reporting to it — like a real org chart. You can have several executives side by side in the same row, each above its own divisions, and stack executives above those (a top post over other posts over divisions). Everything auto-positions and the connector lines follow.',
     ] },

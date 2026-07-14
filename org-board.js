@@ -1324,7 +1324,7 @@ async function _createExecUnder(parentId) {
 function _renderExecTargets() {
   const self = _mv.id;
   const descendants = new Set();
-  const collect = (pid) => { execPostsData.filter(p => p.parent_exec_post_id === pid).forEach(c => { descendants.add(c.id); collect(c.id); }); };
+  const collect = (pid) => { execPostsData.filter(p => p.parent_exec_post_id === pid && p.id !== pid).forEach(c => { if (descendants.has(c.id)) return; descendants.add(c.id); collect(c.id); }); };
   collect(self);
   document.querySelectorAll('.org-exec-node').forEach(node => {
     const id = Number(node.dataset.id);
@@ -1612,10 +1612,22 @@ function _weaveTree() {
 
   // 2. Exec hierarchy + height (longest downward chain of exec posts).
   const byId = new Map(execPostsData.map(p => [p.id, p]));
-  const childrenOf = (id) => execPostsData.filter(p => p.parent_exec_post_id === id && byId.has(id)).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+  // Guard against bad data: a post that is its own parent (self-cycle) or any
+  // parent cycle must NOT recurse forever — treat self-parent as top-level.
+  const childrenOf = (id) => execPostsData.filter(p => p.parent_exec_post_id === id && p.id !== id).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
   const heightMemo = new Map();
-  const height = (p) => { if (heightMemo.has(p.id)) return heightMemo.get(p.id); const kids = childrenOf(p.id); const h = kids.length ? 1 + Math.max(...kids.map(height)) : 1; heightMemo.set(p.id, h); return h; };
-  const H = execPostsData.length ? Math.max(...execPostsData.map(height)) : 0;
+  const height = (p, seen) => {
+    if (heightMemo.has(p.id)) return heightMemo.get(p.id);
+    seen = seen || new Set();
+    if (seen.has(p.id)) return 1;          // cycle → stop
+    seen.add(p.id);
+    const kids = childrenOf(p.id);
+    const h = kids.length ? 1 + Math.max(...kids.map(k => height(k, seen))) : 1;
+    seen.delete(p.id);
+    heightMemo.set(p.id, h);
+    return h;
+  };
+  const H = execPostsData.length ? Math.max(...execPostsData.map(p => height(p))) : 0;
 
   // Size the exec layer so the divisions row sits below it, then measure divisions.
   const off = (el) => { let x = 0, y = 0, n = el; while (n && n !== zoom) { x += n.offsetLeft; y += n.offsetTop; n = n.offsetParent; } return { x, y, w: el.offsetWidth, h: el.offsetHeight }; };

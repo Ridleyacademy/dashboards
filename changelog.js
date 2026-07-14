@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v528', title: 'Targets — file attachments', items: [
+      'Attach files to any task — click “Attach files” in a task’s Attachments section to add images, PDFs, or documents (up to 20MB each).',
+      'Images show a thumbnail you can click to view full-size; other files download in one click. Remove an attachment with the ✕.',
+    ] },
     { version: 'v527', title: 'Targets — notifications & @mentions', items: [
       'You now get a push + in-app notification when someone assigns you a task, when someone comments on a task you’re on, and when you’re @mentioned in a comment.',
       'Type @ in a comment to mention a teammate — pick them from the list, and they get pinged. Mentions show highlighted in the thread.',

@@ -105,6 +105,16 @@
     .tw-assignmenu button{display:flex;align-items:center;gap:7px;width:100%;text-align:left;background:none;border:0;color:var(--text,#eee);padding:6px 8px;border-radius:6px;cursor:pointer;font-size:0.82rem;}
     .tw-assignmenu button:hover{background:var(--surface3,#222);}
     .tw-add-assignee{width:22px;height:22px;border-radius:50%;border:1.5px dashed var(--border-light,#3a3a3a);background:none;color:rgba(255,255,255,.6);cursor:pointer;font-size:0.8rem;line-height:1;}
+    /* attachments */
+    .tw-atts{display:flex;flex-wrap:wrap;gap:8px;}
+    .tw-att{display:flex;align-items:center;gap:8px;background:var(--surface2,#161616);border:1px solid var(--border,#262626);border-radius:9px;padding:6px 8px;max-width:230px;}
+    .tw-att-thumb{width:38px;height:38px;flex:0 0 auto;border-radius:6px;object-fit:cover;background:var(--surface3,#222);display:flex;align-items:center;justify-content:center;font-size:0.9rem;color:rgba(255,255,255,.55);overflow:hidden;text-decoration:none;}
+    .tw-att-thumb img{width:100%;height:100%;object-fit:cover;}
+    .tw-att-meta{min-width:0;flex:1;}
+    .tw-att-name{font-size:0.76rem;color:var(--text,#eee);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none;display:block;}
+    .tw-att-name:hover{color:var(--accent,#34d399);}
+    .tw-att-sz{font-size:0.62rem;color:rgba(255,255,255,.45);}
+    .tw-att.pending{opacity:.55;}
     `;
     document.head.appendChild(s);
   }
@@ -283,6 +293,7 @@
         <div class="tw-sec"><h4>Description</h4><textarea class="tw-desc" id="twDesc" placeholder="Add a description…" ${dis}>${esc(t.details || '')}</textarea></div>
         <div class="tw-sec"><h4>Checklist</h4><div id="twChecklist">${(j.checklist || []).map(_ciHtml).join('') || '<div class="tw-empty">No items.</div>'}</div>${ce ? `<div class="tw-addrow"><input class="tw-inp" id="twCiNew" placeholder="Add checklist item…"><button class="tw-btn" id="twCiAdd">Add</button></div>` : ''}</div>
         <div class="tw-sec"><h4>Subtasks</h4><div id="twSubs">${(j.subtasks || []).map(_subHtml).join('') || '<div class="tw-empty">No subtasks.</div>'}</div>${ce ? `<div class="tw-addrow"><input class="tw-inp" id="twSubNew" placeholder="Add subtask…"><button class="tw-btn" id="twSubAdd">Add</button></div>` : ''}</div>
+        <div class="tw-sec"><h4>Attachments</h4><div class="tw-atts" id="twAtts">${(j.attachments || []).map(_attHtml).join('') || '<div class="tw-empty">No files.</div>'}</div>${ce ? `<div class="tw-addrow" style="margin-top:8px;"><input type="file" id="twAttFile" multiple style="display:none;"><button class="tw-btn" id="twAttAdd">Attach files</button><span id="twAttNote" style="font-size:0.68rem;color:rgba(255,255,255,.45);align-self:center;">Up to 20MB each</span></div>` : ''}</div>
         <div class="tw-sec"><h4>Activity</h4><div id="twComments">${(j.comments || []).map(_cmtHtml).join('') || '<div class="tw-empty">No comments yet.</div>'}</div><div class="tw-addrow"><input class="tw-inp" id="twCmtNew" placeholder="Write a comment…"><button class="tw-btn primary" id="twCmtAdd">Send</button></div></div>
       </div>`;
     card.querySelector('#twX').addEventListener('click', () => { _close(); opts.onClose && opts.onClose(); });
@@ -338,6 +349,33 @@
       };
       subList.querySelectorAll('.tw-sub-item').forEach(wireSub);
       const subAdd = f('#twSubAdd'); if (subAdd) { const go = () => { const inp = f('#twSubNew'); const v = inp.value.trim(); if (!v) return; const em = subList.querySelector('.tw-empty'); if (em) em.remove(); const wrap = document.createElement('div'); wrap.innerHTML = _subHtml({ id: 'tmp', title: v, status: 'todo' }); const el = wrap.firstElementChild; subList.appendChild(el); wireSub(el); inp.value = ''; inp.focus(); _api('?api=create', { method: 'POST', body: { title: v, parent_target_id: t.id, post_id: t.post_id } }).then(r => { el.dataset.id = r.row.id; }).catch(e => { el.remove(); alert(e.message); }); }; subAdd.addEventListener('click', go); f('#twSubNew').addEventListener('keydown', e => { if (e.key === 'Enter') go(); }); }
+
+      // Attachments — upload each picked file (base64 → Dropbox). Optimistic
+      // pending card, replaced with the real one on success.
+      const attList = f('#twAtts');
+      const wireAtt = (el) => { const b = el.querySelector('.tw-del'); if (b) b.addEventListener('click', () => { const next = el.nextSibling, parent = el.parentNode; el.remove(); if (!attList.querySelector('.tw-att')) attList.innerHTML = '<div class="tw-empty">No files.</div>'; _api('?api=attachment-delete&id=' + b.dataset.id, { method: 'POST', body: {} }).catch(e => { const em = attList.querySelector('.tw-empty'); if (em) em.remove(); parent.insertBefore(el, next); alert(e.message); }); }); };
+      attList.querySelectorAll('.tw-att').forEach(wireAtt);
+      const attAdd = f('#twAttAdd'), attFile = f('#twAttFile');
+      if (attAdd && attFile) {
+        attAdd.addEventListener('click', () => attFile.click());
+        attFile.addEventListener('change', () => {
+          const files = [...attFile.files]; attFile.value = '';
+          files.forEach(file => {
+            if (file.size > 20 * 1024 * 1024) { alert(file.name + ' is larger than 20MB.'); return; }
+            const em = attList.querySelector('.tw-empty'); if (em) em.remove();
+            const ph = document.createElement('div'); ph.innerHTML = _attHtml({ id: 'tmp', name: file.name, size: file.size, mime: file.type }, true); const el = ph.firstElementChild; attList.appendChild(el);
+            const reader = new FileReader();
+            reader.onload = () => {
+              const data = String(reader.result).split(',')[1] || '';
+              _api('?api=attachment-upload', { method: 'POST', body: { target_id: t.id, name: file.name, mime: file.type || null, data } })
+                .then(r => { const nw = document.createElement('div'); nw.innerHTML = _attHtml(r.row); const rel = nw.firstElementChild; el.replaceWith(rel); wireAtt(rel); })
+                .catch(e => { el.remove(); if (!attList.querySelector('.tw-att')) attList.innerHTML = '<div class="tw-empty">No files.</div>'; alert(e.message); });
+            };
+            reader.onerror = () => { el.remove(); alert('Could not read ' + file.name); };
+            reader.readAsDataURL(file);
+          });
+        });
+      }
     }
 
     // Comments — OPTIMISTIC: the comment shows the instant you hit send.
@@ -377,6 +415,16 @@
     });
   }
 
+  function fmtBytes(n) { n = Number(n) || 0; if (n < 1024) return n + ' B'; if (n < 1048576) return (n / 1024).toFixed(0) + ' KB'; return (n / 1048576).toFixed(1) + ' MB'; }
+  // Dropbox shared links come as ?dl=0. ?raw=1 serves inline (image src),
+  // ?dl=1 forces download.
+  function attUrl(a, mode) { const u = a.external_url || ''; if (!u) return '#'; const base = u.replace(/([?&])dl=\d/, '$1').replace(/[?&]$/, ''); const sep = base.includes('?') ? '&' : '?'; return base + sep + (mode === 'raw' ? 'raw=1' : 'dl=1'); }
+  function _attHtml(a, pending) {
+    const isImg = /^image\//.test(a.mime || '') || /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(a.name || '');
+    const dl = pending ? '#' : attUrl(a, 'dl');
+    const thumb = pending ? '<span class="tw-att-thumb">…</span>' : (isImg && a.external_url ? `<a class="tw-att-thumb" href="${esc(attUrl(a, 'raw'))}" target="_blank" rel="noopener"><img src="${esc(attUrl(a, 'raw'))}" alt=""></a>` : `<a class="tw-att-thumb" href="${esc(dl)}" target="_blank" rel="noopener">▤</a>`);
+    return `<div class="tw-att${pending ? ' pending' : ''}" data-id="${a.id}">${thumb}<div class="tw-att-meta"><a class="tw-att-name" href="${esc(dl)}" target="_blank" rel="noopener" title="${esc(a.name || 'file')}">${esc(a.name || 'file')}</a><div class="tw-att-sz">${esc(fmtBytes(a.size))}${pending ? ' · uploading…' : ''}</div></div>${pending ? '' : `<button class="tw-del" data-id="${a.id}" title="Remove">✕</button>`}</div>`;
+  }
   function _ciHtml(c) { return `<div class="tw-check-item${c.done ? ' done' : ''}" data-id="${c.id}"><span class="tw-ci-box">${c.done ? '✓' : ''}</span><span class="tw-ci-text">${esc(c.text)}</span><button class="tw-del">✕</button></div>`; }
   function _subHtml(s) { const done = s.status === 'done'; return `<div class="tw-sub-item${done ? ' done' : ''}" data-id="${s.id}"><span class="tw-si-box">${done ? '✓' : ''}</span><span class="tw-si-text">${esc(s.title)}</span></div>`; }
   function _cmtHtml(c) {

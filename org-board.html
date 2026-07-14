@@ -1120,6 +1120,10 @@
   .org-pop-clear { color: var(--text-dim); }
 
   /* ═══════════ Executive TREE (connected boxes above divisions) ═══════════ */
+  /* SVG overlay drawing exec → division connector lines (sits behind the boxes) */
+  .org-link-svg { position: absolute; left: 0; top: 0; z-index: 0; pointer-events: none; overflow: visible; }
+  #orgTopTier, #orgBoard { position: relative; z-index: 1; }
+  #orgBoard { margin-top: 46px; }  /* room for the exec → division connector elbows */
   .org-tree-label { font-size: 0.58rem; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); font-weight: 700; margin-bottom: 2px; }
   .org-tree-scroll { overflow-x: auto; padding-bottom: 6px; }
   .org-tree, .org-tree ul { display: flex; list-style: none; margin: 0; padding: 0; }

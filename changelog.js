@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v504', title: 'Org Board — every division always visible + connector lines', items: [
+      'Divisions no longer move around or hide when you connect an executive. All divisions now stay in one row, always visible. Connecting an executive draws a connector line down to the divisions it oversees (proper org-chart elbows) — divisions with no executive above them simply have no line, and you connect one by tapping it, then tapping an executive.',
+    ] },
     { version: 'v503', title: 'Org Board — fix: unconnected divisions no longer hide', items: [
       'Fixed a bug where connecting an executive to some divisions made the rest seem to vanish. Divisions that aren’t under any executive now sit in a clearly labeled row below the chart — tap one, then tap an executive to connect it up.',
     ] },

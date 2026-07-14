@@ -1591,40 +1591,50 @@ function enhanceBoard() {
   if (_mv) { document.body.classList.add('org-placing'); _renderTargets(); }
 }
 
-// Weave the divisions into the executive tree: each division column is moved to
-// hang UNDER the exec post that oversees it (org_executive_post_divisions), so
-// the connector lines run exec → division, MAKH-style. Divisions with no exec
-// link become top-level nodes in the tree. Reuses the already-rendered + wired
-// division columns (moving DOM nodes preserves their listeners).
+// ALL divisions stay in the flat #orgBoard row (always visible — nothing hides).
+// The compact executive tree sits above (in #orgTopTier). We connect them by
+// drawing SVG connector lines from each exec node down to the division columns
+// it oversees (org_executive_post_divisions), MAKH-style. Divisions are ordered
+// so each executive's divisions cluster together, minimising line crossings.
 function _weaveTree() {
-  const tier = document.getElementById('orgTopTier'), board = document.getElementById('orgBoard');
-  if (!tier || !board) return;
-  const treeUl = tier.querySelector('ul.org-tree');
-  if (!treeUl) return; // exec tree renders even when empty, so this is defensive
-  const assigned = new Set();
+  const zoom = document.getElementById('orgBoardZoom'), board = document.getElementById('orgBoard');
+  if (!zoom || !board) return;
+  zoom.style.position = 'relative';
+  // Cluster divisions by their overseeing exec (exec order), then their own order.
+  const execOrder = new Map();
+  execPostsData.forEach((ep, i) => (ep.division_ids || []).forEach(did => { if (!execOrder.has(did)) execOrder.set(did, i); }));
+  const addBtn = board.querySelector(':scope > #org-add-div');
+  [...board.querySelectorAll(':scope > .org-col-division')]
+    .sort((a, b) => (execOrder.has(+a.dataset.divId) ? execOrder.get(+a.dataset.divId) : 999) - (execOrder.has(+b.dataset.divId) ? execOrder.get(+b.dataset.divId) : 999))
+    .forEach(c => board.insertBefore(c, addBtn || null));
+  // Draw the exec → division lines.
+  let svg = document.getElementById('orgLinkSvg');
+  if (!svg) { svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.id = 'orgLinkSvg'; svg.setAttribute('class', 'org-link-svg'); zoom.insertBefore(svg, zoom.firstChild); }
+  const W = zoom.scrollWidth, H = zoom.scrollHeight;
+  svg.setAttribute('width', W); svg.setAttribute('height', H); svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+  const off = (el) => { let x = 0, y = 0, n = el; while (n && n !== zoom) { x += n.offsetLeft; y += n.offsetTop; n = n.offsetParent; } return { x, y, w: el.offsetWidth, h: el.offsetHeight }; };
+  let paths = '';
   execPostsData.forEach(ep => {
-    (ep.division_ids || []).forEach(did => {
-      if (assigned.has(did)) return;
-      const nodeEl = treeUl.querySelector('.org-exec-node[data-id="' + ep.id + '"]');
-      const col = board.querySelector('.org-col-division[data-div-id="' + did + '"]');
-      if (!nodeEl || !col) return;
-      const li = nodeEl.closest('li');
-      let childUl = li.querySelector(':scope > ul');
-      if (!childUl) { childUl = document.createElement('ul'); li.appendChild(childUl); }
-      const wrap = document.createElement('li'); wrap.className = 'org-div-leaf'; wrap.appendChild(col); childUl.appendChild(wrap);
-      assigned.add(did);
+    const node = document.querySelector('.org-exec-node[data-id="' + ep.id + '"]'); if (!node) return;
+    const cols = (ep.division_ids || []).map(did => document.querySelector('.org-col-division[data-div-id="' + did + '"]')).filter(Boolean);
+    if (!cols.length) return;
+    const a = off(node); const fx = Math.round(a.x + a.w / 2), fy = a.y + a.h;
+    const tops = cols.map(c => { const b = off(c); return { x: Math.round(b.x + b.w / 2), y: b.y }; });
+    const ty = Math.min(...tops.map(t => t.y));      // divisions share a top edge (flex row)
+    const busY = fy + Math.round((ty - fy) * 0.5);    // horizontal distribution bus, midway down
+    const col = ep.color || '#fbbf24';
+    // stem down from the exec box to the bus
+    paths += `<path d="M ${fx} ${fy} L ${fx} ${busY}" fill="none" stroke="${col}" stroke-width="2.5" stroke-linecap="round"/>`;
+    // horizontal bus spanning from the exec across to the furthest division
+    const minX = Math.min(fx, ...tops.map(t => t.x)), maxX = Math.max(fx, ...tops.map(t => t.x));
+    paths += `<path d="M ${minX} ${busY} L ${maxX} ${busY}" fill="none" stroke="${col}" stroke-width="2.5" stroke-linecap="round"/>`;
+    // drop from the bus down to each division
+    tops.forEach(t => {
+      paths += `<path d="M ${t.x} ${busY} L ${t.x} ${t.y}" fill="none" stroke="${col}" stroke-width="2.5" stroke-linecap="round"/>`;
+      paths += `<circle cx="${t.x}" cy="${t.y}" r="3.5" fill="${col}"/>`;
     });
   });
-  // Divisions NOT under any executive stay in #orgBoard as a labeled flat row
-  // BELOW the tree (they don't get forced into the tree, which mis-positioned
-  // them). The "+ Division" button stays there too.
-  const zoom = document.getElementById('orgBoardZoom');
-  const remaining = board.querySelectorAll(':scope > .org-col-division').length;
-  let label = document.getElementById('orgUnassignedLabel');
-  if (remaining > 0 && zoom) {
-    if (!label) { label = document.createElement('div'); label.id = 'orgUnassignedLabel'; label.className = 'org-tree-label'; label.style.marginTop = '12px'; zoom.insertBefore(label, board); }
-    label.textContent = 'Divisions not under an executive yet — tap one, then tap an executive to connect it';
-  } else if (label) { label.remove(); }
+  svg.innerHTML = paths;
 }
 
 // Division movement is reparent-under-an-exec (target-based), since divisions

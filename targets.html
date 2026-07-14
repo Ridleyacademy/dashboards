@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Targets · Ridley Academy</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg?v=303">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=303">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=303">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="permissions.js"></script>
+<script src="targets-widget.js"></script>
+<style>
+  :root { --bg:#080a14; --surface:#0f1120; --surface2:#141728; --surface3:#191e30; --border:#1f2438; --border-light:#272d45; --text:#eaecf8; --text-muted:#7880a8; --text-dim:#3e4668; --accent:#34d399; --red:#f87171; --blue:#6b9eff; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; }
+  body.light { --bg:#f8fafc; --surface:#fff; --surface2:#f1f5f9; --surface3:#e2e8f0; --border:#e2e8f0; --border-light:#cbd5e1; --text:#0f172a; --text-muted:#475569; --text-dim:#94a3b8; }
+  #boot { padding:60px 20px; text-align:center; color:var(--text-dim); }
+  body[data-state="loading"] #app { display:none; }
+  body[data-state="app"] #boot { display:none; }
+  .topbar { display:flex; align-items:center; gap:10px; padding:12px 20px; background:rgba(8,10,20,0.85); backdrop-filter:blur(10px); border-bottom:1px solid var(--border); position:sticky; top:0; z-index:100; }
+  body.light .topbar { background:rgba(255,255,255,0.9); }
+  .topbar-logo { width:28px; height:28px; border-radius:7px; background:var(--accent); display:flex; align-items:center; justify-content:center; }
+  .topbar-brand { font-size:0.9rem; font-weight:700; letter-spacing:-0.02em; }
+  .topbar-spacer { flex:1; }
+  .tbtn { display:inline-flex; align-items:center; gap:6px; padding:6px 12px; font-size:0.82rem; border-radius:7px; border:1px solid var(--border); background:var(--surface2); color:var(--text); cursor:pointer; }
+  .tbtn-ghost { background:transparent; } .tbtn:hover { background:var(--surface3); }
+  .user-pill { display:flex; align-items:center; gap:8px; padding:4px 10px; background:var(--surface2); border:1px solid var(--border); border-radius:999px; font-size:0.78rem; }
+  .user-pill-av { width:22px; height:22px; border-radius:50%; background:var(--accent); color:#06231a; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:0.74rem; }
+  .nav-dropdown { position:relative; }
+  .nav-dropdown-menu { position:absolute; top:calc(100% + 6px); right:0; min-width:200px; background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:6px; display:none; box-shadow:0 12px 32px rgba(0,0,0,.5); z-index:200; }
+  .nav-dropdown-menu.open { display:block; }
+  .main { max-width:1100px; margin:0 auto; padding:24px 20px; }
+  .page-head { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:16px; flex-wrap:wrap; }
+  .page-title { font-size:1.55rem; margin:0 0 4px; letter-spacing:-0.02em; }
+  .page-sub { color:var(--text-muted); font-size:0.86rem; }
+  .btn-primary { padding:8px 14px; background:var(--accent); color:#06231a; border:0; border-radius:8px; font-weight:700; cursor:pointer; font-size:0.84rem; }
+  .tg-toolbar { display:flex; align-items:center; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
+  .tg-seg { display:inline-flex; background:var(--surface); border:1px solid var(--border); border-radius:9px; padding:3px; }
+  .tg-seg button { background:transparent; border:0; color:var(--text-muted); padding:6px 14px; border-radius:6px; font-size:0.82rem; font-weight:600; cursor:pointer; }
+  .tg-seg button.active { background:var(--accent); color:#06231a; }
+  .tg-board { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:16px; }
+</style>
+</head>
+<body data-state="loading">
+<div id="boot">Loading Targets…</div>
+<div id="app">
+  <header class="topbar">
+    <div class="topbar-logo"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#06231a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
+    <div class="topbar-brand">Targets</div>
+    <div class="topbar-spacer"></div>
+    <button class="tbtn tbtn-ghost" id="themeBtn" style="font-size:1rem;padding:5px 10px;" title="Toggle theme"></button>
+    <div class="nav-dropdown" id="navDropdown"><button class="tbtn tbtn-ghost" id="navDropdownBtn">Dashboards ▾</button><div class="nav-dropdown-menu" id="navDropMenu"></div></div>
+    <div class="user-pill"><div class="user-pill-av" id="userAvatar">U</div><div class="user-pill-email" id="userEmail">…</div></div>
+    <button class="tbtn tbtn-ghost" id="signOutBtn">Sign Out</button>
+  </header>
+  <div class="main">
+    <div class="page-head">
+      <div><h1 class="page-title">Targets</h1><div class="page-sub">Tasks across the org — assign people, set due dates &amp; priority, check them off. Click any task to open it.</div></div>
+      <button class="btn-primary" id="tgNew">+ New task</button>
+    </div>
+    <div class="tg-toolbar">
+      <div class="tg-seg"><button data-scope="me" class="active">My tasks</button><button data-scope="all">All tasks</button></div>
+    </div>
+    <div class="tg-board" id="tgBoard"></div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://pojqljrhhtnigyrtzdzz.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBvanFsanJoaHRuaWd5cnR6ZHp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTA3ODMsImV4cCI6MjA5MTM4Njc4M30.PcSBDqOzbiZxZ7IAs5efqx0gsAlAG0cj3GqUOkAmxos';
+window.SUPABASE_URL = SUPABASE_URL;
+const _supa = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: true, autoRefreshToken: true } });
+let _scope = 'me';
+async function _ac(path){ const r = await fetch(SUPABASE_URL+'/functions/v1/access-control'+path,{headers:{Authorization:'Bearer '+window.session.access_token}}); return r.ok ? r.json() : {rows:[]}; }
+function render(){ Targets.renderBoard(document.getElementById('tgBoard'), { assignee: _scope==='me' ? 'me' : null }); }
+async function boot(){
+  const { data:{ session:s } } = await _supa.auth.getSession();
+  if(!s){ location.href='login.html?next=targets.html'; return; }
+  window.session = s;
+  const email = (s.user&&s.user.email)||''; document.getElementById('userAvatar').textContent=(email[0]||'U').toUpperCase(); document.getElementById('userEmail').textContent=email;
+  try { const u = await _ac('?api=users'); window.TG_DIRECTORY = u.rows||[]; } catch(_){ window.TG_DIRECTORY=[]; }
+  try { const p = await _ac('?api=posts'); window.TG_POSTS = (p.rows||[]).map(x=>({id:x.id,name:x.name})); } catch(_){ window.TG_POSTS=[]; }
+  document.body.dataset.state='app';
+  render();
+}
+document.querySelectorAll('.tg-seg button').forEach(b=>b.addEventListener('click',()=>{ document.querySelectorAll('.tg-seg button').forEach(x=>x.classList.remove('active')); b.classList.add('active'); _scope=b.dataset.scope; render(); }));
+document.getElementById('tgNew').addEventListener('click',()=> Targets.openNew({ assignee_ids: _scope==='me'? [window.session.user.id]:[], opts:{ onClose: render, onChange: render } }));
+document.getElementById('signOutBtn').addEventListener('click', async()=>{ await _supa.auth.signOut(); location.href='login.html'; });
+(function(){ const t=localStorage.getItem('ridley-theme'); if(t==='light') document.body.classList.add('light'); const b=document.getElementById('themeBtn'); const set=()=>b.textContent=document.body.classList.contains('light')?'🌙':'☀'; set(); b.addEventListener('click',()=>{ document.body.classList.toggle('light'); localStorage.setItem('ridley-theme', document.body.classList.contains('light')?'light':'dark'); set(); }); })();
+document.getElementById('navDropdownBtn').addEventListener('click',()=>document.getElementById('navDropMenu').classList.toggle('open'));
+// re-render when a detail modal changes/closes things
+document.addEventListener('DOMContentLoaded', boot);
+</script>
+<script src="nav-menu.js"></script>
+<script src="access-guard.js"></script>
+</body>
+</html>

@@ -61,6 +61,8 @@
     // Editing is gated in-page + server-side by org.edit_structure /
     // org.assign_holders / org.edit_policies.
     { href: 'org-board.html', id: 'org', roles: '*', granular: 'org.view' },
+    // Targets — ClickUp-style tasks (own dashboard + on the org board). Everyone.
+    { href: 'targets.html', id: 'targets', roles: '*' },
   ];
 
   // Resolve impersonation: when an admin "Views as" another user, all UI

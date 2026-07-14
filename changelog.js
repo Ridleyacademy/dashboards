@@ -16,6 +16,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v520', title: 'Targets — a ClickUp-style task system + dashboard', items: [
+      'New Targets dashboard: tasks grouped by To Do / In Progress / Done, with a “My tasks / All” switch and “+ New task”.',
+      'Each task opens a full detail popup like ClickUp: status, multiple assignees, start & due dates, priority, time estimate, tags, description, a checklist, subtasks, and a comment/activity thread.',
+      'Tasks can belong to an org-board post (they show in that post’s “My Post” panel) or stand alone as general tasks. Overdue tasks show in red.',
+    ] },
     { version: 'v519', title: 'Org Board — “My Post” for every staff member', items: [
       'Your own post is now highlighted with a “You” badge, and a “My Post” button up top opens one panel showing everything about your post in one place.',
       'The panel shows: your post’s purpose, your direct senior, the orders & policies that apply to you (including ones inherited from your department/division), your stats, and your targets.',

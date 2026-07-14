@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v519-org-board-my-post';
+const CACHE_NAME = 'ridley-v520-targets-clickup';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [
@@ -32,6 +32,8 @@ const PRECACHE = [
   '/weekly-stats-entry.html',
   '/weekly-stats-entry.js',
   '/org-board.html',
+  '/targets.html',
+  '/targets-widget.js',
   '/org-board.js',
   '/collections.html',
   '/refunds.html',

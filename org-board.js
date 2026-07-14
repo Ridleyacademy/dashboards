@@ -10,6 +10,7 @@
 'use strict';
 
 const SUPABASE_URL = 'https://pojqljrhhtnigyrtzdzz.supabase.co';
+window.SUPABASE_URL = SUPABASE_URL;   // for the shared targets-widget
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBvanFsanJoaHRuaWd5cnR6ZHp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTA3ODMsImV4cCI6MjA5MTM4Njc4M30.PcSBDqOzbiZxZ7IAs5efqx0gsAlAG0cj3GqUOkAmxos';
 const supa = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: true, autoRefreshToken: true } });
 const AC_BASE = SUPABASE_URL + '/functions/v1/access-control';
@@ -1892,6 +1893,9 @@ function _ppdUp() {
 function enhanceBoard() {
   const editing = orgCanEdit();
   if (!editing) _cancelMove();
+  // Feed the shared targets-widget the people directory + post names.
+  window.TG_DIRECTORY = usersData;
+  window.TG_POSTS = postsData.map(p => ({ id: p.id, name: p.name }));
   // One global, capture-phase suppressor kills the browser's native drag for any
   // org element (incl. holder avatar <img>s) — so a drag NEVER shows the native
   // image fragment regardless of where the card is grabbed or how it was re-rendered.
@@ -2178,55 +2182,15 @@ async function _mpLoadStats(uid) {
   } catch (e) { el.innerHTML = `<div class="org-mp-empty" style="color:var(--red);">${escapeHtml(e.message)}</div>`; }
 }
 
-const _TG_STATUS = { open: 'Open', in_progress: 'In progress', done: 'Done' };
-async function _mpLoadTargets(postId) {
+// The targets section reuses the shared ClickUp-style widget: grouped list +
+// click-to-open the full task detail popup + "New task".
+function _mpLoadTargets(postId) {
   const el = document.getElementById('orgMpTargets'); if (!el) return;
-  try {
-    const j = await tgApi('?api=for-post&post_id=' + postId);
-    const rows = (j.rows || []).filter(t => t.status !== 'cancelled');
-    const canEdit = !!j.can_edit;
-    const rowHtml = rows.map(t => {
-      const done = t.status === 'done';
-      const due = t.due_date ? `<span class="org-mp-due${_tgOverdue(t) ? ' org-mp-overdue' : ''}">due ${escapeHtml(String(t.due_date).slice(0, 10))}</span>` : '';
-      return `<div class="org-mp-target${done ? ' done' : ''}" data-id="${t.id}">
-        <button class="org-mp-check" data-act="toggle" title="${done ? 'Mark not done' : 'Mark done'}" ${canEdit ? '' : 'disabled'}>${done ? '✓' : ''}</button>
-        <div class="org-mp-target-main">
-          <div class="org-mp-target-title">${escapeHtml(t.title)}${!done && t.status === 'in_progress' ? ' <span class="org-mp-inprog">In progress</span>' : ''}</div>
-          ${t.details ? `<div class="org-mp-target-details">${escapeHtml(t.details)}</div>` : ''}
-          <div class="org-mp-target-meta">${due}${canEdit && !done ? `<button class="org-mp-mini" data-act="progress">${t.status === 'in_progress' ? 'Back to open' : 'Start'}</button>` : ''}${canEdit ? '<button class="org-mp-mini org-mp-del" data-act="del">Delete</button>' : ''}</div>
-        </div>
-      </div>`;
-    }).join('');
-    el.innerHTML = (rows.length ? rowHtml : '<div class="org-mp-empty">No targets yet.</div>') +
-      (canEdit ? `<div class="org-mp-addtarget">
-        <input type="text" id="orgMpTgTitle" placeholder="New target…" maxlength="200">
-        <input type="date" id="orgMpTgDue" title="Due date (optional)">
-        <button class="btn-primary" id="orgMpTgAdd">Add</button>
-      </div>` : '<div class="org-mp-empty" style="margin-top:6px;">Only you (the holder) or your senior can add targets.</div>');
-    el.querySelectorAll('.org-mp-target').forEach(row => {
-      const id = Number(row.dataset.id);
-      row.querySelectorAll('[data-act]').forEach(btn => btn.addEventListener('click', async () => {
-        const t = rows.find(x => x.id === id); if (!t) return;
-        try {
-          if (btn.dataset.act === 'toggle') await tgApi('?api=update&id=' + id, { method: 'POST', body: { status: t.status === 'done' ? 'open' : 'done' } });
-          else if (btn.dataset.act === 'progress') await tgApi('?api=update&id=' + id, { method: 'POST', body: { status: t.status === 'in_progress' ? 'open' : 'in_progress' } });
-          else if (btn.dataset.act === 'del') { if (!confirm('Delete this target?')) return; await tgApi('?api=delete&id=' + id, { method: 'POST', body: {} }); }
-          _mpLoadTargets(postId);
-        } catch (e) { alert(e.message); }
-      }));
-    });
-    if (canEdit) {
-      const add = async () => {
-        const title = document.getElementById('orgMpTgTitle').value.trim(); if (!title) return;
-        const due = document.getElementById('orgMpTgDue').value || null;
-        try { await tgApi('?api=create', { method: 'POST', body: { post_id: postId, title, due_date: due } }); _mpLoadTargets(postId); } catch (e) { alert(e.message); }
-      };
-      el.querySelector('#orgMpTgAdd').addEventListener('click', add);
-      el.querySelector('#orgMpTgTitle').addEventListener('keydown', e => { if (e.key === 'Enter') add(); });
-    }
-  } catch (e) { el.innerHTML = `<div class="org-mp-empty" style="color:var(--red);">${escapeHtml(e.message)}</div>`; }
+  if (!window.Targets) { el.innerHTML = '<div class="org-mp-empty">Targets unavailable.</div>'; return; }
+  el.innerHTML = '<div id="orgMpTgBoard"></div><div style="margin-top:8px;"><button class="small-btn" id="orgMpTgNew" style="background:var(--surface3);">+ New task</button></div>';
+  Targets.renderBoard(document.getElementById('orgMpTgBoard'), { postId });
+  document.getElementById('orgMpTgNew').addEventListener('click', () => Targets.openNew({ post_id: postId, assignee_ids: [session.user.id], opts: { onClose: () => _mpLoadTargets(postId), onChange: () => _mpLoadTargets(postId) } }));
 }
-function _tgOverdue(t) { return t.due_date && t.status !== 'done' && String(t.due_date).slice(0, 10) < new Date().toISOString().slice(0, 10); }
 
 function _statBtn(title, onClick) {
   const b = document.createElement('button');

@@ -16,6 +16,12 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v524', title: 'Targets — fast list: inline edit, quick-add, filters & deep links', items: [
+      'Edit a task right from the list: click its priority, due date, assignees, or status to change them without opening it.',
+      'Add a task straight into any column with the "+ Add task…" row under each group.',
+      'New toolbar: search tasks, filter by priority or due (today / overdue), and sort by due date, priority or newest.',
+      'Every task now has its own link (targets.html?task=…) so you can share it — and the overdue reminder opens the exact task.',
+    ] },
     { version: 'v523', title: 'Targets — instant checklist ticks & comments', items: [
       'Ticking a checklist item, adding a comment or subtask, and editing task fields now update the moment you click — the request saves in the background instead of making you wait for it.',
     ] },

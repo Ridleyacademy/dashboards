@@ -53,7 +53,19 @@
     .tw-row-check{width:19px;height:19px;flex:0 0 auto;border-radius:5px;border:1.5px solid var(--border-light,#3a3a3a);background:var(--surface,#111);color:var(--accent,#34d399);font-weight:800;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:0.7rem;}
     .tw-row.done .tw-row-check{background:var(--accent,#34d399);color:#08211a;border-color:var(--accent,#34d399);}
     .tw-row-title{flex:1;min-width:0;font-size:0.86rem;color:var(--text,#eee);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-    .tw-row-meta{display:flex;align-items:center;gap:8px;flex:0 0 auto;}
+    .tw-row-meta{display:flex;align-items:center;gap:6px;flex:0 0 auto;}
+    .tw-cell{cursor:pointer;border-radius:6px;padding:2px 6px;font-size:0.72rem;color:rgba(255,255,255,.7);white-space:nowrap;}
+    .tw-cell:hover{background:var(--surface3,#222);}
+    .tw-cell-due.over{color:#f87171;font-weight:700;}
+    .tw-cell-assignees{display:inline-flex;align-items:center;padding:1px 4px;}
+    .tw-menu{position:fixed;z-index:1300;background:var(--surface2,#161728);border:1px solid var(--border-light,#333);border-radius:9px;padding:4px;min-width:150px;max-height:260px;overflow-y:auto;box-shadow:0 12px 34px rgba(0,0,0,.55);}
+    .tw-menu button{display:flex;align-items:center;gap:7px;width:100%;text-align:left;background:none;border:0;color:var(--text,#eee);padding:6px 9px;border-radius:6px;cursor:pointer;font-size:0.82rem;}
+    .tw-menu button:hover{background:var(--surface3,#222);}
+    .tw-quickadd{display:flex;align-items:center;gap:7px;padding:6px 10px;margin-top:2px;opacity:.7;}
+    .tw-quickadd:focus-within{opacity:1;}
+    .tw-qa-plus{color:rgba(255,255,255,.45);font-size:1rem;}
+    .tw-qa-input{flex:1;background:transparent;border:0;color:var(--text,#eee);font-size:0.84rem;outline:none;padding:2px 0;}
+    .tw-qa-input::placeholder{color:rgba(255,255,255,.4);}
     .tw-avatars{display:flex;} .tw-avatars .tw-avatar{margin-left:-6px;} .tw-avatars .tw-avatar:first-child{margin-left:0;}
     .tw-empty{font-size:0.82rem;color:rgba(255,255,255,.5);font-style:italic;padding:6px 2px;}
     /* detail modal */
@@ -102,6 +114,22 @@
   function statusPill(s) { return `<span class="tw-status tw-status-${s}">${esc(statusLabel(s))}</span>`; }
   function prioFlag(p) { const x = prio(p); return x ? `<span class="tw-prioflag" style="color:${x[2]}" title="${x[1]} priority">⚑</span>` : ''; }
 
+  // ── Small popover menu (priority / status / assignees / date) ───────────────
+  function _menu(anchor, html, onReady) {
+    document.querySelectorAll('.tw-menu').forEach(m => m.remove());
+    const m = document.createElement('div'); m.className = 'tw-menu'; m.innerHTML = html;
+    document.body.appendChild(m);
+    const r = anchor.getBoundingClientRect();
+    m.style.left = Math.max(6, Math.min(r.left, window.innerWidth - m.offsetWidth - 6)) + 'px';
+    m.style.top = Math.min(r.bottom + 4, window.innerHeight - m.offsetHeight - 6) + 'px';
+    const close = () => { m.remove(); document.removeEventListener('click', outside, true); };
+    const outside = (e) => { if (!m.contains(e.target) && e.target !== anchor) close(); };
+    setTimeout(() => document.addEventListener('click', outside, true), 0);
+    onReady && onReady(m, close);
+    return m;
+  }
+  const PRIO_MENU = [['', 'None', '#9ca3af'], ...PRIORITY].map(([k, l, c]) => `<button data-v="${k}"><span class="tw-prioflag" style="color:${c}">⚑</span> ${l}</button>`).join('');
+
   // ── Board list (grouped by status) ─────────────────────────────────────────
   async function renderBoard(container, opts = {}) {
     injectStyles();
@@ -111,34 +139,78 @@
       if (opts.assignee) qs.push('assignee=' + encodeURIComponent(opts.assignee));
       if (opts.postId) qs.push('post_id=' + opts.postId);
       const j = await _api('?api=list&' + qs.join('&'));
-      const rows = j.rows || [];
-      _drawBoard(container, rows, opts);
+      container._twRows = j.rows || [];
+      _drawBoard(container, opts);
     } catch (e) { container.innerHTML = `<div class="tw-empty" style="color:#f87171;">${esc(e.message)}</div>`; }
   }
-  function _drawBoard(container, rows, opts) {
+  function _applyView(rows, opts) {
+    let r = rows.slice();
+    const q = (opts.search || '').trim().toLowerCase();
+    if (q) r = r.filter(t => (t.title || '').toLowerCase().includes(q) || (t.tags || []).some(tg => tg.toLowerCase().includes(q)));
+    if (opts.priority) r = r.filter(t => t.priority === opts.priority);
+    if (opts.tag) r = r.filter(t => (t.tags || []).includes(opts.tag));
+    if (opts.due === 'overdue') r = r.filter(t => isOverdue(t));
+    else if (opts.due === 'today') r = r.filter(t => t.due_date && String(t.due_date).slice(0, 10) === today() && t.status !== 'done');
+    const sort = opts.sort || 'due';
+    const prioRank = { urgent: 0, high: 1, normal: 2, low: 3 };
+    r.sort((a, b) => {
+      if (sort === 'priority') return (prioRank[a.priority] ?? 9) - (prioRank[b.priority] ?? 9);
+      if (sort === 'created') return (b.id || 0) - (a.id || 0);
+      const ad = a.due_date || '9999', bd = b.due_date || '9999'; return ad < bd ? -1 : ad > bd ? 1 : 0; // due
+    });
+    return r;
+  }
+  function _drawBoard(container, opts) {
+    const rows = _applyView(container._twRows || [], opts);
+    const canAdd = opts.canAdd !== false;
     const groups = STATUS.map(([key, label]) => [key, label, rows.filter(r => r.status === key)]);
     container.innerHTML = groups.map(([key, label, list]) => `
-      <div class="tw-group">
+      <div class="tw-group" data-status="${key}">
         <div class="tw-group-h">${esc(label)}<span class="tw-count">${list.length}</span></div>
-        ${list.length ? list.map(t => _rowHtml(t)).join('') : '<div class="tw-empty">Nothing here.</div>'}
+        ${list.map(t => _rowHtml(t)).join('')}
+        ${canAdd ? `<div class="tw-quickadd"><span class="tw-qa-plus">+</span><input class="tw-qa-input" placeholder="Add task…" data-status="${key}"></div>` : ''}
       </div>`).join('');
+    _wireBoard(container, opts);
+  }
+  function _redraw(container, opts) { _drawBoard(container, opts); }
+
+  function _wireBoard(container, opts) {
+    const rowsRef = () => container._twRows || [];
+    const bgUpdate = (id, body, revert) => _api('?api=update&id=' + id, { method: 'POST', body }).catch(e => { revert && revert(); alert(e.message); });
     container.querySelectorAll('.tw-row').forEach(row => {
       const id = Number(row.dataset.id);
-      row.addEventListener('click', e => { if (e.target.closest('.tw-row-check')) return; openDetail(id, { ...opts, onClose: () => renderBoard(container, opts) }); });
-      const chk = row.querySelector('.tw-row-check');
-      if (chk) chk.addEventListener('click', async e => {
-        e.stopPropagation(); const t = rows.find(x => x.id === id); if (!t) return;
-        try { await _api('?api=update&id=' + id, { method: 'POST', body: { status: t.status === 'done' ? 'todo' : 'done' } }); renderBoard(container, opts); } catch (err) { alert(err.message); }
-      });
+      const t = rowsRef().find(x => x.id === id);
+      row.addEventListener('click', e => { if (e.target.closest('.tw-cell, .tw-row-check')) return; openDetail(id, { ...opts, onClose: () => renderBoard(container, opts) }); });
+      // done checkbox
+      row.querySelector('.tw-row-check').addEventListener('click', e => { e.stopPropagation(); if (!t) return; const was = t.status; t.status = was === 'done' ? 'todo' : 'done'; _redraw(container, opts); bgUpdate(id, { status: t.status }, () => { t.status = was; _redraw(container, opts); }); });
+      // status pill
+      const sc = row.querySelector('.tw-cell-status'); if (sc) sc.addEventListener('click', e => { e.stopPropagation(); _menu(sc, STATUS.map(([k, l]) => `<button data-v="${k}">${l}</button>`).join(''), (m, close) => m.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { close(); if (!t || t.status === b.dataset.v) return; const was = t.status; t.status = b.dataset.v; _redraw(container, opts); bgUpdate(id, { status: t.status }, () => { t.status = was; _redraw(container, opts); }); }))); });
+      // priority
+      const pc = row.querySelector('.tw-cell-prio'); if (pc) pc.addEventListener('click', e => { e.stopPropagation(); _menu(pc, PRIO_MENU, (m, close) => m.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { close(); const was = t.priority; t.priority = b.dataset.v || null; _redraw(container, opts); bgUpdate(id, { priority: t.priority }, () => { t.priority = was; _redraw(container, opts); }); }))); });
+      // due date (native picker)
+      const dc = row.querySelector('.tw-cell-due'); if (dc) dc.addEventListener('click', e => { e.stopPropagation(); const inp = document.createElement('input'); inp.type = 'date'; inp.value = t.due_date ? String(t.due_date).slice(0, 10) : ''; inp.style.cssText = 'position:fixed;left:-9999px'; document.body.appendChild(inp); inp.addEventListener('change', () => { const was = t.due_date; t.due_date = inp.value || null; _redraw(container, opts); bgUpdate(id, { due_date: t.due_date }, () => { t.due_date = was; _redraw(container, opts); }); inp.remove(); }); inp.addEventListener('blur', () => setTimeout(() => inp.remove(), 200)); inp.showPicker ? inp.showPicker() : inp.click(); });
+      // assignees
+      const ac = row.querySelector('.tw-cell-assignees'); if (ac) ac.addEventListener('click', e => { e.stopPropagation(); const ids = t.assignee_ids || []; const avail = dir().filter(u => !ids.includes(u.id)); _menu(ac, (ids.length ? ids.map(u => `<button data-rm="${u}"><span class="tw-avatar sm">${esc(userInit(u))}</span>${esc(userName(u))} <span style="margin-left:auto;color:#f87171">✕</span></button>`).join('') + '<div style="height:1px;background:var(--border);margin:4px 0"></div>' : '') + avail.map(u => `<button data-add="${u.id}"><span class="tw-avatar sm">${esc((u.first_name || u.email || '?')[0].toUpperCase())}</span>${esc(u.first_name || u.email)}</button>`).join(''), (m, close) => { m.querySelectorAll('[data-add]').forEach(b => b.addEventListener('click', () => { close(); const was = ids.slice(); t.assignee_ids = [...ids, b.dataset.add]; _redraw(container, opts); bgUpdate(id, { assignee_ids: t.assignee_ids }, () => { t.assignee_ids = was; _redraw(container, opts); }); })); m.querySelectorAll('[data-rm]').forEach(b => b.addEventListener('click', () => { close(); const was = ids.slice(); t.assignee_ids = ids.filter(x => x !== b.dataset.rm); _redraw(container, opts); bgUpdate(id, { assignee_ids: t.assignee_ids }, () => { t.assignee_ids = was; _redraw(container, opts); }); })); }); });
+    });
+    // quick-add per group
+    container.querySelectorAll('.tw-qa-input').forEach(inp => {
+      const add = async () => { const v = inp.value.trim(); if (!v) return; inp.value = ''; try { const r = await _api('?api=create', { method: 'POST', body: { title: v, status: inp.dataset.status, post_id: opts.postId || null, assignee_ids: opts.assignee === 'me' ? [window.session.user.id] : [] } }); (container._twRows = container._twRows || []).push(r.row); _redraw(container, opts); } catch (e) { alert(e.message); } };
+      inp.addEventListener('keydown', e => { if (e.key === 'Enter') add(); });
     });
   }
   function _rowHtml(t) {
     const done = t.status === 'done';
     const post = t.post_id ? posts().find(p => p.id === t.post_id) : null;
+    const px = prio(t.priority);
     return `<div class="tw-row${done ? ' done' : ''}" data-id="${t.id}">
       <button class="tw-row-check" title="Toggle done">${done ? '✓' : ''}</button>
-      <div class="tw-row-title">${prioFlag(t.priority)} ${esc(t.title)}${post ? ` <span class="tw-tag">${esc(post.name)}</span>` : ''}${(t.tags || []).map(tg => `<span class="tw-tag">${esc(tg)}</span>`).join('')}</div>
-      <div class="tw-row-meta">${t.due_date ? `<span class="tw-due${isOverdue(t) ? ' over' : ''}">${esc(String(t.due_date).slice(5, 10))}</span>` : ''}${avatars(t.assignee_ids)}</div>
+      <div class="tw-row-title">${esc(t.title)}${post ? ` <span class="tw-tag">${esc(post.name)}</span>` : ''}${(t.tags || []).map(tg => `<span class="tw-tag">${esc(tg)}</span>`).join('')}</div>
+      <div class="tw-row-meta">
+        <span class="tw-cell tw-cell-prio" title="Priority">${px ? `<span class="tw-prioflag" style="color:${px[2]}">⚑</span>` : '<span class="tw-prioflag" style="color:#4b5563">⚑</span>'}</span>
+        <span class="tw-cell tw-cell-due${t.due_date && isOverdue(t) ? ' over' : ''}" title="Due date">${t.due_date ? esc(String(t.due_date).slice(5, 10)) : '<span style="color:#4b5563">Set date</span>'}</span>
+        <span class="tw-cell tw-cell-assignees" title="Assignees">${(t.assignee_ids && t.assignee_ids.length) ? avatars(t.assignee_ids) : '<span class="tw-add-assignee" style="pointer-events:none">+</span>'}</span>
+        <span class="tw-cell tw-cell-status">${statusPill(t.status)}</span>
+      </div>
     </div>`;
   }
 

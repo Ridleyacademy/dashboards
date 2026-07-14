@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v527', title: 'Targets — notifications & @mentions', items: [
+      'You now get a push + in-app notification when someone assigns you a task, when someone comments on a task you’re on, and when you’re @mentioned in a comment.',
+      'Type @ in a comment to mention a teammate — pick them from the list, and they get pinged. Mentions show highlighted in the thread.',
+    ] },
     { version: 'v526', title: 'Org Board — “My Post” shows all your tasks', items: [
       '“Your targets” in My Post now lists every task assigned to you — not only ones attached to that post — so a task you were given elsewhere still shows up. New tasks you add there still attach to that post.',
     ] },

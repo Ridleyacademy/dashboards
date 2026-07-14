@@ -99,6 +99,8 @@
     .tw-comment{display:flex;gap:8px;padding:7px 0;} .tw-comment .tw-c-body{flex:1;}
     .tw-c-who{font-size:0.72rem;color:rgba(255,255,255,.7);font-weight:700;} .tw-c-when{font-size:0.62rem;color:rgba(255,255,255,.4);margin-left:6px;}
     .tw-c-text{font-size:0.84rem;color:var(--text,#eee);margin-top:2px;white-space:pre-wrap;}
+    .tw-mention{color:#93c5fd;font-weight:600;}
+    .tw-mention-menu{z-index:1400;}
     .tw-assignpick{position:relative;} .tw-assignmenu{position:absolute;top:100%;left:0;z-index:5;background:var(--surface2,#161616);border:1px solid var(--border-light,#333);border-radius:8px;min-width:200px;max-height:230px;overflow-y:auto;box-shadow:0 12px 30px rgba(0,0,0,.5);padding:4px;}
     .tw-assignmenu button{display:flex;align-items:center;gap:7px;width:100%;text-align:left;background:none;border:0;color:var(--text,#eee);padding:6px 8px;border-radius:6px;cursor:pointer;font-size:0.82rem;}
     .tw-assignmenu button:hover{background:var(--surface3,#222);}
@@ -112,6 +114,35 @@
     return '<span class="tw-avatars">' + ids.slice(0, 5).map(u => `<span class="tw-avatar sm" title="${esc(userName(u))}">${esc(userInit(u))}</span>`).join('') + '</span>';
   }
   function statusPill(s) { return `<span class="tw-status tw-status-${s}">${esc(statusLabel(s))}</span>`; }
+  // @mentions: resolve @firstname tokens in a comment to user ids.
+  function resolveMentions(text) {
+    const ids = new Set();
+    (String(text).match(/@([\w.-]+)/g) || []).forEach(tok => {
+      const name = tok.slice(1).toLowerCase();
+      const u = dir().find(x => (x.first_name || '').toLowerCase() === name || (x.email || '').split('@')[0].toLowerCase() === name);
+      if (u) ids.add(u.id);
+    });
+    return [...ids];
+  }
+  function _mentionText(body) { return esc(body).replace(/@([\w.-]+)/g, '<span class="tw-mention">@$1</span>'); }
+  // Attach an @-autocomplete to a comment input.
+  function _wireMentions(input) {
+    const kill = () => { const ex = document.querySelector('.tw-mention-menu'); if (ex) ex.remove(); };
+    input.addEventListener('input', () => {
+      const val = input.value, pos = input.selectionStart, before = val.slice(0, pos);
+      const m = before.match(/@([\w.-]*)$/);
+      if (!m) return kill();
+      const q = m[1].toLowerCase();
+      const people = dir().filter(u => (u.first_name || u.email || '').toLowerCase().includes(q)).slice(0, 8);
+      if (!people.length) return kill();
+      let menu = document.querySelector('.tw-mention-menu');
+      if (!menu) { menu = document.createElement('div'); menu.className = 'tw-menu tw-mention-menu'; document.body.appendChild(menu); }
+      menu.innerHTML = people.map(u => `<button data-name="${esc(u.first_name || (u.email || '').split('@')[0])}"><span class="tw-avatar sm">${esc((u.first_name || u.email || '?')[0].toUpperCase())}</span>${esc(u.first_name || u.email)}</button>`).join('');
+      const r = input.getBoundingClientRect(); menu.style.left = r.left + 'px'; menu.style.minWidth = Math.min(240, r.width) + 'px'; menu.style.top = (r.top - Math.min(menu.offsetHeight, 200) - 4) + 'px';
+      menu.querySelectorAll('button').forEach(b => b.addEventListener('mousedown', e => { e.preventDefault(); const nb = before.replace(/@([\w.-]*)$/, '@' + b.dataset.name + ' ') + val.slice(pos); input.value = nb; input.focus(); input.setSelectionRange(input.value.length, input.value.length); kill(); }));
+    });
+    input.addEventListener('blur', () => setTimeout(kill, 180));
+  }
   function prioFlag(p) { const x = prio(p); return x ? `<span class="tw-prioflag" style="color:${x[2]}" title="${x[1]} priority">⚑</span>` : ''; }
 
   // ── Small popover menu (priority / status / assignees / date) ───────────────
@@ -318,10 +349,13 @@
       const em = cmtList.querySelector('.tw-empty'); if (em) em.remove();
       const temp = { id: 'tmp', user_id: window.session.user.id, body: v, created_at: new Date().toISOString() };
       const wrap = document.createElement('div'); wrap.innerHTML = _cmtHtml(temp); const el = wrap.firstElementChild; el.style.opacity = '0.6'; cmtList.appendChild(el); inp.value = ''; inp.focus();
-      _api('?api=comment-add', { method: 'POST', body: { target_id: t.id, body: v } }).then(r => { const nw = document.createElement('div'); nw.innerHTML = _cmtHtml(r.row); const rel = nw.firstElementChild; el.replaceWith(rel); wireCmt(rel); }).catch(e => { el.remove(); alert(e.message); });
+      _api('?api=comment-add', { method: 'POST', body: { target_id: t.id, body: v, mention_ids: resolveMentions(v) } }).then(r => { const nw = document.createElement('div'); nw.innerHTML = _cmtHtml(r.row); const rel = nw.firstElementChild; el.replaceWith(rel); wireCmt(rel); }).catch(e => { el.remove(); alert(e.message); });
     };
     card.querySelector('#twCmtAdd').addEventListener('click', goC);
-    card.querySelector('#twCmtNew').addEventListener('keydown', e => { if (e.key === 'Enter') goC(); });
+    const cmtInput = card.querySelector('#twCmtNew');
+    cmtInput.addEventListener('keydown', e => { if (e.key === 'Enter' && !document.querySelector('.tw-mention-menu')) goC(); });
+    cmtInput.placeholder = 'Write a comment… (@ to mention)';
+    _wireMentions(cmtInput);
   }
 
   function _renderAssignees(el, t, ce, refresh) {
@@ -350,7 +384,7 @@
     const who = c.user_id ? userName(c.user_id) : (c.user_email || 'System');
     const init = (c.user_id ? userInit(c.user_id) : (who[0] || 'R')).toUpperCase();
     const sys = !c.user_id;
-    return `<div class="tw-comment"><span class="tw-avatar sm" ${sys ? 'style="background:#a78bfa"' : ''}>${esc(init)}</span><div class="tw-c-body"><span class="tw-c-who">${esc(who)}</span><span class="tw-c-when">${esc(when)}</span><div class="tw-c-text">${esc(c.body)}</div></div>${sys ? '' : `<button class="tw-del" data-del-cmt="${c.id}">✕</button>`}</div>`;
+    return `<div class="tw-comment"><span class="tw-avatar sm" ${sys ? 'style="background:#a78bfa"' : ''}>${esc(init)}</span><div class="tw-c-body"><span class="tw-c-who">${esc(who)}</span><span class="tw-c-when">${esc(when)}</span><div class="tw-c-text">${_mentionText(c.body)}</div></div>${sys ? '' : `<button class="tw-del" data-del-cmt="${c.id}">✕</button>`}</div>`;
   }
 
   async function openNew(defaults = {}) {

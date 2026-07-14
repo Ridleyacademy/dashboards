@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v510', title: 'Org Board — drag divisions to reorder them (live)', items: [
+      'You can now pick up a division by its header and drag it — a copy follows your cursor, the other divisions slide over to open a gap where it will land, and you drop it where you want. The new order is saved. Press Esc while dragging to cancel. (Divisions no longer auto-shuffle, so wherever you drop one is where it stays.)',
+    ] },
     { version: 'v509', title: 'Org Board — fix: connector lines now meet the executive boxes exactly', items: [
       'Fixed the executive connector lines being offset from the boxes (they looked like they didn’t connect). Lines between executives — and from an executive down to a division — now land precisely on each box. The whole chain (top post → executives → divisions) reads as one connected chart.',
     ] },

@@ -1581,6 +1581,78 @@ function _wholeItemPickup(el, kind, id) {
   }, true);
 }
 
+// ── Division drag-to-reorder (live reflow, MAKH-style) ───────────────────────
+// Pick up a division by its header, a ghost follows the pointer, the other
+// divisions shift to open a gap where it will land, drop to commit the order.
+let _dd = null;
+function _currentZoom() { const inner = document.getElementById('orgBoardZoom'); const v = inner && inner.style.getPropertyValue('--org-zoom'); const z = parseFloat(v); return z > 0 ? z : 1; }
+function _wireDivisionDrag(head, col, divId) {
+  if (head.dataset.ddWired) return; head.dataset.ddWired = '1';
+  head.style.touchAction = 'none';
+  head.addEventListener('pointerdown', e => {
+    if (!orgCanEdit() || _dd) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    if (e.target.closest('.org-stat-btn, .org-edit-btn, .org-color-swatch, button, a, input, select, textarea')) return;
+    _dd = { col, divId, startX: e.clientX, startY: e.clientY, active: false };
+    window.addEventListener('pointermove', _ddMove);
+    window.addEventListener('pointerup', _ddUp);
+    window.addEventListener('pointercancel', _ddUp);
+    window.addEventListener('keydown', _ddKey);
+  });
+}
+function _ddMove(e) {
+  if (!_dd) return;
+  if (!_dd.active) {
+    if (Math.abs(e.clientX - _dd.startX) < 5 && Math.abs(e.clientY - _dd.startY) < 5) return;
+    _ddBegin(e);
+  }
+  _dd.ghost.style.left = (e.clientX - _dd.grabDX) + 'px';
+  _dd.ghost.style.top = (e.clientY - _dd.grabDY) + 'px';
+  _ddReflow(e.clientX);
+}
+function _ddBegin(e) {
+  _dd.active = true;
+  const col = _dd.col, rect = col.getBoundingClientRect(), z = _currentZoom();
+  const ghost = col.cloneNode(true);
+  ghost.classList.add('org-div-ghost');
+  ghost.style.cssText = 'position:fixed;z-index:9999;pointer-events:none;margin:0;width:' + col.offsetWidth + 'px;transform:scale(' + z + ');transform-origin:top left;left:' + rect.left + 'px;top:' + rect.top + 'px;';
+  document.body.appendChild(ghost);
+  _dd.ghost = ghost;
+  _dd.grabDX = e.clientX - rect.left;
+  _dd.grabDY = e.clientY - rect.top;
+  col.classList.add('org-div-dragging');
+  document.body.classList.add('org-dragging');
+  const svg = document.getElementById('orgLinkSvg'); if (svg) svg.style.opacity = '0.15';
+}
+function _ddReflow(clientX) {
+  const board = document.getElementById('orgBoard');
+  const others = [...board.querySelectorAll(':scope > .org-col-division')].filter(c => c !== _dd.col);
+  let ref = null;
+  for (const c of others) { const r = c.getBoundingClientRect(); if (clientX < r.left + r.width / 2) { ref = c; break; } }
+  const addBtn = board.querySelector(':scope > #org-add-div');
+  board.insertBefore(_dd.col, ref || addBtn || null);
+}
+function _ddKey(e) { if (e.key === 'Escape' && _dd) { _ddAbortOrder = true; _ddUp(); } }
+let _ddAbortOrder = false;
+function _ddUp() {
+  window.removeEventListener('pointermove', _ddMove);
+  window.removeEventListener('pointerup', _ddUp);
+  window.removeEventListener('pointercancel', _ddUp);
+  window.removeEventListener('keydown', _ddKey);
+  const dd = _dd; _dd = null;
+  if (!dd) return;
+  if (dd.ghost) dd.ghost.remove();
+  dd.col.classList.remove('org-div-dragging');
+  document.body.classList.remove('org-dragging');
+  const svg = document.getElementById('orgLinkSvg'); if (svg) svg.style.opacity = '';
+  if (!dd.active) return;               // was a click, not a drag
+  if (_ddAbortOrder) { _ddAbortOrder = false; loadOrgTab(); return; }  // Esc → reload original order
+  const board = document.getElementById('orgBoard');
+  const order = [...board.querySelectorAll(':scope > .org-col-division')].map(c => Number(c.dataset.divId));
+  try { _weaveTree(); } catch (e) {}   // instantly re-draw connector lines at the new spot
+  (async () => { try { await api('?api=reorder', { method: 'POST', body: { kind: 'divisions', order } }); } catch (err) { alert(err.message); } await loadOrgTab(); })();
+}
+
 function enhanceBoard() {
   const editing = orgCanEdit();
   if (!editing) _cancelMove();
@@ -1595,7 +1667,7 @@ function enhanceBoard() {
     const head = col.querySelector('.org-col-division-head');
     if (head && !head.querySelector('.org-stat-btn')) head.appendChild(_statBtn('Division stats', ev => { ev.stopPropagation(); openDivisionStats(divId); }));
     if (editing && head) {
-      _wholeItemPickup(head, 'division', divId);
+      _wireDivisionDrag(head, col, divId);
       if (!head.querySelector('.org-color-swatch')) head.insertBefore(_colorSwatch(divId, color), head.firstChild);
       if (!head.querySelector('.org-edit-btn')) head.appendChild(_editBtn(ev => { ev.stopPropagation(); openOrgEditor('division', divId); }));
     }
@@ -1638,13 +1710,8 @@ function _weaveTree() {
   const zoom = document.getElementById('orgBoardZoom'), board = document.getElementById('orgBoard'), layer = document.getElementById('orgExecLayer');
   if (!zoom || !board) return;
   zoom.style.position = 'relative';
-  // 1. Cluster divisions so each exec's divisions sit contiguously (fewer crossings).
-  const execOrder = new Map();
-  execPostsData.forEach((ep, i) => (ep.division_ids || []).forEach(did => { if (!execOrder.has(did)) execOrder.set(did, i); }));
-  const addBtn = board.querySelector(':scope > #org-add-div');
-  [...board.querySelectorAll(':scope > .org-col-division')]
-    .sort((a, b) => (execOrder.has(+a.dataset.divId) ? execOrder.get(+a.dataset.divId) : 999) - (execOrder.has(+b.dataset.divId) ? execOrder.get(+b.dataset.divId) : 999))
-    .forEach(c => board.insertBefore(c, addBtn || null));
+  // Divisions keep the order the user arranged them in (sort_order, set by
+  // drag-reorder) — no auto-clustering, so a dragged division stays where dropped.
 
   // 2. Exec hierarchy + height (longest downward chain of exec posts).
   const byId = new Map(execPostsData.map(p => [p.id, p]));

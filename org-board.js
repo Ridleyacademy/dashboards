@@ -1661,6 +1661,96 @@ function _ddUp() {
   (async () => { try { await api('?api=reorder', { method: 'POST', body: { kind: 'divisions', order } }); } catch (err) { alert(err.message); } await loadOrgTab(); })();
 }
 
+// ── Department drag-to-move (reorder within a division OR into another) ───────
+// Same feel as division drag but vertical, and the drop target is whichever
+// division's department list the pointer is over — so a department can be moved
+// inside its division or into a different one, others reflowing to make room.
+let _dpd = null, _dpdAbort = false;
+function _wireDepartmentDrag(head, col, deptId) {
+  if (head.dataset.dpdWired) return; head.dataset.dpdWired = '1';
+  head.style.touchAction = 'none';
+  head.addEventListener('dragstart', e => e.preventDefault());
+  head.addEventListener('pointerdown', e => {
+    if (!orgCanEdit() || _dpd || _dd) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    if (e.target.closest('.org-stat-btn, .org-edit-btn, .org-add-btn, button, a, input, select, textarea')) return;
+    e.preventDefault();
+    _dpd = { col, deptId, startX: e.clientX, startY: e.clientY, active: false };
+    window.addEventListener('pointermove', _dpdMove);
+    window.addEventListener('pointerup', _dpdUp);
+    window.addEventListener('pointercancel', _dpdUp);
+    window.addEventListener('keydown', _dpdKey);
+  });
+}
+function _dpdMove(e) {
+  if (!_dpd) return;
+  if (!_dpd.active) {
+    if (Math.abs(e.clientX - _dpd.startX) < 5 && Math.abs(e.clientY - _dpd.startY) < 5) return;
+    _dpdBegin(e);
+  }
+  _dpd.ghost.style.left = (e.clientX - _dpd.grabDX) + 'px';
+  _dpd.ghost.style.top = (e.clientY - _dpd.grabDY) + 'px';
+  _dpdReflow(e.clientX, e.clientY);
+}
+function _dpdBegin(e) {
+  _dpd.active = true;
+  const col = _dpd.col, rect = col.getBoundingClientRect(), z = _currentZoom();
+  const srcDiv = col.closest('.org-col-division');
+  const ghost = col.cloneNode(true);
+  ghost.classList.add('org-dept-ghost');
+  ghost.style.cssText = 'position:fixed;z-index:9999;pointer-events:none;margin:0;width:' + col.offsetWidth + 'px;transform:scale(' + z + ');transform-origin:top left;left:' + rect.left + 'px;top:' + rect.top + 'px;';
+  if (srcDiv) { ghost.style.setProperty('--divc', srcDiv.style.getPropertyValue('--divc')); ghost.style.setProperty('--divc-soft', srcDiv.style.getPropertyValue('--divc-soft')); }
+  document.body.appendChild(ghost);
+  _dpd.ghost = ghost;
+  _dpd.grabDX = e.clientX - rect.left;
+  _dpd.grabDY = e.clientY - rect.top;
+  col.classList.add('org-dept-dragging');
+  document.body.classList.add('org-dragging');
+  const svg = document.getElementById('orgLinkSvg'); if (svg) svg.style.opacity = '0.15';
+}
+function _dpdReflow(cx, cy) {
+  // Find the department list the pointer is over (any division); fall back to
+  // the one the department currently lives in.
+  let target = null;
+  for (const c of document.querySelectorAll('.org-col-departments')) {
+    const r = c.getBoundingClientRect();
+    if (cx >= r.left && cx <= r.right && cy >= r.top - 50 && cy <= r.bottom + 50) { target = c; break; }
+  }
+  if (!target) target = _dpd.col.parentElement;
+  const others = [...target.querySelectorAll(':scope > .org-col-department')].filter(c => c !== _dpd.col);
+  let ref = null;
+  for (const c of others) { const r = c.getBoundingClientRect(); if (cy < r.top + r.height / 2) { ref = c; break; } }
+  const addBtn = target.querySelector(':scope > .org-add-btn');
+  target.insertBefore(_dpd.col, ref || addBtn || null);
+}
+function _dpdKey(e) { if (e.key === 'Escape' && _dpd) { _dpdAbort = true; _dpdUp(); } }
+function _dpdUp() {
+  window.removeEventListener('pointermove', _dpdMove);
+  window.removeEventListener('pointerup', _dpdUp);
+  window.removeEventListener('pointercancel', _dpdUp);
+  window.removeEventListener('keydown', _dpdKey);
+  const dpd = _dpd; _dpd = null;
+  if (!dpd) return;
+  if (dpd.ghost) dpd.ghost.remove();
+  dpd.col.classList.remove('org-dept-dragging');
+  document.body.classList.remove('org-dragging');
+  const svg = document.getElementById('orgLinkSvg'); if (svg) svg.style.opacity = '';
+  if (!dpd.active) return;
+  if (_dpdAbort) { _dpdAbort = false; loadOrgTab(); return; }
+  const container = dpd.col.parentElement;
+  const destDivEl = container.closest('.org-col-division');
+  const destDiv = destDivEl ? Number(destDivEl.dataset.divId) : null;
+  const order = [...container.querySelectorAll(':scope > .org-col-department')].map(c => _deptIdOf(c)).filter(x => x != null);
+  const dep = departmentsData.find(x => x.id === dpd.deptId);
+  (async () => {
+    try {
+      if (dep && destDiv != null && dep.division_id !== destDiv) await api('?api=department-update&id=' + dpd.deptId, { method: 'POST', body: { division_id: destDiv } });
+      await api('?api=reorder', { method: 'POST', body: { kind: 'departments', order } });
+    } catch (err) { alert(err.message); }
+    await loadOrgTab();
+  })();
+}
+
 function enhanceBoard() {
   const editing = orgCanEdit();
   if (!editing) _cancelMove();
@@ -1682,7 +1772,7 @@ function enhanceBoard() {
   });
   document.querySelectorAll('.org-col-department').forEach(col => {
     const head = col.querySelector('.org-col-department-head');
-    if (editing && head) { _wholeItemPickup(head, 'department', _deptIdOf(col)); if (!head.querySelector('.org-edit-btn')) head.appendChild(_editBtn(ev => { ev.stopPropagation(); openOrgEditor('department', _deptIdOf(col)); })); }
+    if (editing && head) { _wireDepartmentDrag(head, col, _deptIdOf(col)); if (!head.querySelector('.org-edit-btn')) head.appendChild(_editBtn(ev => { ev.stopPropagation(); openOrgEditor('department', _deptIdOf(col)); })); }
   });
   document.querySelectorAll('.org-post-card').forEach(card => {
     const postId = Number(card.dataset.id);

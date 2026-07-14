@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v512', title: 'Org Board — drag departments (reorder, or move to another division)', items: [
+      'Departments now drag just like divisions: pick one up by its header and a floating copy follows your cursor. Drop it higher or lower to reorder it inside its division, or drop it into a different division’s stack — the other departments slide to make room, and the move is saved. Esc cancels.',
+    ] },
     { version: 'v511', title: 'Org Board — smoother division drag (instant, colored ghost)', items: [
       'Fixed the drag preview: picking up a division now shows a clean floating copy immediately (no more browser drag-fragment flashing first), and the floating copy keeps the division’s color instead of turning into a plain dark box.',
     ] },

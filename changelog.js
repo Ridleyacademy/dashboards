@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v521', title: 'Targets — overdue reminders', items: [
+      'Overdue tasks now nudge their assignees automatically each morning: an in-app notification + phone push, and a reminder note is posted on the task itself. Reminders repeat once a day until the task is updated or completed.',
+    ] },
     { version: 'v520', title: 'Targets — a ClickUp-style task system + dashboard', items: [
       'New Targets dashboard: tasks grouped by To Do / In Progress / Done, with a “My tasks / All” switch and “+ New task”.',
       'Each task opens a full detail popup like ClickUp: status, multiple assignees, start & due dates, priority, time estimate, tags, description, a checklist, subtasks, and a comment/activity thread.',

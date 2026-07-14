@@ -243,7 +243,13 @@
 
   function _ciHtml(c) { return `<div class="tw-check-item${c.done ? ' done' : ''}" data-id="${c.id}"><span class="tw-ci-box">${c.done ? '✓' : ''}</span><span class="tw-ci-text">${esc(c.text)}</span><button class="tw-del">✕</button></div>`; }
   function _subHtml(s) { const done = s.status === 'done'; return `<div class="tw-sub-item${done ? ' done' : ''}" data-id="${s.id}"><span class="tw-si-box">${done ? '✓' : ''}</span><span class="tw-si-text">${esc(s.title)}</span></div>`; }
-  function _cmtHtml(c) { const when = c.created_at ? new Date(c.created_at).toLocaleString() : ''; return `<div class="tw-comment"><span class="tw-avatar sm">${esc(userInit(c.user_id))}</span><div class="tw-c-body"><span class="tw-c-who">${esc(userName(c.user_id))}</span><span class="tw-c-when">${esc(when)}</span><div class="tw-c-text">${esc(c.body)}</div></div><button class="tw-del" data-del-cmt="${c.id}">✕</button></div>`; }
+  function _cmtHtml(c) {
+    const when = c.created_at ? new Date(c.created_at).toLocaleString() : '';
+    const who = c.user_id ? userName(c.user_id) : (c.user_email || 'System');
+    const init = (c.user_id ? userInit(c.user_id) : (who[0] || 'R')).toUpperCase();
+    const sys = !c.user_id;
+    return `<div class="tw-comment"><span class="tw-avatar sm" ${sys ? 'style="background:#a78bfa"' : ''}>${esc(init)}</span><div class="tw-c-body"><span class="tw-c-who">${esc(who)}</span><span class="tw-c-when">${esc(when)}</span><div class="tw-c-text">${esc(c.body)}</div></div>${sys ? '' : `<button class="tw-del" data-del-cmt="${c.id}">✕</button>`}</div>`;
+  }
 
   async function openNew(defaults = {}) {
     try {

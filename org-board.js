@@ -1267,7 +1267,111 @@ function _cancelMove(rerender) {
   document.querySelectorAll('.org-picking').forEach(e => e.classList.remove('org-picking'));
   document.querySelectorAll('.org-target').forEach(e => e.classList.remove('org-target'));
   const b = document.getElementById('orgMoveBanner'); if (b) b.remove();
+  const td = document.getElementById('orgExecTopDrop'); if (td) td.remove();
   if (rerender) { /* board already reflects DOM; loadOrgTab handles real refresh */ }
+}
+
+// ── Executive TREE (connected boxes above the divisions, MAKH-style) ─────────
+// Overrides the ported flat-strip renderTopTier() with a nested-UL org chart
+// built from org_executive_posts.parent_exec_post_id, drawn with CSS connector
+// lines. Add a child post (+), reparent by picking a node up and tapping another
+// node (or "make top-level"), assign a holder via the ▾ picker.
+renderTopTier = function () { try { _renderExecTree(); } catch (e) { console.warn('[exec tree]', e); } };
+
+function _renderExecTree() {
+  const tier = document.getElementById('orgTopTier'); if (!tier) return;
+  const editing = orgCanEdit();
+  const byParent = new Map();
+  execPostsData.forEach(p => { const k = p.parent_exec_post_id || 'root'; if (!byParent.has(k)) byParent.set(k, []); byParent.get(k).push(p); });
+  for (const arr of byParent.values()) arr.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+  const nodeHtml = (p) => {
+    const kids = byParent.get(p.id) || [];
+    const holder = (execHoldersByExecPost[p.id] || [])[0];
+    const color = p.color || '#fbbf24';
+    const holderHtml = holder
+      ? `<span class="havatar small">${escapeHtml(_initialOf(holder.user_id))}</span>${escapeHtml(_displayOf(holder.user_id))}`
+      : '<span class="org-exec-vac">Vacant</span>';
+    return `<li><div class="org-exec-node" data-id="${p.id}" style="--nc:${color}">
+        <div class="org-exec-node-title">${escapeHtml(p.name)}</div>
+        <div class="org-exec-node-holder">${holderHtml}</div>
+      </div>${kids.length ? '<ul>' + kids.map(nodeHtml).join('') + '</ul>' : ''}</li>`;
+  };
+  const roots = byParent.get('root') || [];
+  tier.innerHTML = `<div class="org-tree-label">Executive structure</div>
+    <div class="org-tree-scroll"><ul class="org-tree">${roots.length ? roots.map(nodeHtml).join('') : '<li><div class="org-exec-empty">No executive posts yet</div></li>'}</ul></div>
+    ${editing ? '<button class="org-add-exec" id="org-add-exec-root">+ Add top post</button>' : ''}`;
+  document.getElementById('org-add-exec-root')?.addEventListener('click', () => _createExecUnder(null));
+  tier.querySelectorAll('.org-exec-node').forEach(node => {
+    const id = Number(node.dataset.id);
+    node.appendChild(_statBtn('Executive post stats', ev => { ev.stopPropagation(); openExecStats(id); }));
+    if (editing) {
+      node.appendChild(_editBtn(ev => { ev.stopPropagation(); openExecPostEditor(id); }));
+      const addSub = document.createElement('button'); addSub.className = 'org-exec-addsub'; addSub.type = 'button'; addSub.title = 'Add a post reporting to this'; addSub.textContent = '＋';
+      addSub.addEventListener('click', e => { e.stopPropagation(); _createExecUnder(id); }); node.appendChild(addSub);
+      const pk = document.createElement('button'); pk.className = 'org-pick-btn'; pk.type = 'button'; pk.title = 'Assign / change person'; pk.textContent = '▾';
+      pk.addEventListener('click', e => { e.stopPropagation(); _openExecPersonPicker(id, pk); }); node.appendChild(pk);
+      _wholeItemPickup(node, 'exec', id);
+    }
+  });
+  if (_mv && _mv.kind === 'exec') _renderExecTargets();
+}
+
+async function _createExecUnder(parentId) {
+  const name = prompt(parentId ? 'Name of the post reporting to this one:' : 'Name of the top executive post:');
+  if (!name || !name.trim()) return;
+  const slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || ('exec_' + Date.now());
+  try { await api('?api=exec-post-create', { method: 'POST', body: { name: name.trim(), slug, parent_exec_post_id: parentId || null } }); await loadOrgTab(); } catch (e) { alert(e.message); }
+}
+
+function _renderExecTargets() {
+  const self = _mv.id;
+  const descendants = new Set();
+  const collect = (pid) => { execPostsData.filter(p => p.parent_exec_post_id === pid).forEach(c => { descendants.add(c.id); collect(c.id); }); };
+  collect(self);
+  document.querySelectorAll('.org-exec-node').forEach(node => {
+    const id = Number(node.dataset.id);
+    if (id === self || descendants.has(id)) return;
+    node.classList.add('org-target');
+    node.addEventListener('click', _onExecTargetClick, { capture: true });
+  });
+  const tier = document.getElementById('orgTopTier');
+  if (tier && !document.getElementById('orgExecTopDrop')) {
+    const chip = document.createElement('button'); chip.id = 'orgExecTopDrop'; chip.className = 'org-exec-topdrop'; chip.type = 'button'; chip.textContent = '⊤ Make top-level (no boss)';
+    chip.addEventListener('click', async e => { e.stopPropagation(); const mid = _mv.id; _cancelMove(); try { await api('?api=exec-post-update&id=' + mid, { method: 'POST', body: { parent_exec_post_id: null } }); await loadOrgTab(); } catch (err) { alert(err.message); } });
+    tier.insertBefore(chip, tier.firstChild);
+  }
+}
+function _onExecTargetClick(e) {
+  if (!_mv) return;
+  e.stopPropagation(); e.preventDefault();
+  const parentId = Number(e.currentTarget.dataset.id); const mid = _mv.id;
+  _cancelMove();
+  (async () => { try { await api('?api=exec-post-update&id=' + mid, { method: 'POST', body: { parent_exec_post_id: parentId } }); await loadOrgTab(); } catch (err) { alert(err.message); } })();
+}
+function _openExecPersonPicker(execId, anchor) {
+  _closePicker();
+  const pop = document.createElement('div'); pop.id = 'orgPersonPop'; pop.className = 'org-person-pop';
+  pop.innerHTML = '<input type="text" class="org-pop-search" placeholder="Search people…"><div class="org-pop-list"></div>';
+  document.body.appendChild(pop);
+  const r = anchor.getBoundingClientRect();
+  pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 246)) + 'px';
+  pop.style.top = Math.min(r.bottom + 4, window.innerHeight - 320) + 'px';
+  const list = pop.querySelector('.org-pop-list'), search = pop.querySelector('.org-pop-search');
+  const cur = (execHoldersByExecPost[execId] || [])[0];
+  const render = (q) => {
+    const ql = (q || '').toLowerCase();
+    const rows = usersData.filter(u => !ql || (_displayOf(u.id) || '').toLowerCase().includes(ql) || (u.email || '').toLowerCase().includes(ql)).slice(0, 60)
+      .map(u => `<button type="button" class="org-pop-item" data-uid="${u.id}">${escapeHtml(_pickerLabelFor(u))}</button>`);
+    list.innerHTML = (cur ? '<button type="button" class="org-pop-item org-pop-clear" data-uid="">✕ Make vacant</button>' : '') + (rows.join('') || '<div style="padding:8px;color:var(--text-dim);font-size:0.78rem;">No matches</div>');
+    list.querySelectorAll('.org-pop-item').forEach(it => it.addEventListener('click', async e => {
+      e.stopPropagation(); const uid = it.dataset.uid; _closePicker();
+      try { if (uid) await api('?api=exec-post-add-holder', { method: 'POST', body: { exec_post_id: execId, user_id: uid } }); else if (cur) await api('?api=exec-post-remove-holder', { method: 'POST', body: { exec_post_id: execId, user_id: cur.user_id } }); await loadOrgTab(); } catch (err) { alert(err.message); }
+    }));
+  };
+  render(''); search.focus();
+  search.addEventListener('input', () => render(search.value));
+  search.addEventListener('click', e => e.stopPropagation());
+  setTimeout(() => document.addEventListener('click', _closePickerOutside, true), 0);
 }
 
 function _pickUp(kind, id) {
@@ -1277,9 +1381,11 @@ function _pickUp(kind, id) {
   // Highlight the picked item.
   let srcEl = null;
   if (kind === 'user') srcEl = null;
-  else {
+  else if (_MVCFG[kind]) {
     const cfg = _MVCFG[kind];
     srcEl = [...document.querySelectorAll(cfg.itemSel)].find(el => _itemId(kind, el) === id);
+  } else if (kind === 'exec') {
+    srcEl = [...document.querySelectorAll('.org-exec-node')].find(el => Number(el.dataset.id) === id);
   }
   if (srcEl) srcEl.classList.add('org-picking');
   _renderTargets();
@@ -1288,6 +1394,7 @@ function _pickUp(kind, id) {
 
 function _renderTargets() {
   if (!_mv) return;
+  if (_mv.kind === 'exec') { _renderExecTargets(); return; }
   if (_mv.kind === 'user') {
     // Any post or exec post is a valid assignment target.
     document.querySelectorAll('.org-post-card, .org-exec-card').forEach(card => {

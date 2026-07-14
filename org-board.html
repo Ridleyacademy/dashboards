@@ -1118,6 +1118,37 @@
   .org-pop-item { text-align: left; padding: 6px 8px; background: transparent; border: 0; border-radius: 6px; color: var(--text); font-size: 0.78rem; cursor: pointer; }
   .org-pop-item:hover { background: var(--surface2); color: var(--accent); }
   .org-pop-clear { color: var(--text-dim); }
+
+  /* ═══════════ Executive TREE (connected boxes above divisions) ═══════════ */
+  .org-tree-label { font-size: 0.58rem; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); font-weight: 700; margin-bottom: 2px; }
+  .org-tree-scroll { overflow-x: auto; padding-bottom: 6px; }
+  .org-tree, .org-tree ul { display: flex; list-style: none; margin: 0; padding: 0; }
+  .org-tree ul { padding-top: 16px; justify-content: center; }
+  .org-tree li { position: relative; padding: 16px 6px 0; display: flex; flex-direction: column; align-items: center; }
+  .org-tree li::before, .org-tree li::after { content: ''; position: absolute; top: 0; width: 50%; height: 16px; border-top: 2px solid var(--border-light); }
+  .org-tree li::before { right: 50%; }
+  .org-tree li::after { left: 50%; border-left: 2px solid var(--border-light); }
+  .org-tree li:only-child { padding-top: 0; }
+  .org-tree li:only-child::before, .org-tree li:only-child::after { display: none; }
+  .org-tree li:first-child::before, .org-tree li:last-child::after { border: 0; }
+  .org-tree li:last-child::before { border-right: 2px solid var(--border-light); }
+  .org-tree ul::before { content: ''; position: absolute; top: 0; left: 50%; width: 0; height: 16px; border-left: 2px solid var(--border-light); }
+  .org-tree > li { padding-top: 0; }
+  .org-tree > li::before, .org-tree > li::after { display: none; }
+  .org-exec-node { position: relative; min-width: 138px; max-width: 200px; background: var(--surface); border: 1.5px solid var(--nc, #fbbf24); border-top: 4px solid var(--nc, #fbbf24); border-radius: 8px; padding: 6px 8px; cursor: grab; box-shadow: 0 2px 8px rgba(0,0,0,0.25); text-align: left; }
+  .org-exec-node-title { font-size: 0.72rem; font-weight: 700; line-height: 1.15; padding-right: 34px; }
+  .org-exec-node-holder { font-size: 0.62rem; color: var(--text-muted); margin-top: 3px; display: flex; align-items: center; gap: 4px; }
+  .org-exec-node-holder .havatar.small { width: 13px; height: 13px; font-size: 0.5rem; }
+  .org-exec-vac { color: var(--text-dim); font-style: italic; }
+  .org-exec-node .org-stat-btn { top: 4px; right: 4px; }
+  .org-exec-node .org-edit-btn { top: 4px; right: 25px; }
+  .org-exec-node .org-pick-btn { bottom: 4px; right: 26px; }
+  .org-exec-addsub { position: absolute; bottom: 4px; right: 4px; width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--border); border-radius: 5px; background: var(--surface2); color: var(--text-muted); cursor: pointer; font-size: 0.8rem; line-height: 1; padding: 0; z-index: 3; }
+  .org-exec-addsub:hover { color: var(--accent); border-color: var(--accent); }
+  .org-exec-node.org-picking { outline: 2px solid var(--accent); outline-offset: 1px; opacity: .6; }
+  .org-exec-node.org-target { outline: 2px dashed var(--accent); outline-offset: 1px; cursor: pointer; }
+  .org-exec-empty { color: var(--text-dim); font-size: 0.72rem; padding: 8px 12px; border: 1px dashed var(--border); border-radius: 8px; }
+  .org-exec-topdrop { display: inline-block; margin-bottom: 6px; padding: 4px 12px; border: 1.5px dashed var(--accent); border-radius: 999px; background: rgba(52,211,153,0.1); color: var(--accent); font-size: 0.72rem; font-weight: 600; cursor: pointer; }
 </style>
 </head>
 <body data-state="loading">

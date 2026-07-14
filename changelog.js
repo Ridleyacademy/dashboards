@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v501', title: 'Org Board — executive tree above the divisions', items: [
+      'The executive layer is now a proper org chart: connected boxes with lines showing who reports to whom, sitting above the divisions (like the classic command-channel layout). Build it freely — “+ Add top post” adds a top box, the ＋ on any box adds one reporting to it, and you can re-boss a box by tapping it then tapping its new manager (or “make top-level”).',
+      'Each executive box has the same tools as posts: ▾ to set who holds it, ✎ to edit, 📊 for stats.',
+    ] },
     { version: 'v500', title: 'Org Board — compact, colored redesign', items: [
       'The board is now much more compact and colorful — each division is a tight colored column (departments stack inside it) so far more fits on one screen at once.',
       'New inline person picker: tap the ▾ on any post to search and set who holds it, right there — no need to open the editor.',

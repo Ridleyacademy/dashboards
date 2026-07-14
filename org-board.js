@@ -1395,6 +1395,7 @@ function _pickUp(kind, id) {
 function _renderTargets() {
   if (!_mv) return;
   if (_mv.kind === 'exec') { _renderExecTargets(); return; }
+  if (_mv.kind === 'division') { _renderDivisionTargets(); return; }
   if (_mv.kind === 'user') {
     // Any post or exec post is a valid assignment target.
     document.querySelectorAll('.org-post-card, .org-exec-card').forEach(card => {
@@ -1585,8 +1586,68 @@ function enhanceBoard() {
     const epId = Number(card.dataset.id);
     if (!card.querySelector('.org-stat-btn')) card.appendChild(_statBtn('Executive post stats', ev => { ev.stopPropagation(); openExecStats(epId); }));
   });
+  try { _weaveTree(); } catch (e) { console.warn('[weave]', e); }
   // If a move is in progress across a re-render, restore its targets.
   if (_mv) { document.body.classList.add('org-placing'); _renderTargets(); }
+}
+
+// Weave the divisions into the executive tree: each division column is moved to
+// hang UNDER the exec post that oversees it (org_executive_post_divisions), so
+// the connector lines run exec → division, MAKH-style. Divisions with no exec
+// link become top-level nodes in the tree. Reuses the already-rendered + wired
+// division columns (moving DOM nodes preserves their listeners).
+function _weaveTree() {
+  const tier = document.getElementById('orgTopTier'), board = document.getElementById('orgBoard');
+  if (!tier || !board) return;
+  const treeUl = tier.querySelector('ul.org-tree');
+  if (!treeUl) return; // exec tree renders even when empty, so this is defensive
+  const assigned = new Set();
+  execPostsData.forEach(ep => {
+    (ep.division_ids || []).forEach(did => {
+      if (assigned.has(did)) return;
+      const nodeEl = treeUl.querySelector('.org-exec-node[data-id="' + ep.id + '"]');
+      const col = board.querySelector('.org-col-division[data-div-id="' + did + '"]');
+      if (!nodeEl || !col) return;
+      const li = nodeEl.closest('li');
+      let childUl = li.querySelector(':scope > ul');
+      if (!childUl) { childUl = document.createElement('ul'); li.appendChild(childUl); }
+      const wrap = document.createElement('li'); wrap.className = 'org-div-leaf'; wrap.appendChild(col); childUl.appendChild(wrap);
+      assigned.add(did);
+    });
+  });
+  // Unassigned divisions → top-level nodes in the tree.
+  [...board.querySelectorAll(':scope > .org-col-division')].forEach(col => {
+    const wrap = document.createElement('li'); wrap.className = 'org-div-leaf'; wrap.appendChild(col); treeUl.appendChild(wrap);
+  });
+  // Keep the "+ Division" button reachable (as a trailing top-level node).
+  const addDiv = board.querySelector('#org-add-div');
+  if (addDiv) { const wrap = document.createElement('li'); wrap.className = 'org-div-leaf org-div-leaf-add'; wrap.appendChild(addDiv); treeUl.appendChild(wrap); }
+}
+
+// Division movement is reparent-under-an-exec (target-based), since divisions
+// now live in the tree, not a flat row.
+function _renderDivisionTargets() {
+  document.querySelectorAll('.org-exec-node').forEach(node => { node.classList.add('org-target'); node.addEventListener('click', _onDivTargetClick, { capture: true }); });
+  const tier = document.getElementById('orgTopTier');
+  if (tier && !document.getElementById('orgExecTopDrop')) {
+    const chip = document.createElement('button'); chip.id = 'orgExecTopDrop'; chip.className = 'org-exec-topdrop'; chip.type = 'button'; chip.textContent = '⊤ Top-level (under no exec)';
+    chip.addEventListener('click', async e => { e.stopPropagation(); const did = _mv.id; _cancelMove(); try { await _setDivisionExec(did, null); await loadOrgTab(); } catch (err) { alert(err.message); } });
+    tier.insertBefore(chip, tier.firstChild);
+  }
+}
+function _onDivTargetClick(e) {
+  if (!_mv || _mv.kind !== 'division') return;
+  e.stopPropagation(); e.preventDefault();
+  const execId = Number(e.currentTarget.dataset.id), did = _mv.id;
+  _cancelMove();
+  (async () => { try { await _setDivisionExec(did, execId); await loadOrgTab(); } catch (err) { alert(err.message); } })();
+}
+async function _setDivisionExec(did, execId) {
+  for (const ep of execPostsData) {
+    const has = (ep.division_ids || []).includes(did);
+    if (execId && ep.id === execId) { if (!has) await api('?api=exec-post-update&id=' + ep.id, { method: 'POST', body: { division_ids: [...(ep.division_ids || []), did] } }); }
+    else if (has) await api('?api=exec-post-update&id=' + ep.id, { method: 'POST', body: { division_ids: (ep.division_ids || []).filter(x => x !== did) } });
+  }
 }
 
 function _statBtn(title, onClick) {

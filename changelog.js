@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v502', title: 'Org Board — one connected chart (exec → divisions)', items: [
+      'The whole board is now a single connected org chart: each executive post sits above the divisions it oversees, with lines running from it down into those division columns — the classic command-channel layout. Move a division under a different executive by tapping the division, then tapping its new manager (or “make top-level”). Build the top freely and it all connects automatically.',
+    ] },
     { version: 'v501', title: 'Org Board — executive tree above the divisions', items: [
       'The executive layer is now a proper org chart: connected boxes with lines showing who reports to whom, sitting above the divisions (like the classic command-channel layout). Build it freely — “+ Add top post” adds a top box, the ＋ on any box adds one reporting to it, and you can re-boss a box by tapping it then tapping its new manager (or “make top-level”).',
       'Each executive box has the same tools as posts: ▾ to set who holds it, ✎ to edit, 📊 for stats.',

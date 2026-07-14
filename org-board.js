@@ -1589,10 +1589,14 @@ function _currentZoom() { const inner = document.getElementById('orgBoardZoom');
 function _wireDivisionDrag(head, col, divId) {
   if (head.dataset.ddWired) return; head.dataset.ddWired = '1';
   head.style.touchAction = 'none';
+  // Kill native HTML5 drag (the browser's own translucent snapshot) so only our
+  // ghost shows — otherwise you see a fragment of the element first.
+  head.addEventListener('dragstart', e => e.preventDefault());
   head.addEventListener('pointerdown', e => {
     if (!orgCanEdit() || _dd) return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     if (e.target.closest('.org-stat-btn, .org-edit-btn, .org-color-swatch, button, a, input, select, textarea')) return;
+    e.preventDefault();               // suppress native drag / text selection
     _dd = { col, divId, startX: e.clientX, startY: e.clientY, active: false };
     window.addEventListener('pointermove', _ddMove);
     window.addEventListener('pointerup', _ddUp);
@@ -1616,6 +1620,10 @@ function _ddBegin(e) {
   const ghost = col.cloneNode(true);
   ghost.classList.add('org-div-ghost');
   ghost.style.cssText = 'position:fixed;z-index:9999;pointer-events:none;margin:0;width:' + col.offsetWidth + 'px;transform:scale(' + z + ');transform-origin:top left;left:' + rect.left + 'px;top:' + rect.top + 'px;';
+  // cloneNode does NOT reliably carry inline CSS custom properties, so re-apply
+  // the division's colour vars or the ghost renders as a plain dark box.
+  ghost.style.setProperty('--divc', col.style.getPropertyValue('--divc'));
+  ghost.style.setProperty('--divc-soft', col.style.getPropertyValue('--divc-soft'));
   document.body.appendChild(ghost);
   _dd.ghost = ghost;
   _dd.grabDX = e.clientX - rect.left;

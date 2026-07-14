@@ -1125,6 +1125,7 @@
   #orgTopTier, #orgBoard { position: relative; z-index: 1; }
   #orgBoard { margin-top: 46px; }  /* room for the exec → division connector elbows */
   /* Division drag-to-reorder */
+  .org-col-division-head, .org-col-division-head * { -webkit-user-drag: none; user-select: none; }
   body[data-org-edit="1"] .org-col-division-head { cursor: grab; }
   body.org-dragging, body.org-dragging * { cursor: grabbing !important; user-select: none; }
   .org-col-division { transition: transform .16s ease; }

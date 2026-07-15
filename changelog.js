@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v553', title: 'Org Board — real profile view', items: [
+      'Clicking a post (or division/department) now opens a clean read-only profile — holder, purpose, reporting, role and policies laid out for reading, not a greyed-out form. Use the ✎ Edit button (or the pen) to make changes.',
+    ] },
     { version: 'v552', title: 'Org Board — click to view, pen to edit', items: [
       'Clicking a division, department or post now opens its profile (read-only). Editing is done with the ✎ pen, which only appears if you have edit access.',
     ] },

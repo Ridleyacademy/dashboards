@@ -595,8 +595,18 @@ function openOrgEditor(kind, id, view) {
   selectedKind = kind; selectedId = id;
   openDrawer('<div id="axDrawerEditor"><div class="ax-editor-empty">Loading…</div></div>');
   const drawer = document.getElementById('orgDrawer');
-  if (drawer) drawer.classList.toggle('viewonly', !!view);
+  // Profiles are their own read-only render (no disabled-form fallback), so the
+  // drawer never needs the .viewonly form-lock. Clicking a card = profile;
+  // the pencil (or the profile's Edit button) = the full editor below.
+  if (drawer) drawer.classList.remove('viewonly');
+  const lbl = drawer && drawer.querySelector('.org-drawer-close > span');
+  if (lbl) lbl.textContent = view ? 'Profile' : 'Editing';
   _useDrawerEditor = true;
+  if (view) {
+    if (kind === 'division') return renderDivisionProfile(divisionsData.find(x => x.id === id));
+    if (kind === 'department') return renderDepartmentProfile(departmentsData.find(x => x.id === id));
+    if (kind === 'post') return renderPostProfile(postsData.find(x => x.id === id));
+  }
   if (kind === 'division') return renderDivisionEditor(divisionsData.find(x => x.id === id));
   if (kind === 'department') return renderDepartmentEditor(departmentsData.find(x => x.id === id));
   if (kind === 'post') return renderPostEditor(postsData.find(x => x.id === id));
@@ -1042,6 +1052,152 @@ function renderPostEditor(po) {
     try { await api('?api=post-delete&id=' + po.id, { method: 'POST', body: {} }); selectedId = null; closeDrawer(); await loadOrgTab(); }
     catch (e) { alert(e.message); }
   });
+  loadPoliciesInto('po-policies', 'post', po.id);
+}
+
+// ── Read-only PROFILE views ────────────────────────────────────────────────
+// Clicking a card on the board opens one of these — a clean, formatted profile
+// (no form inputs). The pencil / the profile's own "Edit" button opens the full
+// editor above. Policies render read-only here; the +Add button is omitted (the
+// editor is where policies are managed). Anyone can view a profile.
+function _profBlock(label, val) {
+  if (val === null || val === undefined || String(val).trim() === '') return '';
+  return `<div class="ax-editor-row" style="margin-bottom:10px;">
+    <label style="display:block;margin-bottom:2px;">${escapeHtml(label)}</label>
+    <div style="font-size:0.9rem;color:var(--text);white-space:pre-wrap;line-height:1.45;">${escapeHtml(val)}</div>
+  </div>`;
+}
+function _profHeadPill(uid) {
+  if (!uid) return '<span style="color:var(--text-dim);font-size:0.86rem;">Vacant</span>';
+  return `<span class="holder-pill" title="${escapeHtml(_emailOf(uid) || '')}">
+    <span class="holder-pill-av">${escapeHtml(_initialOf(uid))}</span>
+    ${escapeHtml(_displayOf(uid))}
+  </span>`;
+}
+function _profActions(kind, id, statsFn) {
+  const canEdit = orgCanEdit();
+  return `<div class="ax-actions" style="border-top:1px solid var(--border);padding-top:14px;margin-top:16px;">
+    ${statsFn ? `<button class="small-btn" id="prof-stats" style="padding:8px 14px;">▤ Stats</button>` : ''}
+    ${canEdit ? `<button class="btn-primary" id="prof-edit">✎ Edit</button>` : ''}
+  </div>`;
+}
+function _wireProfileNav(kind, id, statsFn) {
+  document.querySelectorAll('[data-jump]').forEach(a => a.addEventListener('click', e => {
+    e.preventDefault(); openOrgEditor(a.dataset.jump, Number(a.dataset.id), /*view*/ true);
+  }));
+  document.querySelectorAll('[data-jump-view]').forEach(el => el.addEventListener('click', () => {
+    openOrgEditor(el.dataset.jumpView, Number(el.dataset.jumpId), /*view*/ true);
+  }));
+  const editBtn = document.getElementById('prof-edit');
+  if (editBtn) editBtn.addEventListener('click', () => openOrgEditor(kind, id, /*view*/ false));
+  const statsBtn = document.getElementById('prof-stats');
+  if (statsBtn && statsFn) statsBtn.addEventListener('click', () => statsFn(id));
+}
+
+function renderDivisionProfile(d) {
+  if (!d) return;
+  const ed = editorEl(); if (!ed) return;
+  const depts = departmentsData.filter(x => x.division_id === d.id);
+  const totalPosts = postsData.filter(p => depts.some(dep => dep.id === p.department_id)).length;
+  const roleName = d.head_default_role_id ? (roles.find(r => r.id === d.head_default_role_id)?.name || '') : '';
+  ed.innerHTML = `<div class="ax-profile">
+    <div class="breadcrumb">Division</div>
+    <h2 style="display:flex;align-items:center;gap:8px;"><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${escapeHtml(d.color || '#6b9eff')};"></span>${escapeHtml(d.name)}</h2>
+    <div style="color:var(--text-dim);font-size:0.82rem;margin:-4px 0 14px;">${depts.length} department${depts.length === 1 ? '' : 's'} · ${totalPosts} post${totalPosts === 1 ? '' : 's'}</div>
+
+    ${_profBlock('Purpose', d.purpose)}
+    ${_profBlock('What this produces', d.valuable_final_product)}
+    ${_profBlock('Description', d.description)}
+
+    <h3>Division Head</h3>
+    <div style="margin-bottom:12px;">${_profHeadPill(d.head_user_id)}${roleName ? ` <span class="org-badge">${escapeHtml(roleName)}</span>` : ''}</div>
+
+    <h3>Departments</h3>
+    <div id="prof-depts" style="display:flex;flex-direction:column;gap:4px;">${
+      depts.length
+        ? depts.map(dep => `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;cursor:pointer;" data-jump-view="department" data-jump-id="${dep.id}"><span>${escapeHtml(dep.name)}</span><span class="org-badge">${postsData.filter(p => p.department_id === dep.id).length} posts</span></div>`).join('')
+        : '<span style="color:var(--text-dim);font-size:0.82rem;">No departments yet.</span>'
+    }</div>
+
+    <h3>Policies &amp; orders</h3>
+    <div id="d-policies"></div>
+
+    ${_profActions('division', d.id, typeof openDivisionStats === 'function' ? openDivisionStats : null)}
+  </div>`;
+  _wireProfileNav('division', d.id, typeof openDivisionStats === 'function' ? openDivisionStats : null);
+  loadPoliciesInto('d-policies', 'division', d.id);
+}
+
+function renderDepartmentProfile(dep) {
+  if (!dep) return;
+  const ed = editorEl(); if (!ed) return;
+  const division = divisionsData.find(x => x.id === dep.division_id);
+  const posts = postsData.filter(p => p.department_id === dep.id);
+  const roleName = dep.head_default_role_id ? (roles.find(r => r.id === dep.head_default_role_id)?.name || '') : '';
+  ed.innerHTML = `<div class="ax-profile">
+    <div class="breadcrumb"><a data-jump="division" data-id="${division?.id}">${escapeHtml(division?.name || 'Division')}</a> › Department</div>
+    <h2>${escapeHtml(dep.name)}</h2>
+    <div style="color:var(--text-dim);font-size:0.82rem;margin:-4px 0 14px;">${posts.length} post${posts.length === 1 ? '' : 's'}</div>
+
+    ${_profBlock('Purpose', dep.purpose)}
+    ${_profBlock('What this produces', dep.valuable_final_product)}
+    ${_profBlock('Description', dep.description)}
+
+    <h3>Department Head</h3>
+    <div style="margin-bottom:12px;">${_profHeadPill(dep.head_user_id)}${roleName ? ` <span class="org-badge">${escapeHtml(roleName)}</span>` : ''}</div>
+
+    <h3>Posts</h3>
+    <div id="prof-posts" style="display:flex;flex-direction:column;gap:4px;">${
+      posts.length
+        ? posts.map(po => `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;cursor:pointer;" data-jump-view="post" data-jump-id="${po.id}"><span>${escapeHtml(po.name)}</span><span class="org-badge">${po.default_role_id ? escapeHtml(roles.find(r => r.id === po.default_role_id)?.name || 'role') : '—'}</span></div>`).join('')
+        : '<span style="color:var(--text-dim);font-size:0.82rem;">No posts yet.</span>'
+    }</div>
+
+    <h3>Policies &amp; orders</h3>
+    <div id="dep-policies"></div>
+
+    ${_profActions('department', dep.id, null)}
+  </div>`;
+  _wireProfileNav('department', dep.id, null);
+  loadPoliciesInto('dep-policies', 'department', dep.id);
+}
+
+function renderPostProfile(po) {
+  if (!po) return;
+  const ed = editorEl(); if (!ed) return;
+  const dep = departmentsData.find(x => x.id === po.department_id);
+  const div = divisionsData.find(x => x.id === dep?.division_id);
+  const holders = (activeHoldersByPost[po.id] || []);
+  const roleName = po.default_role_id ? (roles.find(r => r.id === po.default_role_id)?.name || '') : '';
+  const senior = po.senior_post_id ? postsData.find(p => p.id === po.senior_post_id) : null;
+  const seniorText = senior ? senior.name : 'Department Head (default)';
+  const holdersHtml = holders.length
+    ? holders.map(h => _profHeadPill(h.user_id)).join(' ')
+    : '<span style="color:var(--text-dim);font-size:0.86rem;">Vacant</span>';
+  ed.innerHTML = `<div class="ax-profile">
+    <div class="breadcrumb">
+      <a data-jump="division" data-id="${div?.id}">${escapeHtml(div?.name || 'Division')}</a> ›
+      <a data-jump="department" data-id="${dep?.id}">${escapeHtml(dep?.name || 'Department')}</a> › Post
+    </div>
+    <h2>${escapeHtml(po.name)}</h2>
+
+    <h3>Who holds this post</h3>
+    <div style="margin-bottom:12px;">${holdersHtml}</div>
+
+    ${_profBlock('Purpose', po.purpose)}
+    ${_profBlock('What it produces', po.valuable_final_product)}
+    ${_profBlock('Description', po.description)}
+
+    <h3>Reporting &amp; role</h3>
+    <div class="ax-editor-row" style="margin-bottom:8px;"><label style="display:block;margin-bottom:2px;">Reports to</label><div style="font-size:0.9rem;color:var(--text);">${escapeHtml(seniorText)}</div></div>
+    <div class="ax-editor-row" style="margin-bottom:8px;"><label style="display:block;margin-bottom:2px;">Auto-assigned role</label><div style="font-size:0.9rem;color:var(--text);">${roleName ? escapeHtml(roleName) : '—'}</div></div>
+
+    <h3>Policies &amp; orders</h3>
+    <div id="po-policies"></div>
+
+    ${_profActions('post', po.id, typeof openPostStats === 'function' ? openPostStats : null)}
+  </div>`;
+  _wireProfileNav('post', po.id, typeof openPostStats === 'function' ? openPostStats : null);
   loadPoliciesInto('po-policies', 'post', po.id);
 }
 

@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v534', title: 'Org Board — friendlier post editor', items: [
+      'The post editor panel is reorganized into clear sections (Identity · Who holds this post · Reporting & role · Policies), with full-width fields, plain-language hints under each one, and a Save bar that stays pinned at the bottom.',
+      'Technical fields (slug, sort order) are tucked into an “Advanced” section so the everyday fields are front and centre.',
+    ] },
     { version: 'v533', title: 'Fixed the Dashboards picker on Targets & Messages', items: [
       'The Dashboards menu on Targets and Messages now opens pinned to the top-right and scrolls if it’s long, so it never runs off the screen, and its items are styled like every other dashboard.',
     ] },

@@ -903,32 +903,40 @@ function renderPostEditor(po) {
     </div>
     <h2>${escapeHtml(po.name)}</h2>
 
-    <div class="ax-editor-row"><label>Name</label><input id="po-name" value="${escapeHtml(po.name)}"></div>
-    <div class="ax-editor-row"><label>Slug</label><input id="po-slug" value="${escapeHtml(po.slug)}"></div>
-    <div class="ax-editor-row"><label title="One sentence: why does this post exist?">Purpose</label><input id="po-purpose" value="${escapeHtml(po.purpose || '')}" placeholder="One sentence: why does this post exist?"></div>
-    <div class="ax-editor-row"><label title="The single tangible thing this post produces and ships out.">What this produces</label><input id="po-vfp" value="${escapeHtml(po.valuable_final_product || '')}" placeholder="The tangible thing this post produces and ships"></div>
-    <div class="ax-editor-row"><label>Description</label><textarea id="po-desc">${escapeHtml(po.description || '')}</textarea></div>
-    <div class="ax-editor-row"><label title="Whoever holds this post automatically receives this role's permissions.">Auto-assigned role</label><select id="po-role">${roleOpts}</select></div>
-    <div class="ax-editor-row"><label title="Which post does this one report up to? Leave blank to default to the Department Head.">Reports to (senior post)</label><select id="po-senior"></select></div>
-    <div class="ax-editor-row"><label>Sort order</label><input id="po-sort" type="number" value="${po.sort_order || 0}" style="max-width:120px;"></div>
+    <h3>Identity</h3>
+    <div class="ax-editor-row"><label>Post name</label><input id="po-name" value="${escapeHtml(po.name)}" placeholder="e.g. Coach — Jane"><div class="ax-hint">How this post appears on the board.</div></div>
+    <div class="ax-editor-row"><label>Purpose</label><input id="po-purpose" value="${escapeHtml(po.purpose || '')}" placeholder="Why does this post exist?"><div class="ax-hint">One sentence — the reason this post exists.</div></div>
+    <div class="ax-editor-row"><label>What it produces</label><input id="po-vfp" value="${escapeHtml(po.valuable_final_product || '')}" placeholder="The thing this post ships"><div class="ax-hint">The single tangible product this post is accountable for.</div></div>
+    <div class="ax-editor-row"><label>Description <span style="font-weight:400;color:var(--text-dim);">(optional)</span></label><textarea id="po-desc" placeholder="Any extra detail…">${escapeHtml(po.description || '')}</textarea></div>
 
-    <h3>Assigned to <span style="font-weight:400;color:var(--text-dim);font-size:0.78rem;">(one person per post — duplicate the post to add another)</span></h3>
+    <h3>Who holds this post</h3>
+    <div class="ax-hint" style="margin:-4px 0 8px;">One person per post — use <b>Duplicate</b> below to add another seat.</div>
+    <div id="po-holders" style="margin-bottom:8px;"></div>
     <div style="display:flex;gap:6px;align-items:center;">
-      <select id="po-holder-pick" style="flex:1;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);"></select>
-      <button class="small-btn" id="po-set-holder">Assign</button>
-      <button class="small-btn" id="po-clear-holder" style="color:var(--red);">Vacate</button>
+      <select id="po-holder-pick" style="flex:1;padding:9px 11px;background:var(--surface2);border:1px solid var(--border-light);border-radius:8px;color:var(--text);font-size:0.88rem;"></select>
+      <button class="small-btn" id="po-set-holder" style="padding:8px 14px;">Assign</button>
+      <button class="small-btn" id="po-clear-holder" style="padding:8px 12px;color:var(--red);">Vacate</button>
     </div>
-    <div id="po-holders" style="margin-top:6px;"></div>
-    <button class="small-btn" id="po-duplicate" style="margin-top:10px;background:var(--surface3);">⧉ Duplicate post (add another)</button>
+    <button class="small-btn" id="po-duplicate" style="margin-top:10px;background:var(--surface3);padding:7px 12px;">⧉ Duplicate this post</button>
 
-    <h3>Policies & orders</h3>
+    <h3>Reporting &amp; role</h3>
+    <div class="ax-editor-row"><label>Reports to</label><select id="po-senior"></select><div class="ax-hint">The senior post this one answers to. Leave as default to report to the Department Head.</div></div>
+    <div class="ax-editor-row"><label>Auto-assigned role</label><select id="po-role">${roleOpts}</select><div class="ax-hint">Whoever holds this post automatically gets this role's permissions.</div></div>
+
+    <details class="ax-advanced">
+      <summary>Advanced</summary>
+      <div class="ax-editor-row" style="margin-top:8px;"><label>Slug</label><input id="po-slug" value="${escapeHtml(po.slug)}"><div class="ax-hint">Internal identifier — auto-generated from the name; change only if you know why.</div></div>
+      <div class="ax-editor-row"><label>Sort order</label><input id="po-sort" type="number" value="${po.sort_order || 0}" style="max-width:120px;"><div class="ax-hint">Lower numbers appear first within the department.</div></div>
+    </details>
+
+    <h3>Policies &amp; orders</h3>
     <div id="po-policies"></div>
-    <div style="font-size:0.74rem;color:var(--text-dim);margin-top:4px;">Policies set here apply only to this post. Inherited policies from the parent department and division show with an "↑ from" badge.</div>
-    <button class="small-btn" id="po-add-policy" style="margin-top:8px;display:none;">+ Add policy / order</button>
+    <div class="ax-hint" style="margin-top:4px;">Policies set here apply only to this post. Inherited ones from the parent department and division show an "↑ from" badge.</div>
+    <button class="small-btn" id="po-add-policy" style="margin-top:8px;display:none;padding:7px 12px;">+ Add policy / order</button>
 
     <div class="ax-actions">
-      <button class="btn-primary" id="po-save">Save</button>
-      <button class="btn-ghost" style="color:var(--red);" id="po-delete">Delete post</button>
+      <button class="btn-primary" id="po-save">Save changes</button>
+      <button class="btn-ghost" style="color:var(--red);" id="po-delete">Delete</button>
       <span class="ax-msg" id="po-msg"></span>
     </div>
   </div>`;
@@ -1035,7 +1043,7 @@ async function refreshPostHolders(postId) {
     const rows = (j.rows || []).filter(r => !r.ended_at);
     const wrap = document.getElementById('po-holders');
     if (!wrap) return;
-    if (!rows.length) { wrap.innerHTML = '<span style="color:var(--text-dim);font-size:0.82rem;">No one assigned yet — pick someone above and click Assign.</span>'; return; }
+    if (!rows.length) { wrap.innerHTML = '<span style="color:var(--text-dim);font-size:0.82rem;">Vacant — pick someone below and click Assign.</span>'; return; }
     wrap.innerHTML = rows.map(r => {
       return `<span class="holder-pill" title="${escapeHtml(_emailOf(r.user_id) || '')}">
         <span class="holder-pill-av">${escapeHtml(_initialOf(r.user_id))}</span>

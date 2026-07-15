@@ -101,15 +101,29 @@
   .ax-row-meta { font-size: 0.74rem; color: var(--text-dim); margin-top: 3px; display: flex; gap: 6px; flex-wrap: wrap; }
   .ax-editor-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; min-height: 360px; }
   .ax-editor-empty { padding: 60px 20px; text-align: center; color: var(--text-dim); }
-  .ax-editor { padding: 18px 20px; }
-  .ax-editor h2 { font-size: 1.05rem; margin: 0 0 6px; }
-  .ax-editor h3 { font-size: 0.9rem; margin: 18px 0 10px; color: var(--text-muted); font-weight: 600; }
-  .ax-editor-row { display: flex; gap: 10px; align-items: center; margin: 8px 0; }
-  .ax-editor-row label { width: 110px; font-size: 0.82rem; color: var(--text-muted); }
+  .ax-editor { padding: 16px 18px 80px; }
+  .ax-editor h2 { font-size: 1.18rem; margin: 0 0 2px; letter-spacing: -0.01em; }
+  /* Section headers: clear uppercase dividers with a hairline above. */
+  .ax-editor h3 { font-size: 0.72rem; letter-spacing: .06em; text-transform: uppercase; margin: 22px 0 12px; padding-top: 14px; border-top: 1px solid var(--border); color: var(--text-muted); font-weight: 700; }
+  .ax-editor h3:first-of-type { border-top: 0; padding-top: 0; margin-top: 16px; }
+  /* Vertical fields: label above a full-width input — far easier to read/tap in a narrow drawer. */
+  .ax-editor-row { display: flex; flex-direction: column; align-items: stretch; gap: 5px; margin: 0 0 13px; }
+  .ax-editor-row label { width: auto; font-size: 0.8rem; color: var(--text); font-weight: 600; }
   .ax-editor-row input, .ax-editor-row select, .ax-editor-row textarea {
-    flex: 1; padding: 7px 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: 7px; color: var(--text); font: inherit; }
-  .ax-editor-row textarea { min-height: 80px; }
-  .ax-actions { display: flex; gap: 8px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+    width: 100%; padding: 9px 11px; background: var(--surface2); border: 1px solid var(--border-light); border-radius: 8px; color: var(--text); font: inherit; font-size: 0.88rem; }
+  .ax-editor-row input:focus, .ax-editor-row select:focus, .ax-editor-row textarea:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px rgba(52,211,153,.12); }
+  .ax-editor-row input::placeholder, .ax-editor-row textarea::placeholder { color: var(--text-dim); }
+  .ax-editor-row textarea { min-height: 68px; resize: vertical; }
+  /* Small helper text under a field (replaces title-only tooltips). */
+  .ax-hint { font-size: 0.72rem; color: var(--text-dim); line-height: 1.35; }
+  /* Collapsible "Advanced" for technical fields (slug, sort order). */
+  .ax-advanced { margin: 4px 0 6px; }
+  .ax-advanced > summary { cursor: pointer; font-size: 0.76rem; color: var(--text-muted); padding: 6px 0; list-style: none; user-select: none; }
+  .ax-advanced > summary::-webkit-details-marker { display: none; }
+  .ax-advanced > summary::before { content: '▸'; display: inline-block; margin-right: 6px; color: var(--text-dim); transition: transform .15s; }
+  .ax-advanced[open] > summary::before { transform: rotate(90deg); }
+  /* Sticky action bar so Save/Delete are always reachable without scrolling. */
+  .ax-actions { position: sticky; bottom: 0; display: flex; gap: 8px; align-items: center; margin: 18px -18px 0; padding: 12px 18px; background: var(--surface); border-top: 1px solid var(--border); }
   .ax-msg { font-size: 0.82rem; color: var(--text-muted); flex: 1; align-self: center; }
   .ax-msg.err { color: var(--red); }
   .ax-msg.ok { color: var(--accent); }
@@ -1009,6 +1023,7 @@
   /* Drawer opens read-only in view mode: no save/delete, inert inputs */
   body:not([data-org-edit="1"]) #orgDrawer .ax-editor button:not(#orgDrawerCloseBtn),
   body:not([data-org-edit="1"]) #orgDrawer .ax-editor .small-btn { display: none !important; }
+  body:not([data-org-edit="1"]) #orgDrawer .ax-actions { display: none !important; }
   body:not([data-org-edit="1"]) #orgDrawer .ax-editor input,
   body:not([data-org-edit="1"]) #orgDrawer .ax-editor select,
   body:not([data-org-edit="1"]) #orgDrawer .ax-editor textarea { pointer-events: none; opacity: .72; }

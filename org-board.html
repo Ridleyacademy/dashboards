@@ -119,6 +119,13 @@
     width: 100%; padding: 9px 11px; background: var(--surface2); border: 1px solid var(--border-light); border-radius: 8px; color: var(--text); font: inherit; font-size: 0.88rem; }
   .ax-editor-row input:focus, .ax-editor-row select:focus, .ax-editor-row textarea:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px rgba(52,211,153,.12); }
   .ax-editor-row input::placeholder, .ax-editor-row textarea::placeholder { color: var(--text-dim); }
+  /* Color input: the generic rule above paints a surface background over the
+     native swatch, hiding the chosen colour. Trim padding so the swatch — the
+     actual selected colour — fills the control and is visible. */
+  .ax-editor-row input[type=color] { padding: 3px; height: 38px; width: 100%; cursor: pointer; }
+  .ax-editor-row input[type=color]::-webkit-color-swatch-wrapper { padding: 0; }
+  .ax-editor-row input[type=color]::-webkit-color-swatch { border: 1px solid var(--border); border-radius: 5px; }
+  .ax-editor-row input[type=color]::-moz-color-swatch { border: 1px solid var(--border); border-radius: 5px; }
   .ax-editor-row textarea { min-height: 68px; resize: vertical; }
   /* Small helper text under a field (replaces title-only tooltips). */
   .ax-hint { font-size: 0.72rem; color: var(--text-dim); line-height: 1.35; }

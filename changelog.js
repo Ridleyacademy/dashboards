@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v558', title: 'Org Board — division colour picker shows its colour', items: [
+      'The Color field in a division’s edit panel now shows the current colour in the swatch (it was being hidden behind the input background). Click the ✎ pen on a division to change its colour.',
+    ] },
     { version: 'v557', title: 'Org Board — same policy builder as the Policies dashboard', items: [
       'Policies & orders on the org board now use the exact same experience as the Policies & Orders dashboard: click one to read it in the RAEO letter format, and create/edit with the full builder (type, series, concerns, rich text). Works on divisions, departments, posts and executive posts.',
     ] },

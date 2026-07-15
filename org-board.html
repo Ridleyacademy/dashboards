@@ -51,9 +51,14 @@
   .user-pill-av { width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: #06231a;
     display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.74rem; }
   .nav-dropdown { position: relative; }
-  .nav-dropdown-menu { position: absolute; top: calc(100% + 6px); right: 0; min-width: 200px; background: var(--surface);
-    border: 1px solid var(--border); border-radius: 8px; padding: 6px; display: none; box-shadow: 0 12px 32px rgba(0,0,0,.5); z-index: 200; }
+  /* Pinned to the viewport top-right so a long picker can't run off-screen. */
+  .nav-dropdown-menu { position: fixed; top: 60px; right: 12px; left: auto; bottom: auto; min-width: 210px; max-height: calc(100vh - 76px); overflow-y: auto; background: var(--surface);
+    border: 1px solid var(--border-light); border-radius: 12px; padding: 6px; display: none; box-shadow: 0 16px 40px rgba(0,0,0,.55); z-index: 1000; }
   .nav-dropdown-menu.open { display: block; }
+  .nav-dropdown-menu .nav-menu-link { display:flex; align-items:center; gap:9px; padding:8px 12px; border-radius:8px; font-size:0.8rem; font-weight:600; color:var(--text-muted); text-decoration:none; }
+  .nav-dropdown-menu .nav-menu-link:hover { background:var(--surface2); color:var(--text); }
+  .nav-dropdown-menu .nav-menu-link.active { color:var(--accent); background:rgba(52,211,153,.1); }
+  .nav-dropdown-menu .nav-menu-link svg { flex-shrink:0; }
   .main { max-width: 1500px; margin: 0 auto; padding: 24px 20px; }
   .page-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 18px; flex-wrap: wrap; }
   .page-title { font-size: 1.55rem; margin: 0 0 4px; letter-spacing: -0.02em; }

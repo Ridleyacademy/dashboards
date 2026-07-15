@@ -43,8 +43,10 @@
   .user-pill-email { font-size:0.72rem; color:var(--text-muted); max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .nav-dropdown { position:relative; }
   /* Pinned to viewport top-right so a long list never runs off-screen. */
-  .nav-dropdown-menu { display:none; position:fixed; top:60px; right:12px; left:auto; bottom:auto; min-width:210px; max-height:calc(100vh - 76px); overflow-y:auto; background:var(--surface); border:1px solid var(--border-light); border-radius:12px; padding:6px; z-index:1000; box-shadow:0 16px 40px rgba(0,0,0,0.55); }
+  .nav-dropdown-menu { display:none; min-width:210px; background:var(--surface); border:1px solid var(--border-light); border-radius:12px; padding:6px; box-shadow:0 16px 40px rgba(0,0,0,0.55); }
   .nav-dropdown-menu.open { display:block; }
+  /* Beat mobile.css's global `.topbar #navDropdownMenu` (same specificity + !important; our styles load after mobile.css so we win the tie) so the menu pins to the viewport corner and never runs off-screen. */
+  .topbar #navDropdownMenu { position:fixed !important; top:60px !important; right:12px !important; left:auto !important; bottom:auto !important; min-width:210px !important; max-height:calc(100vh - 76px) !important; overflow-y:auto !important; z-index:1000 !important; }
   .nav-menu-link { display:flex; align-items:center; gap:9px; padding:8px 12px; border-radius:8px; font-size:0.78rem; font-weight:600; color:var(--text-muted); text-decoration:none; transition:background .12s,color .12s; }
   .nav-menu-link:hover { background:var(--surface2); color:var(--text); }
   .nav-menu-link.active { color:var(--blue); background:var(--blue-bg); }

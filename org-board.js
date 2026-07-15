@@ -1235,7 +1235,7 @@ function renderPostProfile(po) {
   const tEl = document.getElementById('po-targets');
   if (tEl && window.Targets) {
     tEl.innerHTML = '<div id="poTgBoard"></div><div style="margin-top:8px;"><button class="small-btn" id="poTgNew" style="background:var(--surface3);">+ New task</button></div>';
-    Targets.renderBoard(document.getElementById('poTgBoard'), { filterPost: po.id, postId: po.id, searchBar: true });
+    Targets.renderBoard(document.getElementById('poTgBoard'), { filterPost: po.id, postId: po.id, holderIds: holders.map(h => h.user_id), searchBar: true });
     document.getElementById('poTgNew').addEventListener('click', () => Targets.openNew({ post_id: po.id, opts: { onClose: () => renderPostProfile(po), onChange: () => renderPostProfile(po) } }));
   } else if (tEl) { tEl.innerHTML = '<span style="color:var(--text-dim);font-size:0.82rem;">Targets unavailable.</span>'; }
 }
@@ -1307,7 +1307,7 @@ function renderExecProfile(ep) {
   const tEl = document.getElementById('exec-targets');
   if (tEl && window.Targets) {
     tEl.innerHTML = '<div id="execTgBoard"></div><div style="margin-top:8px;"><button class="small-btn" id="execTgNew" style="background:var(--surface3);">+ New task</button></div>';
-    Targets.renderBoard(document.getElementById('execTgBoard'), { filterExecPost: ep.id, execPostId: ep.id, searchBar: true });
+    Targets.renderBoard(document.getElementById('execTgBoard'), { filterExecPost: ep.id, execPostId: ep.id, holderIds: holders.map(h => h.user_id), searchBar: true });
     document.getElementById('execTgNew').addEventListener('click', () => Targets.openNew({ exec_post_id: ep.id, opts: { onClose: () => renderExecProfile(ep), onChange: () => renderExecProfile(ep) } }));
   } else if (tEl) { tEl.innerHTML = '<span style="color:var(--text-dim);font-size:0.82rem;">Targets unavailable.</span>'; }
 }

@@ -208,7 +208,18 @@
       if (opts.filterPost) qs.push('post_id=' + opts.filterPost);   // opts.postId is only the default post for NEW tasks
       if (opts.filterExecPost) qs.push('exec_post_id=' + opts.filterExecPost);   // executive-post task board
       const j = await _api('?api=list&' + qs.join('&'));
-      container._twRows = j.rows || [];
+      let rows = j.rows || [];
+      // Union in tasks ASSIGNED TO the post/exec holder(s), even if they aren't
+      // attached to this post — so a person's own tasks show on their profile.
+      const holderIds = [].concat(opts.holderIds || (opts.holderId ? [opts.holderId] : []));
+      for (const hid of holderIds) {
+        try {
+          const hj = await _api('?api=list&include_done=1&assignee=' + encodeURIComponent(hid));
+          const seen = new Set(rows.map(r => r.id));
+          (hj.rows || []).forEach(r => { if (!seen.has(r.id)) rows.push(r); });
+        } catch (_) {}
+      }
+      container._twRows = rows;
       // Optional persistent search bar (kept outside the redrawn board so it
       // never loses focus while typing). Filters client-side via opts.search.
       if (opts.searchBar) {

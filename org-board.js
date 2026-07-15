@@ -1217,10 +1217,21 @@ function renderPostProfile(po) {
     <h3>Policies &amp; orders</h3>
     <div id="po-policies"></div>
 
+    <h3>Targets</h3>
+    <div id="po-targets"></div>
+
     ${_profActions('post', po.id, typeof openPostStats === 'function' ? openPostStats : null)}
   </div>`;
   _wireProfileNav('post', po.id, typeof openPostStats === 'function' ? openPostStats : null);
   loadPoliciesInto('po-policies', 'post', po.id);
+  // Tasks attached to this post (same board the "My Post" panel and exec
+  // profile use), with a New task button that defaults to this post.
+  const tEl = document.getElementById('po-targets');
+  if (tEl && window.Targets) {
+    tEl.innerHTML = '<div id="poTgBoard"></div><div style="margin-top:8px;"><button class="small-btn" id="poTgNew" style="background:var(--surface3);">+ New task</button></div>';
+    Targets.renderBoard(document.getElementById('poTgBoard'), { filterPost: po.id, postId: po.id });
+    document.getElementById('poTgNew').addEventListener('click', () => Targets.openNew({ post_id: po.id, opts: { onClose: () => renderPostProfile(po), onChange: () => renderPostProfile(po) } }));
+  } else if (tEl) { tEl.innerHTML = '<span style="color:var(--text-dim);font-size:0.82rem;">Targets unavailable.</span>'; }
 }
 
 // Executive posts live above the divisions; clicking one opens this read-only

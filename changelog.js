@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v560', title: 'Org Board — post profiles show their targets', items: [
+      'A post’s profile now includes its Targets (the tasks attached to that post), with a + New task button — same as the executive-post profiles and the My Post panel.',
+    ] },
     { version: 'v559', title: 'Org Board — division colour swatch actually shows the colour', items: [
       'The Color field in a division’s edit panel now reliably shows the current colour (Safari was hiding the native swatch). It paints the colour directly and updates live as you pick.',
     ] },

@@ -146,6 +146,22 @@ async function init() {
   try { const cat = await api('?api=catalog'); roles = cat.roles || []; permissions = cat.permissions || []; rolePerms = cat.role_permissions || []; } catch (_) {}
   try { const u = await api('?api=users'); usersData = u.rows || []; } catch (_) { usersData = []; }
 
+  // Shared policy reader/builder (same UX as the Policies & Orders dashboard).
+  // allPolicies feeds series-name suggestions; best-effort.
+  try { const pj = await api('?api=policies'); window._orgAllPolicies = pj.rows || []; } catch (_) { window._orgAllPolicies = []; }
+  if (window.PolicyWidget) window.PolicyWidget.init({
+    supabaseUrl: SUPABASE_URL,
+    getToken: () => session.access_token,
+    isAdmin: () => orgIsAdmin(),
+    userId: () => session && session.user && session.user.id,
+    divisions: () => divisionsData,
+    departments: () => departmentsData,
+    posts: () => postsData,
+    execPosts: () => execPostsData,
+    users: () => usersData,
+    allPolicies: () => window._orgAllPolicies || [],
+  });
+
   setState('app');
   await loadOrgTab();
 }
@@ -1360,7 +1376,7 @@ async function loadPoliciesInto(elId, scopeType, scopeId) {
             <span style="font-size:0.66rem;font-weight:700;color:${kindColor};">${kindLabel}</span>
           </span>
         </div>
-        ${p.body ? `<div style="font-size:0.78rem;color:var(--text-muted);margin-top:4px;white-space:pre-wrap;">${escapeHtml(p.body).slice(0, 280)}${p.body.length > 280 ? '…' : ''}</div>` : ''}
+        ${(() => { const t = (window.PolicyWidget && window.PolicyWidget._stripHtml) ? window.PolicyWidget._stripHtml(p.body) : String(p.body || ''); return t.trim() ? `<div style="font-size:0.78rem;color:var(--text-muted);margin-top:4px;white-space:pre-wrap;">${escapeHtml(t).slice(0, 280)}${t.length > 280 ? '…' : ''}</div>` : ''; })()}
         ${expiryText ? `<div style="font-size:0.7rem;color:${expired ? 'var(--red)' : 'var(--text-dim)'};margin-top:4px;">${expiryText}</div>` : ''}
       </div>`;
     }).join('');
@@ -1372,7 +1388,9 @@ async function loadPoliciesInto(elId, scopeType, scopeId) {
         const sId = Number(div.dataset.sourceId);
         openOrgEditor(sType, sId);
       } else {
-        openPolicyEditModal(Number(div.dataset.pid), scopeType, scopeId);
+        // Same read view as the Policies & Orders dashboard (letter format).
+        const p = rows.find(x => x.id == div.dataset.pid);
+        openPolicyReader(p, scopeType, scopeId);
       }
     }));
   } catch (e) { el.innerHTML = `<span style="color:var(--red);font-size:0.82rem;">${escapeHtml(e.message)}</span>`; }
@@ -1473,68 +1491,31 @@ function openCreatePostModal(departmentId) {
   });
 }
 
-// Creator-based model (same as the Policies dashboard): anyone creates their
-// own; only the creator or an admin can edit/delete. Non-owners see it read-only.
-function openPolicyModal(scopeType, scopeId, existingId, canManage = true) {
-  const ro = !!existingId && !canManage;
-  showModal(`<h3>${existingId ? (ro ? 'Policy / order' : 'Edit policy / order') : 'New policy / order'}</h3>
-    <div class="ax-editor-row"><label>Kind</label><select id="p-kind" ${ro ? 'disabled' : ''}>
-      <option value="policy">Policy (standing rule)</option>
-      <option value="order">Order (directive)</option>
-    </select></div>
-    <div class="ax-editor-row"><label>Title</label><input id="p-title" ${ro ? 'disabled' : ''} placeholder="e.g. Welcome new students within 24h"></div>
-    <div class="ax-editor-row" style="align-items:flex-start;"><label style="padding-top:6px;">Body</label><textarea id="p-body" ${ro ? 'disabled' : ''} style="min-height:140px;" placeholder="What this says, who it applies to, expected behaviour."></textarea></div>
-    <div class="ax-editor-row"><label>Expires</label><input id="p-expires" type="datetime-local" ${ro ? 'disabled' : ''} style="max-width:240px;"></div>
-    <div class="ax-actions">
-      ${(existingId && canManage) ? '<button class="btn-ghost" style="color:var(--red);" id="p-delete">Delete</button>' : ''}
-      ${canManage ? `<button class="btn-primary" id="p-save">${existingId ? 'Save' : 'Create'}</button>` : ''}
-      <button class="btn-ghost" onclick="document.getElementById('modalRoot').innerHTML=''">${canManage ? 'Cancel' : 'Close'}</button>
-    </div>`);
-  const _reloadList = () => { const elId = scopeType === 'division' ? 'd-policies' : scopeType === 'department' ? 'dep-policies' : scopeType === 'executive_post' ? 'exec-policies' : 'po-policies'; loadPoliciesInto(elId, scopeType, scopeId); };
-  if (canManage) document.getElementById('p-save').addEventListener('click', async () => {
-    try {
-      const body = {
-        scope_type: scopeType, scope_id: scopeId,
-        kind: document.getElementById('p-kind').value,
-        title: document.getElementById('p-title').value.trim(),
-        body: document.getElementById('p-body').value,
-        expires_at: document.getElementById('p-expires').value || null,
-      };
-      if (!body.title) throw new Error('Title required');
-      if (existingId) await pwApi('?api=update&id=' + existingId, { method: 'POST', body });
-      else            await pwApi('?api=create', { method: 'POST', body });
-      closeModal(); _reloadList();
-    } catch (e) { alert(e.message); }
+// Element that holds each scope's policy list (same id in the editor + profile).
+function _policyElId(scopeType) { return scopeType === 'division' ? 'd-policies' : scopeType === 'department' ? 'dep-policies' : scopeType === 'executive_post' ? 'exec-policies' : 'po-policies'; }
+function _reloadPolicies(scopeType, scopeId) { loadPoliciesInto(_policyElId(scopeType), scopeType, scopeId); }
+
+// New policy / order — opens the SAME rich builder as the Policies & Orders
+// dashboard (series, concerns typeahead, rich text, letter format) via the
+// shared PolicyWidget. The scope is fixed to where you're adding it.
+function openPolicyModal(scopeType, scopeId) {
+  if (!window.PolicyWidget) return;
+  const seed = scopeType === 'executive_post' ? [] : [{ type: scopeType, id: Number(scopeId) }];
+  window.PolicyWidget.openEditor({
+    scope: { type: scopeType, id: Number(scopeId) }, seedConcerns: seed,
+    onSaved: (row) => { if (row) { const c = (window._orgAllPolicies = window._orgAllPolicies || []); c.push(row); } _reloadPolicies(scopeType, scopeId); },
   });
-  if (existingId && canManage) {
-    document.getElementById('p-delete').addEventListener('click', async () => {
-      if (!confirm('Delete this policy / order?')) return;
-      try { await pwApi('?api=delete&id=' + existingId, { method: 'POST', body: {} }); closeModal(); _reloadList(); }
-      catch (e) { alert(e.message); }
-    });
-  }
-  return existingId;
 }
 
-async function openPolicyEditModal(policyId, scopeType, scopeId) {
-  // Fetch + populate
-  try {
-    const j = scopeType === 'executive_post'
-      ? await pwApi('?api=list&scope_type=executive_post&scope_id=' + scopeId)
-      : await api('?api=policies&scope_type=' + scopeType + '&scope_id=' + scopeId);
-    const p = (j.rows || []).find(x => x.id === policyId);
-    if (!p) return;
-    const canManage = orgIsAdmin() || !!(session && session.user && p.created_by === session.user.id);
-    openPolicyModal(scopeType, scopeId, policyId, canManage);
-    document.getElementById('p-kind').value = p.kind;
-    document.getElementById('p-title').value = p.title;
-    document.getElementById('p-body').value = p.body || '';
-    if (p.expires_at) {
-      const d = new Date(p.expires_at);
-      const pad = n => String(n).padStart(2, '0');
-      document.getElementById('p-expires').value = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-    }
-  } catch (e) { alert(e.message); }
+// Clicking an existing policy opens the read view (letter format); Edit/Delete
+// live inside that reader (creator/admin only), all via the shared PolicyWidget.
+function openPolicyReader(p, scopeType, scopeId) {
+  if (!window.PolicyWidget || !p) return;
+  window.PolicyWidget.openReader(p, { onChanged: () => {
+    // Keep the series-suggestion cache roughly in sync after edits/deletes.
+    try { const c = window._orgAllPolicies; if (Array.isArray(c)) { const i = c.findIndex(x => x.id === p.id); if (i >= 0) c.splice(i, 1); } } catch (_) {}
+    _reloadPolicies(scopeType, scopeId);
+  } });
 }
 
 // ═══════════════════════════════════════════════════════════════════════

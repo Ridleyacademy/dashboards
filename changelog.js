@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v557', title: 'Org Board — same policy builder as the Policies dashboard', items: [
+      'Policies & orders on the org board now use the exact same experience as the Policies & Orders dashboard: click one to read it in the RAEO letter format, and create/edit with the full builder (type, series, concerns, rich text). Works on divisions, departments, posts and executive posts.',
+    ] },
     { version: 'v556', title: 'Org Board — executive posts get policies & targets', items: [
       'Executive-post profiles are now full profiles like regular posts: purpose, what they produce, who holds them, reporting/oversight — plus their own Policies & orders and their own Targets (tasks). Create policies and tasks directly on an executive post.',
     ] },

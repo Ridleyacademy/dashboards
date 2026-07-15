@@ -3,7 +3,8 @@
  * scope_id, kind policy|order). Reuses the access-control endpoints:
  *   ?api=policies                → list every policy/order (any authed user)
  *   ?api=divisions|departments|posts (org.view) → resolve scope names + pickers
- *   ?api=policy-create|update|delete (org.edit_policies + per-division editor)
+ *   org-policy-write ?api=create|update|delete — creator-based model:
+ *     anyone creates their own; only the creator (or an admin) edits/deletes.
  * Scope names + creator are joined client-side; no backend changes.
  */
 (function () {
@@ -38,7 +39,9 @@
   }
   const KIND = { policy: 'Policy', order: 'Order' };
 
-  let session = null, canEdit = false;
+  let session = null, isAdmin = false;
+  // Anyone can create; only the creator (or an admin) can edit/delete a policy.
+  const canEditPolicy = p => isAdmin || !!(session && p && p.created_by === session.user.id);
   let divisions = [], departments = [], posts = [];
   let divById = {}, depById = {}, postById = {}, execById = {}, userById = {};
   let policies = [];
@@ -55,11 +58,12 @@
     return j;
   }
 
-  // Dedicated fn for a policy's extras: concerns list + series (org-policy-concerns).
-  async function setExtras(policyId, extras) {
-    const r = await fetch(SUPABASE_URL + '/functions/v1/org-policy-concerns?api=set', {
-      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
-      body: JSON.stringify({ policy_id: policyId, ...extras }),
+  // Policy writes (create/update/delete) go through org-policy-write, which
+  // enforces the creator-based model (any user creates; creator/admin edits).
+  async function pw(path, opts = {}) {
+    const r = await fetch(SUPABASE_URL + '/functions/v1/org-policy-write' + path, {
+      method: opts.method || 'GET', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+      body: opts.body ? JSON.stringify(opts.body) : undefined,
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
@@ -143,7 +147,7 @@
     $('polCount').textContent = rows.length + (rows.length === 1 ? ' document' : ' documents') + (policies.length !== rows.length ? ' (of ' + policies.length + ')' : '');
     const list = $('polList');
     if (!rows.length) {
-      list.innerHTML = '<div class="empty">' + (policies.length ? 'No documents match your filters.' : 'No policies or orders yet.' + (canEdit ? ' Click <b>+ New</b> to add the first one.' : '')) + '</div>';
+      list.innerHTML = '<div class="empty">' + (policies.length ? 'No documents match your filters.' : 'No policies or orders yet. Click <b>+ New</b> to add the first one.') + '</div>';
       return;
     }
     list.innerHTML = rows.map(p => {
@@ -193,12 +197,12 @@
           ${p.expires_at ? `<div class="pl-expiry${isExpired(p) ? ' over' : ''}">${isExpired(p) ? 'Expired' : 'Expires'} ${esc(fmtDate(p.expires_at))}</div>` : ''}
         </div>
       </div>
-      ${canEdit ? `<div class="modal-foot"><span class="modal-msg"></span><button class="btn-ghost" id="dvDelete" style="color:var(--red)">Delete</button><button class="btn-primary" id="dvEdit">Edit</button></div>` : ''}`);
-    if (canEdit) {
+      ${canEditPolicy(p) ? `<div class="modal-foot"><span class="modal-msg"></span><button class="btn-ghost" id="dvDelete" style="color:var(--red)">Delete</button><button class="btn-primary" id="dvEdit">Edit</button></div>` : ''}`);
+    if (canEditPolicy(p)) {
       $('dvEdit').addEventListener('click', () => openEdit(p));
       $('dvDelete').addEventListener('click', async () => {
         if (!confirm('Delete "' + p.title + '"? This cannot be undone.')) return;
-        try { await ac('?api=policy-delete&id=' + p.id, { method: 'POST', body: {} }); policies = policies.filter(x => x.id !== p.id); closeModal(); render(); }
+        try { await pw('?api=delete&id=' + p.id, { method: 'POST', body: {} }); policies = policies.filter(x => x.id !== p.id); closeModal(); render(); }
         catch (e) { $('modalRoot').querySelector('.modal-msg').textContent = e.message; $('modalRoot').querySelector('.modal-msg').classList.add('err'); }
       });
     }
@@ -315,19 +319,18 @@
       // as its scope (drives edit permissions + where it shows on the org board).
       const orgUnit = concernsList.find(it => it.type !== 'text' && it.id != null);
       if (!orgUnit) { msg.textContent = 'Add at least one division, department or post to Concerns.'; msg.classList.add('err'); return; }
+      const seriesName = $('fSeries').value.trim() || null;
+      const seriesNumber = seriesName ? (Number($('fSeriesNum').value) || nextSeriesNumber(seriesName)) : null;
       const body = {
         scope_type: orgUnit.type, scope_id: Number(orgUnit.id),
         kind: $('fKind').value, title, body: ($('fBody').textContent.trim() ? sanitizeHtml($('fBody').innerHTML) : ''),
         expires_at: $('fExpires').value || null,
+        concerns: concernsList, series_name: seriesName, series_number: seriesNumber,
       };
       $('fSave').disabled = true; msg.textContent = 'Saving…';
       try {
-        const res = editing ? await ac('?api=policy-update&id=' + p.id, { method: 'POST', body }) : await ac('?api=policy-create', { method: 'POST', body });
+        const res = editing ? await pw('?api=update&id=' + p.id, { method: 'POST', body }) : await pw('?api=create', { method: 'POST', body });
         const row = res.row;
-        const seriesName = $('fSeries').value.trim() || null;
-        const seriesNumber = seriesName ? (Number($('fSeriesNum').value) || nextSeriesNumber(seriesName)) : null;
-        try { const cr = await setExtras(row.id, { concerns: concernsList, series_name: seriesName, series_number: seriesNumber }); Object.assign(row, { concerns: cr.row.concerns, series_name: cr.row.series_name, series_number: cr.row.series_number }); }
-        catch (ce) { Object.assign(row, { concerns: concernsList, series_name: seriesName, series_number: seriesNumber }); alert('Policy saved, but its series/concerns failed to save: ' + ce.message); }
         if (editing) { Object.assign(p, row); } else { policies.push(row); }
         enrich(); closeModal(); render();
       } catch (e) { msg.textContent = e.message; msg.classList.add('err'); $('fSave').disabled = false; }
@@ -342,8 +345,8 @@
     const email = (s.user && s.user.email) || '';
     $('userAvatar').textContent = (email[0] || 'U').toUpperCase();
     $('userEmail').textContent = email;
-    canEdit = !!(window.RidleyPerms && window.RidleyPerms.hasGranular('org.edit_policies', s.user));
-    if (canEdit) $('polNew').style.display = '';
+    isAdmin = !!(window.RidleyPerms ? window.RidleyPerms.effective(s.user).is_admin : (s.user.app_metadata && s.user.app_metadata.is_admin === true));
+    $('polNew').style.display = '';   // anyone signed in can create their own
 
     try {
       const [dv, dp, po, ex, us, pol] = await Promise.all([

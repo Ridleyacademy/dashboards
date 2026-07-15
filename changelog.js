@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v548', title: 'Policies — everyone can write their own', items: [
+      'Anyone can now create policies and orders. You can edit and delete the ones you created; only admins can edit or delete someone else’s. Others’ policies open read-only.',
+    ] },
     { version: 'v547', title: 'Policies — formatting in the text', items: [
       'The policy Text box now has a formatting toolbar: bold, italic, underline, left/center/right align, and bulleted or numbered lists. The formatting shows through on the policy letter.',
     ] },

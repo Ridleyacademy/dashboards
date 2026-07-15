@@ -9,6 +9,33 @@
 (function () {
   const $ = id => document.getElementById(id);
   const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  // Rich-text body: stored as HTML. Helpers to detect/plainify/sanitize it.
+  const looksHtml = s => /<[a-z][\s\S]*>/i.test(String(s || ''));
+  const stripHtml = h => { const d = document.createElement('div'); d.innerHTML = String(h || ''); return d.textContent || ''; };
+  // Body HTML for rendering: sanitized HTML, or plain text with line breaks.
+  const bodyHtml = s => looksHtml(s) ? sanitizeHtml(s) : esc(s || '').replace(/\n/g, '<br>');
+  // Whitelist sanitizer (defence in depth — content comes from our own toolbar +
+  // plain-text paste, but old rows / pastes are still cleaned on render).
+  function sanitizeHtml(html) {
+    const ALLOW = { B: 1, STRONG: 1, I: 1, EM: 1, U: 1, BR: 1, DIV: 1, P: 1, UL: 1, OL: 1, LI: 1, SPAN: 1, H3: 1, H4: 1, A: 1 };
+    const doc = new DOMParser().parseFromString('<div id="_r">' + String(html || '') + '</div>', 'text/html');
+    const root = doc.getElementById('_r');
+    const clean = (node) => {
+      for (const ch of [...node.childNodes]) {
+        if (ch.nodeType === 3) continue;
+        if (ch.nodeType !== 1) { ch.remove(); continue; }
+        clean(ch);
+        if (!ALLOW[ch.tagName]) { while (ch.firstChild) node.insertBefore(ch.firstChild, ch); ch.remove(); continue; }
+        for (const a of [...ch.attributes]) {
+          if (a.name === 'style') { const ta = (ch.style.textAlign || '').toLowerCase(); ch.removeAttribute('style'); if (['center', 'right', 'left', 'justify'].includes(ta)) ch.style.textAlign = ta; }
+          else if (ch.tagName === 'A' && a.name === 'href') { const h = ch.getAttribute('href') || ''; if (/^https?:|^mailto:/i.test(h)) { ch.setAttribute('target', '_blank'); ch.setAttribute('rel', 'noopener'); } else ch.removeAttribute('href'); }
+          else ch.removeAttribute(a.name);
+        }
+      }
+    };
+    clean(root);
+    return root.innerHTML;
+  }
   const KIND = { policy: 'Policy', order: 'Order' };
 
   let session = null, canEdit = false;
@@ -87,7 +114,7 @@
   }
 
   function enrich() {
-    policies.forEach(p => { const s = scopeInfo(p); p._parts = s.parts; p._divId = s.divisionId; p._scopeText = s.text; p._author = friendly(p.created_by_email); p._concernsText = (Array.isArray(p.concerns) ? p.concerns.map(concernLabel) : []).join(' '); p._seriesText = seriesLabel(p); });
+    policies.forEach(p => { const s = scopeInfo(p); p._parts = s.parts; p._divId = s.divisionId; p._scopeText = s.text; p._author = friendly(p.created_by_email); p._concernsText = (Array.isArray(p.concerns) ? p.concerns.map(concernLabel) : []).join(' '); p._seriesText = seriesLabel(p); p._bodyText = stripHtml(p.body); });
   }
 
   function _apply() {
@@ -98,7 +125,7 @@
       if (view.series && p.series_name !== view.series) return false;
       if (view.level && p.scope_type !== view.level) return false;
       if (q) {
-        const hay = (p.title + ' ' + (p.body || '') + ' ' + p._scopeText + ' ' + (p.created_by_email || '') + ' ' + p._author + ' ' + (p._concernsText || '') + ' ' + (p._seriesText || '')).toLowerCase();
+        const hay = (p.title + ' ' + (p._bodyText || '') + ' ' + p._scopeText + ' ' + (p.created_by_email || '') + ' ' + p._author + ' ' + (p._concernsText || '') + ' ' + (p._seriesText || '')).toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
@@ -121,7 +148,7 @@
     }
     list.innerHTML = rows.map(p => {
       const scope = p._parts.map((x, i) => (i ? '<span class="sc-sep">›</span>' : '') + esc(x)).join('');
-      const preview = p.body ? '<div class="pol-body-preview">' + esc(p.body) + '</div>' : '';
+      const preview = p._bodyText ? '<div class="pol-body-preview">' + esc(p._bodyText) + '</div>' : '';
       return `<div class="pol-card" data-id="${p.id}">
         <div class="pol-card-top">
           <span class="pol-badge ${p.kind === 'order' ? 'order' : 'policy'}">${esc(KIND[p.kind] || p.kind)}</span>
@@ -158,7 +185,7 @@
           <div class="pl-distribution">${concerned}</div>
           ${p.series_name ? `<div class="pl-series">${esc(seriesLabel(p))}</div>` : ''}
           <div class="pl-title">${esc(p.title)}</div>
-          <div class="pl-body">${p.body ? esc(p.body) : '<span style="color:var(--text-dim)">No text.</span>'}</div>
+          <div class="pl-body">${p.body && stripHtml(p.body).trim() ? bodyHtml(p.body) : '<span style="color:var(--text-dim)">No text.</span>'}</div>
           <div class="pl-sign">
             <div class="pl-sign-name">${esc(auth.name)}</div>
             ${auth.post ? `<div class="pl-sign-post">${esc(auth.post)}</div>` : ''}
@@ -216,7 +243,23 @@
           <div class="hint">Group related policies into a series. Shows on the letter as “&lt;name&gt; Series &lt;number&gt;”. Leave the number blank to auto-number it next in the series.</div>
         </div>
         <div class="fld"><label>Title</label><input id="fTitle" value="${esc(p?.title || '')}" placeholder="e.g. Refund approval policy"></div>
-        <div class="fld"><label>Text</label><textarea id="fBody" placeholder="The full policy or order…">${esc(p?.body || '')}</textarea></div>
+        <div class="fld"><label>Text</label>
+          <div class="rt-toolbar">
+            <button type="button" class="rt-btn" data-cmd="bold" title="Bold"><b>B</b></button>
+            <button type="button" class="rt-btn" data-cmd="italic" title="Italic"><i>I</i></button>
+            <button type="button" class="rt-btn" data-cmd="underline" title="Underline"><u>U</u></button>
+            <span class="rt-sep"></span>
+            <button type="button" class="rt-btn" data-cmd="justifyLeft" title="Align left"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="18" y2="18"/></svg></button>
+            <button type="button" class="rt-btn" data-cmd="justifyCenter" title="Center"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="6" y1="12" x2="18" y2="12"/><line x1="5" y1="18" x2="19" y2="18"/></svg></button>
+            <button type="button" class="rt-btn" data-cmd="justifyRight" title="Align right"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="9" y1="12" x2="21" y2="12"/><line x1="6" y1="18" x2="21" y2="18"/></svg></button>
+            <span class="rt-sep"></span>
+            <button type="button" class="rt-btn" data-cmd="insertUnorderedList" title="Bulleted list"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="9" y1="6" x2="21" y2="6"/><line x1="9" y1="12" x2="21" y2="12"/><line x1="9" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="1.4" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1.4" fill="currentColor" stroke="none"/></svg></button>
+            <button type="button" class="rt-btn" data-cmd="insertOrderedList" title="Numbered list" style="font-size:0.72rem;font-weight:800;">1.</button>
+            <span class="rt-sep"></span>
+            <button type="button" class="rt-btn" data-cmd="removeFormat" title="Clear formatting"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 5h12"/><path d="M10 5l-1 14"/><path d="M14 5l1 8"/><line x1="15" y1="17" x2="21" y2="21"/><line x1="21" y1="17" x2="15" y2="21"/></svg></button>
+          </div>
+          <div id="fBody" class="rt-editor" contenteditable="true" data-ph="The full policy or order…"></div>
+        </div>
         <div class="fld"><label>Expires <span style="font-weight:400;color:var(--text-dim)">(optional)</span></label><input type="date" id="fExpires" value="${p?.expires_at ? String(p.expires_at).slice(0, 10) : ''}"><div class="hint">Leave blank for no expiry.</div></div>
       </div>
       <div class="modal-foot"><span class="modal-msg"></span><button class="btn-ghost" id="fCancel">Cancel</button><button class="btn-primary" id="fSave">${editing ? 'Save changes' : 'Create'}</button></div>`);
@@ -258,6 +301,11 @@
     search.addEventListener('blur', () => setTimeout(() => menu.classList.remove('open'), 150));
     // Series: auto-fill the next number when a series name is set and no number given.
     $('fSeries').addEventListener('change', () => { const nm = $('fSeries').value.trim(); if (nm && !$('fSeriesNum').value) $('fSeriesNum').value = nextSeriesNumber(nm); });
+    // Rich-text body: load existing content, wire the toolbar, paste as plain text.
+    const fBody = $('fBody');
+    fBody.innerHTML = p?.body ? bodyHtml(p.body) : '';
+    $('modalRoot').querySelectorAll('.rt-btn').forEach(btn => btn.addEventListener('mousedown', e => { e.preventDefault(); fBody.focus(); document.execCommand(btn.dataset.cmd, false, null); }));
+    fBody.addEventListener('paste', e => { e.preventDefault(); const t = (e.clipboardData || window.clipboardData).getData('text/plain'); document.execCommand('insertText', false, t); });
     $('fCancel').addEventListener('click', closeModal);
     $('fSave').addEventListener('click', async () => {
       const msg = $('modalRoot').querySelector('.modal-msg'); msg.classList.remove('err');
@@ -269,7 +317,7 @@
       if (!orgUnit) { msg.textContent = 'Add at least one division, department or post to Concerns.'; msg.classList.add('err'); return; }
       const body = {
         scope_type: orgUnit.type, scope_id: Number(orgUnit.id),
-        kind: $('fKind').value, title, body: $('fBody').value,
+        kind: $('fKind').value, title, body: ($('fBody').textContent.trim() ? sanitizeHtml($('fBody').innerHTML) : ''),
         expires_at: $('fExpires').value || null,
       };
       $('fSave').disabled = true; msg.textContent = 'Saving…';

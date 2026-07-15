@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v547', title: 'Policies — formatting in the text', items: [
+      'The policy Text box now has a formatting toolbar: bold, italic, underline, left/center/right align, and bulleted or numbered lists. The formatting shows through on the policy letter.',
+    ] },
     { version: 'v546', title: 'Policies — top bar & picker fixed properly', items: [
       'Fixed the Policies top bar (it was wrapping to two rows) and the Dashboards picker (it opened off the left edge). Both now sit correctly, with the picker pinned to the top-right.',
     ] },

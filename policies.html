@@ -97,6 +97,17 @@
   .fld input, .fld select, .fld textarea { width:100%; padding:9px 11px; background:var(--surface2); border:1px solid var(--border-light); border-radius:8px; color:var(--text); font-size:0.88rem; font-family:inherit; }
   .fld input:focus, .fld select:focus, .fld textarea:focus { border-color:var(--blue); outline:none; box-shadow:0 0 0 3px rgba(107,158,255,.12); }
   .fld textarea { min-height:280px; resize:vertical; line-height:1.55; }
+  /* Rich-text editor for the policy body */
+  .rt-toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:3px; margin-bottom:6px; }
+  .rt-btn { min-width:30px; height:30px; padding:0 8px; display:inline-flex; align-items:center; justify-content:center; background:var(--surface2); border:1px solid var(--border); border-radius:7px; color:var(--text-muted); cursor:pointer; font-size:0.86rem; font-family:inherit; }
+  .rt-btn:hover { color:var(--text); border-color:var(--border-light); background:var(--surface3); }
+  .rt-btn b { font-weight:800; } .rt-btn i { font-style:italic; } .rt-btn u { text-decoration:underline; }
+  .rt-btn svg { width:15px; height:15px; }
+  .rt-sep { width:1px; height:20px; background:var(--border); margin:0 3px; }
+  .rt-editor { min-height:280px; max-height:46vh; overflow-y:auto; padding:11px 13px; background:var(--surface2); border:1px solid var(--border-light); border-radius:8px; color:var(--text); font-size:0.92rem; line-height:1.6; }
+  .rt-editor:focus { border-color:var(--blue); outline:none; box-shadow:0 0 0 3px rgba(107,158,255,.12); }
+  .rt-editor:empty:before { content:attr(data-ph); color:var(--text-dim); }
+  .rt-editor ul, .rt-editor ol { padding-left:1.5em; margin:5px 0; }
   .modal-foot { flex:0 0 auto; }
   .fld-row { display:flex; gap:12px; } .fld-row > .fld { flex:1; }
   .chips { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
@@ -134,7 +145,9 @@
   .pl-distribution { font-size:0.74rem; color:var(--text); line-height:1.55; margin:20px 0 4px; }
   .pl-series { text-align:center; font-size:0.82rem; font-weight:700; letter-spacing:.03em; color:var(--text); margin:14px 0 -2px; }
   .pl-title { text-align:center; font-weight:800; font-size:1.4rem; text-transform:uppercase; letter-spacing:.01em; line-height:1.25; margin:8px 0 18px; color:var(--text); }
-  .pl-body { font-size:0.96rem; line-height:1.72; white-space:pre-wrap; word-break:break-word; color:var(--text); }
+  .pl-body { font-size:0.96rem; line-height:1.72; word-break:break-word; color:var(--text); }
+  .pl-body ul, .pl-body ol { padding-left:1.5em; margin:6px 0; }
+  .pl-body b, .pl-body strong { font-weight:700; }
   .pl-sign { text-align:right; margin-top:28px; }
   .pl-sign-name { font-weight:700; font-size:0.96rem; color:var(--text); }
   .pl-sign-post { font-size:0.82rem; color:var(--text); margin-top:1px; }

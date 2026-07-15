@@ -13,7 +13,7 @@
 
   let session = null, canEdit = false;
   let divisions = [], departments = [], posts = [];
-  let divById = {}, depById = {}, postById = {};
+  let divById = {}, depById = {}, postById = {}, execById = {}, userById = {};
   let policies = [];
   const view = { search: '', kind: '', division: '', level: '', sort: 'new' };
 
@@ -30,7 +30,22 @@
 
   const friendly = email => { const l = String(email || '').split('@')[0] || 'Someone'; return l.charAt(0).toUpperCase() + l.slice(1); };
   const fmtDate = d => d ? new Date(d).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '';
+  const letterDate = d => d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
   const isExpired = p => p.expires_at && new Date(p.expires_at).getTime() < Date.now();
+  // Revision suffix: 0 → none, 1 → "R", n → "R{n-1}" (R itself means one revision).
+  const revSuffix = n => { n = Number(n) || 0; return n <= 0 ? '' : n === 1 ? ' R' : ' R' + (n - 1); };
+  // Author's name + the post they hold (regular post first, else exec post).
+  function authorInfo(p) {
+    const u = userById[p.created_by];
+    const name = (u && u.first_name) || friendly(p.created_by_email);
+    let post = '';
+    if (u) {
+      const pid = (u.post_ids || [])[0];
+      if (pid != null && postById[pid]) post = postById[pid].name;
+      else { const eid = (u.exec_post_ids || [])[0]; if (eid != null && execById[eid]) post = execById[eid].name; }
+    }
+    return { name, post };
+  }
 
   // Division › Department › Post path for a policy's scope.
   function scopeInfo(p) {
@@ -99,17 +114,24 @@
 
   function openDetail(p) {
     if (!p) return;
+    const auth = authorInfo(p);
+    const kindWord = p.kind === 'order' ? 'Order' : 'Policy Letter';
+    const concerned = p._parts.length ? p._parts.map(x => `<div>${esc(x)}</div>`).join('') : '<div>—</div>';
     shell(`
-      <div class="modal-head"><span class="pol-badge ${p.kind === 'order' ? 'order' : 'policy'}">${esc(KIND[p.kind] || p.kind)}</span><span class="mh-title">${esc(p.title)}</span><button class="modal-x">✕</button></div>
+      <div class="modal-head"><span class="mh-title">${esc(KIND[p.kind] || p.kind)}</span><button class="modal-x">✕</button></div>
       <div class="modal-body">
-        <div class="dv-meta">
-          <span><b>Scope:</b> ${p._parts.map(esc).join(' › ')}</span>
-          <span><b>Author:</b> ${esc(p._author)}</span>
-          <span><b>Created:</b> ${esc(fmtDate(p.created_at))}</span>
-          ${p.updated_at && p.updated_at !== p.created_at ? '<span><b>Updated:</b> ' + esc(fmtDate(p.updated_at)) + '</span>' : ''}
-          ${p.expires_at ? `<span style="color:${isExpired(p) ? 'var(--red)' : 'inherit'}"><b>Expires:</b> ${esc(fmtDate(p.expires_at))}</span>` : ''}
+        <div class="pl-letter">
+          <div class="pl-org">Ridley Academy Establishment Office</div>
+          <div class="pl-sub">RAEO ${esc(kindWord)} of ${esc(letterDate(p.created_at))}${esc(revSuffix(p.revision))}</div>
+          <div class="pl-distribution"><div class="pl-dist-label">Concerns</div>${concerned}</div>
+          <div class="pl-title">${esc(p.title)}</div>
+          <div class="pl-body">${p.body ? esc(p.body) : '<span style="color:var(--text-dim)">No text.</span>'}</div>
+          <div class="pl-sign">
+            <div class="pl-sign-name">${esc(auth.name)}</div>
+            ${auth.post ? `<div class="pl-sign-post">${esc(auth.post)}</div>` : ''}
+          </div>
+          ${p.expires_at ? `<div class="pl-expiry${isExpired(p) ? ' over' : ''}">${isExpired(p) ? 'Expired' : 'Expires'} ${esc(fmtDate(p.expires_at))}</div>` : ''}
         </div>
-        <div class="dv-body">${p.body ? esc(p.body) : '<span style="color:var(--text-dim)">No detail text.</span>'}</div>
       </div>
       ${canEdit ? `<div class="modal-foot"><span class="modal-msg"></span><button class="btn-ghost" id="dvDelete" style="color:var(--red)">Delete</button><button class="btn-primary" id="dvEdit">Edit</button></div>` : ''}`);
     if (canEdit) {
@@ -189,10 +211,12 @@
     if (canEdit) $('polNew').style.display = '';
 
     try {
-      const [dv, dp, po, pol] = await Promise.all([
+      const [dv, dp, po, ex, us, pol] = await Promise.all([
         ac('?api=divisions').catch(() => ({ rows: [] })),
         ac('?api=departments').catch(() => ({ rows: [] })),
         ac('?api=posts').catch(() => ({ rows: [] })),
+        ac('?api=exec-posts').catch(() => ({ rows: [] })),
+        ac('?api=users').catch(() => ({ rows: [] })),
         ac('?api=policies'),
       ]);
       divisions = (dv.rows || []).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
@@ -200,6 +224,8 @@
       divById = {}; divisions.forEach(d => divById[d.id] = d);
       depById = {}; departments.forEach(d => depById[d.id] = d);
       postById = {}; posts.forEach(p => postById[p.id] = p);
+      execById = {}; (ex.rows || []).forEach(e => execById[e.id] = e);
+      userById = {}; (us.rows || []).forEach(u => userById[u.id] = u);
       enrich();
       $('polDiv').innerHTML = '<option value="">All divisions</option>' + divisions.map(d => `<option value="${d.id}">${esc(d.name)}</option>`).join('');
     } catch (e) {

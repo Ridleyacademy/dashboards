@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v536', title: 'Policies — formal letter format', items: [
+      'Opening a policy now shows it as a formal letter: centred “Ridley Academy Establishment Office” header, an “RAEO Policy Letter of <date>” line (with an R / R1 / R2… revision mark once it’s been revised), the concerned divisions/posts listed on the left, the title centred in bold, the body, and the author’s name and post signed on the right.',
+    ] },
     { version: 'v535', title: 'New: Policies & Orders dashboard', items: [
       'A dedicated home for every policy and order. Search across all of them and filter by division, department, post, author, or date — one place to store and find these documents.',
       'Attach a policy or order to any division, department, or post; editors create and update them, everyone can read. The same documents still show on the org board where they apply.',

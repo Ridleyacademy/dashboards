@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v542-policy-editor-bigger';
+const CACHE_NAME = 'ridley-v543-policy-no-sortorder';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [

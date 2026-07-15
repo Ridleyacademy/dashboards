@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v543', title: 'Policies — dropped manual sort order', items: [
+      'Removed the “Sort order” field. Policies list newest-first by default; use the sort/filter controls (date, title, expiring) to reorder.',
+    ] },
     { version: 'v542', title: 'Policies — roomier editor', items: [
       'The policy editor is wider with a much taller writing area, and it caps to the screen height (scrolls inside) so it always fits.',
     ] },

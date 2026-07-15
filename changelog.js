@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v563', title: 'Org Board — policy search shows sooner', items: [
+      'The Policies & orders search box now appears as soon as a scope has more than one policy (it used to wait until there were five), so you can search them right away.',
+    ] },
     { version: 'v562', title: 'Org Board — add a policy from any profile', items: [
       'Every profile (division, department, post — like the executive posts already had) now has a + Add policy / order button, so you can create one right from the profile without opening the editor.',
     ] },

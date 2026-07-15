@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v549', title: 'Policies — draft memory + editor fix', items: [
+      'If you close the editor with unsaved changes, it now remembers your draft — reopen and it’s restored right where you left off. Drafts clear once you save.',
+      'Fixed a bug where selecting text and releasing the mouse outside the editor would close it.',
+    ] },
     { version: 'v548', title: 'Policies — everyone can write their own', items: [
       'Anyone can now create policies and orders. You can edit and delete the ones you created; only admins can edit or delete someone else’s. Others’ policies open read-only.',
     ] },

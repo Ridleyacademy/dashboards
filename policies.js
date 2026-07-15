@@ -169,10 +169,21 @@
   }
 
   // ── Modals ─────────────────────────────────────────────────────────────────
-  function closeModal() { const m = $('modalRoot'); m.classList.remove('open'); m.innerHTML = ''; }
+  // A pre-close hook lets the editor stash a draft before the modal is torn down.
+  let _preClose = null;
+  function closeModal() { const hook = _preClose; _preClose = null; if (hook) { try { hook(); } catch (_) {} } const m = $('modalRoot'); m.classList.remove('open'); m.innerHTML = ''; }
   function shell(inner) { const m = $('modalRoot'); m.innerHTML = '<div class="modal">' + inner + '</div>'; m.classList.add('open'); m.querySelector('.modal-x')?.addEventListener('click', closeModal); }
-  document.addEventListener('click', e => { if (e.target.id === 'modalRoot') closeModal(); });
+  // Close on click of the overlay ONLY if the press also STARTED on the overlay —
+  // so drag-selecting text inside and releasing outside doesn't close the modal.
+  let _downOnOverlay = false;
+  document.addEventListener('mousedown', e => { _downOnOverlay = !!(e.target && e.target.id === 'modalRoot'); });
+  document.addEventListener('click', e => { if (e.target.id === 'modalRoot' && _downOnOverlay) closeModal(); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+  // ── Draft persistence (localStorage) — remember an unsaved editor draft ──
+  const draftKey = p => 'ridley-poldraft-' + (p ? p.id : 'new');
+  const saveDraft = (k, d) => { try { localStorage.setItem(k, JSON.stringify(d)); } catch (_) {} };
+  const loadDraft = k => { try { const s = localStorage.getItem(k); return s ? JSON.parse(s) : null; } catch (_) { return null; } };
+  const clearDraft = k => { try { localStorage.removeItem(k); } catch (_) {} };
 
   function openDetail(p) {
     if (!p) return;
@@ -202,7 +213,7 @@
       $('dvEdit').addEventListener('click', () => openEdit(p));
       $('dvDelete').addEventListener('click', async () => {
         if (!confirm('Delete "' + p.title + '"? This cannot be undone.')) return;
-        try { await pw('?api=delete&id=' + p.id, { method: 'POST', body: {} }); policies = policies.filter(x => x.id !== p.id); closeModal(); render(); }
+        try { await pw('?api=delete&id=' + p.id, { method: 'POST', body: {} }); clearDraft(draftKey(p)); policies = policies.filter(x => x.id !== p.id); closeModal(); render(); }
         catch (e) { $('modalRoot').querySelector('.modal-msg').textContent = e.message; $('modalRoot').querySelector('.modal-msg').classList.add('err'); }
       });
     }
@@ -220,6 +231,8 @@
 
   function openEdit(p) {
     const editing = !!p;
+    const dkey = draftKey(p);
+    let touched = false; const markTouched = () => { touched = true; };
     // Concerns is the policy's connection to the org. Old policies with only a
     // scope (no concerns) are seeded from that scope so nothing is lost.
     let concernsList = (p && Array.isArray(p.concerns) && p.concerns.length) ? p.concerns.map(x => ({ ...x }))
@@ -273,7 +286,7 @@
       if (!concernsList.length) { box.className = 'chips-empty'; box.textContent = 'No one added yet.'; return; }
       box.className = 'chips';
       box.innerHTML = concernsList.map((it, i) => `<span class="chip${it.type === 'text' ? ' txt' : ''}">${esc(concernLabel(it))}<button data-i="${i}" title="Remove">×</button></span>`).join('');
-      box.querySelectorAll('button[data-i]').forEach(b => b.addEventListener('click', () => { concernsList.splice(Number(b.dataset.i), 1); renderChips(); }));
+      box.querySelectorAll('button[data-i]').forEach(b => b.addEventListener('click', () => { concernsList.splice(Number(b.dataset.i), 1); renderChips(); markTouched(); }));
     };
     renderChips();
     // Searchable concerns typeahead: type to filter org units, or add free text.
@@ -281,7 +294,7 @@
     const search = $('cSearch'), menu = $('cResults');
     let activeIdx = -1, results = [];
     const TAG = { division: 'Div', department: 'Dept', post: 'Post' };
-    const addItem = (item) => { concernsList.push(item); renderChips(); search.value = ''; results = []; menu.classList.remove('open'); search.focus(); };
+    const addItem = (item) => { concernsList.push(item); renderChips(); markTouched(); search.value = ''; results = []; menu.classList.remove('open'); search.focus(); };
     const chosen = () => new Set(concernsList.filter(c => c.type !== 'text').map(c => c.type + ':' + c.id));
     const draw = () => {
       const q = search.value.trim().toLowerCase();
@@ -310,6 +323,20 @@
     fBody.innerHTML = p?.body ? bodyHtml(p.body) : '';
     $('modalRoot').querySelectorAll('.rt-btn').forEach(btn => btn.addEventListener('mousedown', e => { e.preventDefault(); fBody.focus(); document.execCommand(btn.dataset.cmd, false, null); }));
     fBody.addEventListener('paste', e => { e.preventDefault(); const t = (e.clipboardData || window.clipboardData).getData('text/plain'); document.execCommand('insertText', false, t); });
+    // Draft: restore the last unsaved draft (if any), track edits, and stash on close.
+    const draft = loadDraft(dkey);
+    if (draft) {
+      if (draft.kind) $('fKind').value = draft.kind;
+      $('fTitle').value = draft.title || '';
+      $('fSeries').value = draft.seriesName || '';
+      $('fSeriesNum').value = draft.seriesNumber || '';
+      $('fExpires').value = draft.expires || '';
+      if (Array.isArray(draft.concerns)) { concernsList = draft.concerns.map(x => ({ ...x })); renderChips(); }
+      fBody.innerHTML = draft.body || '';
+    }
+    ['fKind', 'fTitle', 'fSeries', 'fSeriesNum', 'fExpires'].forEach(id => { $(id).addEventListener('input', markTouched); $(id).addEventListener('change', markTouched); });
+    fBody.addEventListener('input', markTouched);
+    _preClose = () => { if (touched) saveDraft(dkey, { kind: $('fKind').value, title: $('fTitle').value, body: fBody.innerHTML, seriesName: $('fSeries').value, seriesNumber: $('fSeriesNum').value, expires: $('fExpires').value, concerns: concernsList }); };
     $('fCancel').addEventListener('click', closeModal);
     $('fSave').addEventListener('click', async () => {
       const msg = $('modalRoot').querySelector('.modal-msg'); msg.classList.remove('err');
@@ -332,6 +359,7 @@
         const res = editing ? await pw('?api=update&id=' + p.id, { method: 'POST', body }) : await pw('?api=create', { method: 'POST', body });
         const row = res.row;
         if (editing) { Object.assign(p, row); } else { policies.push(row); }
+        clearDraft(dkey); _preClose = null;
         enrich(); closeModal(); render();
       } catch (e) { msg.textContent = e.message; msg.classList.add('err'); $('fSave').disabled = false; }
     });

@@ -97,6 +97,12 @@
   .fld input:focus, .fld select:focus, .fld textarea:focus { border-color:var(--blue); outline:none; box-shadow:0 0 0 3px rgba(107,158,255,.12); }
   .fld textarea { min-height:150px; resize:vertical; line-height:1.5; }
   .fld-row { display:flex; gap:12px; } .fld-row > .fld { flex:1; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
+  .chip { display:inline-flex; align-items:center; gap:5px; background:var(--surface3); border:1px solid var(--border); border-radius:999px; padding:4px 6px 4px 11px; font-size:0.78rem; color:var(--text); }
+  .chip.txt { border-style:dashed; }
+  .chip button { background:none; border:0; color:var(--text-dim); cursor:pointer; font-size:0.9rem; line-height:1; padding:0 2px; }
+  .chip button:hover { color:var(--red); }
+  .chips-empty { font-size:0.76rem; color:var(--text-dim); margin-bottom:8px; }
   .modal-foot { display:flex; gap:8px; align-items:center; padding:14px 18px; border-top:1px solid var(--border); background:var(--surface); }
   .modal-msg { flex:1; font-size:0.8rem; color:var(--text-muted); } .modal-msg.err { color:var(--red); }
   .btn-ghost { background:var(--surface2); border:1px solid var(--border); color:var(--text); border-radius:9px; padding:9px 14px; font-size:0.83rem; font-weight:600; cursor:pointer; font-family:inherit; }

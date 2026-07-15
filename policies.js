@@ -28,6 +28,31 @@
     return j;
   }
 
+  // Dedicated fn for the concerns distribution list (org-policy-concerns).
+  async function setConcerns(policyId, list) {
+    const r = await fetch(SUPABASE_URL + '/functions/v1/org-policy-concerns?api=set', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+      body: JSON.stringify({ policy_id: policyId, concerns: list }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+    return j;
+  }
+  // Resolve a concerns item ({type:division|department|post,id} | {type:text,label}) to a display name.
+  function concernLabel(it) {
+    if (!it) return '';
+    if (it.type === 'text') return it.label || '';
+    if (it.type === 'division') return divById[it.id]?.name || ('Division #' + it.id);
+    if (it.type === 'department') return depById[it.id]?.name || ('Department #' + it.id);
+    if (it.type === 'post') return postById[it.id]?.name || ('Post #' + it.id);
+    return '';
+  }
+  // The concerned list for a policy: its explicit concerns, else the scope path.
+  function concernedItems(p) {
+    if (Array.isArray(p.concerns) && p.concerns.length) return p.concerns.map(concernLabel).filter(Boolean);
+    return p._parts;
+  }
+
   const friendly = email => { const l = String(email || '').split('@')[0] || 'Someone'; return l.charAt(0).toUpperCase() + l.slice(1); };
   const fmtDate = d => d ? new Date(d).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '';
   const letterDate = d => d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
@@ -58,7 +83,7 @@
   }
 
   function enrich() {
-    policies.forEach(p => { const s = scopeInfo(p); p._parts = s.parts; p._divId = s.divisionId; p._scopeText = s.text; p._author = friendly(p.created_by_email); });
+    policies.forEach(p => { const s = scopeInfo(p); p._parts = s.parts; p._divId = s.divisionId; p._scopeText = s.text; p._author = friendly(p.created_by_email); p._concernsText = (Array.isArray(p.concerns) ? p.concerns.map(concernLabel) : []).join(' '); });
   }
 
   function _apply() {
@@ -68,7 +93,7 @@
       if (view.division && String(p._divId) !== view.division) return false;
       if (view.level && p.scope_type !== view.level) return false;
       if (q) {
-        const hay = (p.title + ' ' + (p.body || '') + ' ' + p._scopeText + ' ' + (p.created_by_email || '') + ' ' + p._author).toLowerCase();
+        const hay = (p.title + ' ' + (p.body || '') + ' ' + p._scopeText + ' ' + (p.created_by_email || '') + ' ' + p._author + ' ' + (p._concernsText || '')).toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
@@ -116,7 +141,8 @@
     if (!p) return;
     const auth = authorInfo(p);
     const kindWord = p.kind === 'order' ? 'Order' : 'Policy Letter';
-    const concerned = p._parts.length ? p._parts.map(x => `<div>${esc(x)}</div>`).join('') : '<div>—</div>';
+    const items = concernedItems(p);
+    const concerned = items.length ? items.map(x => `<div>${esc(x)}</div>`).join('') : '<div>—</div>';
     shell(`
       <div class="modal-head"><span class="mh-title">${esc(KIND[p.kind] || p.kind)}</span><button class="modal-x">✕</button></div>
       <div class="modal-body">
@@ -157,8 +183,21 @@
     return h;
   }
 
+  // Options for the concerns picker: every division/department/post, grouped.
+  function refOptions() {
+    let h = '<optgroup label="Divisions">' + divisions.map(d => `<option value="division:${d.id}">${esc(d.name)}</option>`).join('') + '</optgroup>';
+    let dh = '';
+    divisions.forEach(d => { const deps = departments.filter(x => x.division_id === d.id); if (deps.length) dh += deps.map(dep => `<option value="department:${dep.id}">${esc(d.name + ' › ' + dep.name)}</option>`).join(''); });
+    if (dh) h += '<optgroup label="Departments">' + dh + '</optgroup>';
+    let ph = '';
+    departments.forEach(dep => { const ps = posts.filter(x => x.department_id === dep.id); if (ps.length) { const d = divById[dep.division_id]; ph += ps.map(po => `<option value="post:${po.id}">${esc((d?.name ? d.name + ' › ' : '') + dep.name + ' › ' + po.name)}</option>`).join(''); } });
+    if (ph) h += '<optgroup label="Posts">' + ph + '</optgroup>';
+    return h;
+  }
+
   function openEdit(p) {
     const editing = !!p;
+    let concernsList = (p && Array.isArray(p.concerns) ? p.concerns : []).map(x => ({ ...x }));
     const lvl = p ? p.scope_type : 'division';
     shell(`
       <div class="modal-head"><span class="mh-title">${editing ? 'Edit' : 'New policy / order'}</span><button class="modal-x">✕</button></div>
@@ -170,6 +209,19 @@
         <div class="fld"><label id="fTargetLbl">Division</label><select id="fTarget">${targetOptions(lvl, p?.scope_id)}</select><div class="hint">Which part of the org this ${'document'} governs.</div></div>
         <div class="fld"><label>Title</label><input id="fTitle" value="${esc(p?.title || '')}" placeholder="e.g. Refund approval policy"></div>
         <div class="fld"><label>Text</label><textarea id="fBody" placeholder="The full policy or order…">${esc(p?.body || '')}</textarea></div>
+        <div class="fld">
+          <label>Concerns <span style="font-weight:400;color:var(--text-dim)">(distribution — optional)</span></label>
+          <div id="cChips"></div>
+          <div class="fld-row" style="gap:6px;">
+            <select id="cRef" style="flex:1;"><option value="">Pick a division, department or post…</option>${refOptions()}</select>
+            <button class="btn-ghost" id="cAddRef" type="button">Add</button>
+          </div>
+          <div class="fld-row" style="gap:6px;margin-top:6px;">
+            <input id="cText" placeholder="…or type anything" style="flex:1;">
+            <button class="btn-ghost" id="cAddText" type="button">Add</button>
+          </div>
+          <div class="hint">Who this concerns — pick org units or write free text. Shown on the letter; if left empty it falls back to the scope path.</div>
+        </div>
         <div class="fld-row">
           <div class="fld"><label>Expires <span style="font-weight:400;color:var(--text-dim)">(optional)</span></label><input type="date" id="fExpires" value="${p?.expires_at ? String(p.expires_at).slice(0, 10) : ''}"><div class="hint">Leave blank for no expiry.</div></div>
           <div class="fld"><label>Sort order</label><input type="number" id="fSort" value="${p?.sort_order || 0}"><div class="hint">Lower shows first within a scope.</div></div>
@@ -178,6 +230,18 @@
       <div class="modal-foot"><span class="modal-msg"></span><button class="btn-ghost" id="fCancel">Cancel</button><button class="btn-primary" id="fSave">${editing ? 'Save changes' : 'Create'}</button></div>`);
     const relabel = () => { const lv = $('fLevel').value; $('fTargetLbl').textContent = lv.charAt(0).toUpperCase() + lv.slice(1); $('fTarget').innerHTML = targetOptions(lv, null); };
     $('fLevel').addEventListener('change', relabel);
+    // Concerns chips editor
+    const renderChips = () => {
+      const box = $('cChips');
+      if (!concernsList.length) { box.className = 'chips-empty'; box.textContent = 'No one added yet.'; return; }
+      box.className = 'chips';
+      box.innerHTML = concernsList.map((it, i) => `<span class="chip${it.type === 'text' ? ' txt' : ''}">${esc(concernLabel(it))}<button data-i="${i}" title="Remove">×</button></span>`).join('');
+      box.querySelectorAll('button[data-i]').forEach(b => b.addEventListener('click', () => { concernsList.splice(Number(b.dataset.i), 1); renderChips(); }));
+    };
+    renderChips();
+    $('cAddRef').addEventListener('click', () => { const v = $('cRef').value; if (!v) return; const [type, id] = v.split(':'); concernsList.push({ type, id: Number(id) }); $('cRef').value = ''; renderChips(); });
+    $('cAddText').addEventListener('click', () => { const t = $('cText').value.trim(); if (!t) return; concernsList.push({ type: 'text', label: t }); $('cText').value = ''; renderChips(); });
+    $('cText').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('cAddText').click(); } });
     $('fCancel').addEventListener('click', closeModal);
     $('fSave').addEventListener('click', async () => {
       const msg = $('modalRoot').querySelector('.modal-msg'); msg.classList.remove('err');
@@ -193,6 +257,8 @@
       try {
         const res = editing ? await ac('?api=policy-update&id=' + p.id, { method: 'POST', body }) : await ac('?api=policy-create', { method: 'POST', body });
         const row = res.row;
+        try { const cr = await setConcerns(row.id, concernsList); row.concerns = cr.row.concerns; }
+        catch (ce) { row.concerns = concernsList; alert('Policy saved, but the concerns list failed to save: ' + ce.message); }
         if (editing) { Object.assign(p, row); } else { policies.push(row); }
         enrich(); closeModal(); render();
       } catch (e) { msg.textContent = e.message; msg.classList.add('err'); $('fSave').disabled = false; }

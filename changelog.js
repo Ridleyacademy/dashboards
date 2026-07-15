@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v566', title: 'Org Board — assign stats to a post/person', items: [
+      'Open a post, executive post or person’s Stats popup and use the new + Assign stats button to tick which Weekly-Stats metrics that person owns. Saves instantly and the charts update. (Org edit rights required.)',
+    ] },
     { version: 'v565', title: 'Org Board — policy search always visible', items: [
       'The Policies & orders search box now shows whenever a scope has any policies (it was only appearing once there were several), so it’s always there.',
     ] },

@@ -55,6 +55,18 @@ async function pwApi(path, opts = {}) {
 }
 // True if the signed-in user is an admin (bypasses the creator check).
 function orgIsAdmin() { return !!(session && session.user && session.user.app_metadata && session.user.app_metadata.is_admin === true); }
+// Stats assignment (org-stats-assign edge fn): pick which Weekly-Stats metrics
+// a person owns. Reads are open; writes gated to org editors server-side.
+async function saApi(path, opts = {}) {
+  const r = await fetch(SUPABASE_URL + '/functions/v1/org-stats-assign' + path, {
+    method: opts.method || 'GET',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+  return j;
+}
 // Targets (org-targets edge fn): staff self-assign / seniors assign per post.
 async function tgApi(path, opts = {}) {
   const r = await fetch(TG_BASE + path, {
@@ -2301,25 +2313,73 @@ function _statBtn(title, onClick) {
   return b;
 }
 
-document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (document.getElementById('orgStatsModal')) _closeStats(); } });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { const pk = document.getElementById('orgStatsPicker'); if (pk) { pk.remove(); return; } if (document.getElementById('orgStatsModal')) _closeStats(); } });
 
 // ── Stats popups (weekly-stats data via org-scoped endpoints) ────────────────
 function _fmtStat(v, unit) { v = Number(v) || 0; if (unit === 'usd') return '$' + Math.round(v).toLocaleString(); if (unit === 'pct') return (Math.round(v * 10) / 10) + '%'; return (Math.round(v * 10) / 10).toLocaleString(); }
 let _statCharts = [];
 function _closeStats() { _statCharts.forEach(c => { try { c.destroy(); } catch (_) {} }); _statCharts = []; const m = document.getElementById('orgStatsModal'); if (m) m.remove(); }
-function _openStatsShell(title, sub) {
+function _openStatsShell(title, sub, opts = {}) {
   _closeStats();
+  // When a single person's stats are shown (post/exec holder or a user), org
+  // editors get a "＋ Assign stats" button to pick which metrics that person owns.
+  const canAssign = opts.assignUser && orgCanEdit();
   const el = document.createElement('div');
   el.id = 'orgStatsModal'; el.className = 'org-stats-overlay';
-  el.innerHTML = `<div class="org-stats-card"><div class="org-stats-head"><div><h3>${escapeHtml(title)}</h3>${sub ? `<div class="org-stats-sub">${escapeHtml(sub)}</div>` : ''}</div><button id="orgStatsClose" title="Close (Esc)">×</button></div><div class="org-stats-body" id="orgStatsBody"><div style="padding:28px;color:var(--text-dim);font-size:0.85rem;">Loading stats…</div></div></div>`;
+  el.innerHTML = `<div class="org-stats-card"><div class="org-stats-head"><div><h3>${escapeHtml(title)}</h3>${sub ? `<div class="org-stats-sub">${escapeHtml(sub)}</div>` : ''}</div><div style="display:flex;gap:8px;align-items:center;">${canAssign ? '<button id="orgStatsAssign" class="small-btn" style="background:var(--surface3);padding:6px 12px;white-space:nowrap;">＋ Assign stats</button>' : ''}<button id="orgStatsClose" title="Close (Esc)">×</button></div></div><div class="org-stats-body" id="orgStatsBody"><div style="padding:28px;color:var(--text-dim);font-size:0.85rem;">Loading stats…</div></div></div>`;
   document.getElementById('modalRoot').appendChild(el);
   el.addEventListener('click', e => { if (e.target === el) _closeStats(); });
   document.getElementById('orgStatsClose').onclick = _closeStats;
+  if (canAssign) document.getElementById('orgStatsAssign').onclick = () => openStatsPicker(opts.assignUser, opts.assignName || '', opts.onAssignChange);
+}
+
+// Metric picker — tick which Weekly-Stats metrics a person owns (their
+// assigned_user_ids). Saves each toggle immediately via org-stats-assign.
+async function openStatsPicker(userId, name, onChange) {
+  if (!userId) return;
+  const old = document.getElementById('orgStatsPicker'); if (old) old.remove();
+  const picker = document.createElement('div');
+  picker.id = 'orgStatsPicker'; picker.className = 'org-stats-overlay'; picker.style.zIndex = '5000';
+  picker.innerHTML = `<div class="org-stats-card" style="max-width:520px;">
+    <div class="org-stats-head"><div><h3>Assign stats${name ? ' — ' + escapeHtml(name) : ''}</h3><div class="org-stats-sub">Tick the stats this person owns — saved instantly.</div></div><button id="spClose" title="Close">×</button></div>
+    <div style="padding:10px 14px 0;"><input id="spSearch" placeholder="Search stats…" style="width:100%;padding:8px 11px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:0.85rem;font-family:inherit;outline:none;"></div>
+    <div class="org-stats-body" id="spBody" style="padding:8px 14px 14px;"><div style="padding:20px;color:var(--text-dim);font-size:0.85rem;">Loading stats…</div></div>
+  </div>`;
+  document.getElementById('modalRoot').appendChild(picker);
+  const close = () => { picker.remove(); if (onChange) onChange(); };
+  picker.addEventListener('click', e => { if (e.target === picker) close(); });
+  document.getElementById('spClose').onclick = close;
+  let metrics = [], canEdit = false;
+  try { const j = await saApi('?api=metrics'); metrics = j.metrics || []; canEdit = !!j.can_edit; }
+  catch (e) { const b = document.getElementById('spBody'); if (b) b.innerHTML = `<div style="padding:20px;color:var(--red);font-size:0.85rem;">${escapeHtml(e.message)}</div>`; return; }
+  const paint = (q) => {
+    const ql = (q || '').toLowerCase();
+    const list = metrics.filter(m => !ql || (m.label || '').toLowerCase().includes(ql) || (m.division || '').toLowerCase().includes(ql));
+    const body = document.getElementById('spBody'); if (!body) return;
+    if (!list.length) { body.innerHTML = '<div style="padding:20px;color:var(--text-dim);font-size:0.85rem;">No stats match.</div>'; return; }
+    body.innerHTML = list.map(m => {
+      const on = Array.isArray(m.assigned_user_ids) && m.assigned_user_ids.map(String).includes(String(userId));
+      return `<label style="display:flex;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid var(--border);cursor:${canEdit ? 'pointer' : 'default'};">
+        <input type="checkbox" data-key="${escapeHtml(m.key)}" ${on ? 'checked' : ''} ${canEdit ? '' : 'disabled'} style="width:16px;height:16px;flex:0 0 auto;">
+        <span style="flex:1;font-size:0.86rem;color:var(--text);">${escapeHtml(m.label)}</span>
+        ${m.division ? `<span class="org-badge" style="margin:0;">${escapeHtml(m.division)}</span>` : ''}
+      </label>`;
+    }).join('');
+    if (!canEdit) return;
+    body.querySelectorAll('input[data-key]').forEach(cb => cb.addEventListener('change', async () => {
+      const key = cb.dataset.key, on = cb.checked; cb.disabled = true;
+      try { const r = await saApi('?api=toggle', { method: 'POST', body: { key, user_id: userId, on } }); const m = metrics.find(x => x.key === key); if (m) m.assigned_user_ids = r.assigned_user_ids; }
+      catch (e) { alert(e.message); cb.checked = !on; }
+      finally { cb.disabled = false; }
+    }));
+  };
+  paint('');
+  const s = document.getElementById('spSearch'); if (s) { s.addEventListener('input', () => paint(s.value)); s.focus(); }
 }
 function _renderStats(metrics, series) {
   const body = document.getElementById('orgStatsBody'); if (!body) return;
   const sMap = new Map((series || []).map(s => [s.metric_key, s.points || []]));
-  if (!metrics || !metrics.length) { body.innerHTML = '<div style="padding:28px;color:var(--text-dim);font-size:0.85rem;">No stats are assigned here yet. (Stats are linked to people in Weekly Stats.)</div>'; return; }
+  if (!metrics || !metrics.length) { body.innerHTML = '<div style="padding:28px;color:var(--text-dim);font-size:0.85rem;">No stats assigned yet.' + (orgCanEdit() ? ' Use <strong>＋ Assign stats</strong> above to add some.' : '') + '</div>'; return; }
   body.innerHTML = metrics.map((m, i) => { const pts = sMap.get(m.key) || []; const last = pts.length ? pts[pts.length - 1].value : 0; return `<div class="org-stat-card"><div class="org-stat-top"><span class="org-stat-label">${escapeHtml(m.label)}</span><span class="org-stat-val">${_fmtStat(last, m.unit)}</span></div><div class="org-stat-chartwrap"><canvas id="orgsc_${i}"></canvas></div></div>`; }).join('');
   metrics.forEach((m, i) => {
     const pts = sMap.get(m.key) || []; const ctx = document.getElementById('orgsc_' + i); if (!ctx || !window.Chart) return;
@@ -2336,11 +2396,12 @@ async function _unionStatsForUsers(uids) {
 }
 async function openPostStats(postId) {
   const po = postsData.find(x => x.id === postId); const holder = (activeHoldersByPost[postId] || [])[0];
-  _openStatsShell((po ? po.name : 'Post') + ' — stats', holder ? _displayOf(holder.user_id) : 'Vacant post');
+  _openStatsShell((po ? po.name : 'Post') + ' — stats', holder ? _displayOf(holder.user_id) : 'Vacant post',
+    holder ? { assignUser: holder.user_id, assignName: _displayOf(holder.user_id), onAssignChange: () => openPostStats(postId) } : {});
   if (!holder) { _renderStats([], []); return; }
   try { const j = await _loadUserStats(holder.user_id); _renderStats(j.metrics || [], j.series || []); } catch (e) { _statsErr(e); }
 }
-async function openUserStats(uid) { _openStatsShell(_displayOf(uid) + ' — stats', _emailOf(uid) || ''); try { const j = await _loadUserStats(uid); _renderStats(j.metrics || [], j.series || []); } catch (e) { _statsErr(e); } }
+async function openUserStats(uid) { _openStatsShell(_displayOf(uid) + ' — stats', _emailOf(uid) || '', { assignUser: uid, assignName: _displayOf(uid), onAssignChange: () => openUserStats(uid) }); try { const j = await _loadUserStats(uid); _renderStats(j.metrics || [], j.series || []); } catch (e) { _statsErr(e); } }
 async function openDivisionStats(divId) {
   const d = divisionsData.find(x => x.id === divId);
   _openStatsShell((d ? d.name : 'Division') + ' — division stats', 'Combined stats of everyone posted in this division');
@@ -2353,7 +2414,8 @@ async function openDivisionStats(divId) {
 async function openExecStats(epId) {
   const ep = execPostsData.find(x => x.id === epId);
   const uids = [...new Set((execHoldersByExecPost[epId] || []).map(h => h.user_id))];
-  _openStatsShell((ep ? ep.name : 'Executive post') + ' — stats', uids.map(u => _displayOf(u)).join(', ') || 'Vacant');
+  _openStatsShell((ep ? ep.name : 'Executive post') + ' — stats', uids.map(u => _displayOf(u)).join(', ') || 'Vacant',
+    uids[0] ? { assignUser: uids[0], assignName: _displayOf(uids[0]), onAssignChange: () => openExecStats(epId) } : {});
   if (!uids.length) { _renderStats([], []); return; }
   try { const { metrics, series } = await _unionStatsForUsers(uids); _renderStats(metrics, series); } catch (e) { _statsErr(e); }
 }

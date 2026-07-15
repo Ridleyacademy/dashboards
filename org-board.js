@@ -1405,9 +1405,10 @@ async function loadPoliciesInto(elId, scopeType, scopeId) {
         ${expiryText ? `<div style="font-size:0.7rem;color:${expired ? 'var(--red)' : 'var(--text-dim)'};margin-top:4px;">${expiryText}</div>` : ''}
       </div>`;
     };
-    // Search bar for policies & orders — always shown (like the targets one), so
-    // it's there the moment you need to find one as the list grows.
-    const showSearch = rows.length > 1;
+    // Search bar for policies & orders — shown whenever the scope has any (this
+    // block only runs when rows.length >= 1), so it's always there to filter as
+    // the list grows, matching the targets search.
+    const showSearch = true;
     el.innerHTML = (showSearch ? '<input class="pol-filter" placeholder="Search policies & orders…" style="width:100%;padding:8px 11px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:0.85rem;font-family:inherit;outline:none;margin-bottom:6px;">' : '') + '<div class="pol-list-inner"></div>';
     const inner = el.querySelector('.pol-list-inner');
     const wire = () => inner.querySelectorAll('[data-pid]').forEach(div => div.addEventListener('click', () => {

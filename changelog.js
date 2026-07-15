@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v565', title: 'Org Board — policy search always visible', items: [
+      'The Policies & orders search box now shows whenever a scope has any policies (it was only appearing once there were several), so it’s always there.',
+    ] },
     { version: 'v564', title: 'Org Board — profiles show the holder’s own tasks too', items: [
       'A post or executive-post profile now shows the tasks attached to it AND the tasks assigned to whoever holds it — so a task assigned to a person appears on their profile even if it isn’t pinned to that post.',
     ] },

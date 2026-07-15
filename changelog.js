@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v546', title: 'Policies — top bar & picker fixed properly', items: [
+      'Fixed the Policies top bar (it was wrapping to two rows) and the Dashboards picker (it opened off the left edge). Both now sit correctly, with the picker pinned to the top-right.',
+    ] },
     { version: 'v545', title: 'Fixed the Dashboards picker on Policies & Org Board', items: [
       'The Dashboards menu on the Policies and Org Board pages now opens pinned to the top-right corner instead of running off the left edge of the screen.',
     ] },

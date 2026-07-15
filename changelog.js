@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v567', title: 'Org Board — post stats now belong to the post, and look like Weekly Stats', items: [
+      'A post’s stats are now assigned to the POST itself (not to whoever holds it) — so they stay put when the holder changes. Use + Assign stats on a post’s Stats popup to pick which metrics belong to it.',
+      'The Stats popup now renders exactly like the Weekly Stats dashboard: same cards, big value + trend %, and the same charts.',
+    ] },
     { version: 'v566', title: 'Org Board — assign stats to a post/person', items: [
       'Open a post, executive post or person’s Stats popup and use the new + Assign stats button to tick which Weekly-Stats metrics that person owns. Saves instantly and the charts update. (Org edit rights required.)',
     ] },

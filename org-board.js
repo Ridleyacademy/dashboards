@@ -2321,27 +2321,31 @@ let _statCharts = [];
 function _closeStats() { _statCharts.forEach(c => { try { c.destroy(); } catch (_) {} }); _statCharts = []; const m = document.getElementById('orgStatsModal'); if (m) m.remove(); }
 function _openStatsShell(title, sub, opts = {}) {
   _closeStats();
-  // When a single person's stats are shown (post/exec holder or a user), org
-  // editors get a "＋ Assign stats" button to pick which metrics that person owns.
-  const canAssign = opts.assignUser && orgCanEdit();
+  // Org editors get a "＋ Assign stats" button to pick which metrics belong to
+  // this post (post-based) or person (assignPost / assignUser).
+  const canAssign = (opts.assignPost != null || opts.assignUser) && orgCanEdit();
   const el = document.createElement('div');
   el.id = 'orgStatsModal'; el.className = 'org-stats-overlay';
   el.innerHTML = `<div class="org-stats-card"><div class="org-stats-head"><div><h3>${escapeHtml(title)}</h3>${sub ? `<div class="org-stats-sub">${escapeHtml(sub)}</div>` : ''}</div><div style="display:flex;gap:8px;align-items:center;">${canAssign ? '<button id="orgStatsAssign" class="small-btn" style="background:var(--surface3);padding:6px 12px;white-space:nowrap;">＋ Assign stats</button>' : ''}<button id="orgStatsClose" title="Close (Esc)">×</button></div></div><div class="org-stats-body" id="orgStatsBody"><div style="padding:28px;color:var(--text-dim);font-size:0.85rem;">Loading stats…</div></div></div>`;
   document.getElementById('modalRoot').appendChild(el);
   el.addEventListener('click', e => { if (e.target === el) _closeStats(); });
   document.getElementById('orgStatsClose').onclick = _closeStats;
-  if (canAssign) document.getElementById('orgStatsAssign').onclick = () => openStatsPicker(opts.assignUser, opts.assignName || '', opts.onAssignChange);
+  if (canAssign) document.getElementById('orgStatsAssign').onclick = () => openStatsPicker(opts.assignPost != null ? { postId: opts.assignPost } : { userId: opts.assignUser }, opts.assignName || '', opts.onAssignChange);
 }
 
-// Metric picker — tick which Weekly-Stats metrics a person owns (their
-// assigned_user_ids). Saves each toggle immediately via org-stats-assign.
-async function openStatsPicker(userId, name, onChange) {
-  if (!userId) return;
+// Metric picker — tick which Weekly-Stats metrics belong to a post (its
+// assigned_post_ids) or a person (assigned_user_ids). Saves each toggle
+// immediately via org-stats-assign. target = { postId } | { userId }.
+async function openStatsPicker(target, name, onChange) {
+  target = target || {};
+  const isPost = target.postId != null;
+  const scopeId = isPost ? target.postId : target.userId;
+  if (scopeId == null) return;
   const old = document.getElementById('orgStatsPicker'); if (old) old.remove();
   const picker = document.createElement('div');
   picker.id = 'orgStatsPicker'; picker.className = 'org-stats-overlay'; picker.style.zIndex = '5000';
   picker.innerHTML = `<div class="org-stats-card" style="max-width:520px;">
-    <div class="org-stats-head"><div><h3>Assign stats${name ? ' — ' + escapeHtml(name) : ''}</h3><div class="org-stats-sub">Tick the stats this person owns — saved instantly.</div></div><button id="spClose" title="Close">×</button></div>
+    <div class="org-stats-head"><div><h3>Assign stats${name ? ' — ' + escapeHtml(name) : ''}</h3><div class="org-stats-sub">Tick the stats that belong to this ${isPost ? 'post' : 'person'} — saved instantly.</div></div><button id="spClose" title="Close">×</button></div>
     <div style="padding:10px 14px 0;"><input id="spSearch" placeholder="Search stats…" style="width:100%;padding:8px 11px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:0.85rem;font-family:inherit;outline:none;"></div>
     <div class="org-stats-body" id="spBody" style="padding:8px 14px 14px;"><div style="padding:20px;color:var(--text-dim);font-size:0.85rem;">Loading stats…</div></div>
   </div>`;
@@ -2358,7 +2362,9 @@ async function openStatsPicker(userId, name, onChange) {
     const body = document.getElementById('spBody'); if (!body) return;
     if (!list.length) { body.innerHTML = '<div style="padding:20px;color:var(--text-dim);font-size:0.85rem;">No stats match.</div>'; return; }
     body.innerHTML = list.map(m => {
-      const on = Array.isArray(m.assigned_user_ids) && m.assigned_user_ids.map(String).includes(String(userId));
+      const on = isPost
+        ? (Array.isArray(m.assigned_post_ids) && m.assigned_post_ids.map(Number).includes(Number(scopeId)))
+        : (Array.isArray(m.assigned_user_ids) && m.assigned_user_ids.map(String).includes(String(scopeId)));
       return `<label style="display:flex;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid var(--border);cursor:${canEdit ? 'pointer' : 'default'};">
         <input type="checkbox" data-key="${escapeHtml(m.key)}" ${on ? 'checked' : ''} ${canEdit ? '' : 'disabled'} style="width:16px;height:16px;flex:0 0 auto;">
         <span style="flex:1;font-size:0.86rem;color:var(--text);">${escapeHtml(m.label)}</span>
@@ -2368,7 +2374,7 @@ async function openStatsPicker(userId, name, onChange) {
     if (!canEdit) return;
     body.querySelectorAll('input[data-key]').forEach(cb => cb.addEventListener('change', async () => {
       const key = cb.dataset.key, on = cb.checked; cb.disabled = true;
-      try { const r = await saApi('?api=toggle', { method: 'POST', body: { key, user_id: userId, on } }); const m = metrics.find(x => x.key === key); if (m) m.assigned_user_ids = r.assigned_user_ids; }
+      try { const r = await saApi('?api=toggle', { method: 'POST', body: isPost ? { key, post_id: scopeId, on } : { key, user_id: scopeId, on } }); const m = metrics.find(x => x.key === key); if (m) { if (isPost) m.assigned_post_ids = r.assigned_post_ids; else m.assigned_user_ids = r.assigned_user_ids; } }
       catch (e) { alert(e.message); cb.checked = !on; }
       finally { cb.disabled = false; }
     }));
@@ -2376,15 +2382,91 @@ async function openStatsPicker(userId, name, onChange) {
   paint('');
   const s = document.getElementById('spSearch'); if (s) { s.addEventListener('input', () => paint(s.value)); s.focus(); }
 }
+// ── Weekly-Stats card rendering (ported verbatim from weekly-stats.js so the
+// org-board stats popup looks EXACTLY like the Weekly Stats dashboard) ───────
+const _wsMoney = v => v == null ? '—' : '$' + Math.round(Number(v)).toLocaleString();
+const _wsCount = v => v == null ? '—' : Number(v).toLocaleString();
+const _wsPctVal = v => v == null ? '—' : Number(v).toFixed(1) + '%';
+const _wsFmt = (v, unit) => unit === 'usd' ? _wsMoney(v) : (unit === 'pct' ? _wsPctVal(v) : _wsCount(v));
+const _wsFmtPct = (cur, prev, invert = false) => { if (prev == null || prev === 0) return cur > 0 ? (invert ? '-∞' : '+∞') : '0%'; let pct = ((cur - prev) / Math.abs(prev)) * 100; if (invert) pct = -pct; return (pct >= 0 ? '+' : '') + pct.toFixed(0) + '%'; };
+function _wsDelta(current, previous, invert, flatCls = 'flat') { const dir = invert ? (previous - current) : (current - previous); const cls = dir > 0 ? 'up' : dir < 0 ? 'down' : flatCls; const arrow = dir > 0 ? '▲' : dir < 0 ? '▼' : '–'; return { cls, arrow, pct: _wsFmtPct(current, previous, invert) }; }
+function _wsLastTwo(points) { if (!points || !points.length) return { current: 0, previous: 0 }; const current = points[points.length - 1]?.value ?? 0; const previous = points.length >= 2 ? points[points.length - 2].value : 0; return { current, previous }; }
+function _wsCssId(s) { return String(s).replace(/[^a-zA-Z0-9_-]/g, '_'); }
+// Weekly current-period trim: hide the still-in-progress week (the Wednesday
+// that closes the current Thu→Wed week) so an incomplete point doesn't read as
+// a drop — same default as the Weekly Stats dashboard.
+function _wsCurrentWeekISO() { const now = new Date(); const dow = now.getUTCDay(); const fwd = (3 - dow + 7) % 7; const wed = new Date(now); wed.setUTCDate(now.getUTCDate() + fwd); return new Date(Date.UTC(wed.getUTCFullYear(), wed.getUTCMonth(), wed.getUTCDate())).toISOString().slice(0, 10); }
+function _wsDisplayPts(points) { if (!points || !points.length) return points || []; const last = points[points.length - 1]; if (last && String(last.period_start).slice(0, 10) === _wsCurrentWeekISO()) return points.slice(0, -1); return points; }
+function _wsMakeChart(canvas, points, metric) {
+  const ctx = canvas.getContext('2d');
+  const isUsd = metric.unit === 'usd', isPct = metric.unit === 'pct';
+  const isLight = document.body.classList.contains('light');
+  const UP = isLight ? '#0f172a' : '#ffffff', DOWN = '#ef4444';
+  const seriesData = points.map(p => p.value);
+  const yScale = (function () {
+    const nums = (points || []).map(p => Number(p.value)).filter(n => Number.isFinite(n));
+    if (!nums.length) return null;
+    const lo = Math.min(...nums), hi = Math.max(...nums);
+    if (lo === hi) { const pad = Math.max(1, Math.abs(lo) * 0.12); const step = Math.max(1, Math.pow(10, Math.floor(Math.log10(pad)))); return { min: Math.floor((lo - pad) / step) * step, max: Math.ceil((hi + pad) / step) * step, stepSize: step }; }
+    const span = hi - lo; const step = Math.max(1, Math.pow(10, Math.floor(Math.log10(span / 4)))); const pad = span * 0.12;
+    let yMin = Math.floor((lo - pad) / step) * step, yMax = Math.ceil((hi + pad) / step) * step;
+    if (lo >= 0 && yMin < 0) yMin = 0;
+    if (metric.unit === 'pct') { yMax = Math.min(100, yMax); yMin = Math.max(0, yMin); }
+    return { min: yMin, max: yMax, stepSize: step };
+  })();
+  const pointLabelsPlugin = {
+    id: 'pl_' + metric.key,
+    afterDatasetDraw(chart, args) {
+      if (!metric.show_point_labels || args.index !== 0) return;
+      const meta = chart.getDatasetMeta(0); if (!meta?.data?.length) return;
+      const c = chart.ctx; c.save();
+      c.font = '600 10px -apple-system, BlinkMacSystemFont, "Inter", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'bottom';
+      c.fillStyle = isLight ? '#0f172a' : '#e5e7eb'; c.strokeStyle = isLight ? 'rgba(255,255,255,0.85)' : 'rgba(15,18,32,0.85)'; c.lineWidth = 3;
+      const area = chart.chartArea, drawn = [];
+      const overlaps = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+      const order = [], n = meta.data.length; if (n) { order.push(n - 1); if (n > 1) order.push(0); } for (let i = 1; i < n - 1; i++) order.push(i);
+      for (const i of order) {
+        const pt = meta.data[i]; if (!pt || pt.skip) continue;
+        const raw = chart.data.datasets[0].data[i]; if (raw == null || !Number.isFinite(Number(raw))) continue;
+        const txt = _wsFmt(raw, metric.unit), w = c.measureText(txt).width, h = 12, padX = 2;
+        let tx = pt.x; const halfW = w / 2 + padX; if (tx - halfW < area.left) tx = area.left + halfW; if (tx + halfW > area.right) tx = area.right - halfW;
+        const candidates = []; const aboveTy = pt.y - 6; if (aboveTy - h > area.top + 2) candidates.push(aboveTy); const belowTy = pt.y + 14; if (belowTy < area.bottom - 2) candidates.push(belowTy);
+        let placed = null; for (const ty of candidates) { const rect = { x: tx - w / 2, y: ty - h, w, h }; let blocked = false; for (const r of drawn) { if (overlaps(rect, r)) { blocked = true; break; } } if (!blocked) { placed = { tx, ty, rect }; break; } }
+        if (!placed) continue; c.strokeText(txt, placed.tx, placed.ty); c.fillText(txt, placed.tx, placed.ty); drawn.push(placed.rect);
+      }
+      c.restore();
+    },
+  };
+  return new Chart(ctx, {
+    type: 'line', plugins: [pointLabelsPlugin],
+    data: { labels: points.map(p => p.period_start), datasets: [{ label: metric.label || 'value', data: seriesData, backgroundColor: 'transparent', borderColor: UP, borderWidth: 2, borderCapStyle: 'round', borderJoinStyle: 'round', fill: false, tension: 0, segment: { borderColor: (s) => { const a = s.p0?.parsed?.y, b = s.p1?.parsed?.y; if (a == null || b == null) return UP; const isBad = metric.invert_chart ? (b > a) : (b < a); return isBad ? DOWN : UP; } }, pointRadius: 0, pointHoverRadius: 4, pointHoverBackgroundColor: UP, pointHoverBorderColor: isLight ? '#ffffff' : '#0f1220', pointHoverBorderWidth: 2, spanGaps: true, borderDash: metric.source === 'manual' ? [4, 3] : [] }] },
+    options: {
+      responsive: true, maintainAspectRatio: false, layout: { padding: { top: 6, right: 6, bottom: 2, left: 2 } }, interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { display: false }, tooltip: { backgroundColor: 'rgba(15,18,32,0.95)', borderColor: 'rgba(255,255,255,0.08)', borderWidth: 1, padding: 8, titleColor: '#e5e7eb', bodyColor: '#cbd5e1', titleFont: { size: 11, weight: '600' }, bodyFont: { size: 11 }, displayColors: false, callbacks: { title: (ctxs) => { if (!ctxs.length) return ''; const d = new Date(ctxs[0].label); if (isNaN(d)) return ctxs[0].label; return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }); }, label: (c) => _wsFmt(c.raw, metric.unit) } } },
+      scales: {
+        x: { ticks: { color: '#8a93b8', font: { size: 9, weight: '500' }, autoSkip: false, maxRotation: 50, minRotation: 50, padding: 4, callback: function (val) { const raw = this.getLabelForValue(val); const d = new Date(raw); if (isNaN(d)) return raw; return (d.getUTCMonth() + 1) + '/' + d.getUTCDate(); } }, grid: { display: false, drawTicks: true, tickColor: 'rgba(255,255,255,0.12)', tickLength: 4 }, border: { color: 'rgba(255,255,255,0.08)' } },
+        y: { ticks: { color: '#8a93b8', font: { size: 10 }, padding: 6, stepSize: yScale?.stepSize, callback: (v) => { if (isUsd) return '$' + (Math.abs(v) >= 1000 ? (v / 1000).toFixed(0) + 'k' : Math.round(v)); if (isPct) return (Math.round(v * 10) / 10) + '%'; return Math.round(v); } }, grid: { color: 'rgba(255,255,255,0.04)', drawTicks: false }, border: { display: false }, ...(yScale ? { min: yScale.min, max: yScale.max } : { beginAtZero: true }), reverse: !!metric.invert_chart },
+      },
+    },
+  });
+}
 function _renderStats(metrics, series) {
   const body = document.getElementById('orgStatsBody'); if (!body) return;
   const sMap = new Map((series || []).map(s => [s.metric_key, s.points || []]));
   if (!metrics || !metrics.length) { body.innerHTML = '<div style="padding:28px;color:var(--text-dim);font-size:0.85rem;">No stats assigned yet.' + (orgCanEdit() ? ' Use <strong>＋ Assign stats</strong> above to add some.' : '') + '</div>'; return; }
-  body.innerHTML = metrics.map((m, i) => { const pts = sMap.get(m.key) || []; const last = pts.length ? pts[pts.length - 1].value : 0; return `<div class="org-stat-card"><div class="org-stat-top"><span class="org-stat-label">${escapeHtml(m.label)}</span><span class="org-stat-val">${_fmtStat(last, m.unit)}</span></div><div class="org-stat-chartwrap"><canvas id="orgsc_${i}"></canvas></div></div>`; }).join('');
-  metrics.forEach((m, i) => {
-    const pts = sMap.get(m.key) || []; const ctx = document.getElementById('orgsc_' + i); if (!ctx || !window.Chart) return;
-    _statCharts.push(new Chart(ctx, { type: 'line', data: { labels: pts.map(p => p.period_start), datasets: [{ data: pts.map(p => Number(p.value) || 0), borderColor: '#34d399', backgroundColor: 'rgba(52,211,153,0.12)', fill: true, tension: 0.3, pointRadius: 0, borderWidth: 2 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { title: it => it[0]?.label || '', label: it => _fmtStat(it.parsed.y, m.unit) } } }, scales: { x: { display: false }, y: { display: false } } } }));
-  });
+  body.innerHTML = '<div class="ws-grid">' + metrics.map(m => {
+    const pts = _wsDisplayPts(sMap.get(m.key) || []);
+    const { current, previous } = _wsLastTwo(pts);
+    const { cls, arrow } = _wsDelta(current, previous, !!m.invert_chart, '');
+    const pct = _wsFmtPct(current, previous, !!m.invert_chart);
+    return `<div class="chart-card">
+      <div class="chart-card-head"><div class="chart-card-title">${escapeHtml(m.label)}</div><div class="chart-card-source ${m.source === 'derived' ? 'src-derived' : 'src-manual'}">${escapeHtml(m.source || 'manual')}</div></div>
+      <div class="chart-card-now"><span class="chart-card-value">${_wsFmt(current, m.unit)}</span><span class="chart-card-delta ${cls}">${arrow} ${pct}</span></div>
+      <div class="chart-card-wrap"><canvas id="orgsc_${_wsCssId(m.key)}"></canvas></div>
+      <div class="chart-card-foot">${pts.length} weeks · ${m.division === 'D5' ? 'D4B' : escapeHtml(m.division || '')}</div>
+    </div>`;
+  }).join('') + '</div>';
+  metrics.forEach(m => { const ctx = document.getElementById('orgsc_' + _wsCssId(m.key)); if (!ctx || !window.Chart) return; _statCharts.push(_wsMakeChart(ctx, _wsDisplayPts(sMap.get(m.key) || []), m)); });
 }
 function _statsErr(e) { const b = document.getElementById('orgStatsBody'); if (b) b.innerHTML = `<div style="padding:28px;color:var(--red);font-size:0.85rem;">${escapeHtml(e.message)}</div>`; }
 async function _loadUserStats(uid) { return wsApi('?api=stats-for-user&user_id=' + encodeURIComponent(uid)); }
@@ -2395,11 +2477,11 @@ async function _unionStatsForUsers(uids) {
   return { metrics: [...mMap.values()], series: [...sMap.values()] };
 }
 async function openPostStats(postId) {
-  const po = postsData.find(x => x.id === postId); const holder = (activeHoldersByPost[postId] || [])[0];
-  _openStatsShell((po ? po.name : 'Post') + ' — stats', holder ? _displayOf(holder.user_id) : 'Vacant post',
-    holder ? { assignUser: holder.user_id, assignName: _displayOf(holder.user_id), onAssignChange: () => openPostStats(postId) } : {});
-  if (!holder) { _renderStats([], []); return; }
-  try { const j = await _loadUserStats(holder.user_id); _renderStats(j.metrics || [], j.series || []); } catch (e) { _statsErr(e); }
+  const po = postsData.find(x => x.id === postId);
+  // Stats belong to the POST (assigned_post_ids), independent of who holds it.
+  _openStatsShell((po ? po.name : 'Post') + ' — stats', 'Stats assigned to this post',
+    { assignPost: postId, assignName: po ? po.name : '', onAssignChange: () => openPostStats(postId) });
+  try { const j = await wsApi('?api=stats-for-post&post_id=' + postId); _renderStats(j.metrics || [], j.series || []); } catch (e) { _statsErr(e); }
 }
 async function openUserStats(uid) { _openStatsShell(_displayOf(uid) + ' — stats', _emailOf(uid) || '', { assignUser: uid, assignName: _displayOf(uid), onAssignChange: () => openUserStats(uid) }); try { const j = await _loadUserStats(uid); _renderStats(j.metrics || [], j.series || []); } catch (e) { _statsErr(e); } }
 async function openDivisionStats(divId) {

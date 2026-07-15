@@ -1067,7 +1067,23 @@
   .org-stats-head h3 { margin: 0; font-size: 1rem; }
   .org-stats-sub { font-size: 0.78rem; color: var(--text-dim); margin-top: 3px; }
   .org-stats-head button { background: none; border: 0; color: var(--text-dim); font-size: 1.5rem; line-height: 1; cursor: pointer; padding: 0 4px; }
-  .org-stats-body { padding: 16px 20px; overflow: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+  .org-stats-body { padding: 16px 20px; overflow: auto; }
+  /* Stats popup grid + card — matched to the Weekly Stats dashboard exactly. */
+  .ws-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+  .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 18px 20px 16px; transition: transform 0.18s, border-color 0.18s; position: relative; }
+  .chart-card:hover { transform: translateY(-2px); border-color: var(--border-light); }
+  .chart-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+  .chart-card-title { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); flex: 1; }
+  .chart-card-source { font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; padding: 2px 7px; border-radius: 999px; }
+  .chart-card .src-derived { background: var(--green-bg, rgba(52,211,153,.14)); color: var(--green, #34d399); }
+  .chart-card .src-manual  { background: var(--blue-bg, rgba(107,158,255,.14));  color: var(--blue, #6b9eff);  }
+  .chart-card-now { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+  .chart-card-value { font-size: 1.4rem; font-weight: 900; letter-spacing: -0.03em; color: var(--text); }
+  .chart-card-delta { font-size: 0.72rem; font-weight: 700; color: var(--text-muted); }
+  .chart-card-delta.up   { color: var(--green, #34d399); }
+  .chart-card-delta.down { color: var(--red, #f87171); }
+  .chart-card-wrap { position: relative; height: 160px; }
+  .chart-card-foot { font-size: 0.66rem; color: var(--text-dim); margin-top: 8px; }
   .org-stat-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
   .org-stat-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
   .org-stat-label { font-size: 0.76rem; color: var(--text-muted); font-weight: 600; }

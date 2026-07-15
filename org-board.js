@@ -1143,11 +1143,13 @@ function renderDivisionProfile(d) {
 
     <h3>Policies &amp; orders</h3>
     <div id="d-policies"></div>
+    <button class="small-btn" id="d-add-policy" style="margin-top:8px;display:none;padding:7px 12px;">+ Add policy / order</button>
 
     ${_profActions('division', d.id, typeof openDivisionStats === 'function' ? openDivisionStats : null)}
   </div>`;
   _wireProfileNav('division', d.id, typeof openDivisionStats === 'function' ? openDivisionStats : null);
   loadPoliciesInto('d-policies', 'division', d.id);
+  document.getElementById('d-add-policy')?.addEventListener('click', () => openPolicyModal('division', d.id));
 }
 
 function renderDepartmentProfile(dep) {
@@ -1177,11 +1179,13 @@ function renderDepartmentProfile(dep) {
 
     <h3>Policies &amp; orders</h3>
     <div id="dep-policies"></div>
+    <button class="small-btn" id="dep-add-policy" style="margin-top:8px;display:none;padding:7px 12px;">+ Add policy / order</button>
 
     ${_profActions('department', dep.id, null)}
   </div>`;
   _wireProfileNav('department', dep.id, null);
   loadPoliciesInto('dep-policies', 'department', dep.id);
+  document.getElementById('dep-add-policy')?.addEventListener('click', () => openPolicyModal('department', dep.id));
 }
 
 function renderPostProfile(po) {
@@ -1216,6 +1220,7 @@ function renderPostProfile(po) {
 
     <h3>Policies &amp; orders</h3>
     <div id="po-policies"></div>
+    <button class="small-btn" id="po-add-policy" style="margin-top:8px;display:none;padding:7px 12px;">+ Add policy / order</button>
 
     <h3>Targets</h3>
     <div id="po-targets"></div>
@@ -1224,6 +1229,7 @@ function renderPostProfile(po) {
   </div>`;
   _wireProfileNav('post', po.id, typeof openPostStats === 'function' ? openPostStats : null);
   loadPoliciesInto('po-policies', 'post', po.id);
+  document.getElementById('po-add-policy')?.addEventListener('click', () => openPolicyModal('post', po.id));
   // Tasks attached to this post (same board the "My Post" panel and exec
   // profile use), with a New task button that defaults to this post.
   const tEl = document.getElementById('po-targets');

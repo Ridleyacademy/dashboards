@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v562', title: 'Org Board — add a policy from any profile', items: [
+      'Every profile (division, department, post — like the executive posts already had) now has a + Add policy / order button, so you can create one right from the profile without opening the editor.',
+    ] },
     { version: 'v561', title: 'Org Board — search targets and policies', items: [
       'Task boards (post, executive-post and My Post) now have a search bar to filter tasks by title or tag.',
       'Policy & order lists gain a search box once there are more than a few, so long lists stay usable — searches title, text, kind and series.',

@@ -63,6 +63,8 @@
     { href: 'org-board.html', id: 'org', roles: '*', granular: 'org.view' },
     // Targets — ClickUp-style tasks (own dashboard + on the org board). Everyone.
     { href: 'targets.html', id: 'targets', roles: '*' },
+    // Policies & Orders repository — anyone who can see the org (org.view); edit gated by org.edit_policies in-page.
+    { href: 'policies.html', id: 'policies', roles: '*', granular: 'org.view' },
   ];
 
   // Resolve impersonation: when an admin "Views as" another user, all UI

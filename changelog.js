@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v535', title: 'New: Policies & Orders dashboard', items: [
+      'A dedicated home for every policy and order. Search across all of them and filter by division, department, post, author, or date — one place to store and find these documents.',
+      'Attach a policy or order to any division, department, or post; editors create and update them, everyone can read. The same documents still show on the org board where they apply.',
+    ] },
     { version: 'v534', title: 'Org Board — friendlier post editor', items: [
       'The post editor panel is reorganized into clear sections (Identity · Who holds this post · Reporting & role · Policies), with full-width fields, plain-language hints under each one, and a Save bar that stays pinned at the bottom.',
       'Technical fields (slug, sort order) are tucked into an “Advanced” section so the everyday fields are front and centre.',

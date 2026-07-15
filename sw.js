@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v534-orgpost-editor-ux';
+const CACHE_NAME = 'ridley-v535-policies-dashboard';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [
@@ -35,6 +35,8 @@ const PRECACHE = [
   '/targets.html',
   '/targets-widget.js',
   '/org-board.js',
+  '/policies.html',
+  '/policies.js',
   '/collections.html',
   '/refunds.html',
   '/support.html',

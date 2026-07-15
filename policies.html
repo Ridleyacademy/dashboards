@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Policies &amp; Orders · Ridley Academy</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg?v=303">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=303">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=303">
+<link rel="stylesheet" href="mobile.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="permissions.js"></script>
+<style>
+  :root {
+    --bg: #080a14; --surface: #0f1120; --surface2: #141728; --surface3: #191e30;
+    --border: #1f2438; --border-light: #272d45;
+    --text: #eaecf8; --text-muted: #7880a8; --text-dim: #3e4668;
+    --blue: #6b9eff; --blue-bg: rgba(107,158,255,0.12);
+    --green: #34d399; --green-bg: rgba(52,211,153,0.12);
+    --gold: #fbbf24; --gold-bg: rgba(251,191,36,0.12);
+    --red: #f87171; --red-bg: rgba(248,113,113,0.12);
+  }
+  body.light {
+    --bg:#f0f2fa; --surface:#fff; --surface2:#f5f6fc; --surface3:#eceef8;
+    --border:#dde1f2; --border-light:#ccd1e8; --text:#0f1220; --text-muted:#525b82; --text-dim:#9099be;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; }
+  #boot { padding:64px 20px; text-align:center; color:var(--text-dim); }
+  body[data-state="loading"] #app { display:none; }
+  body[data-state="app"] #boot { display:none; }
+
+  /* Topbar (standard shell) */
+  .topbar { position:sticky; top:0; z-index:100; background:rgba(8,10,20,0.85); backdrop-filter:blur(16px); border-bottom:1px solid var(--border); padding:0 24px; height:56px; display:flex; align-items:center; gap:10px; }
+  body.light .topbar { background:rgba(255,255,255,0.85); }
+  .topbar-logo { width:32px; height:32px; border-radius:9px; flex-shrink:0; background:linear-gradient(135deg,#6b9eff,#a78bfa); display:flex; align-items:center; justify-content:center; box-shadow:0 0 14px rgba(107,158,255,0.35); }
+  .topbar-brand { font-size:0.82rem; font-weight:800; letter-spacing:-0.01em; color:var(--text); margin-right:4px; }
+  .tbtn { border:none; border-radius:8px; padding:6px 12px; font-size:0.74rem; font-weight:600; cursor:pointer; transition:all 0.15s; display:inline-flex; align-items:center; gap:5px; font-family:inherit; }
+  .tbtn-ghost { background:var(--surface2); color:var(--text-muted); border:1px solid var(--border); }
+  .tbtn-ghost:hover { color:var(--text); border-color:var(--border-light); }
+  .user-pill { display:flex; align-items:center; gap:7px; background:var(--surface2); border:1px solid var(--border); border-radius:20px; padding:4px 12px 4px 4px; margin-left:auto; }
+  .user-pill-av { width:26px; height:26px; border-radius:50%; background:linear-gradient(135deg,#34d399,#6b9eff); display:flex; align-items:center; justify-content:center; font-size:0.72rem; font-weight:800; color:#fff; }
+  .user-pill-email { font-size:0.72rem; color:var(--text-muted); max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .nav-dropdown { position:relative; }
+  /* Pinned to viewport top-right so a long list never runs off-screen. */
+  .nav-dropdown-menu { display:none; position:fixed; top:60px; right:12px; left:auto; bottom:auto; min-width:210px; max-height:calc(100vh - 76px); overflow-y:auto; background:var(--surface); border:1px solid var(--border-light); border-radius:12px; padding:6px; z-index:1000; box-shadow:0 16px 40px rgba(0,0,0,0.55); }
+  .nav-dropdown-menu.open { display:block; }
+  .nav-menu-link { display:flex; align-items:center; gap:9px; padding:8px 12px; border-radius:8px; font-size:0.78rem; font-weight:600; color:var(--text-muted); text-decoration:none; transition:background .12s,color .12s; }
+  .nav-menu-link:hover { background:var(--surface2); color:var(--text); }
+  .nav-menu-link.active { color:var(--blue); background:var(--blue-bg); }
+  .nav-menu-link svg { flex-shrink:0; }
+
+  .main { max-width:1080px; margin:0 auto; padding:24px 20px 80px; }
+  .page-head { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:18px; flex-wrap:wrap; }
+  .page-title { font-size:1.55rem; letter-spacing:-0.02em; margin-bottom:3px; }
+  .page-sub { color:var(--text-muted); font-size:0.86rem; }
+  .btn-primary { padding:9px 15px; background:linear-gradient(135deg,#6b9eff,#4a7de0); color:#fff; border:0; border-radius:9px; font-weight:700; cursor:pointer; font-size:0.84rem; box-shadow:0 2px 10px rgba(107,158,255,0.3); }
+  .btn-primary:hover { transform:translateY(-1px); }
+
+  .toolbar { display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap; align-items:center; }
+  .inp { background:var(--surface); border:1px solid var(--border); color:var(--text); border-radius:9px; padding:8px 11px; font-size:0.83rem; font-family:inherit; }
+  .inp:focus { border-color:var(--blue); outline:none; }
+  #polSearch { flex:1; min-width:200px; max-width:340px; }
+  .seg { display:inline-flex; background:var(--surface); border:1px solid var(--border); border-radius:9px; padding:3px; }
+  .seg button { background:transparent; border:0; color:var(--text-muted); padding:6px 13px; border-radius:6px; font-size:0.8rem; font-weight:600; cursor:pointer; font-family:inherit; }
+  .seg button.active { background:var(--blue); color:#fff; }
+
+  .count-line { color:var(--text-dim); font-size:0.78rem; margin-bottom:10px; }
+  .pol-list { display:flex; flex-direction:column; gap:9px; }
+  .pol-card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:13px 15px; cursor:pointer; transition:border-color .12s, transform .08s; }
+  .pol-card:hover { border-color:var(--blue); }
+  .pol-card-top { display:flex; align-items:center; gap:9px; margin-bottom:5px; }
+  .pol-badge { font-size:0.6rem; font-weight:800; letter-spacing:.05em; text-transform:uppercase; padding:2px 8px; border-radius:5px; flex:0 0 auto; }
+  .pol-badge.policy { background:var(--blue-bg); color:var(--blue); }
+  .pol-badge.order { background:var(--gold-bg); color:var(--gold); }
+  .pol-title { font-size:0.95rem; font-weight:700; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pol-expired { font-size:0.6rem; font-weight:800; text-transform:uppercase; color:var(--red); background:var(--red-bg); padding:2px 7px; border-radius:5px; }
+  .pol-scope { font-size:0.76rem; color:var(--text-muted); }
+  .pol-scope .sc-sep { color:var(--text-dim); margin:0 5px; }
+  .pol-meta { display:flex; gap:14px; flex-wrap:wrap; margin-top:7px; font-size:0.72rem; color:var(--text-dim); }
+  .pol-body-preview { font-size:0.8rem; color:var(--text-muted); margin-top:6px; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+  .empty { text-align:center; padding:52px 20px; color:var(--text-dim); font-size:0.9rem; }
+
+  /* Modal */
+  .modal-overlay { display:none; position:fixed; inset:0; z-index:1100; background:rgba(0,0,0,0.62); backdrop-filter:blur(4px); align-items:flex-start; justify-content:center; padding:40px 16px; overflow-y:auto; }
+  .modal-overlay.open { display:flex; }
+  .modal { width:100%; max-width:640px; background:var(--surface); border:1px solid var(--border-light); border-radius:16px; box-shadow:0 26px 80px rgba(0,0,0,0.65); overflow:hidden; }
+  .modal-head { display:flex; align-items:center; gap:10px; padding:15px 18px; border-bottom:1px solid var(--border); background:var(--surface2); }
+  .modal-head .mh-title { font-size:1.05rem; font-weight:700; flex:1; }
+  .modal-x { width:30px; height:30px; border-radius:8px; background:var(--surface3); border:1px solid var(--border); color:var(--text); cursor:pointer; font-size:0.9rem; }
+  .modal-x:hover { color:var(--red); border-color:var(--red); }
+  .modal-body { padding:18px; }
+  .fld { margin-bottom:14px; }
+  .fld label { display:block; font-size:0.78rem; font-weight:600; color:var(--text); margin-bottom:5px; }
+  .fld .hint { font-size:0.72rem; color:var(--text-dim); margin-top:4px; }
+  .fld input, .fld select, .fld textarea { width:100%; padding:9px 11px; background:var(--surface2); border:1px solid var(--border-light); border-radius:8px; color:var(--text); font-size:0.88rem; font-family:inherit; }
+  .fld input:focus, .fld select:focus, .fld textarea:focus { border-color:var(--blue); outline:none; box-shadow:0 0 0 3px rgba(107,158,255,.12); }
+  .fld textarea { min-height:150px; resize:vertical; line-height:1.5; }
+  .fld-row { display:flex; gap:12px; } .fld-row > .fld { flex:1; }
+  .modal-foot { display:flex; gap:8px; align-items:center; padding:14px 18px; border-top:1px solid var(--border); background:var(--surface); }
+  .modal-msg { flex:1; font-size:0.8rem; color:var(--text-muted); } .modal-msg.err { color:var(--red); }
+  .btn-ghost { background:var(--surface2); border:1px solid var(--border); color:var(--text); border-radius:9px; padding:9px 14px; font-size:0.83rem; font-weight:600; cursor:pointer; font-family:inherit; }
+  /* Detail view */
+  .dv-meta { display:flex; flex-wrap:wrap; gap:8px 18px; margin-bottom:14px; font-size:0.78rem; color:var(--text-muted); }
+  .dv-meta b { color:var(--text); font-weight:600; }
+  .dv-body { font-size:0.9rem; line-height:1.6; color:var(--text); white-space:pre-wrap; word-break:break-word; }
+  .inherit-note { font-size:0.72rem; color:var(--text-dim); }
+</style>
+</head>
+<body data-state="loading">
+<div id="boot">Loading Policies &amp; Orders…</div>
+<div id="app">
+  <header class="topbar">
+    <div class="topbar-logo"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></div>
+    <span class="topbar-brand">Policies &amp; Orders</span>
+    <div class="topbar-spacer" style="flex:1;"></div>
+    <button class="tbtn tbtn-ghost" id="themeBtn" style="font-size:1rem;padding:5px 10px;" title="Toggle theme"></button>
+    <div class="nav-dropdown" id="navDropdown">
+      <button class="tbtn tbtn-ghost" id="navDropdownBtn">Dashboards <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+      <div class="nav-dropdown-menu" id="navDropdownMenu"></div>
+    </div>
+    <div class="user-pill"><div class="user-pill-av" id="userAvatar">U</div><span class="user-pill-email" id="userEmail"></span></div>
+    <button class="tbtn tbtn-ghost" id="signOutBtn">Sign Out</button>
+  </header>
+  <div class="main">
+    <div class="page-head">
+      <div>
+        <h1 class="page-title">Policies &amp; Orders</h1>
+        <div class="page-sub">Every policy and order in one place — searchable by division, post, author, or date.</div>
+      </div>
+      <button class="btn-primary" id="polNew" style="display:none;">+ New</button>
+    </div>
+    <div class="toolbar">
+      <input type="search" id="polSearch" class="inp" placeholder="Search title, text, scope or author…">
+      <div class="seg" id="polKindSeg"><button data-k="" class="active">All</button><button data-k="policy">Policies</button><button data-k="order">Orders</button></div>
+      <select id="polDiv" class="inp"><option value="">All divisions</option></select>
+      <select id="polLevel" class="inp"><option value="">Any level</option><option value="division">Division</option><option value="department">Department</option><option value="post">Post</option></select>
+      <select id="polSort" class="inp"><option value="new">Newest</option><option value="old">Oldest</option><option value="title">Title A–Z</option><option value="expiring">Expiring soon</option></select>
+    </div>
+    <div class="count-line" id="polCount"></div>
+    <div class="pol-list" id="polList"></div>
+  </div>
+</div>
+<div class="modal-overlay" id="modalRoot"></div>
+
+<script>
+const SUPABASE_URL = 'https://pojqljrhhtnigyrtzdzz.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBvanFsanJoaHRuaWd5cnR6ZHp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTA3ODMsImV4cCI6MjA5MTM4Njc4M30.PcSBDqOzbiZxZ7IAs5efqx0gsAlAG0cj3GqUOkAmxos';
+window.SUPABASE_URL = SUPABASE_URL;
+const _supa = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth:{ persistSession:true, autoRefreshToken:true } });
+</script>
+<script src="policies.js"></script>
+<script src="loading-states.js"></script>
+<script src="theme.js"></script>
+<script src="pwa.js"></script>
+<script src="ux.js"></script>
+<script src="nav-menu.js"></script>
+<script src="access-guard.js"></script>
+</body>
+</html>

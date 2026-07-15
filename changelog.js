@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v556', title: 'Org Board — executive posts get policies & targets', items: [
+      'Executive-post profiles are now full profiles like regular posts: purpose, what they produce, who holds them, reporting/oversight — plus their own Policies & orders and their own Targets (tasks). Create policies and tasks directly on an executive post.',
+    ] },
     { version: 'v555', title: 'Org Board — executive post profiles', items: [
       'Clicking an executive post (the boxes above the divisions) now opens its profile too — holder, purpose, who it reports to and what it oversees. The ✎ pen still opens the editor.',
     ] },

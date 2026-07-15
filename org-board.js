@@ -1246,6 +1246,13 @@ function renderExecProfile(ep) {
     <h3>Oversees</h3>
     <div style="display:flex;flex-direction:column;gap:4px;">${oversees || '<span style="color:var(--text-dim);font-size:0.82rem;">Nothing assigned yet.</span>'}</div>
 
+    <h3>Policies &amp; orders</h3>
+    <div id="exec-policies"></div>
+    <button class="small-btn" id="exec-add-policy" style="margin-top:8px;display:none;padding:7px 12px;">+ Add policy / order</button>
+
+    <h3>Targets</h3>
+    <div id="exec-targets"></div>
+
     <div class="ax-actions" style="border-top:1px solid var(--border);padding-top:14px;margin-top:16px;">
       ${typeof openExecStats === 'function' ? '<button class="small-btn" id="prof-stats" style="padding:8px 14px;">▤ Stats</button>' : ''}
       ${orgCanEdit() ? '<button class="btn-primary" id="prof-edit">✎ Edit</button>' : ''}
@@ -1255,6 +1262,15 @@ function renderExecProfile(ep) {
   document.querySelectorAll('[data-jump-exec-id]').forEach(el => el.addEventListener('click', () => openExecProfile(Number(el.dataset.jumpExecId))));
   const eb = document.getElementById('prof-edit'); if (eb) eb.addEventListener('click', () => openExecPostEditor(ep.id));
   const sb = document.getElementById('prof-stats'); if (sb && typeof openExecStats === 'function') sb.addEventListener('click', () => openExecStats(ep.id));
+  // Policies & orders (creator-based, exec-scoped) + the exec's own task board.
+  loadPoliciesInto('exec-policies', 'executive_post', ep.id);
+  document.getElementById('exec-add-policy')?.addEventListener('click', () => openPolicyModal('executive_post', ep.id));
+  const tEl = document.getElementById('exec-targets');
+  if (tEl && window.Targets) {
+    tEl.innerHTML = '<div id="execTgBoard"></div><div style="margin-top:8px;"><button class="small-btn" id="execTgNew" style="background:var(--surface3);">+ New task</button></div>';
+    Targets.renderBoard(document.getElementById('execTgBoard'), { filterExecPost: ep.id, execPostId: ep.id });
+    document.getElementById('execTgNew').addEventListener('click', () => Targets.openNew({ exec_post_id: ep.id, opts: { onClose: () => renderExecProfile(ep), onChange: () => renderExecProfile(ep) } }));
+  } else if (tEl) { tEl.innerHTML = '<span style="color:var(--text-dim);font-size:0.82rem;">Targets unavailable.</span>'; }
 }
 
 async function refreshExecPostHolders(execPostId) {
@@ -1305,12 +1321,16 @@ async function loadPoliciesInto(elId, scopeType, scopeId) {
   if (!el) return;
   el.innerHTML = '<span style="color:var(--text-dim);font-size:0.82rem;">Loading…</span>';
   try {
-    const j = await api('?api=policies-for-scope&scope_type=' + scopeType + '&scope_id=' + scopeId);
+    // Executive posts aren't in access-control's scope model and have no
+    // inheritance — read their own policies directly via org-policy-write.
+    const j = scopeType === 'executive_post'
+      ? await pwApi('?api=list&scope_type=executive_post&scope_id=' + scopeId)
+      : await api('?api=policies-for-scope&scope_type=' + scopeType + '&scope_id=' + scopeId);
     const rows = j.rows || [];
 
     // Anyone can create their own policy here (same as the Policies dashboard);
     // editing/deleting is gated per-policy to the creator or an admin.
-    const addBtnIdMap = { 'd-policies': 'd-add-policy', 'dep-policies': 'dep-add-policy', 'po-policies': 'po-add-policy' };
+    const addBtnIdMap = { 'd-policies': 'd-add-policy', 'dep-policies': 'dep-add-policy', 'po-policies': 'po-add-policy', 'exec-policies': 'exec-add-policy' };
     const addBtn = document.getElementById(addBtnIdMap[elId]);
     if (addBtn) addBtn.style.display = '';
 
@@ -1470,7 +1490,7 @@ function openPolicyModal(scopeType, scopeId, existingId, canManage = true) {
       ${canManage ? `<button class="btn-primary" id="p-save">${existingId ? 'Save' : 'Create'}</button>` : ''}
       <button class="btn-ghost" onclick="document.getElementById('modalRoot').innerHTML=''">${canManage ? 'Cancel' : 'Close'}</button>
     </div>`);
-  const _reloadList = () => { const elId = scopeType === 'division' ? 'd-policies' : scopeType === 'department' ? 'dep-policies' : 'po-policies'; loadPoliciesInto(elId, scopeType, scopeId); };
+  const _reloadList = () => { const elId = scopeType === 'division' ? 'd-policies' : scopeType === 'department' ? 'dep-policies' : scopeType === 'executive_post' ? 'exec-policies' : 'po-policies'; loadPoliciesInto(elId, scopeType, scopeId); };
   if (canManage) document.getElementById('p-save').addEventListener('click', async () => {
     try {
       const body = {
@@ -1499,7 +1519,9 @@ function openPolicyModal(scopeType, scopeId, existingId, canManage = true) {
 async function openPolicyEditModal(policyId, scopeType, scopeId) {
   // Fetch + populate
   try {
-    const j = await api('?api=policies&scope_type=' + scopeType + '&scope_id=' + scopeId);
+    const j = scopeType === 'executive_post'
+      ? await pwApi('?api=list&scope_type=executive_post&scope_id=' + scopeId)
+      : await api('?api=policies&scope_type=' + scopeType + '&scope_id=' + scopeId);
     const p = (j.rows || []).find(x => x.id === policyId);
     if (!p) return;
     const canManage = orgIsAdmin() || !!(session && session.user && p.created_by === session.user.id);

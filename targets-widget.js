@@ -201,6 +201,7 @@
       const qs = ['include_done=1'];
       if (opts.assignee) qs.push('assignee=' + encodeURIComponent(opts.assignee));
       if (opts.filterPost) qs.push('post_id=' + opts.filterPost);   // opts.postId is only the default post for NEW tasks
+      if (opts.filterExecPost) qs.push('exec_post_id=' + opts.filterExecPost);   // executive-post task board
       const j = await _api('?api=list&' + qs.join('&'));
       container._twRows = j.rows || [];
       _drawBoard(container, opts);
@@ -257,7 +258,7 @@
     });
     // quick-add per group
     container.querySelectorAll('.tw-qa-input').forEach(inp => {
-      const add = async () => { const v = inp.value.trim(); if (!v) return; inp.value = ''; try { const r = await _api('?api=create', { method: 'POST', body: { title: v, status: inp.dataset.status, post_id: opts.postId || null, assignee_ids: opts.assignee === 'me' ? [window.session.user.id] : [] } }); (container._twRows = container._twRows || []).push(r.row); _redraw(container, opts); } catch (e) { alert(e.message); } };
+      const add = async () => { const v = inp.value.trim(); if (!v) return; inp.value = ''; try { const r = await _api('?api=create', { method: 'POST', body: { title: v, status: inp.dataset.status, post_id: opts.postId || null, exec_post_id: opts.execPostId || null, assignee_ids: opts.assignee === 'me' ? [window.session.user.id] : [] } }); (container._twRows = container._twRows || []).push(r.row); _redraw(container, opts); } catch (e) { alert(e.message); } };
       inp.addEventListener('keydown', e => { if (e.key === 'Enter') add(); });
     });
   }
@@ -507,7 +508,7 @@
 
   async function openNew(defaults = {}) {
     try {
-      const j = await _api('?api=create', { method: 'POST', body: { title: defaults.title || 'New task', post_id: defaults.post_id || null, assignee_ids: defaults.assignee_ids || [] } });
+      const j = await _api('?api=create', { method: 'POST', body: { title: defaults.title || 'New task', post_id: defaults.post_id || null, exec_post_id: defaults.exec_post_id || null, assignee_ids: defaults.assignee_ids || [] } });
       openDetail(j.row.id, defaults.opts || {});
     } catch (e) { alert(e.message); }
   }

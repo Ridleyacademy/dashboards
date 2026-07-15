@@ -1229,7 +1229,7 @@ function renderPostProfile(po) {
   const tEl = document.getElementById('po-targets');
   if (tEl && window.Targets) {
     tEl.innerHTML = '<div id="poTgBoard"></div><div style="margin-top:8px;"><button class="small-btn" id="poTgNew" style="background:var(--surface3);">+ New task</button></div>';
-    Targets.renderBoard(document.getElementById('poTgBoard'), { filterPost: po.id, postId: po.id });
+    Targets.renderBoard(document.getElementById('poTgBoard'), { filterPost: po.id, postId: po.id, searchBar: true });
     document.getElementById('poTgNew').addEventListener('click', () => Targets.openNew({ post_id: po.id, opts: { onClose: () => renderPostProfile(po), onChange: () => renderPostProfile(po) } }));
   } else if (tEl) { tEl.innerHTML = '<span style="color:var(--text-dim);font-size:0.82rem;">Targets unavailable.</span>'; }
 }
@@ -1301,7 +1301,7 @@ function renderExecProfile(ep) {
   const tEl = document.getElementById('exec-targets');
   if (tEl && window.Targets) {
     tEl.innerHTML = '<div id="execTgBoard"></div><div style="margin-top:8px;"><button class="small-btn" id="execTgNew" style="background:var(--surface3);">+ New task</button></div>';
-    Targets.renderBoard(document.getElementById('execTgBoard'), { filterExecPost: ep.id, execPostId: ep.id });
+    Targets.renderBoard(document.getElementById('execTgBoard'), { filterExecPost: ep.id, execPostId: ep.id, searchBar: true });
     document.getElementById('execTgNew').addEventListener('click', () => Targets.openNew({ exec_post_id: ep.id, opts: { onClose: () => renderExecProfile(ep), onChange: () => renderExecProfile(ep) } }));
   } else if (tEl) { tEl.innerHTML = '<span style="color:var(--text-dim);font-size:0.82rem;">Targets unavailable.</span>'; }
 }
@@ -1371,45 +1371,52 @@ async function loadPoliciesInto(elId, scopeType, scopeId) {
       el.innerHTML = '<span style="color:var(--text-dim);font-size:0.82rem;">No policies or orders yet. Click <strong>+ Add policy / order</strong> to create one.</span>';
       return;
     }
-    el.innerHTML = rows.map(p => {
+    const _strip = (window.PolicyWidget && window.PolicyWidget._stripHtml) ? window.PolicyWidget._stripHtml : (x => String(x || ''));
+    const cardHtml = p => {
       const kindLabel = p.kind === 'order' ? 'ORDER' : p.kind === 'directive' ? 'DIRECTIVE' : 'POLICY';
       const kindColor = p.kind === 'order' ? '#fbbf24' : p.kind === 'directive' ? '#f472b6' : '#6b9eff';
       const expiry = p.expires_at ? new Date(p.expires_at) : null;
       const expired = expiry && expiry < new Date();
       const expiryText = expiry ? (expired ? `expired ${expiry.toLocaleDateString()}` : `expires ${expiry.toLocaleDateString()}`) : '';
       const inh = p.inherited_from;
-      // Inherited policies look slightly dimmer and carry an "inherited from X" badge.
       const baseStyle = inh
         ? 'padding:10px;background:var(--surface);border:1px dashed var(--border);border-radius:8px;margin-top:6px;cursor:pointer;opacity:0.92;'
         : 'padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;margin-top:6px;cursor:pointer;';
       const inhBadge = inh
         ? `<span style="font-size:0.64rem;padding:2px 6px;border-radius:4px;background:rgba(167,139,250,.18);color:#a78bfa;font-weight:700;">↑ from ${escapeHtml(inh.type)} ${escapeHtml(inh.name)}</span>`
         : '';
+      const bt = _strip(p.body);
+      const seriesBadge = p.series_name ? `<span style="font-size:0.62rem;font-weight:700;padding:1px 7px;border-radius:999px;background:rgba(167,139,250,.14);color:#a78bfa;">${escapeHtml(p.series_name + ' Series' + (p.series_number != null ? ' ' + p.series_number : ''))}</span>` : '';
       return `<div style="${baseStyle}" data-pid="${p.id}" data-inherited="${inh ? '1' : '0'}" data-source-type="${inh ? inh.type : scopeType}" data-source-id="${inh ? inh.id : scopeId}">
         <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap;">
           <span style="font-weight:600;font-size:0.88rem;">${escapeHtml(p.title)}</span>
           <span style="display:flex;gap:6px;align-items:center;">
-            ${inhBadge}
+            ${seriesBadge}${inhBadge}
             <span style="font-size:0.66rem;font-weight:700;color:${kindColor};">${kindLabel}</span>
           </span>
         </div>
-        ${(() => { const t = (window.PolicyWidget && window.PolicyWidget._stripHtml) ? window.PolicyWidget._stripHtml(p.body) : String(p.body || ''); return t.trim() ? `<div style="font-size:0.78rem;color:var(--text-muted);margin-top:4px;white-space:pre-wrap;">${escapeHtml(t).slice(0, 280)}${t.length > 280 ? '…' : ''}</div>` : ''; })()}
+        ${bt.trim() ? `<div style="font-size:0.78rem;color:var(--text-muted);margin-top:4px;white-space:pre-wrap;">${escapeHtml(bt).slice(0, 280)}${bt.length > 280 ? '…' : ''}</div>` : ''}
         ${expiryText ? `<div style="font-size:0.7rem;color:${expired ? 'var(--red)' : 'var(--text-dim)'};margin-top:4px;">${expiryText}</div>` : ''}
       </div>`;
-    }).join('');
-    el.querySelectorAll('[data-pid]').forEach(div => div.addEventListener('click', () => {
-      const inherited = div.dataset.inherited === '1';
-      if (inherited) {
-        // Inherited: jump to the source scope so the user can edit (if allowed) there.
-        const sType = div.dataset.sourceType;
-        const sId = Number(div.dataset.sourceId);
-        openOrgEditor(sType, sId);
-      } else {
-        // Same read view as the Policies & Orders dashboard (letter format).
-        const p = rows.find(x => x.id == div.dataset.pid);
-        openPolicyReader(p, scopeType, scopeId);
-      }
+    };
+    // Search bar appears once the list is long enough to need it.
+    const showSearch = rows.length > 4;
+    el.innerHTML = (showSearch ? '<input class="pol-filter" placeholder="Search policies & orders…" style="width:100%;padding:8px 11px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:0.85rem;font-family:inherit;outline:none;margin-bottom:6px;">' : '') + '<div class="pol-list-inner"></div>';
+    const inner = el.querySelector('.pol-list-inner');
+    const wire = () => inner.querySelectorAll('[data-pid]').forEach(div => div.addEventListener('click', () => {
+      if (div.dataset.inherited === '1') { openOrgEditor(div.dataset.sourceType, Number(div.dataset.sourceId)); }
+      else { openPolicyReader(rows.find(x => x.id == div.dataset.pid), scopeType, scopeId); }
     }));
+    const paint = list => { inner.innerHTML = list.length ? list.map(cardHtml).join('') : '<span style="color:var(--text-dim);font-size:0.82rem;">No matches.</span>'; wire(); };
+    paint(rows);
+    if (showSearch) {
+      const fi = el.querySelector('.pol-filter');
+      fi.addEventListener('input', () => {
+        const q = fi.value.trim().toLowerCase();
+        if (!q) return paint(rows);
+        paint(rows.filter(p => (p.title + ' ' + _strip(p.body) + ' ' + (p.kind || '') + ' ' + (p.series_name || '')).toLowerCase().includes(q)));
+      });
+    }
   } catch (e) { el.innerHTML = `<span style="color:var(--red);font-size:0.82rem;">${escapeHtml(e.message)}</span>`; }
 }
 
@@ -2274,7 +2281,7 @@ function _mpLoadTargets(postId) {
   if (!window.Targets) { el.innerHTML = '<div class="org-mp-empty">Targets unavailable.</div>'; return; }
   el.innerHTML = '<div id="orgMpTgBoard"></div><div style="margin-top:8px;"><button class="small-btn" id="orgMpTgNew" style="background:var(--surface3);">+ New task</button></div>';
   // "Your targets" = tasks assigned to you; new ones default to attaching to this post.
-  Targets.renderBoard(document.getElementById('orgMpTgBoard'), { assignee: 'me', postId });
+  Targets.renderBoard(document.getElementById('orgMpTgBoard'), { assignee: 'me', postId, searchBar: true });
   document.getElementById('orgMpTgNew').addEventListener('click', () => Targets.openNew({ post_id: postId, assignee_ids: [session.user.id], opts: { onClose: () => _mpLoadTargets(postId), onChange: () => _mpLoadTargets(postId) } }));
 }
 

@@ -43,6 +43,11 @@
     .tw-prioflag{font-size:0.7rem;font-weight:800;}
     .tw-due{font-size:0.68rem;color:rgba(255,255,255,.6);} .tw-due.over{color:#f87171;font-weight:700;}
     .tw-tag{display:inline-block;font-size:0.58rem;background:rgba(167,139,250,.2);color:#c4b5fd;padding:1px 7px;border-radius:999px;margin-right:3px;}
+    /* search */
+    .tw-searchwrap{margin:0 0 12px;}
+    .tw-search{width:100%;padding:8px 11px;background:var(--surface2,#1b1e2a);border:1px solid var(--border,#242736);border-radius:8px;color:var(--text,#e8eaf0);font-size:0.85rem;font-family:inherit;outline:none;}
+    .tw-search:focus{border-color:var(--accent,#34d399);box-shadow:0 0 0 3px rgba(52,211,153,.12);}
+    .tw-search::placeholder{color:rgba(255,255,255,.4);}
     /* board */
     .tw-group{margin-bottom:14px;}
     .tw-group-h{display:flex;align-items:center;gap:8px;font-size:0.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:rgba(255,255,255,.65);margin:0 0 6px;}
@@ -204,6 +209,16 @@
       if (opts.filterExecPost) qs.push('exec_post_id=' + opts.filterExecPost);   // executive-post task board
       const j = await _api('?api=list&' + qs.join('&'));
       container._twRows = j.rows || [];
+      // Optional persistent search bar (kept outside the redrawn board so it
+      // never loses focus while typing). Filters client-side via opts.search.
+      if (opts.searchBar) {
+        container.innerHTML = '<div class="tw-searchwrap"><input class="tw-search" placeholder="Search tasks…"></div><div class="tw-inner"></div>';
+        const si = container.querySelector('.tw-search');
+        si.value = opts.search || '';
+        si.addEventListener('input', () => { opts.search = si.value; _drawBoard(container, opts); });
+      } else {
+        container.innerHTML = '<div class="tw-inner"></div>';
+      }
       _drawBoard(container, opts);
     } catch (e) { container.innerHTML = `<div class="tw-empty" style="color:#f87171;">${esc(e.message)}</div>`; }
   }
@@ -228,7 +243,11 @@
     const rows = _applyView(container._twRows || [], opts);
     const canAdd = opts.canAdd !== false;
     const groups = STATUS.map(([key, label]) => [key, label, rows.filter(r => r.status === key)]);
-    container.innerHTML = groups.map(([key, label, list]) => `
+    // Write into the inner board (leaves the search bar, a sibling, untouched).
+    const host = container.querySelector('.tw-inner') || container;
+    const q = (opts.search || '').trim();
+    const noMatch = q && !rows.length && (container._twRows || []).length;
+    host.innerHTML = (noMatch ? `<div class="tw-empty">No tasks match “${esc(q)}”.</div>` : '') + groups.map(([key, label, list]) => `
       <div class="tw-group" data-status="${key}">
         <div class="tw-group-h">${esc(label)}<span class="tw-count">${list.length}</span></div>
         ${list.map(t => _rowHtml(t)).join('')}

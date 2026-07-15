@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v551', title: 'Org Board — black text in light mode', items: [
+      'In light mode the org board’s secondary text is now near-black instead of light gray, so it’s easy to read.',
+    ] },
     { version: 'v550', title: 'Org Board — cleaner, fits by default, light mode, policy permissions', items: [
       'The board now fits to the screen by default and Fit fills the whole page (width and height). The division colour picker moved into the division’s edit panel — no more swatch cluttering the board.',
       'Fixed light mode on the org board (text was washed out).',

@@ -1107,6 +1107,13 @@
   body:not(.light) #orgBoardView .org-tray-label,
   body:not(.light) #orgBoardView .org-col-department-meta,
   body:not(.light) #orgBoardView .hint { color: rgba(255,255,255,0.72) !important; }
+  /* Light mode: secondary text is near-BLACK, never washed-out gray. */
+  body.light #orgBoardView { --text-dim: rgba(0,0,0,0.78); --text-muted: rgba(0,0,0,0.9); }
+  body.light #orgBoardView .org-post-card .org-post-card-vacant,
+  body.light #orgBoardView .org-dept-head.vacant,
+  body.light #orgBoardView .org-tray-label,
+  body.light #orgBoardView .org-col-department-meta,
+  body.light #orgBoardView .hint { color: rgba(0,0,0,0.78) !important; }
   .org-col-division-head:hover { background: var(--divc, var(--surface2)) !important; filter: brightness(1.08); }
   .org-col-division-stripe { display: none !important; }
   .org-col-division-title { font-size: 0.76rem !important; color: #fff !important; text-shadow: 0 1px 2px rgba(0,0,0,0.4); line-height: 1.1; }

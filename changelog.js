@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v539', title: 'Policies — editor matches the letter order', items: [
+      'The policy editor now lists its fields in the order the letter reads — Concerns sits above the Title and Text instead of at the bottom.',
+    ] },
     { version: 'v538', title: 'Policies — choose who a policy concerns', items: [
       'When creating or editing a policy you can now build its “Concerns” list — pick any division, department or post from the picker, and/or type free text for anything else. Those show as the distribution list on the policy letter.',
     ] },

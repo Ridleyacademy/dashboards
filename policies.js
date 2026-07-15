@@ -207,8 +207,6 @@
           <div class="fld"><label>Applies to</label><select id="fLevel"><option value="division" ${lvl === 'division' ? 'selected' : ''}>Division</option><option value="department" ${lvl === 'department' ? 'selected' : ''}>Department</option><option value="post" ${lvl === 'post' ? 'selected' : ''}>Post</option></select></div>
         </div>
         <div class="fld"><label id="fTargetLbl">Division</label><select id="fTarget">${targetOptions(lvl, p?.scope_id)}</select><div class="hint">Which part of the org this ${'document'} governs.</div></div>
-        <div class="fld"><label>Title</label><input id="fTitle" value="${esc(p?.title || '')}" placeholder="e.g. Refund approval policy"></div>
-        <div class="fld"><label>Text</label><textarea id="fBody" placeholder="The full policy or order…">${esc(p?.body || '')}</textarea></div>
         <div class="fld">
           <label>Concerns <span style="font-weight:400;color:var(--text-dim)">(distribution — optional)</span></label>
           <div id="cChips"></div>
@@ -222,6 +220,8 @@
           </div>
           <div class="hint">Who this concerns — pick org units or write free text. Shown on the letter; if left empty it falls back to the scope path.</div>
         </div>
+        <div class="fld"><label>Title</label><input id="fTitle" value="${esc(p?.title || '')}" placeholder="e.g. Refund approval policy"></div>
+        <div class="fld"><label>Text</label><textarea id="fBody" placeholder="The full policy or order…">${esc(p?.body || '')}</textarea></div>
         <div class="fld-row">
           <div class="fld"><label>Expires <span style="font-weight:400;color:var(--text-dim)">(optional)</span></label><input type="date" id="fExpires" value="${p?.expires_at ? String(p.expires_at).slice(0, 10) : ''}"><div class="hint">Leave blank for no expiry.</div></div>
           <div class="fld"><label>Sort order</label><input type="number" id="fSort" value="${p?.sort_order || 0}"><div class="hint">Lower shows first within a scope.</div></div>

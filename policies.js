@@ -123,7 +123,7 @@
         <div class="pl-letter">
           <div class="pl-org">Ridley Academy Establishment Office</div>
           <div class="pl-sub">RAEO ${esc(kindWord)} of ${esc(letterDate(p.created_at))}${esc(revSuffix(p.revision))}</div>
-          <div class="pl-distribution"><div class="pl-dist-label">Concerns</div>${concerned}</div>
+          <div class="pl-distribution">${concerned}</div>
           <div class="pl-title">${esc(p.title)}</div>
           <div class="pl-body">${p.body ? esc(p.body) : '<span style="color:var(--text-dim)">No text.</span>'}</div>
           <div class="pl-sign">

@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v537', title: 'Policies — letter tweaks', items: [
+      'Dropped the “Concerns” label and made all of the policy-letter text white for better contrast.',
+    ] },
     { version: 'v536', title: 'Policies — formal letter format', items: [
       'Opening a policy now shows it as a formal letter: centred “Ridley Academy Establishment Office” header, an “RAEO Policy Letter of <date>” line (with an R / R1 / R2… revision mark once it’s been revised), the concerned divisions/posts listed on the left, the title centred in bold, the body, and the author’s name and post signed on the right.',
     ] },

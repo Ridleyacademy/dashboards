@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v544', title: 'Policies — series', items: [
+      'Group related policies into a series. In the editor (above the title) name a series — pick an existing one or type a new one — and give it a number; leave the number blank to auto-number it next in that series.',
+      'The series shows on the letter above the title (e.g. “Coaching Series 1”), as a badge in the list, and there’s a new “All series” filter to browse one series at a time.',
+    ] },
     { version: 'v543', title: 'Policies — dropped manual sort order', items: [
       'Removed the “Sort order” field. Policies list newest-first by default; use the sort/filter controls (date, title, expiring) to reorder.',
     ] },

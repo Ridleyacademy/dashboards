@@ -15,7 +15,7 @@
   let divisions = [], departments = [], posts = [];
   let divById = {}, depById = {}, postById = {}, execById = {}, userById = {};
   let policies = [];
-  const view = { search: '', kind: '', division: '', level: '', sort: 'new' };
+  const view = { search: '', kind: '', division: '', series: '', level: '', sort: 'new' };
 
   async function ac(path, opts = {}) {
     const r = await fetch(SUPABASE_URL + '/functions/v1/access-control' + path, {
@@ -28,16 +28,20 @@
     return j;
   }
 
-  // Dedicated fn for the concerns distribution list (org-policy-concerns).
-  async function setConcerns(policyId, list) {
+  // Dedicated fn for a policy's extras: concerns list + series (org-policy-concerns).
+  async function setExtras(policyId, extras) {
     const r = await fetch(SUPABASE_URL + '/functions/v1/org-policy-concerns?api=set', {
       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
-      body: JSON.stringify({ policy_id: policyId, concerns: list }),
+      body: JSON.stringify({ policy_id: policyId, ...extras }),
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
     return j;
   }
+  // Series display + helpers. e.g. "Coaching Series 1".
+  const seriesLabel = p => (p.series_name ? p.series_name + ' Series' + (p.series_number != null ? ' ' + p.series_number : '') : '');
+  const seriesNames = () => [...new Set(policies.map(p => p.series_name).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  function nextSeriesNumber(name) { const n = String(name || '').trim().toLowerCase(); let max = 0; policies.forEach(p => { if ((p.series_name || '').trim().toLowerCase() === n && Number(p.series_number) > max) max = Number(p.series_number); }); return max + 1; }
   // Resolve a concerns item ({type:division|department|post,id} | {type:text,label}) to a display name.
   function concernLabel(it) {
     if (!it) return '';
@@ -83,7 +87,7 @@
   }
 
   function enrich() {
-    policies.forEach(p => { const s = scopeInfo(p); p._parts = s.parts; p._divId = s.divisionId; p._scopeText = s.text; p._author = friendly(p.created_by_email); p._concernsText = (Array.isArray(p.concerns) ? p.concerns.map(concernLabel) : []).join(' '); });
+    policies.forEach(p => { const s = scopeInfo(p); p._parts = s.parts; p._divId = s.divisionId; p._scopeText = s.text; p._author = friendly(p.created_by_email); p._concernsText = (Array.isArray(p.concerns) ? p.concerns.map(concernLabel) : []).join(' '); p._seriesText = seriesLabel(p); });
   }
 
   function _apply() {
@@ -91,9 +95,10 @@
     let rows = policies.filter(p => {
       if (view.kind && p.kind !== view.kind) return false;
       if (view.division && String(p._divId) !== view.division) return false;
+      if (view.series && p.series_name !== view.series) return false;
       if (view.level && p.scope_type !== view.level) return false;
       if (q) {
-        const hay = (p.title + ' ' + (p.body || '') + ' ' + p._scopeText + ' ' + (p.created_by_email || '') + ' ' + p._author + ' ' + (p._concernsText || '')).toLowerCase();
+        const hay = (p.title + ' ' + (p.body || '') + ' ' + p._scopeText + ' ' + (p.created_by_email || '') + ' ' + p._author + ' ' + (p._concernsText || '') + ' ' + (p._seriesText || '')).toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
@@ -121,6 +126,7 @@
         <div class="pol-card-top">
           <span class="pol-badge ${p.kind === 'order' ? 'order' : 'policy'}">${esc(KIND[p.kind] || p.kind)}</span>
           <span class="pol-title">${esc(p.title)}</span>
+          ${p.series_name ? `<span class="pol-series-badge">${esc(seriesLabel(p))}</span>` : ''}
           ${isExpired(p) ? '<span class="pol-expired">Expired</span>' : ''}
         </div>
         <div class="pol-scope">${scope}</div>
@@ -150,6 +156,7 @@
           <div class="pl-org">Ridley Academy Establishment Office</div>
           <div class="pl-sub">RAEO ${esc(kindWord)} of ${esc(letterDate(p.created_at))}${esc(revSuffix(p.revision))}</div>
           <div class="pl-distribution">${concerned}</div>
+          ${p.series_name ? `<div class="pl-series">${esc(seriesLabel(p))}</div>` : ''}
           <div class="pl-title">${esc(p.title)}</div>
           <div class="pl-body">${p.body ? esc(p.body) : '<span style="color:var(--text-dim)">No text.</span>'}</div>
           <div class="pl-sign">
@@ -199,6 +206,15 @@
           </div>
           <div class="hint">Pick the divisions, departments or posts this concerns — that's how the policy is linked to the org (add at least one). You can also add free text (e.g. “All Staff”).</div>
         </div>
+        <div class="fld">
+          <label>Series <span style="font-weight:400;color:var(--text-dim)">(optional)</span></label>
+          <div class="fld-row" style="gap:8px;">
+            <input id="fSeries" list="seriesList" placeholder="Series name (e.g. Coaching) — pick existing or type new" style="flex:2;" value="${esc(p?.series_name || '')}" autocomplete="off">
+            <input id="fSeriesNum" type="number" min="1" placeholder="No." title="Number within the series" style="flex:0 0 96px;" value="${p?.series_number != null ? p.series_number : ''}">
+          </div>
+          <datalist id="seriesList">${seriesNames().map(s => `<option value="${esc(s)}"></option>`).join('')}</datalist>
+          <div class="hint">Group related policies into a series. Shows on the letter as “&lt;name&gt; Series &lt;number&gt;”. Leave the number blank to auto-number it next in the series.</div>
+        </div>
         <div class="fld"><label>Title</label><input id="fTitle" value="${esc(p?.title || '')}" placeholder="e.g. Refund approval policy"></div>
         <div class="fld"><label>Text</label><textarea id="fBody" placeholder="The full policy or order…">${esc(p?.body || '')}</textarea></div>
         <div class="fld"><label>Expires <span style="font-weight:400;color:var(--text-dim)">(optional)</span></label><input type="date" id="fExpires" value="${p?.expires_at ? String(p.expires_at).slice(0, 10) : ''}"><div class="hint">Leave blank for no expiry.</div></div>
@@ -240,6 +256,8 @@
       else if (e.key === 'Escape') { menu.classList.remove('open'); }
     });
     search.addEventListener('blur', () => setTimeout(() => menu.classList.remove('open'), 150));
+    // Series: auto-fill the next number when a series name is set and no number given.
+    $('fSeries').addEventListener('change', () => { const nm = $('fSeries').value.trim(); if (nm && !$('fSeriesNum').value) $('fSeriesNum').value = nextSeriesNumber(nm); });
     $('fCancel').addEventListener('click', closeModal);
     $('fSave').addEventListener('click', async () => {
       const msg = $('modalRoot').querySelector('.modal-msg'); msg.classList.remove('err');
@@ -258,8 +276,10 @@
       try {
         const res = editing ? await ac('?api=policy-update&id=' + p.id, { method: 'POST', body }) : await ac('?api=policy-create', { method: 'POST', body });
         const row = res.row;
-        try { const cr = await setConcerns(row.id, concernsList); row.concerns = cr.row.concerns; }
-        catch (ce) { row.concerns = concernsList; alert('Policy saved, but the concerns list failed to save: ' + ce.message); }
+        const seriesName = $('fSeries').value.trim() || null;
+        const seriesNumber = seriesName ? (Number($('fSeriesNum').value) || nextSeriesNumber(seriesName)) : null;
+        try { const cr = await setExtras(row.id, { concerns: concernsList, series_name: seriesName, series_number: seriesNumber }); Object.assign(row, { concerns: cr.row.concerns, series_name: cr.row.series_name, series_number: cr.row.series_number }); }
+        catch (ce) { Object.assign(row, { concerns: concernsList, series_name: seriesName, series_number: seriesNumber }); alert('Policy saved, but its series/concerns failed to save: ' + ce.message); }
         if (editing) { Object.assign(p, row); } else { policies.push(row); }
         enrich(); closeModal(); render();
       } catch (e) { msg.textContent = e.message; msg.classList.add('err'); $('fSave').disabled = false; }
@@ -295,6 +315,7 @@
       userById = {}; (us.rows || []).forEach(u => userById[u.id] = u);
       enrich();
       $('polDiv').innerHTML = '<option value="">All divisions</option>' + divisions.map(d => `<option value="${d.id}">${esc(d.name)}</option>`).join('');
+      $('polSeries').innerHTML = '<option value="">All series</option>' + seriesNames().map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
     } catch (e) {
       $('polList').innerHTML = '<div class="empty" style="color:var(--red)">' + esc(e.message) + '</div>';
     }
@@ -308,6 +329,7 @@
   $('polSearch').addEventListener('input', e => { view.search = e.target.value; render(); });
   $('polKindSeg').querySelectorAll('button').forEach(b => b.addEventListener('click', () => { $('polKindSeg').querySelectorAll('button').forEach(x => x.classList.remove('active')); b.classList.add('active'); view.kind = b.dataset.k; render(); }));
   $('polDiv').addEventListener('change', e => { view.division = e.target.value; render(); });
+  $('polSeries').addEventListener('change', e => { view.series = e.target.value; render(); });
   $('polLevel').addEventListener('change', e => { view.level = e.target.value; render(); });
   $('polSort').addEventListener('change', e => { view.sort = e.target.value; render(); });
   $('polNew').addEventListener('click', () => openEdit(null));

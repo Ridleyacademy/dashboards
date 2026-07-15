@@ -2343,7 +2343,7 @@ async function openStatsPicker(target, name, onChange) {
   if (scopeId == null) return;
   const old = document.getElementById('orgStatsPicker'); if (old) old.remove();
   const picker = document.createElement('div');
-  picker.id = 'orgStatsPicker'; picker.className = 'org-stats-overlay'; picker.style.zIndex = '5000';
+  picker.id = 'orgStatsPicker'; picker.className = 'org-stats-overlay'; picker.style.zIndex = '10001';
   picker.innerHTML = `<div class="org-stats-card" style="max-width:520px;">
     <div class="org-stats-head"><div><h3>Assign stats${name ? ' — ' + escapeHtml(name) : ''}</h3><div class="org-stats-sub">Tick the stats that belong to this ${isPost ? 'post' : 'person'} — saved instantly.</div></div><button id="spClose" title="Close">×</button></div>
     <div style="padding:10px 14px 0;"><input id="spSearch" placeholder="Search stats…" style="width:100%;padding:8px 11px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:0.85rem;font-family:inherit;outline:none;"></div>

@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v568', title: 'Org Board — fix Assign stats opening behind the popup', items: [
+      'The + Assign stats picker now opens in front of the Stats popup (it was rendering behind it).',
+    ] },
     { version: 'v567', title: 'Org Board — post stats now belong to the post, and look like Weekly Stats', items: [
       'A post’s stats are now assigned to the POST itself (not to whoever holds it) — so they stay put when the holder changes. Use + Assign stats on a post’s Stats popup to pick which metrics belong to it.',
       'The Stats popup now renders exactly like the Weekly Stats dashboard: same cards, big value + trend %, and the same charts.',

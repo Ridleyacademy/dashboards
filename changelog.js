@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v541', title: 'Policies — easier Concerns picker', items: [
+      'The Concerns picker is now a search box: start typing a division, department or post and pick it from the list (with its org path), or type free text and add it. Much faster than scrolling a long dropdown.',
+    ] },
     { version: 'v540', title: 'Policies — linked through Concerns', items: [
       'Removed the separate “Applies to” field. A policy is now connected to the org purely through its Concerns — the divisions, departments or posts you list there. Add at least one org unit (you can still add free text too).',
     ] },

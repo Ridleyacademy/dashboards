@@ -170,16 +170,14 @@
     }
   }
 
-  // Options for the concerns picker: every division/department/post, grouped.
-  function refOptions() {
-    let h = '<optgroup label="Divisions">' + divisions.map(d => `<option value="division:${d.id}">${esc(d.name)}</option>`).join('') + '</optgroup>';
-    let dh = '';
-    divisions.forEach(d => { const deps = departments.filter(x => x.division_id === d.id); if (deps.length) dh += deps.map(dep => `<option value="department:${dep.id}">${esc(d.name + ' › ' + dep.name)}</option>`).join(''); });
-    if (dh) h += '<optgroup label="Departments">' + dh + '</optgroup>';
-    let ph = '';
-    departments.forEach(dep => { const ps = posts.filter(x => x.department_id === dep.id); if (ps.length) { const d = divById[dep.division_id]; ph += ps.map(po => `<option value="post:${po.id}">${esc((d?.name ? d.name + ' › ' : '') + dep.name + ' › ' + po.name)}</option>`).join(''); } });
-    if (ph) h += '<optgroup label="Posts">' + ph + '</optgroup>';
-    return h;
+  // Flat, searchable index of every org unit (division/department/post) with its
+  // path — feeds the concerns typeahead.
+  function orgUnitIndex() {
+    const out = [];
+    divisions.forEach(d => out.push({ type: 'division', id: d.id, name: d.name, path: d.name }));
+    departments.forEach(dep => { const d = divById[dep.division_id]; out.push({ type: 'department', id: dep.id, name: dep.name, path: (d?.name ? d.name + ' › ' : '') + dep.name }); });
+    posts.forEach(po => { const dep = depById[po.department_id]; const d = dep ? divById[dep.division_id] : null; out.push({ type: 'post', id: po.id, name: po.name, path: (d?.name ? d.name + ' › ' : '') + (dep ? dep.name + ' › ' : '') + po.name }); });
+    return out;
   }
 
   function openEdit(p) {
@@ -195,13 +193,9 @@
         <div class="fld">
           <label>Concerns</label>
           <div id="cChips"></div>
-          <div class="fld-row" style="gap:6px;">
-            <select id="cRef" style="flex:1;"><option value="">Pick a division, department or post…</option>${refOptions()}</select>
-            <button class="btn-ghost" id="cAddRef" type="button">Add</button>
-          </div>
-          <div class="fld-row" style="gap:6px;margin-top:6px;">
-            <input id="cText" placeholder="…or type anything" style="flex:1;">
-            <button class="btn-ghost" id="cAddText" type="button">Add</button>
+          <div class="cpick">
+            <input id="cSearch" placeholder="Search a division, department or post — or type anything" autocomplete="off">
+            <div id="cResults" class="cpick-menu"></div>
           </div>
           <div class="hint">Pick the divisions, departments or posts this concerns — that's how the policy is linked to the org (add at least one). You can also add free text (e.g. “All Staff”).</div>
         </div>
@@ -222,9 +216,33 @@
       box.querySelectorAll('button[data-i]').forEach(b => b.addEventListener('click', () => { concernsList.splice(Number(b.dataset.i), 1); renderChips(); }));
     };
     renderChips();
-    $('cAddRef').addEventListener('click', () => { const v = $('cRef').value; if (!v) return; const [type, id] = v.split(':'); concernsList.push({ type, id: Number(id) }); $('cRef').value = ''; renderChips(); });
-    $('cAddText').addEventListener('click', () => { const t = $('cText').value.trim(); if (!t) return; concernsList.push({ type: 'text', label: t }); $('cText').value = ''; renderChips(); });
-    $('cText').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('cAddText').click(); } });
+    // Searchable concerns typeahead: type to filter org units, or add free text.
+    const units = orgUnitIndex();
+    const search = $('cSearch'), menu = $('cResults');
+    let activeIdx = -1, results = [];
+    const TAG = { division: 'Div', department: 'Dept', post: 'Post' };
+    const addItem = (item) => { concernsList.push(item); renderChips(); search.value = ''; results = []; menu.classList.remove('open'); search.focus(); };
+    const chosen = () => new Set(concernsList.filter(c => c.type !== 'text').map(c => c.type + ':' + c.id));
+    const draw = () => {
+      const q = search.value.trim().toLowerCase();
+      const taken = chosen();
+      results = (q ? units.filter(u => u.path.toLowerCase().includes(q)) : units).filter(u => !taken.has(u.type + ':' + u.id)).slice(0, 30);
+      const rows = results.map((u, i) => `<div class="cpick-item${i === activeIdx ? ' active' : ''}" data-i="${i}"><span class="cpick-tag ${u.type}">${TAG[u.type]}</span><span class="cpick-name">${esc(u.name)}</span><span class="cpick-path">${esc(u.path)}</span></div>`).join('');
+      const textRow = q ? `<div class="cpick-item" data-txt="1"><span class="cpick-tag text">Text</span><span class="cpick-name">Add “${esc(search.value.trim())}”</span></div>` : '';
+      menu.innerHTML = (rows || (q ? '' : '<div class="cpick-none">Type to search…</div>')) + textRow;
+      menu.querySelectorAll('.cpick-item[data-i]').forEach(el => el.addEventListener('mousedown', e => { e.preventDefault(); const u = results[Number(el.dataset.i)]; addItem({ type: u.type, id: u.id }); }));
+      const tr = menu.querySelector('[data-txt]'); if (tr) tr.addEventListener('mousedown', e => { e.preventDefault(); addItem({ type: 'text', label: search.value.trim() }); });
+      menu.classList.add('open');
+    };
+    search.addEventListener('focus', () => { activeIdx = -1; draw(); });
+    search.addEventListener('input', () => { activeIdx = -1; draw(); });
+    search.addEventListener('keydown', e => {
+      if (e.key === 'ArrowDown') { e.preventDefault(); activeIdx = Math.min(activeIdx + 1, results.length - 1); draw(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); activeIdx = Math.max(activeIdx - 1, -1); draw(); }
+      else if (e.key === 'Enter') { e.preventDefault(); if (activeIdx >= 0 && results[activeIdx]) { const u = results[activeIdx]; addItem({ type: u.type, id: u.id }); } else if (search.value.trim()) { const q = search.value.trim().toLowerCase(); const exact = results[0]; if (exact && exact.path.toLowerCase().includes(q) && results.length === 1) addItem({ type: exact.type, id: exact.id }); else addItem({ type: 'text', label: search.value.trim() }); } }
+      else if (e.key === 'Escape') { menu.classList.remove('open'); }
+    });
+    search.addEventListener('blur', () => setTimeout(() => menu.classList.remove('open'), 150));
     $('fCancel').addEventListener('click', closeModal);
     $('fSave').addEventListener('click', async () => {
       const msg = $('modalRoot').querySelector('.modal-msg'); msg.classList.remove('err');

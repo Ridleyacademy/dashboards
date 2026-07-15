@@ -103,6 +103,20 @@
   .chip button { background:none; border:0; color:var(--text-dim); cursor:pointer; font-size:0.9rem; line-height:1; padding:0 2px; }
   .chip button:hover { color:var(--red); }
   .chips-empty { font-size:0.76rem; color:var(--text-dim); margin-bottom:8px; }
+  /* Searchable concerns picker */
+  .cpick { position:relative; }
+  .cpick-menu { display:none; position:absolute; left:0; right:0; top:calc(100% + 4px); background:var(--surface); border:1px solid var(--border-light); border-radius:10px; padding:5px; max-height:270px; overflow-y:auto; z-index:20; box-shadow:0 14px 34px rgba(0,0,0,.5); }
+  .cpick-menu.open { display:block; }
+  .cpick-item { display:flex; align-items:center; gap:8px; padding:7px 9px; border-radius:7px; cursor:pointer; font-size:0.83rem; color:var(--text); }
+  .cpick-item.active, .cpick-item:hover { background:var(--surface2); }
+  .cpick-tag { font-size:0.55rem; font-weight:800; letter-spacing:.05em; text-transform:uppercase; padding:2px 6px; border-radius:4px; flex:0 0 auto; }
+  .cpick-tag.division { background:var(--green-bg); color:var(--green); }
+  .cpick-tag.department { background:var(--blue-bg); color:var(--blue); }
+  .cpick-tag.post { background:var(--gold-bg); color:var(--gold); }
+  .cpick-tag.text { background:rgba(167,139,250,.14); color:#a78bfa; }
+  .cpick-name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .cpick-path { color:var(--text-dim); font-size:0.72rem; flex:0 1 auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:45%; }
+  .cpick-none { padding:8px 9px; font-size:0.8rem; color:var(--text-dim); }
   .modal-foot { display:flex; gap:8px; align-items:center; padding:14px 18px; border-top:1px solid var(--border); background:var(--surface); }
   .modal-msg { flex:1; font-size:0.8rem; color:var(--text-muted); } .modal-msg.err { color:var(--red); }
   .btn-ghost { background:var(--surface2); border:1px solid var(--border); color:var(--text); border-radius:9px; padding:9px 14px; font-size:0.83rem; font-weight:600; cursor:pointer; font-family:inherit; }

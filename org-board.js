@@ -41,6 +41,20 @@ async function wsApi(path) {
   if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
   return j;
 }
+// Policy writes (org-policy-write edge fn): creator-based model — same as the
+// dedicated Policies dashboard. Anyone creates; only creator/admin edits.
+async function pwApi(path, opts = {}) {
+  const r = await fetch(SUPABASE_URL + '/functions/v1/org-policy-write' + path, {
+    method: opts.method || 'GET',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+  return j;
+}
+// True if the signed-in user is an admin (bypasses the creator check).
+function orgIsAdmin() { return !!(session && session.user && session.user.app_metadata && session.user.app_metadata.is_admin === true); }
 // Targets (org-targets edge fn): staff self-assign / seniors assign per post.
 async function tgApi(path, opts = {}) {
   const r = await fetch(TG_BASE + path, {
@@ -235,6 +249,19 @@ function applyOrgZoom(zoom, continuous = false) {
   if (slider && Math.abs(parseFloat(slider.value) - z * 100) > 0.5) slider.value = String(Math.round(z * 100));
   try { localStorage.setItem(ORG_ZOOM_KEY, String(z)); } catch (_) {}
 }
+// Scale so the whole board fits inside the viewport — width AND height, so it
+// fills the page without either scrollbar. Never zooms past 100%.
+function _computeFitZoom() {
+  const wrap = document.getElementById('orgBoardZoomWrap');
+  const m = _measureOrgZoomNatural();
+  _orgZoomNaturalWidth = m.w; _orgZoomNaturalHeight = m.h;
+  if (!wrap || !m.w) return 1;
+  const vw = wrap.clientWidth - 8;
+  const vh = wrap.clientHeight - 8;
+  const byW = vw > 0 ? vw / m.w : 1;
+  const byH = (vh > 0 && m.h) ? vh / m.h : byW;
+  return Math.max(ORG_ZOOM_MIN, Math.min(byW, byH, 1));
+}
 function initOrgZoom() {
   const inBtn  = document.getElementById('orgZoomIn');
   const outBtn = document.getElementById('orgZoomOut');
@@ -245,8 +272,9 @@ function initOrgZoom() {
   if (!inBtn || !outBtn || !rstBtn || !fitBtn || !range || !wrap) return;
   // Re-measure natural size — content may have changed since last render.
   _orgZoomNaturalWidth = 0; _orgZoomNaturalHeight = 0;
-  let z = 1;
-  try { z = parseFloat(localStorage.getItem(ORG_ZOOM_KEY) || '1') || 1; } catch (_) {}
+  // Default to Fit on first load (no saved preference); otherwise honour it.
+  let z;
+  try { const saved = localStorage.getItem(ORG_ZOOM_KEY); z = (saved != null && parseFloat(saved) > 0) ? parseFloat(saved) : _computeFitZoom(); } catch (_) { z = _computeFitZoom(); }
   applyOrgZoom(z);
   // Idempotent re-binding: clone-and-replace strips any old listeners.
   const fresh = (el) => { const c = el.cloneNode(true); el.parentNode.replaceChild(c, el); return c; };
@@ -255,14 +283,7 @@ function initOrgZoom() {
   inN .addEventListener('click', () => applyOrgZoom(cur() + ORG_ZOOM_STEP));
   outN.addEventListener('click', () => applyOrgZoom(cur() - ORG_ZOOM_STEP));
   rstN.addEventListener('click', () => applyOrgZoom(1));
-  fitN.addEventListener('click', () => {
-    // Fit-to-width: scale so naturalWidth × z = wrapper visible width.
-    const m = _measureOrgZoomNatural();
-    _orgZoomNaturalWidth = m.w; _orgZoomNaturalHeight = m.h;
-    const visible = wrap.clientWidth - 8; // small margin so it doesn't kiss the edge
-    if (!m.w || !visible) return applyOrgZoom(1);
-    applyOrgZoom(Math.min(1, visible / m.w));
-  });
+  fitN.addEventListener('click', () => applyOrgZoom(_computeFitZoom()));
   // Range slider — fully continuous; transition is suppressed during drag.
   rangeN.addEventListener('input', (e) => {
     applyOrgZoom(parseFloat(e.target.value) / 100, /*continuous*/ true);
@@ -1068,17 +1089,15 @@ async function loadPoliciesInto(elId, scopeType, scopeId) {
   try {
     const j = await api('?api=policies-for-scope&scope_type=' + scopeType + '&scope_id=' + scopeId);
     const rows = j.rows || [];
-    const canEdit = !!j.can_edit_self;
 
-    // Show / hide the "+ Add policy" button paired with this list.
+    // Anyone can create their own policy here (same as the Policies dashboard);
+    // editing/deleting is gated per-policy to the creator or an admin.
     const addBtnIdMap = { 'd-policies': 'd-add-policy', 'dep-policies': 'dep-add-policy', 'po-policies': 'po-add-policy' };
     const addBtn = document.getElementById(addBtnIdMap[elId]);
-    if (addBtn) addBtn.style.display = canEdit ? '' : 'none';
+    if (addBtn) addBtn.style.display = '';
 
     if (!rows.length) {
-      el.innerHTML = canEdit
-        ? '<span style="color:var(--text-dim);font-size:0.82rem;">No policies or orders yet. Click <strong>+ Add policy / order</strong> to create one.</span>'
-        : '<span style="color:var(--text-dim);font-size:0.82rem;">No policies or orders apply here. Ask an admin to add you as a policy editor for this division if you need to create one.</span>';
+      el.innerHTML = '<span style="color:var(--text-dim);font-size:0.82rem;">No policies or orders yet. Click <strong>+ Add policy / order</strong> to create one.</span>';
       return;
     }
     el.innerHTML = rows.map(p => {
@@ -1216,23 +1235,25 @@ function openCreatePostModal(departmentId) {
   });
 }
 
-function openPolicyModal(scopeType, scopeId, existingId) {
-  // For new: existingId is undefined. For edit: existingId is set and we'll prefill via openPolicyEditModal.
-  showModal(`<h3>${existingId ? 'Edit' : 'New'} policy / order</h3>
-    <div class="ax-editor-row"><label>Kind</label><select id="p-kind">
+// Creator-based model (same as the Policies dashboard): anyone creates their
+// own; only the creator or an admin can edit/delete. Non-owners see it read-only.
+function openPolicyModal(scopeType, scopeId, existingId, canManage = true) {
+  const ro = !!existingId && !canManage;
+  showModal(`<h3>${existingId ? (ro ? 'Policy / order' : 'Edit policy / order') : 'New policy / order'}</h3>
+    <div class="ax-editor-row"><label>Kind</label><select id="p-kind" ${ro ? 'disabled' : ''}>
       <option value="policy">Policy (standing rule)</option>
-      <option value="order">Order (directive, often time-bounded)</option>
-      <option value="directive">Directive</option>
+      <option value="order">Order (directive)</option>
     </select></div>
-    <div class="ax-editor-row"><label>Title</label><input id="p-title" placeholder="e.g. Welcome new students within 24h"></div>
-    <div class="ax-editor-row" style="align-items:flex-start;"><label style="padding-top:6px;">Body</label><textarea id="p-body" style="min-height:140px;" placeholder="What this says, who it applies to, expected behavior."></textarea></div>
-    <div class="ax-editor-row"><label>Expires</label><input id="p-expires" type="datetime-local" style="max-width:240px;"></div>
+    <div class="ax-editor-row"><label>Title</label><input id="p-title" ${ro ? 'disabled' : ''} placeholder="e.g. Welcome new students within 24h"></div>
+    <div class="ax-editor-row" style="align-items:flex-start;"><label style="padding-top:6px;">Body</label><textarea id="p-body" ${ro ? 'disabled' : ''} style="min-height:140px;" placeholder="What this says, who it applies to, expected behaviour."></textarea></div>
+    <div class="ax-editor-row"><label>Expires</label><input id="p-expires" type="datetime-local" ${ro ? 'disabled' : ''} style="max-width:240px;"></div>
     <div class="ax-actions">
-      ${existingId ? '<button class="btn-ghost" style="color:var(--red);" id="p-delete">Delete</button>' : ''}
-      <button class="btn-primary" id="p-save">${existingId ? 'Save' : 'Create'}</button>
-      <button class="btn-ghost" onclick="document.getElementById('modalRoot').innerHTML=''">Cancel</button>
+      ${(existingId && canManage) ? '<button class="btn-ghost" style="color:var(--red);" id="p-delete">Delete</button>' : ''}
+      ${canManage ? `<button class="btn-primary" id="p-save">${existingId ? 'Save' : 'Create'}</button>` : ''}
+      <button class="btn-ghost" onclick="document.getElementById('modalRoot').innerHTML=''">${canManage ? 'Cancel' : 'Close'}</button>
     </div>`);
-  document.getElementById('p-save').addEventListener('click', async () => {
+  const _reloadList = () => { const elId = scopeType === 'division' ? 'd-policies' : scopeType === 'department' ? 'dep-policies' : 'po-policies'; loadPoliciesInto(elId, scopeType, scopeId); };
+  if (canManage) document.getElementById('p-save').addEventListener('click', async () => {
     try {
       const body = {
         scope_type: scopeType, scope_id: scopeId,
@@ -1242,23 +1263,16 @@ function openPolicyModal(scopeType, scopeId, existingId) {
         expires_at: document.getElementById('p-expires').value || null,
       };
       if (!body.title) throw new Error('Title required');
-      if (existingId) await api('?api=policy-update&id=' + existingId, { method: 'POST', body });
-      else            await api('?api=policy-create', { method: 'POST', body });
-      closeModal();
-      // Reload the policy list within the currently-open scope editor.
-      const elId = scopeType === 'division' ? 'd-policies' : scopeType === 'department' ? 'dep-policies' : 'po-policies';
-      loadPoliciesInto(elId, scopeType, scopeId);
+      if (existingId) await pwApi('?api=update&id=' + existingId, { method: 'POST', body });
+      else            await pwApi('?api=create', { method: 'POST', body });
+      closeModal(); _reloadList();
     } catch (e) { alert(e.message); }
   });
-  if (existingId) {
+  if (existingId && canManage) {
     document.getElementById('p-delete').addEventListener('click', async () => {
       if (!confirm('Delete this policy / order?')) return;
-      try {
-        await api('?api=policy-delete&id=' + existingId, { method: 'POST', body: {} });
-        closeModal();
-        const elId = scopeType === 'division' ? 'd-policies' : scopeType === 'department' ? 'dep-policies' : 'po-policies';
-        loadPoliciesInto(elId, scopeType, scopeId);
-      } catch (e) { alert(e.message); }
+      try { await pwApi('?api=delete&id=' + existingId, { method: 'POST', body: {} }); closeModal(); _reloadList(); }
+      catch (e) { alert(e.message); }
     });
   }
   return existingId;
@@ -1270,7 +1284,8 @@ async function openPolicyEditModal(policyId, scopeType, scopeId) {
     const j = await api('?api=policies&scope_type=' + scopeType + '&scope_id=' + scopeId);
     const p = (j.rows || []).find(x => x.id === policyId);
     if (!p) return;
-    openPolicyModal(scopeType, scopeId, policyId);
+    const canManage = orgIsAdmin() || !!(session && session.user && p.created_by === session.user.id);
+    openPolicyModal(scopeType, scopeId, policyId, canManage);
     document.getElementById('p-kind').value = p.kind;
     document.getElementById('p-title').value = p.title;
     document.getElementById('p-body').value = p.body || '';
@@ -1926,7 +1941,8 @@ function enhanceBoard() {
     if (head && !head.querySelector('.org-stat-btn')) head.appendChild(_statBtn('Division stats', ev => { ev.stopPropagation(); openDivisionStats(divId); }));
     if (editing && head) {
       _wireDivisionDrag(head, col, divId);
-      if (!head.querySelector('.org-color-swatch')) head.insertBefore(_colorSwatch(divId, color), head.firstChild);
+      // Color is edited inside the division editor drawer (see the Color field there),
+      // so no header swatch — it just took up space on the board.
       if (!head.querySelector('.org-edit-btn')) head.appendChild(_editBtn(ev => { ev.stopPropagation(); openOrgEditor('division', divId); }));
     }
   });

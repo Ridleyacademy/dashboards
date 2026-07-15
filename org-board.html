@@ -59,7 +59,7 @@
   .nav-dropdown-menu .nav-menu-link:hover { background:var(--surface2); color:var(--text); }
   .nav-dropdown-menu .nav-menu-link.active { color:var(--accent); background:rgba(52,211,153,.1); }
   .nav-dropdown-menu .nav-menu-link svg { flex-shrink:0; }
-  .main { max-width: 1500px; margin: 0 auto; padding: 24px 20px; }
+  .main { max-width: 100%; margin: 0 auto; padding: 14px 16px; }
   .page-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 18px; flex-wrap: wrap; }
   .page-title { font-size: 1.55rem; margin: 0 0 4px; letter-spacing: -0.02em; }
   .page-sub { color: var(--text-muted); font-size: 0.86rem; max-width: 720px; }
@@ -766,7 +766,7 @@
      - .org-board-zoom-inner is absolutely positioned inside the sizer
        and visually transformed via CSS `scale()`. Its natural layout
        size is unaffected so children render at full size. */
-  .org-board-zoom-wrap { overflow: auto; max-width: 100%; }
+  .org-board-zoom-wrap { overflow: auto; max-width: 100%; height: calc(100vh - 150px); }
   .org-board-zoom-sizer { position: relative; }
   .org-board-zoom-inner {
     position: absolute; top: 0; left: 0;
@@ -1099,13 +1099,14 @@
   .org-col-division { min-width: 206px !important; width: 206px !important; border-radius: 8px !important; border: 1px solid var(--divc, var(--border)) !important; }
   .org-col-division-head { padding: 6px 30px 6px 8px !important; background: var(--divc, var(--surface2)) !important; border-bottom: 0 !important; gap: 5px !important; align-items: center; }
   body[data-org-edit="1"] .org-col-division-head { padding-right: 50px !important; }  /* room for stat + edit buttons so they never overlap the name */
-  /* Legibility: never gray-on-dark — lift the dim/muted text toward white */
-  #orgBoardView { --text-dim: rgba(255,255,255,0.72); --text-muted: rgba(255,255,255,0.86); }
-  #orgBoardView .org-post-card .org-post-card-vacant,
-  #orgBoardView .org-dept-head.vacant,
-  #orgBoardView .org-tray-label,
-  #orgBoardView .org-col-department-meta,
-  #orgBoardView .hint { color: rgba(255,255,255,0.72) !important; }
+  /* Legibility on DARK only: lift dim/muted text toward white. In light mode we
+     must NOT force white text (it'd be invisible on the light page). */
+  body:not(.light) #orgBoardView { --text-dim: rgba(255,255,255,0.72); --text-muted: rgba(255,255,255,0.86); }
+  body:not(.light) #orgBoardView .org-post-card .org-post-card-vacant,
+  body:not(.light) #orgBoardView .org-dept-head.vacant,
+  body:not(.light) #orgBoardView .org-tray-label,
+  body:not(.light) #orgBoardView .org-col-department-meta,
+  body:not(.light) #orgBoardView .hint { color: rgba(255,255,255,0.72) !important; }
   .org-col-division-head:hover { background: var(--divc, var(--surface2)) !important; filter: brightness(1.08); }
   .org-col-division-stripe { display: none !important; }
   .org-col-division-title { font-size: 0.76rem !important; color: #fff !important; text-shadow: 0 1px 2px rgba(0,0,0,0.4); line-height: 1.1; }

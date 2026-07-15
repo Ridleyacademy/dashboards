@@ -16,6 +16,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v550', title: 'Org Board — cleaner, fits by default, light mode, policy permissions', items: [
+      'The board now fits to the screen by default and Fit fills the whole page (width and height). The division colour picker moved into the division’s edit panel — no more swatch cluttering the board.',
+      'Fixed light mode on the org board (text was washed out).',
+      'Policies & orders on the org board now work like the Policies dashboard: anyone can add their own, and you can only edit/delete the ones you created (admins can edit anyone’s).',
+    ] },
     { version: 'v549', title: 'Policies — draft memory + editor fix', items: [
       'If you close the editor with unsaved changes, it now remembers your draft — reopen and it’s restored right where you left off. Drafts clear once you save.',
       'Fixed a bug where selecting text and releasing the mouse outside the editor would close it.',

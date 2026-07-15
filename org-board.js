@@ -484,15 +484,15 @@ function renderOrgBoard() {
   // Wire clicks
   board.querySelectorAll('.org-col-division-head').forEach(el => el.addEventListener('click', e => {
     e.stopPropagation();
-    openOrgEditor('division', Number(el.dataset.id));
+    openOrgEditor('division', Number(el.dataset.id), /*view*/ true);
   }));
   board.querySelectorAll('.org-col-department-head').forEach(el => el.addEventListener('click', e => {
     e.stopPropagation();
-    openOrgEditor('department', Number(el.dataset.id));
+    openOrgEditor('department', Number(el.dataset.id), /*view*/ true);
   }));
   board.querySelectorAll('.org-post-card').forEach(el => el.addEventListener('click', e => {
     e.stopPropagation();
-    openOrgEditor('post', Number(el.dataset.id));
+    openOrgEditor('post', Number(el.dataset.id), /*view*/ true);
   }));
   board.querySelectorAll('[data-add-dept]').forEach(el => el.addEventListener('click', e => {
     e.stopPropagation();
@@ -587,9 +587,15 @@ function editorEl() {
 }
 let _useDrawerEditor = false;
 
-function openOrgEditor(kind, id) {
+// Clicking a card opens its PROFILE (view=true, read-only). The ✎ pen opens the
+// editable form (view=false). Jumps/save-reopens omit `view` → keep last mode.
+let _orgDrawerView = false;
+function openOrgEditor(kind, id, view) {
+  if (view === undefined) view = _orgDrawerView; else _orgDrawerView = !!view;
   selectedKind = kind; selectedId = id;
   openDrawer('<div id="axDrawerEditor"><div class="ax-editor-empty">Loading…</div></div>');
+  const drawer = document.getElementById('orgDrawer');
+  if (drawer) drawer.classList.toggle('viewonly', !!view);
   _useDrawerEditor = true;
   if (kind === 'division') return renderDivisionEditor(divisionsData.find(x => x.id === id));
   if (kind === 'department') return renderDepartmentEditor(departmentsData.find(x => x.id === id));
@@ -1943,19 +1949,19 @@ function enhanceBoard() {
       _wireDivisionDrag(head, col, divId);
       // Color is edited inside the division editor drawer (see the Color field there),
       // so no header swatch — it just took up space on the board.
-      if (!head.querySelector('.org-edit-btn')) head.appendChild(_editBtn(ev => { ev.stopPropagation(); openOrgEditor('division', divId); }));
+      if (!head.querySelector('.org-edit-btn')) head.appendChild(_editBtn(ev => { ev.stopPropagation(); openOrgEditor('division', divId, /*view*/ false); }));
     }
   });
   document.querySelectorAll('.org-col-department').forEach(col => {
     const head = col.querySelector('.org-col-department-head');
-    if (editing && head) { _wireDepartmentDrag(head, col, _deptIdOf(col)); if (!head.querySelector('.org-edit-btn')) head.appendChild(_editBtn(ev => { ev.stopPropagation(); openOrgEditor('department', _deptIdOf(col)); })); }
+    if (editing && head) { _wireDepartmentDrag(head, col, _deptIdOf(col)); if (!head.querySelector('.org-edit-btn')) head.appendChild(_editBtn(ev => { ev.stopPropagation(); openOrgEditor('department', _deptIdOf(col), /*view*/ false); })); }
   });
   document.querySelectorAll('.org-post-card').forEach(card => {
     const postId = Number(card.dataset.id);
     if (!card.querySelector('.org-stat-btn')) card.appendChild(_statBtn('Post & holder stats', ev => { ev.stopPropagation(); openPostStats(postId); }));
     if (editing) {
       _wirePostDrag(card, postId);
-      if (!card.querySelector('.org-edit-btn')) card.appendChild(_editBtn(ev => { ev.stopPropagation(); openOrgEditor('post', postId); }));
+      if (!card.querySelector('.org-edit-btn')) card.appendChild(_editBtn(ev => { ev.stopPropagation(); openOrgEditor('post', postId, /*view*/ false); }));
       if (!card.querySelector('.org-pick-btn')) card.appendChild(_pickerBtn(postId));
       const holderEl = card.querySelector('.org-post-card-holders');
       const hs = activeHoldersByPost[postId] || [];

@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v552', title: 'Org Board — click to view, pen to edit', items: [
+      'Clicking a division, department or post now opens its profile (read-only). Editing is done with the ✎ pen, which only appears if you have edit access.',
+    ] },
     { version: 'v551', title: 'Org Board — black text in light mode', items: [
       'In light mode the org board’s secondary text is now near-black instead of light gray, so it’s easy to read.',
     ] },

@@ -84,18 +84,19 @@
   /* Modal */
   .modal-overlay { display:none; position:fixed; inset:0; z-index:1100; background:rgba(0,0,0,0.62); backdrop-filter:blur(4px); align-items:flex-start; justify-content:center; padding:40px 16px; overflow-y:auto; }
   .modal-overlay.open { display:flex; }
-  .modal { width:100%; max-width:640px; background:var(--surface); border:1px solid var(--border-light); border-radius:16px; box-shadow:0 26px 80px rgba(0,0,0,0.65); overflow:hidden; }
-  .modal-head { display:flex; align-items:center; gap:10px; padding:15px 18px; border-bottom:1px solid var(--border); background:var(--surface2); }
+  .modal { width:100%; max-width:820px; background:var(--surface); border:1px solid var(--border-light); border-radius:16px; box-shadow:0 26px 80px rgba(0,0,0,0.65); overflow:hidden; display:flex; flex-direction:column; max-height:calc(100vh - 56px); }
+  .modal-head { flex:0 0 auto; display:flex; align-items:center; gap:10px; padding:15px 18px; border-bottom:1px solid var(--border); background:var(--surface2); }
   .modal-head .mh-title { font-size:1.05rem; font-weight:700; flex:1; }
   .modal-x { width:30px; height:30px; border-radius:8px; background:var(--surface3); border:1px solid var(--border); color:var(--text); cursor:pointer; font-size:0.9rem; }
   .modal-x:hover { color:var(--red); border-color:var(--red); }
-  .modal-body { padding:18px; }
+  .modal-body { padding:18px; overflow-y:auto; flex:1 1 auto; min-height:0; }
   .fld { margin-bottom:14px; }
   .fld label { display:block; font-size:0.78rem; font-weight:600; color:var(--text); margin-bottom:5px; }
   .fld .hint { font-size:0.72rem; color:var(--text-dim); margin-top:4px; }
   .fld input, .fld select, .fld textarea { width:100%; padding:9px 11px; background:var(--surface2); border:1px solid var(--border-light); border-radius:8px; color:var(--text); font-size:0.88rem; font-family:inherit; }
   .fld input:focus, .fld select:focus, .fld textarea:focus { border-color:var(--blue); outline:none; box-shadow:0 0 0 3px rgba(107,158,255,.12); }
-  .fld textarea { min-height:150px; resize:vertical; line-height:1.5; }
+  .fld textarea { min-height:280px; resize:vertical; line-height:1.55; }
+  .modal-foot { flex:0 0 auto; }
   .fld-row { display:flex; gap:12px; } .fld-row > .fld { flex:1; }
   .chips { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
   .chip { display:inline-flex; align-items:center; gap:5px; background:var(--surface3); border:1px solid var(--border); border-radius:999px; padding:4px 6px 4px 11px; font-size:0.78rem; color:var(--text); }

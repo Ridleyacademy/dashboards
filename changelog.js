@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v542', title: 'Policies — roomier editor', items: [
+      'The policy editor is wider with a much taller writing area, and it caps to the screen height (scrolls inside) so it always fits.',
+    ] },
     { version: 'v541', title: 'Policies — easier Concerns picker', items: [
       'The Concerns picker is now a search box: start typing a division, department or post and pick it from the list (with its org path), or type free text and add it. Much faster than scrolling a long dropdown.',
     ] },

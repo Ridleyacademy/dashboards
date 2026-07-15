@@ -1464,12 +1464,13 @@ async function openPolicyEditModal(policyId, scopeType, scopeId) {
 // ═══════════════════════════════════════════════════════════════════════
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ORG BOARD EXTRAS — TAP-TO-MOVE + stats popups.
-// No drag-and-drop (native DnD dies on touch; pointer-drag felt unreliable).
-// Instead: tap an item's move handle (⠿) to "pick it up", then tap one of the
-// green drop-slots that appear between every valid position to place it. Tap a
-// person to pick them up, then tap a post to assign. All plain clicks/taps —
-// works identically on touch and mouse.
+// ORG BOARD EXTRAS — DRAG-AND-DROP moves + stats popups.
+// Divisions, departments and posts are moved/reordered by dragging (pointer-
+// based, with a live-reflow ghost — see _wireDivisionDrag / _wireDepartmentDrag
+// / _wirePostDrag). People are assigned with the ▾ picker on each post (and in
+// the editor drawer). Exec hierarchy + which divisions an exec oversees are set
+// in the exec editor. (The old tap-to-pick-then-tap-a-green-slot system and the
+// "Unposted people" tray were removed once drag-and-drop covered every move.)
 // ═══════════════════════════════════════════════════════════════════════════
 (function () {
   const _orig = renderOrgBoard;
@@ -1477,33 +1478,6 @@ async function openPolicyEditModal(policyId, scopeType, scopeId) {
 })();
 
 function _deptIdOf(col) { const h = col && col.querySelector('.org-col-department-head'); return h ? Number(h.dataset.id) : null; }
-function _itemId(kind, el) { return kind === 'division' ? Number(el.dataset.divId) : kind === 'department' ? _deptIdOf(el) : Number(el.dataset.id); }
-const _MVCFG = {
-  division:   { listSel: '.org-board',                itemSel: '.org-col-division',   horiz: true,  addSel: '.org-add-division' },
-  department: { listSel: '.org-col-departments',       itemSel: '.org-col-department', horiz: false, addSel: '.org-add-btn' },
-  post:       { listSel: '.org-col-department-posts',  itemSel: '.org-post-card',      horiz: false, addSel: null },
-};
-
-let _mv = null; // { kind:'division'|'department'|'post'|'user', id, name }
-
-function _label(kind, id) {
-  if (kind === 'post') { const p = postsData.find(x => x.id === id); return p ? p.name : 'post'; }
-  if (kind === 'department') { const d = departmentsData.find(x => x.id === id); return d ? d.name : 'department'; }
-  if (kind === 'division') { const d = divisionsData.find(x => x.id === id); return d ? d.name : 'division'; }
-  if (kind === 'user') return _displayOf(id) || 'person';
-  return '';
-}
-
-function _cancelMove(rerender) {
-  _mv = null;
-  document.body.classList.remove('org-placing');
-  document.querySelectorAll('.org-slot').forEach(s => s.remove());
-  document.querySelectorAll('.org-picking').forEach(e => e.classList.remove('org-picking'));
-  document.querySelectorAll('.org-target').forEach(e => e.classList.remove('org-target'));
-  const b = document.getElementById('orgMoveBanner'); if (b) b.remove();
-  const td = document.getElementById('orgExecTopDrop'); if (td) td.remove();
-  if (rerender) { /* board already reflects DOM; loadOrgTab handles real refresh */ }
-}
 
 // ── Executive TREE (connected boxes above the divisions, MAKH-style) ─────────
 // Overrides the ported flat-strip renderTopTier() with a nested-UL org chart
@@ -1555,27 +1529,6 @@ async function _createExecUnder(parentId) {
   try { await api('?api=exec-post-create', { method: 'POST', body: { name: name.trim(), slug, parent_exec_post_id: parentId || null } }); await loadOrgTab(); } catch (e) { alert(e.message); }
 }
 
-function _renderExecTargets() {
-  const self = _mv.id;
-  const descendants = new Set();
-  const collect = (pid) => { execPostsData.filter(p => p.parent_exec_post_id === pid && p.id !== pid).forEach(c => { if (descendants.has(c.id)) return; descendants.add(c.id); collect(c.id); }); };
-  collect(self);
-  document.querySelectorAll('.org-exec-node').forEach(node => {
-    const id = Number(node.dataset.id);
-    if (id === self || descendants.has(id)) return;
-    node.classList.add('org-target');
-    node.addEventListener('click', _onExecTargetClick, { capture: true });
-  });
-  // (The "⊤ Make top-level (no boss)" chip was removed — an executive's place in
-  // the chain of command is now set in its editor's "Sits above / oversees".)
-}
-function _onExecTargetClick(e) {
-  if (!_mv) return;
-  e.stopPropagation(); e.preventDefault();
-  const parentId = Number(e.currentTarget.dataset.id); const mid = _mv.id;
-  _cancelMove();
-  (async () => { try { await api('?api=exec-post-update&id=' + mid, { method: 'POST', body: { parent_exec_post_id: parentId } }); await loadOrgTab(); } catch (err) { alert(err.message); } })();
-}
 function _openExecPersonPicker(execId, anchor) {
   _closePicker();
   const pop = document.createElement('div'); pop.id = 'orgPersonPop'; pop.className = 'org-person-pop';
@@ -1600,102 +1553,6 @@ function _openExecPersonPicker(execId, anchor) {
   search.addEventListener('input', () => render(search.value));
   search.addEventListener('click', e => e.stopPropagation());
   setTimeout(() => document.addEventListener('click', _closePickerOutside, true), 0);
-}
-
-function _pickUp(kind, id) {
-  _cancelMove();
-  _mv = { kind, id, name: _label(kind, id) };
-  document.body.classList.add('org-placing');
-  // Highlight the picked item.
-  let srcEl = null;
-  if (kind === 'user') srcEl = null;
-  else if (_MVCFG[kind]) {
-    const cfg = _MVCFG[kind];
-    srcEl = [...document.querySelectorAll(cfg.itemSel)].find(el => _itemId(kind, el) === id);
-  } else if (kind === 'exec') {
-    srcEl = [...document.querySelectorAll('.org-exec-node')].find(el => Number(el.dataset.id) === id);
-  }
-  if (srcEl) srcEl.classList.add('org-picking');
-  _renderTargets();
-  _showBanner();
-}
-
-function _renderTargets() {
-  if (!_mv) return;
-  if (_mv.kind === 'exec') { _renderExecTargets(); return; }
-  if (_mv.kind === 'division') { _renderDivisionTargets(); return; }
-  if (_mv.kind === 'user') {
-    // Any post or exec post is a valid assignment target.
-    document.querySelectorAll('.org-post-card, .org-exec-card').forEach(card => {
-      card.classList.add('org-target');
-      card.addEventListener('click', _onUserTargetClick, { capture: true });
-    });
-    return;
-  }
-  const cfg = _MVCFG[_mv.kind];
-  document.querySelectorAll(cfg.listSel).forEach(container => {
-    const items = [...container.querySelectorAll(':scope > ' + cfg.itemSel)];
-    const mkSlot = (beforeEl) => {
-      const s = document.createElement('button');
-      s.type = 'button'; s.className = 'org-slot ' + (cfg.horiz ? 'v' : 'h');
-      s.addEventListener('click', ev => { ev.stopPropagation(); ev.preventDefault(); _place(container, beforeEl); });
-      return s;
-    };
-    items.forEach(it => container.insertBefore(mkSlot(it), it));
-    const addBtn = cfg.addSel ? container.querySelector(':scope > ' + cfg.addSel) : null;
-    if (addBtn) container.insertBefore(mkSlot(null), addBtn); else container.appendChild(mkSlot(null));
-  });
-}
-
-function _onUserTargetClick(e) {
-  const card = e.currentTarget;
-  e.stopPropagation(); e.preventDefault();
-  const uid = _mv && _mv.id; if (!uid) return;
-  const isExec = card.classList.contains('org-exec-card');
-  const targetId = Number(card.dataset.id);
-  _cancelMove();
-  (async () => {
-    try {
-      if (isExec) await api('?api=exec-post-add-holder', { method: 'POST', body: { exec_post_id: targetId, user_id: uid } });
-      else await api('?api=post-add-holder', { method: 'POST', body: { post_id: targetId, user_id: uid } });
-      await loadOrgTab();
-    } catch (err) { alert(err.message); }
-  })();
-}
-
-async function _place(container, beforeEl) {
-  if (!_mv) return;
-  const kind = _mv.kind, movedId = _mv.id, cfg = _MVCFG[kind];
-  const items = [...container.querySelectorAll(':scope > ' + cfg.itemSel)].filter(el => _itemId(kind, el) !== movedId);
-  const ids = items.map(el => _itemId(kind, el)).filter(x => x != null);
-  const beforeId = beforeEl ? _itemId(kind, beforeEl) : null;
-  const insertIdx = (beforeId == null) ? ids.length : (ids.indexOf(beforeId) === -1 ? ids.length : ids.indexOf(beforeId));
-  ids.splice(insertIdx, 0, movedId);
-  _cancelMove();
-  try {
-    if (kind === 'division') {
-      await api('?api=reorder', { method: 'POST', body: { kind: 'divisions', order: ids } });
-    } else if (kind === 'department') {
-      const destDiv = Number(container.closest('.org-col-division').dataset.divId);
-      const dep = departmentsData.find(x => x.id === movedId);
-      if (dep && dep.division_id !== destDiv) await api('?api=department-update&id=' + movedId, { method: 'POST', body: { division_id: destDiv } });
-      await api('?api=reorder', { method: 'POST', body: { kind: 'departments', order: ids } });
-    } else if (kind === 'post') {
-      const destDept = _deptIdOf(container.closest('.org-col-department'));
-      const post = postsData.find(x => x.id === movedId);
-      if (post && post.department_id !== destDept) await api('?api=post-update&id=' + movedId, { method: 'POST', body: { department_id: destDept } });
-      await api('?api=reorder', { method: 'POST', body: { kind: 'posts', order: ids } });
-    }
-    await loadOrgTab();
-  } catch (err) { alert(err.message); await loadOrgTab(); }
-}
-
-function _showBanner() {
-  const b = document.createElement('div');
-  b.id = 'orgMoveBanner'; b.className = 'org-move-banner';
-  b.innerHTML = `<span>Moving <strong>${escapeHtml(_mv.name)}</strong> — tap a green ${_mv.kind === 'user' ? 'post' : 'slot'} to place it</span><button type="button" id="orgMoveCancel">Cancel</button>`;
-  document.body.appendChild(b);
-  document.getElementById('orgMoveCancel').addEventListener('click', () => _cancelMove());
 }
 
 function _editBtn(onClick) {
@@ -1760,19 +1617,6 @@ function _openPersonPicker(postId, anchor) {
   search.addEventListener('input', () => render(search.value));
   search.addEventListener('click', e => e.stopPropagation());
   setTimeout(() => document.addEventListener('click', _closePickerOutside, true), 0);
-}
-
-// Make the whole item pick itself up on tap (capture phase so it beats the
-// core's open-editor click). Editing opens via the dedicated ✎ button instead.
-function _wholeItemPickup(el, kind, id) {
-  if (el.dataset.mvPick) return; el.dataset.mvPick = '1';
-  el.addEventListener('click', ev => {
-    if (!orgCanEdit()) return;
-    if (ev.target.closest('.org-stat-btn, .org-edit-btn, .org-post-card-holders, .org-slot, button, a, input, select, textarea')) return;
-    if (_mv) return; // a move is already in progress — tap a slot or Cancel
-    ev.stopPropagation(); ev.preventDefault();
-    _pickUp(kind, id);
-  }, true);
 }
 
 // After a drag, sync the in-memory model from the (already-correct) DOM and
@@ -2077,7 +1921,6 @@ function _ppdUp() {
 
 function enhanceBoard() {
   const editing = orgCanEdit();
-  if (!editing) _cancelMove();
   // Feed the shared targets-widget the session, people directory + post names.
   window.session = session;
   window.TG_DIRECTORY = usersData;
@@ -2091,8 +1934,6 @@ function enhanceBoard() {
       const t = e.target; if (t && t.closest && t.closest('.org-col-division, .org-col-department, .org-post-card, .org-exec-node')) e.preventDefault();
     }, true);
   }
-  _renderPeopleTray(editing);
-
   document.querySelectorAll('.org-col-division').forEach(col => {
     const divId = Number(col.dataset.divId);
     const d = divisionsData.find(x => x.id === divId);
@@ -2119,9 +1960,6 @@ function enhanceBoard() {
       _wirePostDrag(card, postId);
       if (!card.querySelector('.org-edit-btn')) card.appendChild(_editBtn(ev => { ev.stopPropagation(); openOrgEditor('post', postId, /*view*/ false); }));
       if (!card.querySelector('.org-pick-btn')) card.appendChild(_pickerBtn(postId));
-      const holderEl = card.querySelector('.org-post-card-holders');
-      const hs = activeHoldersByPost[postId] || [];
-      if (holderEl && hs[0] && !holderEl.dataset.mvWired) { holderEl.dataset.mvWired = '1'; holderEl.style.cursor = 'pointer'; holderEl.title = 'Move this person to another post'; holderEl.addEventListener('click', e => { e.stopPropagation(); _pickUp('user', hs[0].user_id); }, true); }
     }
   });
   document.querySelectorAll('.org-exec-card').forEach(card => {
@@ -2140,8 +1978,6 @@ function enhanceBoard() {
   if (myBtn) { if (!myBtn.dataset.wired) { myBtn.dataset.wired = '1'; myBtn.addEventListener('click', _onMyPostClick); } myBtn.style.display = myIds.size ? '' : ''; }
 
   try { _weaveTree(); } catch (e) { console.warn('[weave]', e); }
-  // If a move is in progress across a re-render, restore its targets.
-  if (_mv) { document.body.classList.add('org-placing'); _renderTargets(); }
 }
 
 // Layered org-chart layout. ALL divisions stay in the flat #orgBoard row (always
@@ -2246,31 +2082,9 @@ function _weaveTree() {
   svg.innerHTML = paths;
 }
 
-// Division movement is reparent-under-an-exec (target-based), since divisions
-// now live in the tree, not a flat row.
-function _renderDivisionTargets() {
-  document.querySelectorAll('.org-exec-node').forEach(node => { node.classList.add('org-target'); node.addEventListener('click', _onDivTargetClick, { capture: true }); });
-  const tier = document.getElementById('orgTopTier');
-  if (tier && !document.getElementById('orgExecTopDrop')) {
-    const chip = document.createElement('button'); chip.id = 'orgExecTopDrop'; chip.className = 'org-exec-topdrop'; chip.type = 'button'; chip.textContent = '⊤ Top-level (under no exec)';
-    chip.addEventListener('click', async e => { e.stopPropagation(); const did = _mv.id; _cancelMove(); try { await _setDivisionExec(did, null); await loadOrgTab(); } catch (err) { alert(err.message); } });
-    tier.insertBefore(chip, tier.firstChild);
-  }
-}
-function _onDivTargetClick(e) {
-  if (!_mv || _mv.kind !== 'division') return;
-  e.stopPropagation(); e.preventDefault();
-  const execId = Number(e.currentTarget.dataset.id), did = _mv.id;
-  _cancelMove();
-  (async () => { try { await _setDivisionExec(did, execId); await loadOrgTab(); } catch (err) { alert(err.message); } })();
-}
-async function _setDivisionExec(did, execId) {
-  for (const ep of execPostsData) {
-    const has = (ep.division_ids || []).includes(did);
-    if (execId && ep.id === execId) { if (!has) await api('?api=exec-post-update&id=' + ep.id, { method: 'POST', body: { division_ids: [...(ep.division_ids || []), did] } }); }
-    else if (has) await api('?api=exec-post-update&id=' + ep.id, { method: 'POST', body: { division_ids: (ep.division_ids || []).filter(x => x !== did) } });
-  }
-}
+// Division → exec overseer and exec hierarchy are both set in the exec editor
+// ("Sits above / oversees" + the division checkboxes), so there is no on-board
+// tap-to-connect flow any more.
 
 // ─────────────────────── "My Post" panel (staff self-service) ───────────────
 // Any signed-in staffer clicks "My Post" (or their highlighted card) to see, for
@@ -2388,24 +2202,7 @@ function _statBtn(title, onClick) {
   return b;
 }
 
-// ── Unposted-people tray (edit mode) — tap a chip to pick the person up ──────
-function _renderPeopleTray(editing) {
-  let tray = document.getElementById('orgPeopleTray');
-  if (!editing) { if (tray) tray.remove(); return; }
-  const view = document.getElementById('orgBoardView'); if (!view) return;
-  const posted = new Set();
-  Object.values(activeHoldersByPost).forEach(a => a.forEach(h => posted.add(h.user_id)));
-  Object.values(execHoldersByExecPost).forEach(a => a.forEach(h => posted.add(h.user_id)));
-  const unposted = usersData.filter(u => !posted.has(u.id));
-  if (!tray) { tray = document.createElement('div'); tray.id = 'orgPeopleTray'; tray.className = 'org-people-tray'; view.insertBefore(tray, document.getElementById('orgBoardZoomWrap')); }
-  tray.innerHTML = '<span class="org-tray-label">Unposted people — tap one, then tap a post to assign</span>' +
-    (unposted.length
-      ? unposted.map(u => `<button type="button" class="org-person-chip" data-uid="${u.id}" title="${escapeHtml(u.email || '')}"><span class="havatar small">${escapeHtml(_initialOf(u.id))}</span>${escapeHtml(_displayOf(u.id))}</button>`).join('')
-      : '<span style="color:var(--text-dim);font-size:0.78rem;">Everyone is posted</span>');
-  tray.querySelectorAll('.org-person-chip').forEach(ch => ch.addEventListener('click', e => { e.stopPropagation(); _pickUp('user', ch.dataset.uid); }));
-}
-
-document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (document.getElementById('orgStatsModal')) _closeStats(); else if (_mv) _cancelMove(); } });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (document.getElementById('orgStatsModal')) _closeStats(); } });
 
 // ── Stats popups (weekly-stats data via org-scoped endpoints) ────────────────
 function _fmtStat(v, unit) { v = Number(v) || 0; if (unit === 'usd') return '$' + Math.round(v).toLocaleString(); if (unit === 'pct') return (Math.round(v * 10) / 10) + '%'; return (Math.round(v * 10) / 10).toLocaleString(); }

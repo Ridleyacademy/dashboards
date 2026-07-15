@@ -170,19 +170,6 @@
     }
   }
 
-  function targetOptions(level, selId) {
-    if (level === 'division') return divisions.map(d => `<option value="${d.id}" ${d.id == selId ? 'selected' : ''}>${esc(d.name)}</option>`).join('');
-    if (level === 'department') {
-      let h = '';
-      divisions.forEach(d => { const deps = departments.filter(x => x.division_id === d.id); if (!deps.length) return; h += `<optgroup label="${esc(d.name)}">` + deps.map(dep => `<option value="${dep.id}" ${dep.id == selId ? 'selected' : ''}>${esc(dep.name)}</option>`).join('') + '</optgroup>'; });
-      return h;
-    }
-    // post
-    let h = '';
-    departments.forEach(dep => { const ps = posts.filter(x => x.department_id === dep.id); if (!ps.length) return; const d = divById[dep.division_id]; h += `<optgroup label="${esc((d?.name || '') + ' › ' + dep.name)}">` + ps.map(po => `<option value="${po.id}" ${po.id == selId ? 'selected' : ''}>${esc(po.name)}</option>`).join('') + '</optgroup>'; });
-    return h;
-  }
-
   // Options for the concerns picker: every division/department/post, grouped.
   function refOptions() {
     let h = '<optgroup label="Divisions">' + divisions.map(d => `<option value="division:${d.id}">${esc(d.name)}</option>`).join('') + '</optgroup>';
@@ -197,18 +184,16 @@
 
   function openEdit(p) {
     const editing = !!p;
-    let concernsList = (p && Array.isArray(p.concerns) ? p.concerns : []).map(x => ({ ...x }));
-    const lvl = p ? p.scope_type : 'division';
+    // Concerns is the policy's connection to the org. Old policies with only a
+    // scope (no concerns) are seeded from that scope so nothing is lost.
+    let concernsList = (p && Array.isArray(p.concerns) && p.concerns.length) ? p.concerns.map(x => ({ ...x }))
+      : (p && p.scope_type && p.scope_id ? [{ type: p.scope_type, id: p.scope_id }] : []);
     shell(`
       <div class="modal-head"><span class="mh-title">${editing ? 'Edit' : 'New policy / order'}</span><button class="modal-x">✕</button></div>
       <div class="modal-body">
-        <div class="fld-row">
-          <div class="fld"><label>Type</label><select id="fKind"><option value="policy" ${!p || p.kind === 'policy' ? 'selected' : ''}>Policy — a standing rule</option><option value="order" ${p && p.kind === 'order' ? 'selected' : ''}>Order — a directive</option></select></div>
-          <div class="fld"><label>Applies to</label><select id="fLevel"><option value="division" ${lvl === 'division' ? 'selected' : ''}>Division</option><option value="department" ${lvl === 'department' ? 'selected' : ''}>Department</option><option value="post" ${lvl === 'post' ? 'selected' : ''}>Post</option></select></div>
-        </div>
-        <div class="fld"><label id="fTargetLbl">Division</label><select id="fTarget">${targetOptions(lvl, p?.scope_id)}</select><div class="hint">Which part of the org this ${'document'} governs.</div></div>
+        <div class="fld"><label>Type</label><select id="fKind"><option value="policy" ${!p || p.kind === 'policy' ? 'selected' : ''}>Policy — a standing rule</option><option value="order" ${p && p.kind === 'order' ? 'selected' : ''}>Order — a directive</option></select></div>
         <div class="fld">
-          <label>Concerns <span style="font-weight:400;color:var(--text-dim)">(distribution — optional)</span></label>
+          <label>Concerns</label>
           <div id="cChips"></div>
           <div class="fld-row" style="gap:6px;">
             <select id="cRef" style="flex:1;"><option value="">Pick a division, department or post…</option>${refOptions()}</select>
@@ -218,7 +203,7 @@
             <input id="cText" placeholder="…or type anything" style="flex:1;">
             <button class="btn-ghost" id="cAddText" type="button">Add</button>
           </div>
-          <div class="hint">Who this concerns — pick org units or write free text. Shown on the letter; if left empty it falls back to the scope path.</div>
+          <div class="hint">Pick the divisions, departments or posts this concerns — that's how the policy is linked to the org (add at least one). You can also add free text (e.g. “All Staff”).</div>
         </div>
         <div class="fld"><label>Title</label><input id="fTitle" value="${esc(p?.title || '')}" placeholder="e.g. Refund approval policy"></div>
         <div class="fld"><label>Text</label><textarea id="fBody" placeholder="The full policy or order…">${esc(p?.body || '')}</textarea></div>
@@ -228,8 +213,6 @@
         </div>
       </div>
       <div class="modal-foot"><span class="modal-msg"></span><button class="btn-ghost" id="fCancel">Cancel</button><button class="btn-primary" id="fSave">${editing ? 'Save changes' : 'Create'}</button></div>`);
-    const relabel = () => { const lv = $('fLevel').value; $('fTargetLbl').textContent = lv.charAt(0).toUpperCase() + lv.slice(1); $('fTarget').innerHTML = targetOptions(lv, null); };
-    $('fLevel').addEventListener('change', relabel);
     // Concerns chips editor
     const renderChips = () => {
       const box = $('cChips');
@@ -247,12 +230,15 @@
       const msg = $('modalRoot').querySelector('.modal-msg'); msg.classList.remove('err');
       const title = $('fTitle').value.trim();
       if (!title) { msg.textContent = 'Title is required.'; msg.classList.add('err'); return; }
+      // The policy links to the org via Concerns: use the first org-unit concern
+      // as its scope (drives edit permissions + where it shows on the org board).
+      const orgUnit = concernsList.find(it => it.type !== 'text' && it.id != null);
+      if (!orgUnit) { msg.textContent = 'Add at least one division, department or post to Concerns.'; msg.classList.add('err'); return; }
       const body = {
-        scope_type: $('fLevel').value, scope_id: Number($('fTarget').value) || null,
+        scope_type: orgUnit.type, scope_id: Number(orgUnit.id),
         kind: $('fKind').value, title, body: $('fBody').value,
         expires_at: $('fExpires').value || null, sort_order: Number($('fSort').value) || 0,
       };
-      if (!body.scope_id) { msg.textContent = 'Pick which part of the org this applies to.'; msg.classList.add('err'); return; }
       $('fSave').disabled = true; msg.textContent = 'Saving…';
       try {
         const res = editing ? await ac('?api=policy-update&id=' + p.id, { method: 'POST', body }) : await ac('?api=policy-create', { method: 'POST', body });

@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v540', title: 'Policies — linked through Concerns', items: [
+      'Removed the separate “Applies to” field. A policy is now connected to the org purely through its Concerns — the divisions, departments or posts you list there. Add at least one org unit (you can still add free text too).',
+    ] },
     { version: 'v539', title: 'Policies — editor matches the letter order', items: [
       'The policy editor now lists its fields in the order the letter reads — Concerns sits above the Title and Text instead of at the bottom.',
     ] },

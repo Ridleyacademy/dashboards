@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v554-orgboard-no-tapmove';
+const CACHE_NAME = 'ridley-v555-orgboard-exec-profile';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [

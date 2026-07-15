@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v555', title: 'Org Board — executive post profiles', items: [
+      'Clicking an executive post (the boxes above the divisions) now opens its profile too — holder, purpose, who it reports to and what it oversees. The ✎ pen still opens the editor.',
+    ] },
     { version: 'v554', title: 'Org Board — drag-and-drop only, no more tap-to-move', items: [
       'Removed the old tap-to-move system (the “Unposted people” bar and the “tap a green post to place it” mode). Everything moves by dragging now: drag divisions, departments and posts to reorder or move them. Assign a person with the ▾ picker on any post.',
     ] },

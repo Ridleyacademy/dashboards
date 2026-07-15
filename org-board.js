@@ -1201,6 +1201,62 @@ function renderPostProfile(po) {
   loadPoliciesInto('po-policies', 'post', po.id);
 }
 
+// Executive posts live above the divisions; clicking one opens this read-only
+// profile (holder, purpose, who it oversees, who it reports to). The pencil / the
+// profile's Edit button opens the exec editor (openExecPostEditor).
+function openExecProfile(epId) {
+  const ep = execPostsData.find(x => x.id === epId);
+  openDrawer('<div id="axDrawerEditor"><div class="ax-editor-empty">Loading…</div></div>');
+  const drawer = document.getElementById('orgDrawer');
+  if (drawer) drawer.classList.remove('viewonly');
+  const lbl = drawer && drawer.querySelector('.org-drawer-close > span');
+  if (lbl) lbl.textContent = 'Profile';
+  _useDrawerEditor = true;
+  renderExecProfile(ep);
+}
+function renderExecProfile(ep) {
+  if (!ep) return;
+  const ed = editorEl(); if (!ed) return;
+  const holders = (execHoldersByExecPost[ep.id] || []);
+  const holdersHtml = holders.length ? holders.map(h => _profHeadPill(h.user_id)).join(' ')
+    : '<span style="color:var(--text-dim);font-size:0.86rem;">Vacant</span>';
+  const parent = ep.parent_exec_post_id ? execPostsData.find(x => x.id === ep.parent_exec_post_id) : null;
+  const childExecs = execPostsData.filter(x => x.parent_exec_post_id === ep.id && x.id !== ep.id);
+  const overseenDivs = (ep.division_ids || []).map(did => divisionsData.find(d => d.id === did)).filter(Boolean);
+  const oversees = [
+    ...overseenDivs.map(d => `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;cursor:pointer;" data-jump-view="division" data-jump-id="${d.id}"><span>${escapeHtml(d.name)}</span><span class="org-badge">division</span></div>`),
+    ...childExecs.map(c => `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;cursor:pointer;" data-jump-exec-id="${c.id}"><span>${escapeHtml(c.name)}</span><span class="org-badge">exec</span></div>`),
+  ].join('');
+  ed.innerHTML = `<div class="ax-profile">
+    <div class="breadcrumb">Executive post</div>
+    <h2 style="display:flex;align-items:center;gap:8px;"><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${escapeHtml(ep.color || '#fbbf24')};"></span>${escapeHtml(ep.name)}</h2>
+
+    <h3>Who holds this post</h3>
+    <div style="margin-bottom:12px;">${holdersHtml}</div>
+
+    ${_profBlock('Purpose', ep.purpose)}
+    ${_profBlock('What this produces', ep.valuable_final_product)}
+    ${_profBlock('Description', ep.description)}
+
+    <h3>Reports to</h3>
+    <div style="margin-bottom:4px;">${parent
+      ? `<div style="display:inline-flex;align-items:center;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;cursor:pointer;" data-jump-exec-id="${parent.id}">${escapeHtml(parent.name)}</div>`
+      : '<span style="color:var(--text-dim);font-size:0.86rem;">Top-level (reports to no one)</span>'}</div>
+
+    <h3>Oversees</h3>
+    <div style="display:flex;flex-direction:column;gap:4px;">${oversees || '<span style="color:var(--text-dim);font-size:0.82rem;">Nothing assigned yet.</span>'}</div>
+
+    <div class="ax-actions" style="border-top:1px solid var(--border);padding-top:14px;margin-top:16px;">
+      ${typeof openExecStats === 'function' ? '<button class="small-btn" id="prof-stats" style="padding:8px 14px;">▤ Stats</button>' : ''}
+      ${orgCanEdit() ? '<button class="btn-primary" id="prof-edit">✎ Edit</button>' : ''}
+    </div>
+  </div>`;
+  document.querySelectorAll('[data-jump-view]').forEach(el => el.addEventListener('click', () => openOrgEditor(el.dataset.jumpView, Number(el.dataset.jumpId), /*view*/ true)));
+  document.querySelectorAll('[data-jump-exec-id]').forEach(el => el.addEventListener('click', () => openExecProfile(Number(el.dataset.jumpExecId))));
+  const eb = document.getElementById('prof-edit'); if (eb) eb.addEventListener('click', () => openExecPostEditor(ep.id));
+  const sb = document.getElementById('prof-stats'); if (sb && typeof openExecStats === 'function') sb.addEventListener('click', () => openExecStats(ep.id));
+}
+
 async function refreshExecPostHolders(execPostId) {
   try {
     const j = await api('?api=exec-post-holders&exec_post_id=' + execPostId);
@@ -1509,6 +1565,14 @@ function _renderExecTree() {
   document.getElementById('org-add-exec-root')?.addEventListener('click', () => _createExecUnder(null));
   tier.querySelectorAll('.org-exec-node').forEach(node => {
     const id = Number(node.dataset.id);
+    // Clicking the node body opens its read-only profile (like clicking a post
+    // or division). The small buttons below stopPropagation, so they win.
+    node.style.cursor = 'pointer';
+    node.addEventListener('click', ev => {
+      if (ev.target.closest('button, a, input, select, textarea, .org-pick-btn, .org-stat-btn, .org-edit-btn, .org-exec-addsub')) return;
+      ev.stopPropagation();
+      openExecProfile(id);
+    });
     node.appendChild(_statBtn('Executive post stats', ev => { ev.stopPropagation(); openExecStats(id); }));
     if (editing) {
       node.appendChild(_editBtn(ev => { ev.stopPropagation(); openExecPostEditor(id); }));

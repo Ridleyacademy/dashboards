@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v559', title: 'Org Board — division colour swatch actually shows the colour', items: [
+      'The Color field in a division’s edit panel now reliably shows the current colour (Safari was hiding the native swatch). It paints the colour directly and updates live as you pick.',
+    ] },
     { version: 'v558', title: 'Org Board — division colour picker shows its colour', items: [
       'The Color field in a division’s edit panel now shows the current colour in the swatch (it was being hidden behind the input background). Click the ✎ pen on a division to change its colour.',
     ] },

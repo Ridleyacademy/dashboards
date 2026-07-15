@@ -791,7 +791,7 @@ function renderDivisionEditor(d) {
     <div class="ax-editor-row"><label title="One sentence: why does this division exist?">Purpose</label><input id="d-purpose" value="${escapeHtml(d.purpose || '')}" placeholder="One sentence: why does this division exist?"></div>
     <div class="ax-editor-row"><label title="The single tangible thing this division produces and ships out.">What this produces</label><input id="d-vfp" value="${escapeHtml(d.valuable_final_product || '')}" placeholder="The tangible thing this division produces and ships"></div>
     <div class="ax-editor-row"><label>Description</label><textarea id="d-desc">${escapeHtml(d.description || '')}</textarea></div>
-    <div class="ax-editor-row"><label>Color</label><input id="d-color" type="color" value="${escapeHtml(d.color || '#6b9eff')}" style="max-width:80px;"></div>
+    <div class="ax-editor-row"><label>Color</label><input id="d-color" type="color" value="${escapeHtml(d.color || '#6b9eff')}" style="max-width:80px;height:38px;padding:3px;background:${escapeHtml(d.color || '#6b9eff')};"></div>
     <div class="ax-editor-row"><label>Sort order</label><input id="d-sort" type="number" value="${d.sort_order || 0}" style="max-width:120px;"></div>
 
     <h3>Division Head</h3>
@@ -822,6 +822,12 @@ function renderDivisionEditor(d) {
       <span class="ax-msg" id="d-msg"></span>
     </div>
   </div>`;
+
+  // Colour swatch: paint the input's own background with the chosen colour so it
+  // is always visible (Safari hides the native swatch once a background is set),
+  // and keep it live as the user picks.
+  const dColor = document.getElementById('d-color');
+  if (dColor) dColor.addEventListener('input', () => { dColor.style.background = dColor.value; });
 
   // Populate sub-lists
   const depts = departmentsData.filter(x => x.division_id === d.id);

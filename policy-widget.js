@@ -62,6 +62,7 @@ window.PolicyWidget = (function () {
 
   function concernLabel(it) {
     if (!it) return '';
+    if (it.type === 'all_staff') return 'All Staff';
     if (it.type === 'text') return it.label || '';
     if (it.type === 'division') return divById()[it.id]?.name || ('Division #' + it.id);
     if (it.type === 'department') return depById()[it.id]?.name || ('Department #' + it.id);
@@ -72,7 +73,8 @@ window.PolicyWidget = (function () {
   function scopeParts(p) {
     const d = divById(), dep = depById(), po = postById(), ex = execById();
     const parts = [];
-    if (p.scope_type === 'division') { const x = d[p.scope_id]; if (x) parts.push(x.name); }
+    if (p.scope_type === 'global') { parts.push('All Staff'); }
+    else if (p.scope_type === 'division') { const x = d[p.scope_id]; if (x) parts.push(x.name); }
     else if (p.scope_type === 'department') { const x = dep[p.scope_id]; if (x) { const v = d[x.division_id]; if (v) parts.push(v.name); parts.push(x.name); } }
     else if (p.scope_type === 'post') { const x = po[p.scope_id]; if (x) { const de = dep[x.department_id]; if (de) { const v = d[de.division_id]; if (v) parts.push(v.name); parts.push(de.name); } parts.push(x.name); } }
     else if (p.scope_type === 'executive_post') { const x = ex[p.scope_id]; if (x) parts.push(x.name); }
@@ -264,7 +266,7 @@ window.PolicyWidget = (function () {
       const box = $('cChips');
       if (!concernsList.length) { box.className = 'chips-empty'; box.textContent = 'No one added yet.'; return; }
       box.className = 'chips';
-      box.innerHTML = concernsList.map((it, i) => `<span class="chip${it.type === 'text' ? ' txt' : ''}">${esc(concernLabel(it))}<button data-i="${i}" title="Remove">×</button></span>`).join('');
+      box.innerHTML = concernsList.map((it, i) => `<span class="chip${it.type === 'text' ? ' txt' : it.type === 'all_staff' ? ' all' : ''}">${esc(concernLabel(it))}<button data-i="${i}" title="Remove">×</button></span>`).join('');
       box.querySelectorAll('button[data-i]').forEach(b => b.addEventListener('click', () => { concernsList.splice(Number(b.dataset.i), 1); renderChips(); markTouched(); }));
     };
     renderChips();
@@ -279,8 +281,12 @@ window.PolicyWidget = (function () {
       const taken = chosen();
       results = (q ? units.filter(u => u.path.toLowerCase().includes(q)) : units).filter(u => !taken.has(u.type + ':' + u.id)).slice(0, 30);
       const rows = results.map((u, i) => `<div class="cpick-item${i === activeIdx ? ' active' : ''}" data-i="${i}"><span class="cpick-tag ${u.type}">${TAG[u.type]}</span><span class="cpick-name">${esc(u.name)}</span><span class="cpick-path">${esc(u.path)}</span></div>`).join('');
+      // "All Staff" special concern — everyone. Shown at the top when not already added.
+      const hasAll = concernsList.some(c => c.type === 'all_staff');
+      const allRow = (!hasAll && (!q || 'all staff everyone'.includes(q))) ? `<div class="cpick-item" data-all="1"><span class="cpick-tag all">All</span><span class="cpick-name">All Staff</span><span class="cpick-path">everyone</span></div>` : '';
       const textRow = q ? `<div class="cpick-item" data-txt="1"><span class="cpick-tag text">Text</span><span class="cpick-name">Add “${esc(search.value.trim())}”</span></div>` : '';
-      menu.innerHTML = (rows || (q ? '' : '<div class="cpick-none">Type to search…</div>')) + textRow;
+      menu.innerHTML = allRow + (rows || (q ? '' : (allRow ? '' : '<div class="cpick-none">Type to search…</div>'))) + textRow;
+      const ar = menu.querySelector('[data-all]'); if (ar) ar.addEventListener('mousedown', e => { e.preventDefault(); addItem({ type: 'all_staff' }); });
       menu.querySelectorAll('.cpick-item[data-i]').forEach(el => el.addEventListener('mousedown', e => { e.preventDefault(); const u = results[Number(el.dataset.i)]; addItem({ type: u.type, id: u.id }); }));
       const tr = menu.querySelector('[data-txt]'); if (tr) tr.addEventListener('mousedown', e => { e.preventDefault(); addItem({ type: 'text', label: search.value.trim() }); });
       menu.classList.add('open');
@@ -389,6 +395,8 @@ window.PolicyWidget = (function () {
     .cpick-tag.department { background:var(--blue-bg,rgba(107,158,255,.14)); color:var(--blue,#6b9eff); }
     .cpick-tag.post { background:var(--gold-bg,rgba(251,191,36,.14)); color:var(--gold,#fbbf24); }
     .cpick-tag.text { background:rgba(167,139,250,.14); color:#a78bfa; }
+    .cpick-tag.all { background:rgba(52,211,153,.16); color:var(--green,#34d399); }
+    .chip.all { border-style:solid; background:rgba(52,211,153,.12); border-color:rgba(52,211,153,.4); }
     .cpick-name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .cpick-path { color:var(--text-dim,#8b90a3); font-size:0.72rem; flex:0 1 auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:45%; }
     .cpick-none { padding:8px 9px; font-size:0.8rem; color:var(--text-dim,#8b90a3); }

@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v570', title: 'Policies — “All Staff” concern', items: [
+      'You can now add “All Staff” to a policy’s Concerns (top of the picker). It connects the policy to everyone — everyone gets the notification/email and appears in the acknowledgement roster.',
+    ] },
     { version: 'v569', title: 'Policies — notifications, emails & read-and-understood acknowledgements', items: [
       'When a policy or order is created or edited, everyone it concerns (the people posted under its concerned divisions/departments/posts) gets an in-app notification, a push, and an email.',
       'Open any policy and there’s now an “✓ I have read and understood” button at the bottom — click it to acknowledge (you can undo).',

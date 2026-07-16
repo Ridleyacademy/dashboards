@@ -76,6 +76,7 @@
   // Resolve a concerns item ({type:division|department|post,id} | {type:text,label}) to a display name.
   function concernLabel(it) {
     if (!it) return '';
+    if (it.type === 'all_staff') return 'All Staff';
     if (it.type === 'text') return it.label || '';
     if (it.type === 'division') return divById[it.id]?.name || ('Division #' + it.id);
     if (it.type === 'department') return depById[it.id]?.name || ('Department #' + it.id);
@@ -110,7 +111,8 @@
   // Division › Department › Post path for a policy's scope.
   function scopeInfo(p) {
     const parts = []; let divisionId = null;
-    if (p.scope_type === 'division') { const d = divById[p.scope_id]; if (d) { parts.push(d.name); divisionId = d.id; } }
+    if (p.scope_type === 'global') { parts.push('All Staff'); }
+    else if (p.scope_type === 'division') { const d = divById[p.scope_id]; if (d) { parts.push(d.name); divisionId = d.id; } }
     else if (p.scope_type === 'department') { const dep = depById[p.scope_id]; if (dep) { const d = divById[dep.division_id]; if (d) { parts.push(d.name); divisionId = d.id; } parts.push(dep.name); } }
     else if (p.scope_type === 'post') { const po = postById[p.scope_id]; if (po) { const dep = depById[po.department_id]; if (dep) { const d = divById[dep.division_id]; if (d) { parts.push(d.name); divisionId = d.id; } parts.push(dep.name); } parts.push(po.name); } }
     if (!parts.length) parts.push((p.scope_type || '?') + ' #' + (p.scope_id ?? '—'));
@@ -315,7 +317,7 @@
       const box = $('cChips');
       if (!concernsList.length) { box.className = 'chips-empty'; box.textContent = 'No one added yet.'; return; }
       box.className = 'chips';
-      box.innerHTML = concernsList.map((it, i) => `<span class="chip${it.type === 'text' ? ' txt' : ''}">${esc(concernLabel(it))}<button data-i="${i}" title="Remove">×</button></span>`).join('');
+      box.innerHTML = concernsList.map((it, i) => `<span class="chip${it.type === 'text' ? ' txt' : it.type === 'all_staff' ? ' all' : ''}">${esc(concernLabel(it))}<button data-i="${i}" title="Remove">×</button></span>`).join('');
       box.querySelectorAll('button[data-i]').forEach(b => b.addEventListener('click', () => { concernsList.splice(Number(b.dataset.i), 1); renderChips(); markTouched(); }));
     };
     renderChips();
@@ -331,8 +333,11 @@
       const taken = chosen();
       results = (q ? units.filter(u => u.path.toLowerCase().includes(q)) : units).filter(u => !taken.has(u.type + ':' + u.id)).slice(0, 30);
       const rows = results.map((u, i) => `<div class="cpick-item${i === activeIdx ? ' active' : ''}" data-i="${i}"><span class="cpick-tag ${u.type}">${TAG[u.type]}</span><span class="cpick-name">${esc(u.name)}</span><span class="cpick-path">${esc(u.path)}</span></div>`).join('');
+      const hasAll = concernsList.some(c => c.type === 'all_staff');
+      const allRow = (!hasAll && (!q || 'all staff everyone'.includes(q))) ? `<div class="cpick-item" data-all="1"><span class="cpick-tag all">All</span><span class="cpick-name">All Staff</span><span class="cpick-path">everyone</span></div>` : '';
       const textRow = q ? `<div class="cpick-item" data-txt="1"><span class="cpick-tag text">Text</span><span class="cpick-name">Add “${esc(search.value.trim())}”</span></div>` : '';
-      menu.innerHTML = (rows || (q ? '' : '<div class="cpick-none">Type to search…</div>')) + textRow;
+      menu.innerHTML = allRow + (rows || (q ? '' : (allRow ? '' : '<div class="cpick-none">Type to search…</div>'))) + textRow;
+      const ar = menu.querySelector('[data-all]'); if (ar) ar.addEventListener('mousedown', e => { e.preventDefault(); addItem({ type: 'all_staff' }); });
       menu.querySelectorAll('.cpick-item[data-i]').forEach(el => el.addEventListener('mousedown', e => { e.preventDefault(); const u = results[Number(el.dataset.i)]; addItem({ type: u.type, id: u.id }); }));
       const tr = menu.querySelector('[data-txt]'); if (tr) tr.addEventListener('mousedown', e => { e.preventDefault(); addItem({ type: 'text', label: search.value.trim() }); });
       menu.classList.add('open');
@@ -374,12 +379,16 @@
       if (!title) { msg.textContent = 'Title is required.'; msg.classList.add('err'); return; }
       // The policy links to the org via Concerns: use the first org-unit concern
       // as its scope (drives edit permissions + where it shows on the org board).
-      const orgUnit = concernsList.find(it => it.type !== 'text' && it.id != null);
-      if (!orgUnit) { msg.textContent = 'Add at least one division, department or post to Concerns.'; msg.classList.add('err'); return; }
+      // "All Staff" with no org unit lives under a global scope.
+      const orgUnit = concernsList.find(it => it.type !== 'text' && it.type !== 'all_staff' && it.id != null);
+      const hasAll = concernsList.some(it => it.type === 'all_staff');
+      if (!orgUnit && !hasAll) { msg.textContent = 'Add a division, department, post, or All Staff to Concerns.'; msg.classList.add('err'); return; }
+      const scopeType = orgUnit ? orgUnit.type : 'global';
+      const scopeId = orgUnit ? Number(orgUnit.id) : null;
       const seriesName = $('fSeries').value.trim() || null;
       const seriesNumber = seriesName ? (Number($('fSeriesNum').value) || nextSeriesNumber(seriesName)) : null;
       const body = {
-        scope_type: orgUnit.type, scope_id: Number(orgUnit.id),
+        scope_type: scopeType, scope_id: scopeId,
         kind: $('fKind').value, title, body: ($('fBody').textContent.trim() ? sanitizeHtml($('fBody').innerHTML) : ''),
         expires_at: $('fExpires').value || null,
         concerns: concernsList, series_name: seriesName, series_number: seriesNumber,

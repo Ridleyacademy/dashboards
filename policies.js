@@ -43,7 +43,7 @@
   // Anyone can create; only the creator (or an admin) can edit/delete a policy.
   const canEditPolicy = p => isAdmin || !!(session && p && p.created_by === session.user.id);
   let divisions = [], departments = [], posts = [];
-  let divById = {}, depById = {}, postById = {}, execById = {}, userById = {};
+  let divById = {}, depById = {}, postById = {}, execById = {}, userById = {}, holderByPost = {};
   let policies = [];
   const view = { search: '', kind: '', division: '', series: '', level: '', sort: 'new' };
 
@@ -257,7 +257,7 @@
     const out = [];
     divisions.forEach(d => out.push({ type: 'division', id: d.id, name: d.name, path: d.name }));
     departments.forEach(dep => { const d = divById[dep.division_id]; out.push({ type: 'department', id: dep.id, name: dep.name, path: (d?.name ? d.name + ' › ' : '') + dep.name }); });
-    posts.forEach(po => { const dep = depById[po.department_id]; const d = dep ? divById[dep.division_id] : null; out.push({ type: 'post', id: po.id, name: po.name, path: (d?.name ? d.name + ' › ' : '') + (dep ? dep.name + ' › ' : '') + po.name }); });
+    posts.forEach(po => { const dep = depById[po.department_id]; const d = dep ? divById[dep.division_id] : null; const hn = holderByPost[po.id]; const disp = po.name + (hn ? ' (' + hn + ')' : ''); out.push({ type: 'post', id: po.id, name: disp, path: (d?.name ? d.name + ' › ' : '') + (dep ? dep.name + ' › ' : '') + disp }); });
     return out;
   }
 
@@ -311,7 +311,7 @@
         </div>
         <div class="fld"><label>Expires <span style="font-weight:400;color:var(--text-dim)">(optional)</span></label><input type="date" id="fExpires" value="${p?.expires_at ? String(p.expires_at).slice(0, 10) : ''}"><div class="hint">Leave blank for no expiry.</div></div>
       </div>
-      <div class="modal-foot"><span class="modal-msg"></span><button class="btn-ghost" id="fCancel">Cancel</button><button class="btn-primary" id="fSave">${editing ? 'Save changes' : 'Create'}</button></div>`);
+      <div class="modal-foot"><span class="modal-msg"></span><button class="btn-ghost" id="fDraft">Save draft</button><button class="btn-ghost" id="fCancel">Cancel</button><button class="btn-primary" id="fSave">${editing ? 'Save changes' : 'Create'}</button></div>`);
     // Concerns chips editor
     const renderChips = () => {
       const box = $('cChips');
@@ -371,7 +371,11 @@
     }
     ['fKind', 'fTitle', 'fSeries', 'fSeriesNum', 'fExpires'].forEach(id => { $(id).addEventListener('input', markTouched); $(id).addEventListener('change', markTouched); });
     fBody.addEventListener('input', markTouched);
-    _preClose = () => { if (touched) saveDraft(dkey, { kind: $('fKind').value, title: $('fTitle').value, body: fBody.innerHTML, seriesName: $('fSeries').value, seriesNumber: $('fSeriesNum').value, expires: $('fExpires').value, concerns: concernsList }); };
+    const snapshot = () => ({ kind: $('fKind').value, title: $('fTitle').value, body: fBody.innerHTML, seriesName: $('fSeries').value, seriesNumber: $('fSeriesNum').value, expires: $('fExpires').value, concerns: concernsList });
+    _preClose = () => { if (touched) saveDraft(dkey, snapshot()); };
+    // Save draft: stash the current form (no validation) and close; reopening
+    // New (or this policy's Edit) restores it so you can finish later.
+    $('fDraft').addEventListener('click', () => { saveDraft(dkey, snapshot()); const m = $('modalRoot').querySelector('.modal-msg'); if (m) { m.classList.remove('err'); m.textContent = 'Draft saved — reopen to continue.'; } _preClose = null; setTimeout(closeModal, 650); });
     $('fCancel').addEventListener('click', closeModal);
     $('fSave').addEventListener('click', async () => {
       const msg = $('modalRoot').querySelector('.modal-msg'); msg.classList.remove('err');
@@ -416,13 +420,14 @@
     $('polNew').style.display = '';   // anyone signed in can create their own
 
     try {
-      const [dv, dp, po, ex, us, pol] = await Promise.all([
+      const [dv, dp, po, ex, us, pol, ph] = await Promise.all([
         ac('?api=divisions').catch(() => ({ rows: [] })),
         ac('?api=departments').catch(() => ({ rows: [] })),
         ac('?api=posts').catch(() => ({ rows: [] })),
         ac('?api=exec-posts').catch(() => ({ rows: [] })),
         ac('?api=users').catch(() => ({ rows: [] })),
         ac('?api=policies'),
+        ac('?api=post-holders').catch(() => ({ rows: [] })),
       ]);
       divisions = (dv.rows || []).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
       departments = dp.rows || []; posts = po.rows || []; policies = pol.rows || [];
@@ -431,6 +436,10 @@
       postById = {}; posts.forEach(p => postById[p.id] = p);
       execById = {}; (ex.rows || []).forEach(e => execById[e.id] = e);
       userById = {}; (us.rows || []).forEach(u => userById[u.id] = u);
+      // Current holder name per post (first active holder) — shown in brackets
+      // in the concerns picker.
+      holderByPost = {};
+      (ph.rows || []).forEach(r => { if (r.ended_at || holderByPost[r.post_id]) return; const u = userById[r.user_id]; holderByPost[r.post_id] = (u && (u.first_name || u.name)) ? (u.first_name || u.name) : (u && u.email ? u.email.split('@')[0] : null); });
       enrich();
       $('polDiv').innerHTML = '<option value="">All divisions</option>' + divisions.map(d => `<option value="${d.id}">${esc(d.name)}</option>`).join('');
       $('polSeries').innerHTML = '<option value="">All series</option>' + seriesNames().map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');

@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v571', title: 'Policies — holder names in Concerns + Save draft', items: [
+      'When you pick a post in a policy’s Concerns, the current holder’s name now shows in brackets — e.g. “Coach — Jane (Jane)” — so you know who it reaches.',
+      'New “Save draft” button when creating or editing a policy: stash your work and come back later to finish or keep editing.',
+    ] },
     { version: 'v570', title: 'Policies — “All Staff” concern', items: [
       'You can now add “All Staff” to a policy’s Concerns (top of the picker). It connects the policy to everyone — everyone gets the notification/email and appears in the acknowledgement roster.',
     ] },

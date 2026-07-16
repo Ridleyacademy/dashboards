@@ -203,7 +203,9 @@ window.PolicyWidget = (function () {
     const out = [], d = divById(), dep = depById();
     ctx.divisions().forEach(x => out.push({ type: 'division', id: x.id, name: x.name, path: x.name }));
     ctx.departments().forEach(x => { const v = d[x.division_id]; out.push({ type: 'department', id: x.id, name: x.name, path: (v?.name ? v.name + ' › ' : '') + x.name }); });
-    ctx.posts().forEach(x => { const de = dep[x.department_id]; const v = de ? d[de.division_id] : null; out.push({ type: 'post', id: x.id, name: x.name, path: (v?.name ? v.name + ' › ' : '') + (de ? de.name + ' › ' : '') + x.name }); });
+    // Posts show the current holder's name in brackets so you know who a post
+    // concern actually reaches.
+    ctx.posts().forEach(x => { const de = dep[x.department_id]; const v = de ? d[de.division_id] : null; const hn = ctx.postHolderName ? ctx.postHolderName(x.id) : null; const disp = x.name + (hn ? ' (' + hn + ')' : ''); out.push({ type: 'post', id: x.id, name: disp, path: (v?.name ? v.name + ' › ' : '') + (de ? de.name + ' › ' : '') + disp }); });
     return out;
   }
 
@@ -260,7 +262,7 @@ window.PolicyWidget = (function () {
         </div>
         <div class="pw-fld"><label>Expires <span style="font-weight:400;color:var(--text-dim)">(optional)</span></label><input type="date" id="fExpires" value="${p?.expires_at ? String(p.expires_at).slice(0, 10) : ''}"><div class="pw-hint">Leave blank for no expiry.</div></div>
       </div>
-      <div class="pw-foot"><span class="pw-msg"></span><button class="pw-btn-ghost" id="fCancel">Cancel</button><button class="pw-btn-primary" id="fSave">${editing ? 'Save changes' : 'Create'}</button></div>`);
+      <div class="pw-foot"><span class="pw-msg"></span><button class="pw-btn-ghost" id="fDraft">Save draft</button><button class="pw-btn-ghost" id="fCancel">Cancel</button><button class="pw-btn-primary" id="fSave">${editing ? 'Save changes' : 'Create'}</button></div>`);
 
     const renderChips = () => {
       const box = $('cChips');
@@ -317,7 +319,11 @@ window.PolicyWidget = (function () {
     }
     ['fKind', 'fTitle', 'fSeries', 'fSeriesNum', 'fExpires'].forEach(id => { $(id).addEventListener('input', markTouched); $(id).addEventListener('change', markTouched); });
     fBody.addEventListener('input', markTouched);
-    _preClose = () => { if (touched) saveDraft(dkey, { kind: $('fKind').value, title: $('fTitle').value, body: fBody.innerHTML, seriesName: $('fSeries').value, seriesNumber: $('fSeriesNum').value, expires: $('fExpires').value, concerns: concernsList }); };
+    const snapshot = () => ({ kind: $('fKind').value, title: $('fTitle').value, body: fBody.innerHTML, seriesName: $('fSeries').value, seriesNumber: $('fSeriesNum').value, expires: $('fExpires').value, concerns: concernsList });
+    _preClose = () => { if (touched) saveDraft(dkey, snapshot()); };
+    // Save draft: stash the current form (no validation) and close; reopening
+    // New (or this policy's Edit) restores it so you can finish later.
+    $('fDraft').addEventListener('click', () => { saveDraft(dkey, snapshot()); const msg = root().querySelector('.pw-msg'); if (msg) { msg.classList.remove('err'); msg.textContent = 'Draft saved — reopen to continue.'; } _preClose = null; setTimeout(close, 650); });
     $('fCancel').addEventListener('click', close);
     $('fSave').addEventListener('click', async () => {
       const msg = root().querySelector('.pw-msg'); msg.classList.remove('err');

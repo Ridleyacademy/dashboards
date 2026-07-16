@@ -172,6 +172,7 @@ async function init() {
     execPosts: () => execPostsData,
     users: () => usersData,
     allPolicies: () => window._orgAllPolicies || [],
+    postHolderName: (postId) => { const h = (activeHoldersByPost[postId] || [])[0]; return h ? _displayOf(h.user_id) : null; },
   });
 
   setState('app');

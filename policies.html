@@ -69,7 +69,11 @@
   .pol-list { display:flex; flex-direction:column; gap:9px; }
   .pol-card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:13px 15px; cursor:pointer; transition:border-color .12s, transform .08s; }
   .pol-card:hover { border-color:var(--blue); }
+  .pol-card.unread { border-color:rgba(251,191,36,.45); box-shadow:inset 3px 0 0 var(--gold); }
   .pol-card-top { display:flex; align-items:center; gap:9px; margin-bottom:5px; }
+  .pol-ackdot { width:20px; height:20px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:0.72rem; font-weight:800; flex:0 0 auto; }
+  .pol-ackdot.todo { background:var(--gold-bg); color:var(--gold); border:1px solid rgba(251,191,36,.5); }
+  .pol-ackdot.ok { background:var(--green-bg); color:var(--green); }
   .pol-badge { font-size:0.6rem; font-weight:800; letter-spacing:.05em; text-transform:uppercase; padding:2px 8px; border-radius:5px; flex:0 0 auto; }
   .pol-badge.policy { background:var(--blue-bg); color:var(--blue); }
   .pol-badge.order { background:var(--gold-bg); color:var(--gold); }
@@ -194,6 +198,7 @@
       <button class="btn-primary" id="polNew" style="display:none;">+ New</button>
     </div>
     <div class="toolbar">
+      <div class="seg" id="polViewSeg"><button data-v="" class="active">All documents</button><button data-v="mine">To study</button></div>
       <input type="search" id="polSearch" class="inp" placeholder="Search title, text, scope or author…">
       <div class="seg" id="polKindSeg"><button data-k="" class="active">All</button><button data-k="policy">Policies</button><button data-k="order">Orders</button></div>
       <select id="polDiv" class="inp"><option value="">All divisions</option></select>

@@ -64,9 +64,8 @@
     // Targets — ClickUp-style tasks (own dashboard + on the org board). Everyone.
     { href: 'targets.html', id: 'targets', roles: '*' },
     // Policies & Orders repository — anyone who can see the org (org.view); edit gated by org.edit_policies in-page.
+    // Also hosts "To Study" (?view=study) — your personal reading list of policies concerning you.
     { href: 'policies.html', id: 'policies', roles: '*', granular: 'org.view' },
-    // To Study — every signed-in user's personal list of policies/orders concerning them.
-    { href: 'to-study.html', id: 'to-study', roles: '*' },
   ];
 
   // Resolve impersonation: when an admin "Views as" another user, all UI

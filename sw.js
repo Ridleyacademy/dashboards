@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v573-to-study';
+const CACHE_NAME = 'ridley-v574-to-study-in-policies';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [
@@ -38,8 +38,6 @@ const PRECACHE = [
   '/org-board.js',
   '/policies.html',
   '/policies.js',
-  '/to-study.html',
-  '/to-study.js',
   '/collections.html',
   '/refunds.html',
   '/support.html',

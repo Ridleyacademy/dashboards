@@ -45,7 +45,10 @@
   let divisions = [], departments = [], posts = [];
   let divById = {}, depById = {}, postById = {}, execById = {}, userById = {}, holderByPost = {};
   let policies = [];
-  const view = { search: '', kind: '', division: '', series: '', level: '', sort: 'new' };
+  let myIds = new Set(), myAck = {};   // "To study": ids concerning me + my ack date per id
+  const view = { search: '', kind: '', division: '', series: '', level: '', sort: 'new', mine: false };
+  function updateStudyBadge() { const btn = document.querySelector('#polViewSeg [data-v="mine"]'); if (!btn) return; const unread = [...myIds].filter(id => !myAck[id]).length; btn.textContent = 'To study' + (unread ? ' · ' + unread : ''); }
+  async function loadMine() { try { const mp = await pw('?api=my-policies'); const rows = mp.rows || []; myIds = new Set(rows.map(p => p.id)); myAck = {}; rows.forEach(p => { myAck[p.id] = p.my_acknowledged_at || null; }); } catch (_) {} updateStudyBadge(); }
 
   async function ac(path, opts = {}) {
     const r = await fetch(SUPABASE_URL + '/functions/v1/access-control' + path, {
@@ -125,7 +128,9 @@
 
   function _apply() {
     const q = view.search.trim().toLowerCase();
-    let rows = policies.filter(p => {
+    // "To study" = only the policies that concern me (myIds), unread first.
+    const source = view.mine ? policies.filter(p => myIds.has(p.id)) : policies;
+    let rows = source.filter(p => {
       if (view.kind && p.kind !== view.kind) return false;
       if (view.division && String(p._divId) !== view.division) return false;
       if (view.series && p.series_name !== view.series) return false;
@@ -137,7 +142,8 @@
       return true;
     });
     const ts = d => d ? new Date(d).getTime() : 0;
-    if (view.sort === 'new') rows.sort((a, b) => ts(b.created_at) - ts(a.created_at));
+    if (view.mine) rows.sort((a, b) => { const ra = myAck[a.id] ? 1 : 0, rb = myAck[b.id] ? 1 : 0; return ra !== rb ? ra - rb : ts(b.created_at) - ts(a.created_at); });
+    else if (view.sort === 'new') rows.sort((a, b) => ts(b.created_at) - ts(a.created_at));
     else if (view.sort === 'old') rows.sort((a, b) => ts(a.created_at) - ts(b.created_at));
     else if (view.sort === 'title') rows.sort((a, b) => a.title.localeCompare(b.title));
     else if (view.sort === 'expiring') rows.sort((a, b) => (ts(a.expires_at) || Infinity) - (ts(b.expires_at) || Infinity));
@@ -146,17 +152,22 @@
 
   function render() {
     const rows = _apply();
-    $('polCount').textContent = rows.length + (rows.length === 1 ? ' document' : ' documents') + (policies.length !== rows.length ? ' (of ' + policies.length + ')' : '');
+    const mine = view.mine;
+    $('polCount').textContent = mine
+      ? (rows.filter(p => !myAck[p.id]).length + ' to read · ' + rows.filter(p => myAck[p.id]).length + ' acknowledged')
+      : rows.length + (rows.length === 1 ? ' document' : ' documents') + (policies.length !== rows.length ? ' (of ' + policies.length + ')' : '');
     const list = $('polList');
     if (!rows.length) {
-      list.innerHTML = '<div class="empty">' + (policies.length ? 'No documents match your filters.' : 'No policies or orders yet. Click <b>+ New</b> to add the first one.') + '</div>';
+      list.innerHTML = '<div class="empty">' + (mine ? 'Nothing to study — no policies or orders currently concern you.' : (policies.length ? 'No documents match your filters.' : 'No policies or orders yet. Click <b>+ New</b> to add the first one.')) + '</div>';
       return;
     }
     list.innerHTML = rows.map(p => {
       const scope = p._parts.map((x, i) => (i ? '<span class="sc-sep">›</span>' : '') + esc(x)).join('');
       const preview = p._bodyText ? '<div class="pol-body-preview">' + esc(p._bodyText) + '</div>' : '';
-      return `<div class="pol-card" data-id="${p.id}">
+      const acked = mine ? !!myAck[p.id] : false;
+      return `<div class="pol-card${mine && !acked ? ' unread' : ''}" data-id="${p.id}">
         <div class="pol-card-top">
+          ${mine ? `<span class="pol-ackdot ${acked ? 'ok' : 'todo'}" title="${acked ? 'Acknowledged' : 'Not read yet'}">${acked ? '✓' : '!'}</span>` : ''}
           <span class="pol-badge ${p.kind === 'order' ? 'order' : 'policy'}">${esc(KIND[p.kind] || p.kind)}</span>
           <span class="pol-title">${esc(p.title)}</span>
           ${p.series_name ? `<span class="pol-series-badge">${esc(seriesLabel(p))}</span>` : ''}
@@ -200,7 +211,7 @@
         : `<button class="btn-primary" id="polAckBtn">✓ I have read and understood</button>`}
       ${st.is_manager ? `<button class="btn-ghost" id="polAckList" style="margin-left:auto">Who has acknowledged</button>` : ''}
     </div><div id="polAckPanel"></div>`;
-    $('polAckBtn').addEventListener('click', async () => { try { await pw('?api=ack&id=' + p.id, { method: 'POST', body: { on: !acked } }); loadPolAck(p); } catch (e) { alert(e.message); } });
+    $('polAckBtn').addEventListener('click', async () => { try { await pw('?api=ack&id=' + p.id, { method: 'POST', body: { on: !acked } }); myIds.add(p.id); myAck[p.id] = !acked ? new Date().toISOString() : null; updateStudyBadge(); if (view.mine) render(); loadPolAck(p); } catch (e) { alert(e.message); } });
     const lb = $('polAckList');
     if (lb) lb.addEventListener('click', () => { const pn = $('polAckPanel'); if (pn && pn.dataset.open === '1') { pn.dataset.open = '0'; pn.innerHTML = ''; } else loadPolAckList(p); });
   }
@@ -447,12 +458,19 @@
       $('polList').innerHTML = '<div class="empty" style="color:var(--red)">' + esc(e.message) + '</div>';
     }
     document.body.dataset.state = 'app';
+    await loadMine();
+    // Deep-link: ?view=study opens the "To study" view (used by the menu/email links).
+    if (new URLSearchParams(location.search).get('view') === 'study') {
+      view.mine = true;
+      const seg = $('polViewSeg'); if (seg) seg.querySelectorAll('button').forEach(x => x.classList.toggle('active', x.dataset.v === 'mine'));
+    }
     render();
     const tid = new URLSearchParams(location.search).get('id');
     if (tid) { const p = policies.find(x => x.id == tid); if (p) openDetail(p); }
   }
 
   // Wiring
+  $('polViewSeg')?.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { $('polViewSeg').querySelectorAll('button').forEach(x => x.classList.remove('active')); b.classList.add('active'); view.mine = b.dataset.v === 'mine'; render(); }));
   $('polSearch').addEventListener('input', e => { view.search = e.target.value; render(); });
   $('polKindSeg').querySelectorAll('button').forEach(b => b.addEventListener('click', () => { $('polKindSeg').querySelectorAll('button').forEach(x => x.classList.remove('active')); b.classList.add('active'); view.kind = b.dataset.k; render(); }));
   $('polDiv').addEventListener('change', e => { view.division = e.target.value; render(); });

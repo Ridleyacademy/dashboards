@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v574', title: '“To Study” is now a view inside Policies & Orders', items: [
+      'Moved “To Study” into the Policies & Orders dashboard — a new “To study” toggle at the top shows only the policies/orders that concern you, unread first, with a ✓/! read marker and an unread count.',
+      'The Dashboards menu, home card, and policy emails all open Policies in that view. (The separate To Study page was removed.)',
+    ] },
     { version: 'v573', title: 'New: “To Study” — your personal policy reading list', items: [
       'A new dashboard, “To Study”, shows every policy and order that concerns you, split into “To read” and “Acknowledged”.',
       'Open one to read it in full and mark it read & understood — it moves to Acknowledged. Reachable from the Dashboards menu, the home page, and the link in policy emails/notifications.',

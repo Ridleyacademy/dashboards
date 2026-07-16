@@ -80,7 +80,7 @@
     if (it.type === 'text') return it.label || '';
     if (it.type === 'division') return divById[it.id]?.name || ('Division #' + it.id);
     if (it.type === 'department') return depById[it.id]?.name || ('Department #' + it.id);
-    if (it.type === 'post') return postById[it.id]?.name || ('Post #' + it.id);
+    if (it.type === 'post') { const nm = postById[it.id]?.name || ('Post #' + it.id); const hn = holderByPost[it.id]; return nm + (hn ? ' (' + hn + ')' : ''); }
     return '';
   }
   // The concerned list for a policy: its explicit concerns, else the scope path.

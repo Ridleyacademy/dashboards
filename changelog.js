@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v572', title: 'Policies — holder name shows in the policy letter too', items: [
+      'The current holder’s name now appears in brackets next to a post in the policy’s distribution list (the letter itself), not just the picker.',
+    ] },
     { version: 'v571', title: 'Policies — holder names in Concerns + Save draft', items: [
       'When you pick a post in a policy’s Concerns, the current holder’s name now shows in brackets — e.g. “Coach — Jane (Jane)” — so you know who it reaches.',
       'New “Save draft” button when creating or editing a policy: stash your work and come back later to finish or keep editing.',

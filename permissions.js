@@ -65,6 +65,8 @@
     { href: 'targets.html', id: 'targets', roles: '*' },
     // Policies & Orders repository — anyone who can see the org (org.view); edit gated by org.edit_policies in-page.
     { href: 'policies.html', id: 'policies', roles: '*', granular: 'org.view' },
+    // To Study — every signed-in user's personal list of policies/orders concerning them.
+    { href: 'to-study.html', id: 'to-study', roles: '*' },
   ];
 
   // Resolve impersonation: when an admin "Views as" another user, all UI

@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v573', title: 'New: “To Study” — your personal policy reading list', items: [
+      'A new dashboard, “To Study”, shows every policy and order that concerns you, split into “To read” and “Acknowledged”.',
+      'Open one to read it in full and mark it read & understood — it moves to Acknowledged. Reachable from the Dashboards menu, the home page, and the link in policy emails/notifications.',
+    ] },
     { version: 'v572', title: 'Policies — holder name shows in the policy letter too', items: [
       'The current holder’s name now appears in brackets next to a post in the policy’s distribution list (the letter itself), not just the picker.',
     ] },

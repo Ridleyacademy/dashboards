@@ -16,6 +16,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v569', title: 'Policies — notifications, emails & read-and-understood acknowledgements', items: [
+      'When a policy or order is created or edited, everyone it concerns (the people posted under its concerned divisions/departments/posts) gets an in-app notification, a push, and an email.',
+      'Open any policy and there’s now an “✓ I have read and understood” button at the bottom — click it to acknowledge (you can undo).',
+      'The policy’s creator (and admins) get a “Who has acknowledged” roster showing exactly who has and hasn’t confirmed reading it.',
+    ] },
     { version: 'v568', title: 'Org Board — fix Assign stats opening behind the popup', items: [
       'The + Assign stats picker now opens in front of the Stats popup (it was rendering behind it).',
     ] },

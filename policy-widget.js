@@ -151,8 +151,10 @@ window.PolicyWidget = (function () {
           </div>
           ${p.expires_at ? `<div class="pl-expiry${isExpired(p) ? ' over' : ''}">${isExpired(p) ? 'Expired' : 'Expires'} ${esc(fmtDate(p.expires_at))}</div>` : ''}
         </div>
+        <div id="pwAck" class="pw-ackbar"></div>
       </div>
       ${canEdit(p) ? `<div class="pw-foot"><span class="pw-msg"></span><button class="pw-btn-ghost" id="pwDelete" style="color:var(--red)">Delete</button><button class="pw-btn-primary" id="pwEdit">Edit</button></div>` : ''}`);
+    loadAckSection(p);
     if (canEdit(p)) {
       $('pwEdit').addEventListener('click', () => openEditor({ policy: p, scope: { type: p.scope_type, id: p.scope_id }, onSaved: () => opts.onChanged && opts.onChanged(), onDeleted: () => opts.onChanged && opts.onChanged() }));
       $('pwDelete').addEventListener('click', async () => {
@@ -161,6 +163,38 @@ window.PolicyWidget = (function () {
         catch (e) { const m = root().querySelector('.pw-msg'); if (m) { m.textContent = e.message; m.classList.add('err'); } }
       });
     }
+  }
+
+  // Read-and-understood acknowledgement bar (shown to everyone viewing). The
+  // creator/admin also gets a "who has acknowledged" roster.
+  const ackDate = d => d ? new Date(d).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '';
+  async function loadAckSection(p) {
+    const el = document.getElementById('pwAck'); if (!el) return;
+    el.innerHTML = '<span class="pw-ack-loading">Loading…</span>';
+    let st;
+    try { st = await pw('?api=ack-status&id=' + p.id); } catch (e) { el.innerHTML = ''; return; }
+    const acked = !!st.acknowledged;
+    el.innerHTML = `<div class="pw-ack-row">
+      ${acked
+        ? `<span class="pw-ack-done">✓ You marked this read &amp; understood${st.acknowledged_at ? ' on ' + esc(ackDate(st.acknowledged_at)) : ''}</span><button class="pw-ack-link" id="pwAckBtn">Undo</button>`
+        : `<button class="pw-btn-primary" id="pwAckBtn">✓ I have read and understood</button>`}
+      ${st.is_manager ? `<button class="pw-btn-ghost" id="pwAckList" style="margin-left:auto">Who has acknowledged</button>` : ''}
+    </div><div id="pwAckPanel"></div>`;
+    document.getElementById('pwAckBtn').addEventListener('click', async () => {
+      try { await pw('?api=ack&id=' + p.id, { method: 'POST', body: { on: !acked } }); loadAckSection(p); } catch (e) { alert(e.message); }
+    });
+    const lb = document.getElementById('pwAckList');
+    if (lb) lb.addEventListener('click', () => { const panel = document.getElementById('pwAckPanel'); if (panel && panel.dataset.open === '1') { panel.dataset.open = '0'; panel.innerHTML = ''; } else loadAckList(p); });
+  }
+  async function loadAckList(p) {
+    const panel = document.getElementById('pwAckPanel'); if (!panel) return;
+    panel.dataset.open = '1';
+    panel.innerHTML = '<div class="pw-ack-loading" style="padding:8px 0">Loading…</div>';
+    let j; try { j = await pw('?api=acks&id=' + p.id); } catch (e) { panel.innerHTML = `<div style="color:var(--red,#f87171);font-size:.8rem">${esc(e.message)}</div>`; return; }
+    const people = j.people || [];
+    panel.innerHTML = `<div class="pw-ack-head">${j.acked}/${j.total} acknowledged</div>` + (people.length
+      ? '<div class="pw-ack-list">' + people.map(u => `<div class="pw-ack-item"><span class="pw-ack-mark ${u.acknowledged_at ? 'ok' : 'no'}">${u.acknowledged_at ? '✓' : '○'}</span><span class="pw-ack-name">${esc(u.name || u.email || 'User')}</span><span class="pw-ack-when">${u.acknowledged_at ? esc(ackDate(u.acknowledged_at)) : 'Not yet'}</span></div>`).join('') + '</div>'
+      : '<div class="pw-ack-loading" style="padding:6px 0">No one is currently concerned by this policy.</div>');
   }
 
   function orgUnitIndex() {
@@ -371,7 +405,20 @@ window.PolicyWidget = (function () {
     .pl-sign-name { font-weight:700; font-size:0.96rem; }
     .pl-sign-post { font-size:0.82rem; margin-top:1px; }
     .pl-expiry { text-align:center; font-size:0.72rem; margin-top:22px; font-family:-apple-system,BlinkMacSystemFont,sans-serif; }
-    .pl-expiry.over { color:var(--red,#f87171); font-weight:700; }`;
+    .pl-expiry.over { color:var(--red,#f87171); font-weight:700; }
+    .pw-ackbar { margin-top:26px; padding-top:16px; border-top:1px solid var(--border,#242736); font-family:-apple-system,BlinkMacSystemFont,sans-serif; }
+    .pw-ack-loading { color:var(--text-dim,#8b90a3); font-size:0.8rem; }
+    .pw-ack-row { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+    .pw-ack-done { color:var(--green,#34d399); font-weight:700; font-size:0.86rem; }
+    .pw-ack-link { background:none; border:0; color:var(--text-dim,#8b90a3); cursor:pointer; font-size:0.78rem; text-decoration:underline; padding:0; }
+    .pw-ack-head { font-size:0.72rem; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:var(--text-muted,#aab); margin:14px 0 8px; }
+    .pw-ack-list { display:flex; flex-direction:column; gap:2px; max-height:240px; overflow-y:auto; }
+    .pw-ack-item { display:flex; align-items:center; gap:10px; padding:7px 10px; border-radius:8px; background:var(--surface2,#1b1e2a); }
+    .pw-ack-mark { width:20px; text-align:center; font-weight:800; }
+    .pw-ack-mark.ok { color:var(--green,#34d399); }
+    .pw-ack-mark.no { color:var(--text-dim,#8b90a3); }
+    .pw-ack-name { flex:1; font-size:0.86rem; color:var(--text,#e8eaf0); }
+    .pw-ack-when { font-size:0.74rem; color:var(--text-dim,#8b90a3); }`;
     const s = document.createElement('style'); s.id = 'pw-styles'; s.textContent = css; document.head.appendChild(s);
   }
 

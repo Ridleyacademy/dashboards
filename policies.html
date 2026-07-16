@@ -153,6 +153,19 @@
   .pl-sign-post { font-size:0.82rem; color:var(--text); margin-top:1px; }
   .pl-expiry { text-align:center; font-size:0.72rem; color:var(--text); margin-top:22px; font-family:-apple-system,BlinkMacSystemFont,sans-serif; }
   .pl-expiry.over { color:var(--red); font-weight:700; }
+  .pw-ackbar { margin-top:26px; padding-top:16px; border-top:1px solid var(--border); font-family:-apple-system,BlinkMacSystemFont,sans-serif; }
+  .pw-ack-loading { color:var(--text-dim); font-size:0.8rem; }
+  .pw-ack-row { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  .pw-ack-done { color:var(--green,#34d399); font-weight:700; font-size:0.86rem; }
+  .pw-ack-link { background:none; border:0; color:var(--text-dim); cursor:pointer; font-size:0.78rem; text-decoration:underline; padding:0; }
+  .pw-ack-head { font-size:0.72rem; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:var(--text-muted); margin:14px 0 8px; }
+  .pw-ack-list { display:flex; flex-direction:column; gap:2px; max-height:240px; overflow-y:auto; }
+  .pw-ack-item { display:flex; align-items:center; gap:10px; padding:7px 10px; border-radius:8px; background:var(--surface2); }
+  .pw-ack-mark { width:20px; text-align:center; font-weight:800; }
+  .pw-ack-mark.ok { color:var(--green,#34d399); }
+  .pw-ack-mark.no { color:var(--text-dim); }
+  .pw-ack-name { flex:1; font-size:0.86rem; color:var(--text); }
+  .pw-ack-when { font-size:0.74rem; color:var(--text-dim); }
 </style>
 </head>
 <body data-state="loading">

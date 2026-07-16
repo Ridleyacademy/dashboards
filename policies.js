@@ -185,6 +185,34 @@
   const loadDraft = k => { try { const s = localStorage.getItem(k); return s ? JSON.parse(s) : null; } catch (_) { return null; } };
   const clearDraft = k => { try { localStorage.removeItem(k); } catch (_) {} };
 
+  // Read-and-understood acknowledgement bar (everyone) + creator/admin roster.
+  const ackDate = d => d ? new Date(d).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '';
+  async function loadPolAck(p) {
+    const el = $('polAck'); if (!el) return;
+    el.innerHTML = '<span class="pw-ack-loading">Loading…</span>';
+    let st; try { st = await pw('?api=ack-status&id=' + p.id); } catch (e) { el.innerHTML = ''; return; }
+    const acked = !!st.acknowledged;
+    el.innerHTML = `<div class="pw-ack-row">
+      ${acked
+        ? `<span class="pw-ack-done">✓ You marked this read &amp; understood${st.acknowledged_at ? ' on ' + esc(ackDate(st.acknowledged_at)) : ''}</span><button class="pw-ack-link" id="polAckBtn">Undo</button>`
+        : `<button class="btn-primary" id="polAckBtn">✓ I have read and understood</button>`}
+      ${st.is_manager ? `<button class="btn-ghost" id="polAckList" style="margin-left:auto">Who has acknowledged</button>` : ''}
+    </div><div id="polAckPanel"></div>`;
+    $('polAckBtn').addEventListener('click', async () => { try { await pw('?api=ack&id=' + p.id, { method: 'POST', body: { on: !acked } }); loadPolAck(p); } catch (e) { alert(e.message); } });
+    const lb = $('polAckList');
+    if (lb) lb.addEventListener('click', () => { const pn = $('polAckPanel'); if (pn && pn.dataset.open === '1') { pn.dataset.open = '0'; pn.innerHTML = ''; } else loadPolAckList(p); });
+  }
+  async function loadPolAckList(p) {
+    const panel = $('polAckPanel'); if (!panel) return;
+    panel.dataset.open = '1';
+    panel.innerHTML = '<div class="pw-ack-loading" style="padding:8px 0">Loading…</div>';
+    let j; try { j = await pw('?api=acks&id=' + p.id); } catch (e) { panel.innerHTML = `<div style="color:var(--red);font-size:.8rem">${esc(e.message)}</div>`; return; }
+    const people = j.people || [];
+    panel.innerHTML = `<div class="pw-ack-head">${j.acked}/${j.total} acknowledged</div>` + (people.length
+      ? '<div class="pw-ack-list">' + people.map(u => `<div class="pw-ack-item"><span class="pw-ack-mark ${u.acknowledged_at ? 'ok' : 'no'}">${u.acknowledged_at ? '✓' : '○'}</span><span class="pw-ack-name">${esc(u.name || u.email || 'User')}</span><span class="pw-ack-when">${u.acknowledged_at ? esc(ackDate(u.acknowledged_at)) : 'Not yet'}</span></div>`).join('') + '</div>'
+      : '<div class="pw-ack-loading" style="padding:6px 0">No one is currently concerned by this policy.</div>');
+  }
+
   function openDetail(p) {
     if (!p) return;
     const auth = authorInfo(p);
@@ -207,8 +235,10 @@
           </div>
           ${p.expires_at ? `<div class="pl-expiry${isExpired(p) ? ' over' : ''}">${isExpired(p) ? 'Expired' : 'Expires'} ${esc(fmtDate(p.expires_at))}</div>` : ''}
         </div>
+        <div id="polAck" class="pw-ackbar"></div>
       </div>
       ${canEditPolicy(p) ? `<div class="modal-foot"><span class="modal-msg"></span><button class="btn-ghost" id="dvDelete" style="color:var(--red)">Delete</button><button class="btn-primary" id="dvEdit">Edit</button></div>` : ''}`);
+    loadPolAck(p);
     if (canEditPolicy(p)) {
       $('dvEdit').addEventListener('click', () => openEdit(p));
       $('dvDelete').addEventListener('click', async () => {

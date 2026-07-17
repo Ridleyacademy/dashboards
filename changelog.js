@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v577', title: 'To Study lives inside Policies & Orders', items: [
+      'Removed the separate “To Study” home card and menu link — it was just a shortcut into Policies & Orders. Open the Policies & Orders board and use the “To study” toggle at the top for your personal reading list. Existing links still work.',
+    ] },
     { version: 'v575', title: 'Daily reports are now daily *and* weekly', items: [
       'Reports can now be assigned as Daily (due on the weekdays you pick) or Weekly (due once a week on a chosen day, filed for that week). A person can hold both a daily and a weekly report at once.',
       'Questions are per person and per frequency — give each assignee their own daily and/or weekly question set, or let them inherit the shared baseline.',

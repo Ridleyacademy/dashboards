@@ -297,13 +297,14 @@ document.getElementById('navDropdownBtn').addEventListener('click', ()=>document
 // ── Data + render ──
 async function loadBootstrap() {
   boot = await drFetch('?api=bootstrap');
-  if (!activeTab) activeTab = boot.assignment ? 'today' : (boot.isManager ? 'all' : 'mine');
+  const hasAssign = (boot.assignments||[]).length > 0;
+  if (!activeTab) activeTab = hasAssign ? 'today' : (boot.isManager ? 'all' : 'mine');
   renderTabs(); renderTab();
 }
 function renderTabs() {
   const tabs = [];
-  if (boot.assignment) tabs.push(['today','Today'],['mine','My reports']);
-  if (boot.isManager) tabs.push(['all','All reports'],['assign','Assignments'],['questions','Questions']);
+  if ((boot.assignments||[]).length) tabs.push(['today','My reports'],['mine','History']);
+  if (boot.isManager) tabs.push(['all','All reports'],['assign','Assignments'],['questions','Baseline questions']);
   document.getElementById('drTabs').innerHTML = tabs.map(([k,l])=>`<button class="dr-tab ${activeTab===k?'active':''}" data-tab="${k}">${l}</button>`).join('');
   document.querySelectorAll('.dr-tab').forEach(b=>b.addEventListener('click',()=>{ activeTab=b.dataset.tab; renderTabs(); renderTab(); }));
 }
@@ -317,27 +318,37 @@ function renderTab() {
 }
 
 function renderToday(c) {
-  const qs = boot.questions || [];
-  const existing = boot.todayReport;
-  const amap = {}; if (existing && Array.isArray(existing.answers)) existing.answers.forEach(a=>{ amap[String(a.question_id)] = a.answer; });
-  const statusPill = existing ? '<span class="pill pill-green">Submitted</span>' : (boot.dueToday ? '<span class="pill pill-gold">Due today</span>' : '<span class="pill pill-dim">Not due today</span>');
-  c.innerHTML = `<div class="card">
-    <h2>Today's report ${statusPill}</h2>
-    <div class="card-sub">${esc(fmtDate(boot.today))} · answers save as one report for today. You can update it any time.</div>
-    <form id="todayForm">
-      ${qs.map(q=>`<div class="q-block"><label class="q-label">${esc(q.text)}</label><textarea class="q-input" data-qid="${q.id}" placeholder="Type your answer…">${esc(amap[String(q.id)]||'')}</textarea></div>`).join('')}
-      <div style="display:flex;align-items:center;gap:12px;"><button class="btn-primary" id="todaySubmit" type="submit">${existing?'Update report':'Submit report'}</button><span id="todayMsg" style="font-size:0.8rem;color:var(--text-muted);"></span></div>
-    </form>
-    ${existing?`<div style="margin-top:12px;"><button class="btn-ghost" id="openTodayThread">Open replies / thread →</button></div>`:''}
-  </div>`;
-  document.getElementById('todayForm').addEventListener('submit', async (e)=>{
-    e.preventDefault(); const btn=document.getElementById('todaySubmit'); const msg=document.getElementById('todayMsg');
-    const answers = [...c.querySelectorAll('textarea[data-qid]')].map(t=>({ question_id:Number(t.dataset.qid), answer:t.value }));
-    btn.disabled=true; msg.textContent='Saving…';
-    try { await drFetch('?api=submit',{ method:'POST', body:JSON.stringify({ answers }) }); msg.textContent='✓ Saved.'; await loadBootstrap(); }
-    catch(e2){ msg.textContent=''; alert('Save failed: '+e2.message); btn.disabled=false; }
+  const list = boot.assignments || [];
+  if (!list.length) { c.innerHTML = '<div class="empty-state">You have no reports assigned.</div>'; return; }
+  c.innerHTML = list.map(a=>{
+    const existing = a.report;
+    const amap = {}; if (existing && Array.isArray(existing.answers)) existing.answers.forEach(x=>{ amap[String(x.question_id)] = x.answer; });
+    const weekly = a.frequency === 'weekly';
+    const label = weekly ? 'Weekly report' : 'Daily report';
+    const pill = existing ? '<span class="pill pill-green">Submitted</span>' : (a.due_today ? '<span class="pill pill-gold">Due today</span>' : '<span class="pill pill-dim">Not due right now</span>');
+    const sub = weekly
+      ? `Due every ${WEEKDAYS[a.due_weekday]} · this week's report is filed for ${esc(fmtDate(a.period_date))}. You can update it any time this week.`
+      : `${esc(fmtDate(a.period_date))} · answers save as one report for today. You can update it any time.`;
+    return `<div class="card" data-freq="${a.frequency}">
+      <h2>${label} ${pill}</h2>
+      <div class="card-sub">${sub}</div>
+      <form data-tform="${a.frequency}">
+        ${(a.questions||[]).map(q=>`<div class="q-block"><label class="q-label">${esc(q.text)}</label><textarea class="q-input" data-qid="${q.id}" placeholder="Type your answer…">${esc(amap[String(q.id)]||'')}</textarea></div>`).join('')}
+        <div style="display:flex;align-items:center;gap:12px;"><button class="btn-primary" type="submit">${existing?'Update report':'Submit report'}</button><span class="tmsg" style="font-size:0.8rem;color:var(--text-muted);"></span></div>
+      </form>
+      ${existing?`<div style="margin-top:12px;"><button class="btn-ghost" data-thread="${existing.id}">Open replies / thread →</button></div>`:''}
+    </div>`;
+  }).join('');
+  c.querySelectorAll('form[data-tform]').forEach(form=>{
+    form.addEventListener('submit', async (e)=>{
+      e.preventDefault(); const freq=form.dataset.tform; const btn=form.querySelector('button[type=submit]'); const msg=form.querySelector('.tmsg');
+      const answers = [...form.querySelectorAll('textarea[data-qid]')].map(t=>({ question_id:t.dataset.qid, answer:t.value }));
+      btn.disabled=true; msg.textContent='Saving…';
+      try { await drFetch('?api=submit',{ method:'POST', body:JSON.stringify({ frequency:freq, answers }) }); msg.textContent='✓ Saved.'; await loadBootstrap(); }
+      catch(e2){ msg.textContent=''; alert('Save failed: '+e2.message); btn.disabled=false; }
+    });
   });
-  document.getElementById('openTodayThread')?.addEventListener('click',()=>openThread(existing.id));
+  c.querySelectorAll('[data-thread]').forEach(b=>b.addEventListener('click',()=>openThread(Number(b.dataset.thread))));
 }
 
 async function renderMine(c) {
@@ -359,10 +370,15 @@ async function renderAll(c) {
 }
 function rowHtml(r, showWho) {
   const first = Array.isArray(r.answers) && r.answers[0] ? r.answers[0].answer : '';
+  const weekly = r.frequency === 'weekly';
+  const freqBadge = `<span class="pill ${weekly?'pill-gold':'pill-dim'}" style="text-transform:capitalize;">${weekly?'Weekly':'Daily'}</span>`;
+  const behalf = (r.submitted_by && r.submitted_by !== r.user_id) ? `<span class="dr-snip" style="color:var(--text-dim);font-size:0.72rem;">filed by ${esc(r.submitted_by_email||'a manager')}</span>` : '';
   return `<div class="dr-row" data-report="${r.id}">
     <span class="dr-date">${esc(fmtDate(r.report_date))}</span>
+    ${freqBadge}
     ${showWho?`<span class="dr-who">${esc(r.name||r.email||'')}</span>`:''}
     <span class="dr-snip">${esc(first||'—')}</span>
+    ${behalf}
     <span class="pill pill-green">Submitted</span>
   </div>`;
 }
@@ -376,8 +392,8 @@ async function openThread(reportId) {
   const rep = j.report; const msgs = j.messages||[];
   const canReply = boot.isManager || rep.user_id === boot.me.user_id;
   card.innerHTML = `
-    <div class="modal-title">Daily report — ${esc(fmtDate(rep.report_date))}</div>
-    <div class="modal-sub">${esc(rep.name||rep.email||'')} · submitted ${esc(fmtTs(rep.submitted_at))}</div>
+    <div class="modal-title">${rep.frequency==='weekly'?'Weekly':'Daily'} report — ${esc(fmtDate(rep.report_date))}</div>
+    <div class="modal-sub">${esc(rep.name||rep.email||'')} · submitted ${esc(fmtTs(rep.submitted_at))}${(rep.submitted_by && rep.submitted_by!==rep.user_id)?` · filed by ${esc(rep.submitted_by_email||'a manager')}`:''}</div>
     ${(rep.answers||[]).map(a=>`<div class="qa-block"><div class="qa-q">${esc(a.question)}</div><div class="qa-a">${esc(a.answer)||'—'}</div></div>`).join('')}
     <div class="sec-line"></div>
     <div style="font-size:0.72rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-dim);">Replies</div>
@@ -399,64 +415,132 @@ async function renderAssign(c) {
   c.innerHTML = '<div class="empty-state">Loading…</div>';
   const j = await drFetch('?api=assignments');
   const rows = j.rows||[]; const users = j.users||[];
-  const byId = {}; rows.forEach(r=>byId[r.user_id]=r);
+  const byKey = {}; rows.forEach(r=>byKey[r.user_id+':'+(r.frequency||'daily')]=r);
   c.innerHTML = `
     <div class="card">
-      <h2>Assign a daily report</h2>
-      <div class="card-sub">Pick a person and which weekdays they owe a report. They get dashboard access + a daily nudge at ~5 PM ET on due days if they haven't submitted.</div>
+      <h2>Assign a report</h2>
+      <div class="card-sub">Pick a person and a frequency. <b>Daily</b> = due on the weekdays you choose. <b>Weekly</b> = due once a week on the day you choose (filed for that week). They get dashboard access + a ~5 PM ET nudge on due days if they haven't submitted. A person can hold both a daily and a weekly report.</div>
       <div class="q-block"><label class="q-label">Person</label>
         <select class="q-input" id="asgUser" style="min-height:auto;height:42px;">
           <option value="">Select a person…</option>
           ${users.map(u=>`<option value="${u.id}" data-email="${esc(u.email)}" data-name="${esc(u.name)}">${esc(u.name)} — ${esc(u.email)}</option>`).join('')}
         </select>
       </div>
-      <div class="q-block"><label class="q-label">Days due</label><div class="wk-days" id="asgDays"></div></div>
+      <div class="q-block"><label class="q-label">Frequency</label>
+        <div class="wk-days" id="asgFreqSeg">
+          <span class="wk-day on" data-f="daily">Daily</span>
+          <span class="wk-day" data-f="weekly">Weekly</span>
+        </div>
+      </div>
+      <div class="q-block"><label class="q-label" id="asgDaysLbl">Days due</label><div class="wk-days" id="asgDays"></div></div>
       <button class="btn-primary" id="asgSave">Assign</button> <span id="asgMsg" style="font-size:0.8rem;color:var(--text-muted);margin-left:8px;"></span>
     </div>
     <div class="card">
       <h2>Current assignments</h2>
-      <div class="card-sub">${rows.filter(r=>r.active).length} active.</div>
+      <div class="card-sub">${rows.filter(r=>r.active).length} active. Use <b>File report</b> to submit on someone's behalf — it's recorded as filed by you, and only the usual recipients are notified.</div>
       <div id="asgList"></div>
     </div>`;
-  assignEditWeekdays = new Set([1,2,3,4,5]);
+  let asgFreq = 'daily';
+  let asgDaily = new Set([1,2,3,4,5]);
+  let asgWeekly = 5; // Friday default
   const daysEl = document.getElementById('asgDays');
-  const paintDays = ()=>{ daysEl.innerHTML = WEEKDAYS.map((d,i)=>`<span class="wk-day ${assignEditWeekdays.has(i)?'on':''}" data-d="${i}">${d}</span>`).join(''); daysEl.querySelectorAll('.wk-day').forEach(el=>el.addEventListener('click',()=>{ const i=Number(el.dataset.d); assignEditWeekdays.has(i)?assignEditWeekdays.delete(i):assignEditWeekdays.add(i); paintDays(); })); };
+  const lblEl = document.getElementById('asgDaysLbl');
+  const paintDays = ()=>{
+    lblEl.textContent = asgFreq==='weekly' ? 'Due day (once a week)' : 'Days due';
+    daysEl.innerHTML = WEEKDAYS.map((d,i)=>{
+      const on = asgFreq==='weekly' ? (asgWeekly===i) : asgDaily.has(i);
+      return `<span class="wk-day ${on?'on':''}" data-d="${i}">${d}</span>`;
+    }).join('');
+    daysEl.querySelectorAll('.wk-day').forEach(el=>el.addEventListener('click',()=>{
+      const i=Number(el.dataset.d);
+      if(asgFreq==='weekly'){ asgWeekly=i; } else { asgDaily.has(i)?asgDaily.delete(i):asgDaily.add(i); }
+      paintDays();
+    }));
+  };
+  const syncFromExisting = ()=>{
+    const uid = document.getElementById('asgUser').value;
+    const ex = byKey[uid+':'+asgFreq];
+    if(asgFreq==='weekly'){ asgWeekly = ex && Array.isArray(ex.weekdays) && ex.weekdays.length ? ex.weekdays[0] : 5; }
+    else { asgDaily = new Set(ex && Array.isArray(ex.weekdays) && ex.weekdays.length ? ex.weekdays : [1,2,3,4,5]); }
+    paintDays();
+  };
+  document.getElementById('asgFreqSeg').querySelectorAll('.wk-day').forEach(el=>el.addEventListener('click',()=>{
+    asgFreq = el.dataset.f;
+    document.getElementById('asgFreqSeg').querySelectorAll('.wk-day').forEach(x=>x.classList.toggle('on', x.dataset.f===asgFreq));
+    syncFromExisting();
+  }));
+  document.getElementById('asgUser').addEventListener('change', syncFromExisting);
   paintDays();
-  document.getElementById('asgUser').addEventListener('change', (e)=>{ const uid=e.target.value; const ex=byId[uid]; assignEditWeekdays = new Set(ex && Array.isArray(ex.weekdays)?ex.weekdays:[1,2,3,4,5]); paintDays(); });
   document.getElementById('asgSave').addEventListener('click', async ()=>{
     const sel = document.getElementById('asgUser'); const uid = sel.value; if(!uid){ document.getElementById('asgMsg').textContent='Pick a person.'; return; }
     const opt = sel.selectedOptions[0]; const btn=document.getElementById('asgSave'); btn.disabled=true; document.getElementById('asgMsg').textContent='Saving…';
-    try { await drFetch('?api=assign',{ method:'POST', body:JSON.stringify({ user_id:uid, email:opt.dataset.email, name:opt.dataset.name, weekdays:[...assignEditWeekdays], active:true }) }); document.getElementById('asgMsg').textContent='✓ Assigned.'; renderAssign(c); }
+    const payload = { user_id:uid, email:opt.dataset.email, name:opt.dataset.name, frequency:asgFreq, active:true };
+    if(asgFreq==='weekly') payload.due_weekday = asgWeekly; else payload.weekdays = [...asgDaily];
+    try { await drFetch('?api=assign',{ method:'POST', body:JSON.stringify(payload) }); document.getElementById('asgMsg').textContent='✓ Assigned.'; renderAssign(c); }
     catch(e){ document.getElementById('asgMsg').textContent=''; alert('Failed: '+e.message); btn.disabled=false; }
   });
   const list = document.getElementById('asgList');
   const active = rows.filter(r=>r.active);
   list.innerHTML = active.length ? active.map(r=>{
+      const freq = r.frequency||'daily'; const weekly = freq==='weekly';
       const nCustom = Array.isArray(r.questions) ? r.questions.length : 0;
       const qTag = nCustom ? ` · <span style="color:var(--accent2,#34d399);font-weight:700;">custom Q&#215;${nCustom}</span>` : '';
+      const sched = weekly ? ('every '+WEEKDAYS[(r.weekdays&&r.weekdays[0])??5]) : ((r.weekdays||[]).slice().sort().map(i=>WEEKDAYS[i]).join(', ')||'—');
+      const key = r.user_id+':'+freq;
       return `<div class="dr-row" style="cursor:default;">
-      <span class="dr-who" style="min-width:150px;">${esc(r.name||r.email)}</span>
-      <span class="dr-snip">${(r.weekdays||[]).slice().sort().map(i=>WEEKDAYS[i]).join(', ')||'—'}${qTag}</span>
-      <button class="btn-ghost" data-pq="${r.user_id}" style="padding:5px 12px;">Questions</button>
-      <button class="btn-ghost" data-unassign="${r.user_id}" style="padding:5px 12px;">Unassign</button>
+      <span class="dr-who" style="min-width:140px;">${esc(r.name||r.email)}</span>
+      <span class="pill ${weekly?'pill-gold':'pill-dim'}" style="text-transform:capitalize;">${weekly?'Weekly':'Daily'}</span>
+      <span class="dr-snip">${sched}${qTag}</span>
+      <button class="btn-ghost" data-file="${key}" style="padding:5px 12px;">File report</button>
+      <button class="btn-ghost" data-pq="${key}" style="padding:5px 12px;">Questions</button>
+      <button class="btn-ghost" data-unassign="${key}" style="padding:5px 12px;">Unassign</button>
     </div>`;}).join('') : '<div class="empty-state">No active assignments.</div>';
-  list.querySelectorAll('[data-pq]').forEach(b=>b.addEventListener('click', ()=>{ const r=byId[b.dataset.pq]; renderPersonQuestions(c, r, j.baseline||[]); }));
+  list.querySelectorAll('[data-file]').forEach(b=>b.addEventListener('click', ()=>{ openOnBehalf(c, byKey[b.dataset.file]); }));
+  list.querySelectorAll('[data-pq]').forEach(b=>b.addEventListener('click', ()=>{ renderPersonQuestions(c, byKey[b.dataset.pq], j.baseline||[]); }));
   list.querySelectorAll('[data-unassign]').forEach(b=>b.addEventListener('click', async ()=>{
-    if(!confirm('Unassign this person? They stop receiving daily reminders and lose dashboard access.')) return;
-    try { await drFetch('?api=unassign',{ method:'POST', body:JSON.stringify({ user_id:b.dataset.unassign }) }); renderAssign(c); } catch(e){ alert('Failed: '+e.message); }
+    const r = byKey[b.dataset.unassign];
+    if(!confirm('Unassign '+(r.name||r.email)+' from their '+(r.frequency||'daily')+' report? They stop receiving those reminders.')) return;
+    try { await drFetch('?api=unassign',{ method:'POST', body:JSON.stringify({ user_id:r.user_id, frequency:r.frequency }) }); renderAssign(c); } catch(e){ alert('Failed: '+e.message); }
   }));
+}
+
+// ── File a report on someone's behalf (managers) ──
+async function openOnBehalf(c, r) {
+  const freq = r.frequency||'daily'; const who = r.name||r.email;
+  c.innerHTML = '<div class="empty-state">Loading…</div>';
+  let j; try { j = await drFetch('?api=report-form&user_id='+encodeURIComponent(r.user_id)+'&frequency='+freq); }
+  catch(e){ c.innerHTML=`<div class="empty-state">${esc(e.message)}</div>`; return; }
+  const existing = j.report; const amap={}; if(existing&&Array.isArray(existing.answers)) existing.answers.forEach(x=>{ amap[String(x.question_id)]=x.answer; });
+  c.innerHTML = `<div class="card">
+    <button class="btn-ghost" id="obBack" style="margin-bottom:10px;">← Back to assignments</button>
+    <h2>File ${freq} report — ${esc(who)}</h2>
+    <div class="card-sub">Filing on their behalf for <b>${esc(fmtDate(j.period_date))}</b>. Recorded as filed by you. The usual recipients are notified; ${esc(who)} is not.</div>
+    <form id="obForm">
+      ${(j.questions||[]).map(q=>`<div class="q-block"><label class="q-label">${esc(q.text)}</label><textarea class="q-input" data-qid="${q.id}" placeholder="Type the answer…">${esc(amap[String(q.id)]||'')}</textarea></div>`).join('')}
+      <div style="display:flex;align-items:center;gap:12px;"><button class="btn-primary" type="submit">${existing?'Update report':'File report'}</button><span id="obMsg" style="font-size:0.8rem;color:var(--text-muted);"></span></div>
+    </form>
+  </div>`;
+  document.getElementById('obBack').addEventListener('click',()=>renderAssign(c));
+  document.getElementById('obForm').addEventListener('submit', async (e)=>{
+    e.preventDefault(); const btn=e.target.querySelector('button[type=submit]'); const msg=document.getElementById('obMsg');
+    const answers=[...e.target.querySelectorAll('textarea[data-qid]')].map(t=>({ question_id:t.dataset.qid, answer:t.value }));
+    btn.disabled=true; msg.textContent='Saving…';
+    try { await drFetch('?api=submit',{ method:'POST', body:JSON.stringify({ frequency:freq, on_behalf_user_id:r.user_id, answers }) }); msg.textContent='✓ Filed.'; setTimeout(()=>renderAssign(c),700); }
+    catch(e2){ msg.textContent=''; alert('Failed: '+e2.message); btn.disabled=false; }
+  });
 }
 
 // ── Per-person question editor (managers): custom set overrides the baseline ──
 function renderPersonQuestions(c, r, baseline) {
+  const freq = r.frequency||'daily';
   const hasCustom = Array.isArray(r.questions) && r.questions.length;
   let qs = (hasCustom ? r.questions : (baseline||[])).map(q=>({ id:q.id, text:q.text }));
   const who = r.name || r.email;
   const draw = ()=>{
     c.innerHTML = `<div class="card">
       <button class="btn-ghost" id="pqBack" style="margin-bottom:10px;">← Back to assignments</button>
-      <h2>Questions for ${esc(who)}</h2>
-      <div class="card-sub">${hasCustom ? 'This person has a <b>custom</b> question set.' : 'Currently inheriting the <b>baseline</b> questions.'} Edits here apply <b>only</b> to ${esc(who)}'s reports. Use “Reset to baseline” to drop the custom set and follow the shared Questions again.</div>
+      <h2>${freq==='weekly'?'Weekly':'Daily'} questions for ${esc(who)}</h2>
+      <div class="card-sub">${hasCustom ? 'This person has a <b>custom</b> question set for their '+freq+' report.' : 'Currently inheriting the <b>baseline</b> questions.'} Edits here apply <b>only</b> to ${esc(who)}'s ${freq} reports. Use “Reset to baseline” to drop the custom set and follow the shared Questions again.</div>
       <div id="pqList"></div>
       <button class="btn-ghost" id="pqAdd" style="margin-top:6px;">+ Add question</button>
       <div style="margin-top:16px;">
@@ -474,12 +558,12 @@ function renderPersonQuestions(c, r, baseline) {
       const clean = qs.map(q=>({ id:q.id, text:(q.text||'').trim() })).filter(q=>q.text);
       if(!clean.length){ document.getElementById('pqMsg').textContent='Add a question or use Reset to baseline.'; return; }
       document.getElementById('pqMsg').textContent='Saving…';
-      try { await drFetch('?api=assign-questions',{ method:'POST', body:JSON.stringify({ user_id:r.user_id, questions:clean }) }); document.getElementById('pqMsg').textContent='✓ Saved for '+who+'.'; }
+      try { await drFetch('?api=assign-questions',{ method:'POST', body:JSON.stringify({ user_id:r.user_id, frequency:freq, questions:clean }) }); document.getElementById('pqMsg').textContent='✓ Saved for '+who+'.'; }
       catch(e){ document.getElementById('pqMsg').textContent=''; alert('Failed: '+e.message); }
     });
     document.getElementById('pqReset').addEventListener('click', async ()=>{
       if(!confirm('Reset '+who+' to the baseline questions? Their custom set is removed and they follow the shared Questions again.')) return;
-      try { await drFetch('?api=assign-questions',{ method:'POST', body:JSON.stringify({ user_id:r.user_id, questions:[] }) }); renderAssign(c); }
+      try { await drFetch('?api=assign-questions',{ method:'POST', body:JSON.stringify({ user_id:r.user_id, frequency:freq, questions:[] }) }); renderAssign(c); }
       catch(e){ alert('Failed: '+e.message); }
     });
   };

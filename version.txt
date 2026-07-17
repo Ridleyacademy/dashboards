@@ -21,3 +21,4 @@
 2026-07-16T17:20:00Z-v572-policy-holder-in-letter
 2026-07-16T18:00:00Z-v573-to-study
 2026-07-16T18:40:00Z-v574-to-study-in-policies
+2026-07-17T15:00:00Z-v575-daily-weekly-reports

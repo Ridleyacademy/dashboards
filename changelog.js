@@ -16,6 +16,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v575', title: 'Daily reports are now daily *and* weekly', items: [
+      'Reports can now be assigned as Daily (due on the weekdays you pick) or Weekly (due once a week on a chosen day, filed for that week). A person can hold both a daily and a weekly report at once.',
+      'Questions are per person and per frequency — give each assignee their own daily and/or weekly question set, or let them inherit the shared baseline.',
+      'Managers can now File a report on someone’s behalf from Assignments. It’s recorded as filed by you, and only the usual recipients are notified.',
+    ] },
     { version: 'v574', title: '“To Study” is now a view inside Policies & Orders', items: [
       'Moved “To Study” into the Policies & Orders dashboard — a new “To study” toggle at the top shows only the policies/orders that concern you, unread first, with a ✓/! read marker and an unread count.',
       'The Dashboards menu, home card, and policy emails all open Policies in that view. (The separate To Study page was removed.)',

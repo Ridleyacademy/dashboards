@@ -1,6 +1,7 @@
 const SUPABASE_URL = "https://pojqljrhhtnigyrtzdzz.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBvanFsanJoaHRuaWd5cnR6ZHp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTA3ODMsImV4cCI6MjA5MTM4Njc4M30.PcSBDqOzbiZxZ7IAs5efqx0gsAlAG0cj3GqUOkAmxos";
 const STUDENTS_BASE = SUPABASE_URL + '/functions/v1/students';
+const REASSIGN_BASE = SUPABASE_URL + '/functions/v1/reassign-turnover';
 const ZOOM_MEETINGS_BASE = SUPABASE_URL + '/functions/v1/zoom-meetings';
 const COACH_HOURS_BASE = SUPABASE_URL + '/functions/v1/coach-hours';
 const ZOOM_JOIN_BASE = SUPABASE_URL + '/functions/v1/zoom-join';
@@ -1014,6 +1015,9 @@ async function openProfileModal(id) {
         <button type="button" class="btn-ghost pf-jump-alerts" title="Open alerts for this student in the CRM" style="padding:6px 12px;font-size:0.78rem;">
           🔔 Alerts${(row.open_alerts_count|0) > 0 ? ` <span style="background:#f87171;color:#1a0f0f;border-radius:9px;padding:1px 7px;margin-left:4px;font-size:0.7rem;font-weight:800;">${row.open_alerts_count}</span>` : ''}
         </button>
+        <button type="button" class="btn-ghost pf-jump-turnovers" title="Turnovers — hand this student to a rep, respond, resolve" style="padding:6px 12px;font-size:0.78rem;">
+          🔄 Turnovers${(row.turnovers_count|0) > 0 ? ` <span style="background:rgba(52,211,153,0.18);color:#34d399;border-radius:9px;padding:1px 7px;margin-left:4px;font-size:0.7rem;font-weight:800;">${row.turnovers_count}</span>` : ''}
+        </button>
         <button type="button" class="btn-ghost pf-jump-logs" title="View / add logs (coach notes, wins, rep notes, IC notes, turnovers)" style="padding:6px 12px;font-size:0.78rem;">
           📋 Logs${(row.coach_notes_count|0) > 0 ? ` <span style="background:rgba(34,211,238,0.18);color:#22d3ee;border-radius:9px;padding:1px 7px;margin-left:4px;font-size:0.7rem;font-weight:800;">${row.coach_notes_count}</span>` : ''}
         </button>
@@ -1065,6 +1069,9 @@ async function openProfileModal(id) {
   // Header quick-access buttons
   m.querySelector('.pf-jump-alerts')?.addEventListener('click', () => {
     openCoachAlertsModal(row.id, row.name || '');
+  });
+  m.querySelector('.pf-jump-turnovers')?.addEventListener('click', () => {
+    openCoachTurnoverListModal(row.id, row.name || '');
   });
   m.querySelector('.pf-jump-logs')?.addEventListener('click', (e) => {
     openCoachLogsModal(row.id, row.name || '', e.currentTarget);
@@ -1490,31 +1497,52 @@ async function openCoachNoteListModal(studentId, studentName, kind) {
   load();
 }
 
-// ── Coach-board inline Turnovers modal ───────────────────────────────────
-// Lists this student's turnovers (with optional result), lets the coach
-// file a new one (rep_name dropdown from /mentors), set / clear a result,
-// and delete. Mirrors openCoachAlertsModal — no more new-tab jump.
+// ── Coach-board Turnovers (full parity with the MS CRM students.js) ───────
+// Same system as the CRM: OPEN / IN PROGRESS / RESOLVED badges, a threaded
+// Response/Resolution conversation (add-turnover-comment / set-turnover-result,
+// with optional "tag coach"), reassign-to-another-rep (admin / ms_ic /
+// delivery_ic only), add, and delete. All against the shared `students` edge fn.
 let _turnoverLatestId = null;
 let _turnoverAbort = null;
 let _turnoverMentorsCache = null;
+
+function _coachCanReassignTurnover() {
+  try {
+    const eff = window.RidleyPerms?.effective(currentSession?.user) || {};
+    const ps = Array.isArray(eff.permissions) ? eff.permissions : [];
+    return eff.is_admin === true || ps.includes('ms_ic') || ps.includes('delivery_ic');
+  } catch (_) { return false; }
+}
+
+async function _coachGetMentors() {
+  if (_turnoverMentorsCache) return _turnoverMentorsCache;
+  try {
+    const r = await fetch(STUDENTS_BASE + '?api=mentors', { headers: { Authorization: 'Bearer ' + currentSession.access_token } });
+    const j = await r.json();
+    _turnoverMentorsCache = Array.isArray(j.mentors) ? j.mentors : [];
+  } catch (_) { _turnoverMentorsCache = []; }
+  return _turnoverMentorsCache;
+}
 
 async function openCoachTurnoverListModal(studentId, studentName) {
   _turnoverLatestId = studentId;
   if (_turnoverAbort) { try { _turnoverAbort.abort(); } catch (_) {} }
   const ac = new AbortController();
   _turnoverAbort = ac;
+  const canReassign = _coachCanReassignTurnover();
+  const esc = escapeHtml;
   document.getElementById('coachTurnoverModal')?.remove();
   const m = document.createElement('div');
   m.id = 'coachTurnoverModal';
   m.className = 'modal-bg';
   m.style.zIndex = '10100';
   m.innerHTML = `
-    <div class="modal-card" style="max-width:680px;">
+    <div class="modal-card" style="max-width:700px;">
       <div class="modal-head">
-        <h2>🔄 Turnovers · ${escapeHtml(studentName || '(unnamed)')}</h2>
+        <h2>🔄 Turnovers · ${esc(studentName || '(unnamed)')}</h2>
         <button class="close" data-x>×</button>
       </div>
-      <div class="modal-body" id="ctBody" style="grid-template-columns:1fr;">
+      <div class="modal-body" id="ctBody" style="grid-template-columns:1fr;max-height:70vh;overflow-y:auto;">
         <div style="color:var(--text-dim);">Loading…</div>
       </div>
       <div class="modal-foot">
@@ -1526,26 +1554,13 @@ async function openCoachTurnoverListModal(studentId, studentName) {
   document.body.appendChild(m);
   m.addEventListener('click', e => { if (e.target === m || e.target.matches('[data-x]')) m.remove(); });
 
-  async function getMentors() {
-    if (_turnoverMentorsCache) return _turnoverMentorsCache;
-    try {
-      const r = await fetch(STUDENTS_BASE + '?api=mentors', {
-        headers: { Authorization: 'Bearer ' + currentSession.access_token },
-      });
-      const j = await r.json();
-      _turnoverMentorsCache = Array.isArray(j.mentors) ? j.mentors : [];
-    } catch (_) { _turnoverMentorsCache = []; }
-    return _turnoverMentorsCache;
-  }
-
   async function load() {
     const body = document.getElementById('ctBody');
     if (body) body.innerHTML = '<div style="color:var(--text-dim);">Loading…</div>';
     let turnovers = [];
     try {
       const r = await fetch(STUDENTS_BASE + '?api=get&id=' + encodeURIComponent(studentId), {
-        headers: { Authorization: 'Bearer ' + currentSession.access_token },
-        signal: ac.signal,
+        headers: { Authorization: 'Bearer ' + currentSession.access_token }, signal: ac.signal,
       });
       if (_turnoverLatestId !== studentId) return;
       const j = await r.json();
@@ -1554,77 +1569,214 @@ async function openCoachTurnoverListModal(studentId, studentName) {
     } catch (e) { if (e?.name === 'AbortError') return; }
     if (!body) return;
     const sorted = [...turnovers].sort((a, b) => {
-      // Pending result first, then most recent
       const ao = a.result ? 1 : 0, bo = b.result ? 1 : 0;
-      if (ao !== bo) return ao - bo;
+      if (ao !== bo) return ao - bo;   // pending first
       return String(b.turnover_date || b.created_at || '').localeCompare(String(a.turnover_date || a.created_at || ''));
     });
-    if (sorted.length === 0) {
+    if (!sorted.length) {
       body.innerHTML = '<div style="color:var(--text-dim);font-size:0.86rem;padding:18px 0;">No turnovers yet. Click "+ New turnover" to log one.</div>';
       return;
     }
     body.innerHTML = sorted.map(t => {
       const hasResult = !!(t.result && String(t.result).trim());
+      const comments = Array.isArray(t.comments) ? t.comments : [];
+      const inProgress = !hasResult && comments.length > 0;
       const dateStr = (t.turnover_date || '').slice(0, 10);
       const created = t.created_at ? new Date(t.created_at).toLocaleString() : '';
-      const resultAt = t.result_at ? new Date(t.result_at).toLocaleString() : '';
+      const loggedBy = t.created_by_name || t.created_by_email || '';
+      const badge = hasResult
+        ? '<span style="font-size:0.62rem;font-weight:800;letter-spacing:0.06em;background:rgba(52,211,153,0.18);color:#34d399;border-radius:999px;padding:2px 8px;">✓ RESOLVED</span>'
+        : inProgress
+          ? '<span style="font-size:0.62rem;font-weight:800;letter-spacing:0.06em;background:rgba(251,146,60,0.18);color:#fb923c;border-radius:999px;padding:2px 8px;">◐ IN PROGRESS</span>'
+          : '<span style="font-size:0.62rem;font-weight:800;letter-spacing:0.06em;background:rgba(52,211,153,0.18);color:#34d399;border-radius:999px;padding:2px 8px;">↪ OPEN</span>';
+      const thread = comments.length ? `
+        <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
+          <div style="font-size:0.66rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-dim);margin-bottom:8px;">Responses (${comments.length})</div>
+          ${comments.map(c => `
+            <div style="margin-bottom:10px;padding:8px 10px;background:rgba(255,255,255,0.03);border-radius:8px;border-left:2px solid #3b4368;">
+              <div style="font-size:0.68rem;color:var(--text-dim);margin-bottom:3px;">${esc(c.created_by_name || c.created_by_email || 'someone')} · ${c.created_at ? new Date(c.created_at).toLocaleString() : ''}</div>
+              <div style="font-size:0.83rem;line-height:1.5;white-space:pre-wrap;">${esc(c.body || '')}</div>
+            </div>`).join('')}
+        </div>` : '';
+      const resultBlock = hasResult ? `
+        <div style="margin-top:10px;padding:10px 12px;border-left:3px solid #34d399;background:rgba(52,211,153,0.08);border-radius:6px;">
+          <div style="font-size:0.66rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:#34d399;margin-bottom:4px;">Result</div>
+          <div style="font-size:0.86rem;line-height:1.5;white-space:pre-wrap;">${esc(t.result)}</div>
+          ${t.result_at ? `<div style="font-size:0.68rem;color:var(--text-dim);margin-top:4px;">Result added ${new Date(t.result_at).toLocaleString()}${(t.result_by_name || t.result_by_email) ? ' by ' + esc(t.result_by_name || t.result_by_email) : ''}</div>` : ''}
+          <div style="margin-top:8px;"><button class="btn-ghost ct-result-edit" data-tid="${t.id}" style="padding:3px 10px;font-size:0.72rem;">Edit result</button></div>
+        </div>` : '';
+      const answer = !hasResult ? `
+        <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);">
+          <div style="display:flex;gap:6px;margin-bottom:8px;">
+            <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:7px;border:1px solid var(--border);border-radius:8px;font-size:0.76rem;cursor:pointer;"><input type="radio" name="ctmode-${t.id}" value="response" checked> Response</label>
+            <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:7px;border:1px solid var(--border);border-radius:8px;font-size:0.76rem;cursor:pointer;"><input type="radio" name="ctmode-${t.id}" value="resolve"> Resolution</label>
+          </div>
+          <textarea class="ct-ans-note" data-tid="${t.id}" placeholder="Post an update without resolving…" style="width:100%;min-height:56px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);resize:vertical;"></textarea>
+          <label style="display:flex;align-items:center;gap:6px;margin:8px 0;font-size:0.74rem;cursor:pointer;"><input type="checkbox" class="ct-ans-tagcoach" data-tid="${t.id}" style="width:15px;height:15px;"> Tag coach (also notify the coach)</label>
+          <button class="btn-primary ct-ans-btn" data-tid="${t.id}" style="padding:7px 14px;font-size:0.78rem;">↩ Post response</button>
+        </div>` : '';
+      const reassignBtn = (!hasResult && canReassign) ? ` <button class="ct-reassign" data-tid="${t.id}" title="Reassign to another rep" style="margin-left:6px;padding:1px 8px;font-size:0.64rem;font-weight:700;background:transparent;border:1px solid var(--border);color:var(--text-dim);border-radius:6px;cursor:pointer;vertical-align:1px;">⇄ reassign</button>` : '';
       return `
-        <div style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px;${hasResult ? '' : 'background:rgba(52,211,153,0.06);'}position:relative;">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap;">
-            <span class="pill ${hasResult ? 'ok' : 'bad'}" style="font-size:0.7rem;">${hasResult ? '✓ Has result' : '⏳ Pending result'}</span>
-            <strong>${escapeHtml(t.rep_name || '(no rep)')}</strong>
-            ${dateStr ? `<span class="pill" style="font-size:0.7rem;">${escapeHtml(dateStr)}</span>` : ''}
-            <span style="margin-left:auto;color:var(--text-dim);font-size:0.72rem;">${escapeHtml(created)}</span>
+        <div style="border:1px solid ${hasResult ? 'var(--border)' : inProgress ? 'rgba(251,146,60,0.4)' : 'rgba(52,211,153,0.35)'};border-radius:12px;padding:14px;margin-bottom:12px;background:${hasResult ? 'transparent' : inProgress ? 'rgba(251,146,60,0.04)' : 'rgba(52,211,153,0.05)'};">
+          <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:4px;flex-wrap:wrap;">
+            <div style="flex:1;min-width:0;">
+              <div style="font-weight:700;font-size:0.92rem;">→ ${esc(t.rep_name || '(no rep)')}${reassignBtn}</div>
+              ${t.note ? `<div style="margin-top:4px;font-size:0.86rem;color:var(--text-dim);line-height:1.5;white-space:pre-wrap;">${esc(t.note)}</div>` : ''}
+            </div>
+            ${badge}
+            <button class="ct-del" data-tid="${t.id}" title="Delete" style="padding:4px 10px;font-size:0.72rem;background:transparent;border:1px solid var(--border);color:var(--red);border-radius:7px;cursor:pointer;flex-shrink:0;">✕</button>
           </div>
-          ${t.note ? `<div style="color:var(--text-dim);font-size:0.82rem;margin-bottom:6px;white-space:pre-wrap;">${escapeHtml(t.note)}</div>` : ''}
-          <div style="font-size:0.72rem;color:var(--text-dim);">By ${escapeHtml(t.created_by_email || 'unknown')}</div>
-          ${hasResult ? `<div style="font-size:0.78rem;color:var(--text-dim);margin-top:6px;padding-top:6px;border-top:1px dashed var(--border);"><strong>Result:</strong> <span style="white-space:pre-wrap;">${escapeHtml(t.result)}</span>${resultAt ? `<div style="font-size:0.7rem;margin-top:2px;">on ${escapeHtml(resultAt)}${t.result_by_email ? ' by ' + escapeHtml(t.result_by_email) : ''}</div>` : ''}</div>` : ''}
-          <div style="margin-top:8px;display:flex;gap:6px;">
-            <button class="btn-ghost ct-result" data-tid="${t.id}" style="padding:5px 12px;font-size:0.76rem;">${hasResult ? 'Edit result' : 'Set result'}</button>
-            <button class="btn-ghost ct-del" data-tid="${t.id}" title="Delete" style="padding:5px 12px;font-size:0.76rem;color:var(--red);margin-left:auto;">Delete</button>
-          </div>
+          <div style="font-size:0.7rem;color:var(--text-dim);">${dateStr ? '📅 ' + esc(dateStr) + ' · ' : ''}Logged ${esc(created)}${loggedBy ? ' by ' + esc(loggedBy) : ''}</div>
+          ${thread}
+          ${resultBlock}
+          ${answer}
         </div>`;
     }).join('');
-    body.querySelectorAll('.ct-result').forEach(b => b.addEventListener('click', async () => {
-      const tid = Number(b.getAttribute('data-tid'));
-      const current = sorted.find(x => x.id === tid)?.result || '';
-      const result = prompt('Result (leave empty to clear):', current);
-      if (result === null) return;
-      const msg = document.getElementById('ctMsg'); if (msg) { msg.className = 'msg'; msg.textContent = 'Saving…'; }
-      try {
-        const r = await fetch(STUDENTS_BASE + '?api=set-turnover-result', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
-          body: JSON.stringify({ id: tid, result: result.trim() }),
-        });
-        const j = await r.json();
-        if (!r.ok) throw new Error(j.error || 'Failed');
-        await load();
-        if (msg) { msg.className = 'msg ok'; msg.textContent = 'Saved'; setTimeout(() => msg.textContent = '', 1500); }
-      } catch (e) { if (msg) { msg.className = 'msg err'; msg.textContent = e.message || e; } }
-    }));
-    body.querySelectorAll('.ct-del').forEach(b => b.addEventListener('click', async () => {
-      if (!confirm('Delete this turnover? This cannot be undone.')) return;
-      const tid = Number(b.getAttribute('data-tid'));
-      const msg = document.getElementById('ctMsg'); if (msg) { msg.className = 'msg'; msg.textContent = 'Deleting…'; }
-      try {
-        const r = await fetch(STUDENTS_BASE + '?api=delete-turnover', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
-          body: JSON.stringify({ id: tid }),
-        });
-        const j = await r.json();
-        if (!r.ok) throw new Error(j.error || 'Failed');
-        await load();
-        if (msg) { msg.className = 'msg ok'; msg.textContent = 'Deleted'; setTimeout(() => msg.textContent = '', 1500); }
-      } catch (e) { if (msg) { msg.className = 'msg err'; msg.textContent = e.message || e; } }
+
+    // Response/Resolution picker: swap placeholder + button label.
+    body.querySelectorAll('input[type="radio"][name^="ctmode-"]').forEach(radio => {
+      radio.addEventListener('change', () => {
+        const id = radio.name.slice('ctmode-'.length);
+        const mode = body.querySelector(`input[name="ctmode-${id}"]:checked`)?.value || 'response';
+        const ta = body.querySelector(`.ct-ans-note[data-tid="${id}"]`);
+        const sub = body.querySelector(`.ct-ans-btn[data-tid="${id}"]`);
+        if (mode === 'resolve') { if (ta) ta.placeholder = 'Describe the outcome / result (required)…'; if (sub) sub.textContent = '✓ Resolve'; }
+        else { if (ta) ta.placeholder = 'Post an update without resolving…'; if (sub) sub.textContent = '↩ Post response'; }
+      });
+    });
+    body.querySelectorAll('.ct-ans-btn').forEach(b => b.addEventListener('click', () => submitEntry(Number(b.dataset.tid))));
+    body.querySelectorAll('.ct-result-edit').forEach(b => b.addEventListener('click', () => openResultModal(Number(b.dataset.tid), sorted)));
+    body.querySelectorAll('.ct-del').forEach(b => b.addEventListener('click', () => delTurnover(Number(b.dataset.tid))));
+    body.querySelectorAll('.ct-reassign').forEach(b => b.addEventListener('click', () => {
+      const t = sorted.find(x => Number(x.id) === Number(b.dataset.tid));
+      if (t) openReassignModal(t);
     }));
   }
 
+  // Post a Response (add-turnover-comment) or a Resolution (set-turnover-result).
+  // Both notify the turnover's rep + the people already on it; Tag coach also
+  // notifies the coach. Mirrors the CRM's submitTurnoverEntry.
+  async function submitEntry(id) {
+    const body = document.getElementById('ctBody');
+    const mode = body.querySelector(`input[name="ctmode-${id}"]:checked`)?.value || 'response';
+    const text = (body.querySelector(`.ct-ans-note[data-tid="${id}"]`)?.value || '').trim();
+    if (!text) { alert(mode === 'resolve' ? 'A result is required.' : 'Write a response first.'); return; }
+    const tag = body.querySelector(`.ct-ans-tagcoach[data-tid="${id}"]`)?.checked === true;
+    const btn = body.querySelector(`.ct-ans-btn[data-tid="${id}"]`);
+    if (btn) { btn.disabled = true; btn.textContent = mode === 'resolve' ? 'Resolving…' : 'Posting…'; }
+    try {
+      const endpoint = mode === 'resolve' ? '?api=set-turnover-result' : '?api=add-turnover-comment';
+      const payload = mode === 'resolve' ? { id, result: text, tag_coach: tag } : { turnoverId: id, body: text, tag_coach: tag };
+      const r = await fetch(STUDENTS_BASE + endpoint, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
+        body: JSON.stringify(payload),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'Failed');
+      await load();
+    } catch (e) {
+      if (btn) { btn.disabled = false; btn.textContent = mode === 'resolve' ? '✓ Resolve' : '↩ Post response'; }
+      alert('Failed: ' + (e.message || e));
+    }
+  }
+
+  async function delTurnover(id) {
+    if (!confirm('Delete this turnover? This cannot be undone.')) return;
+    const msg = document.getElementById('ctMsg'); if (msg) { msg.className = 'msg'; msg.textContent = 'Deleting…'; }
+    try {
+      const r = await fetch(STUDENTS_BASE + '?api=delete-turnover', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
+        body: JSON.stringify({ id }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'Failed');
+      if (msg) { msg.className = 'msg ok'; msg.textContent = 'Deleted'; setTimeout(() => msg.textContent = '', 1500); }
+      await load();
+    } catch (e) { if (msg) { msg.className = 'msg err'; msg.textContent = e.message || e; } }
+  }
+
+  // Edit / clear the result on an already-resolved turnover.
+  function openResultModal(id, sorted) {
+    const t = sorted.find(x => Number(x.id) === Number(id));
+    if (!t) return;
+    const r = document.createElement('div');
+    r.className = 'modal-bg'; r.style.zIndex = '10200';
+    r.innerHTML = `
+      <div class="modal-card" style="max-width:480px;">
+        <div class="modal-head"><h2>${t.result ? 'Edit' : 'Add'} result · ${esc(t.rep_name || '')}</h2><button class="close" data-x>×</button></div>
+        <div class="modal-body" style="grid-template-columns:1fr;">
+          <label style="display:grid;gap:4px;font-size:0.78rem;color:var(--text-dim);">Result
+            <textarea id="ctrText" rows="5" placeholder="Closed / not interested / scheduling / refunded / etc." style="padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);resize:vertical;">${esc(t.result || '')}</textarea>
+          </label>
+        </div>
+        <div class="modal-foot">
+          <span class="msg" id="ctrMsg"></span>
+          ${t.result ? '<button class="btn-ghost" id="ctrClear" style="color:var(--red);margin-right:auto;">Clear result</button>' : ''}
+          <button class="btn-ghost" data-x>Cancel</button>
+          <button class="btn-primary" id="ctrSave">Save result</button>
+        </div>
+      </div>`;
+    document.body.appendChild(r);
+    r.addEventListener('click', e => { if (e.target === r || e.target.matches('[data-x]')) r.remove(); });
+    const save = async (val) => {
+      const msg = document.getElementById('ctrMsg'); if (msg) { msg.className = 'msg'; msg.textContent = 'Saving…'; }
+      try {
+        const rr = await fetch(STUDENTS_BASE + '?api=set-turnover-result', {
+          method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
+          body: JSON.stringify({ id, result: val }),
+        });
+        const j = await rr.json();
+        if (!rr.ok) throw new Error(j.error || 'Failed');
+        r.remove(); await load();
+      } catch (e) { if (msg) { msg.className = 'msg err'; msg.textContent = e.message || e; } }
+    };
+    document.getElementById('ctrSave').addEventListener('click', () => {
+      const val = (document.getElementById('ctrText').value || '').trim();
+      if (!val) { const msg = document.getElementById('ctrMsg'); msg.className = 'msg err'; msg.textContent = 'A result is required (or Clear).'; return; }
+      save(val);
+    });
+    document.getElementById('ctrClear')?.addEventListener('click', () => { if (confirm('Clear this turnover result?')) save(''); });
+  }
+
+  // Reassign to another rep — admin / ms_ic / delivery_ic only (server enforces).
+  async function openReassignModal(t) {
+    const mentors = await _coachGetMentors();
+    const r = document.createElement('div');
+    r.className = 'modal-bg'; r.style.zIndex = '10200';
+    r.innerHTML = `
+      <div class="modal-card" style="max-width:440px;">
+        <div class="modal-head"><h2>Reassign turnover</h2><button class="close" data-x>×</button></div>
+        <div class="modal-body" style="grid-template-columns:1fr;">
+          <div style="font-size:0.8rem;color:var(--text-dim);margin-bottom:6px;">Currently with <strong>${esc(t.rep_name || '(unassigned)')}</strong>. Hand it to another rep — they'll be notified and it moves to their queue.</div>
+          <label style="display:grid;gap:4px;font-size:0.78rem;color:var(--text-dim);">New rep
+            <input id="ctraRep" list="ctraList" placeholder="Pick or type a rep name" autocomplete="off" style="padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);">
+            <datalist id="ctraList">${mentors.map(n => `<option value="${esc(n)}"></option>`).join('')}</datalist>
+          </label>
+        </div>
+        <div class="modal-foot"><span class="msg" id="ctraMsg"></span><button class="btn-ghost" data-x>Cancel</button><button class="btn-primary" id="ctraSave">Reassign</button></div>
+      </div>`;
+    document.body.appendChild(r);
+    r.addEventListener('click', e => { if (e.target === r || e.target.matches('[data-x]')) r.remove(); });
+    document.getElementById('ctraSave').addEventListener('click', async () => {
+      const rep = (document.getElementById('ctraRep').value || '').trim();
+      const msg = document.getElementById('ctraMsg');
+      if (!rep) { msg.className = 'msg err'; msg.textContent = 'Pick a rep.'; return; }
+      if (rep.toLowerCase() === String(t.rep_name || '').trim().toLowerCase()) { msg.className = 'msg err'; msg.textContent = 'Already assigned to ' + rep + '.'; return; }
+      msg.className = 'msg'; msg.textContent = 'Reassigning…';
+      try {
+        const rr = await fetch(REASSIGN_BASE, {
+          method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
+          body: JSON.stringify({ turnoverId: Number(t.id), rep_name: rep }),
+        });
+        const j = await rr.json();
+        if (!rr.ok) throw new Error(j.error || 'Failed');
+        r.remove(); await load();
+      } catch (e) { msg.className = 'msg err'; msg.textContent = e.message || e; }
+    });
+  }
+
   document.getElementById('ctAddBtn').addEventListener('click', async () => {
-    const mentors = await getMentors();
-    // Inline add form rendered in place of the body so we can use a real
-    // <select> for rep_name (multiple prompts felt clunky for 3 fields).
+    const mentors = await _coachGetMentors();
     document.getElementById('coachTurnoverModal')?.remove();
     const f = document.createElement('div');
     f.id = 'coachTurnoverModal';
@@ -1633,16 +1785,11 @@ async function openCoachTurnoverListModal(studentId, studentName) {
     const today = new Date().toISOString().slice(0, 10);
     f.innerHTML = `
       <div class="modal-card" style="max-width:520px;">
-        <div class="modal-head">
-          <h2>🔄 New turnover · ${escapeHtml(studentName || '(unnamed)')}</h2>
-          <button class="close" data-x>×</button>
-        </div>
+        <div class="modal-head"><h2>🔄 New turnover · ${esc(studentName || '(unnamed)')}</h2><button class="close" data-x>×</button></div>
         <div class="modal-body" style="grid-template-columns:1fr;display:grid;gap:10px;">
           <label style="display:grid;gap:4px;font-size:0.78rem;color:var(--text-dim);">Rep
-            <select id="ctfRep" style="padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);">
-              <option value="">— select rep —</option>
-              ${mentors.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('')}
-            </select>
+            <input id="ctfRep" list="ctfRepList" placeholder="Pick or type a rep name" autocomplete="off" style="padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);">
+            <datalist id="ctfRepList">${mentors.map(n => `<option value="${esc(n)}"></option>`).join('')}</datalist>
           </label>
           <label style="display:grid;gap:4px;font-size:0.78rem;color:var(--text-dim);">Date
             <input type="date" id="ctfDate" value="${today}" style="padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);">
@@ -1651,31 +1798,20 @@ async function openCoachTurnoverListModal(studentId, studentName) {
             <textarea id="ctfNote" rows="4" placeholder="Why are you turning this student over?" style="padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);resize:vertical;"></textarea>
           </label>
         </div>
-        <div class="modal-foot">
-          <span class="msg" id="ctfMsg"></span>
-          <button class="btn-ghost" data-x>Cancel</button>
-          <button class="btn-primary" id="ctfSave">Save</button>
-        </div>
+        <div class="modal-foot"><span class="msg" id="ctfMsg"></span><button class="btn-ghost" data-x>Cancel</button><button class="btn-primary" id="ctfSave">Save</button></div>
       </div>`;
     document.body.appendChild(f);
-    f.addEventListener('click', e => {
-      if (e.target === f || e.target.matches('[data-x]')) {
-        f.remove();
-        // Re-open the list modal so the coach lands back where they started.
-        openCoachTurnoverListModal(studentId, studentName);
-      }
-    });
+    f.addEventListener('click', e => { if (e.target === f || e.target.matches('[data-x]')) { f.remove(); openCoachTurnoverListModal(studentId, studentName); } });
     document.getElementById('ctfSave').addEventListener('click', async () => {
-      const rep_name      = (document.getElementById('ctfRep').value || '').trim();
+      const rep_name = (document.getElementById('ctfRep').value || '').trim();
       const turnover_date = (document.getElementById('ctfDate').value || '').trim();
-      const note          = (document.getElementById('ctfNote').value || '').trim();
+      const note = (document.getElementById('ctfNote').value || '').trim();
       const msg = document.getElementById('ctfMsg');
       if (!rep_name) { msg.className = 'msg err'; msg.textContent = 'Rep is required'; return; }
       msg.className = 'msg'; msg.textContent = 'Saving…';
       try {
         const r = await fetch(STUDENTS_BASE + '?api=add-turnover', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
+          method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
           body: JSON.stringify({ studentId, rep_name, note: note || null, turnover_date: turnover_date || null }),
         });
         const j = await r.json();

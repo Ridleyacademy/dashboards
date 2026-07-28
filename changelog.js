@@ -16,6 +16,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v578', title: 'Coach Dashboard: full turnover system', items: [
+      'The Coach Dashboard now has the same turnover system as the MS CRM. Open a student’s coaching-data popup and click the new 🔄 Turnovers button (next to Alerts).',
+      'Each turnover now has a full Response / Resolution thread — post updates, resolve with an outcome, and optionally “Tag coach” to notify the coach. Statuses show as Open / In progress / Resolved.',
+      'Admins / MS-IC / Delivery-IC can reassign a turnover to another rep right from the coach board. Everything writes to the same records as the CRM, so both stay in sync.',
+    ], roles: ['coach', 'ms_ic', 'delivery_ic'] },
     { version: 'v577', title: 'To Study lives inside Policies & Orders', items: [
       'Removed the separate “To Study” home card and menu link — it was just a shortcut into Policies & Orders. Open the Policies & Orders board and use the “To study” toggle at the top for your personal reading list. Existing links still work.',
     ] },

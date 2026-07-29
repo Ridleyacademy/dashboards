@@ -16,6 +16,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v580', title: 'Turnover Re-sign questionnaires', items: [
+      'Creating a turnover now includes the 🎯 Re-sign Turnover Form (5 questions the coach answers about the student). The answers save with the turnover and show in its detail.',
+      'Resolving a turnover opens the 🎯 Re-sign Outcome Form (6 Sales questions) — filling it records the outcome and marks the turnover resolved. The Coach Dashboard and the MS CRM use the exact same forms.',
+      'On an open turnover, “Post response” (a quick comment) and “Resolve” are now separate actions.',
+    ] },
     { version: 'v579', title: 'Coach Dashboard: full turnover system', items: [
       'The Coach Dashboard now has the same turnover system as the MS CRM. Open a student’s coaching-data popup and click the new 🔄 Turnovers button (next to Alerts).',
       'Each turnover now has a full Response / Resolution thread — post updates, resolve with an outcome, and optionally “Tag coach” to notify the coach. Statuses show as Open / In progress / Resolved.',

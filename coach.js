@@ -2,6 +2,7 @@ const SUPABASE_URL = "https://pojqljrhhtnigyrtzdzz.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBvanFsanJoaHRuaWd5cnR6ZHp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTA3ODMsImV4cCI6MjA5MTM4Njc4M30.PcSBDqOzbiZxZ7IAs5efqx0gsAlAG0cj3GqUOkAmxos";
 const STUDENTS_BASE = SUPABASE_URL + '/functions/v1/students';
 const REASSIGN_BASE = SUPABASE_URL + '/functions/v1/reassign-turnover';
+const TURNOVER_FORMS_BASE = SUPABASE_URL + '/functions/v1/turnover-forms';
 const ZOOM_MEETINGS_BASE = SUPABASE_URL + '/functions/v1/zoom-meetings';
 const COACH_HOURS_BASE = SUPABASE_URL + '/functions/v1/coach-hours';
 const ZOOM_JOIN_BASE = SUPABASE_URL + '/functions/v1/zoom-join';
@@ -1524,6 +1525,49 @@ async function _coachGetMentors() {
   return _turnoverMentorsCache;
 }
 
+// ── Re-sign questionnaire (turnover-forms edge fn is the source of truth) ──
+let _turnoverFormsCache = null;
+async function _coachGetTurnoverForms() {
+  if (_turnoverFormsCache) return _turnoverFormsCache;
+  try {
+    const r = await fetch(TURNOVER_FORMS_BASE + '?api=forms', { headers: { Authorization: 'Bearer ' + currentSession.access_token } });
+    const j = await r.json();
+    _turnoverFormsCache = { create: Array.isArray(j.create) ? j.create : [], result: Array.isArray(j.result) ? j.result : [] };
+  } catch (_) { _turnoverFormsCache = { create: [], result: [] }; }
+  return _turnoverFormsCache;
+}
+// Render a questionnaire (array of {id,text,hint}) as numbered, labelled textareas.
+function _turnoverQFields(questions, answers) {
+  const by = {}; (answers || []).forEach(a => { if (a && a.question_id != null) by[String(a.question_id)] = a.answer || ''; });
+  return (questions || []).map((q, i) => `
+    <div style="display:grid;gap:4px;">
+      <div style="font-size:0.8rem;font-weight:700;color:var(--text);">${i + 1}. ${escapeHtml(q.text)}</div>
+      ${q.hint ? `<div style="font-size:0.72rem;color:var(--text-dim);line-height:1.4;">${escapeHtml(q.hint)}</div>` : ''}
+      <textarea class="tq-field" data-qid="${escapeHtml(q.id)}" rows="2" style="padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);resize:vertical;">${escapeHtml(by[String(q.id)] || '')}</textarea>
+    </div>`).join('');
+}
+function _readTurnoverQ(scope) {
+  return [...scope.querySelectorAll('.tq-field')].map(t => ({ question_id: t.dataset.qid, answer: t.value }));
+}
+async function _saveTurnoverAnswers(turnoverId, phase, answers) {
+  const r = await fetch(TURNOVER_FORMS_BASE + '?api=save', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
+    body: JSON.stringify({ turnoverId, phase, answers }),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || 'Failed to save answers');
+  return j;
+}
+// Read-only view of saved answers inside a turnover row.
+function _turnoverAnswersView(title, answers, color) {
+  const list = (answers || []).filter(a => a && String(a.answer || '').trim());
+  if (!list.length) return '';
+  return `<div style="margin-top:10px;padding-top:8px;border-top:1px dashed var(--border);">
+    <div style="font-size:0.64rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:${color || 'var(--text-dim)'};margin-bottom:6px;">${escapeHtml(title)}</div>
+    ${list.map(a => `<div style="margin-bottom:7px;"><div style="font-size:0.72rem;color:var(--text-dim);">${escapeHtml(a.question)}</div><div style="font-size:0.83rem;line-height:1.45;white-space:pre-wrap;">${escapeHtml(a.answer)}</div></div>`).join('')}
+  </div>`;
+}
+
 async function openCoachTurnoverListModal(studentId, studentName) {
   _turnoverLatestId = studentId;
   if (_turnoverAbort) { try { _turnoverAbort.abort(); } catch (_) {} }
@@ -1604,17 +1648,17 @@ async function openCoachTurnoverListModal(studentId, studentName) {
           <div style="font-size:0.66rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:#34d399;margin-bottom:4px;">Result</div>
           <div style="font-size:0.86rem;line-height:1.5;white-space:pre-wrap;">${esc(t.result)}</div>
           ${t.result_at ? `<div style="font-size:0.68rem;color:var(--text-dim);margin-top:4px;">Result added ${new Date(t.result_at).toLocaleString()}${(t.result_by_name || t.result_by_email) ? ' by ' + esc(t.result_by_name || t.result_by_email) : ''}</div>` : ''}
-          <div style="margin-top:8px;"><button class="btn-ghost ct-result-edit" data-tid="${t.id}" style="padding:3px 10px;font-size:0.72rem;">Edit result</button></div>
+          ${_turnoverAnswersView('Re-sign Outcome Form (Sales)', t.result_answers, '#34d399')}
+          <div style="margin-top:8px;"><button class="btn-ghost ct-result-edit" data-tid="${t.id}" style="padding:3px 10px;font-size:0.72rem;">Edit outcome</button></div>
         </div>` : '';
       const answer = !hasResult ? `
         <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);">
-          <div style="display:flex;gap:6px;margin-bottom:8px;">
-            <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:7px;border:1px solid var(--border);border-radius:8px;font-size:0.76rem;cursor:pointer;"><input type="radio" name="ctmode-${t.id}" value="response" checked> Response</label>
-            <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:7px;border:1px solid var(--border);border-radius:8px;font-size:0.76rem;cursor:pointer;"><input type="radio" name="ctmode-${t.id}" value="resolve"> Resolution</label>
-          </div>
-          <textarea class="ct-ans-note" data-tid="${t.id}" placeholder="Post an update without resolving…" style="width:100%;min-height:56px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);resize:vertical;"></textarea>
+          <textarea class="ct-ans-note" data-tid="${t.id}" placeholder="Post an update / response…" style="width:100%;min-height:56px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);resize:vertical;"></textarea>
           <label style="display:flex;align-items:center;gap:6px;margin:8px 0;font-size:0.74rem;cursor:pointer;"><input type="checkbox" class="ct-ans-tagcoach" data-tid="${t.id}" style="width:15px;height:15px;"> Tag coach (also notify the coach)</label>
-          <button class="btn-primary ct-ans-btn" data-tid="${t.id}" style="padding:7px 14px;font-size:0.78rem;">↩ Post response</button>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <button class="btn-ghost ct-ans-btn" data-tid="${t.id}" style="padding:7px 14px;font-size:0.78rem;">↩ Post response</button>
+            <button class="btn-primary ct-resolve-btn" data-tid="${t.id}" style="padding:7px 14px;font-size:0.78rem;margin-left:auto;">✓ Resolve — Re-sign Outcome</button>
+          </div>
         </div>` : '';
       const reassignBtn = (!hasResult && canReassign) ? ` <button class="ct-reassign" data-tid="${t.id}" title="Reassign to another rep" style="margin-left:6px;padding:1px 8px;font-size:0.64rem;font-weight:700;background:transparent;border:1px solid var(--border);color:var(--text-dim);border-radius:6px;cursor:pointer;vertical-align:1px;">⇄ reassign</button>` : '';
       return `
@@ -1628,25 +1672,17 @@ async function openCoachTurnoverListModal(studentId, studentName) {
             <button class="ct-del" data-tid="${t.id}" title="Delete" style="padding:4px 10px;font-size:0.72rem;background:transparent;border:1px solid var(--border);color:var(--red);border-radius:7px;cursor:pointer;flex-shrink:0;">✕</button>
           </div>
           <div style="font-size:0.7rem;color:var(--text-dim);">${dateStr ? '📅 ' + esc(dateStr) + ' · ' : ''}Logged ${esc(created)}${loggedBy ? ' by ' + esc(loggedBy) : ''}</div>
+          ${_turnoverAnswersView('Re-sign Turnover Form', t.create_answers)}
           ${thread}
           ${resultBlock}
           ${answer}
         </div>`;
     }).join('');
 
-    // Response/Resolution picker: swap placeholder + button label.
-    body.querySelectorAll('input[type="radio"][name^="ctmode-"]').forEach(radio => {
-      radio.addEventListener('change', () => {
-        const id = radio.name.slice('ctmode-'.length);
-        const mode = body.querySelector(`input[name="ctmode-${id}"]:checked`)?.value || 'response';
-        const ta = body.querySelector(`.ct-ans-note[data-tid="${id}"]`);
-        const sub = body.querySelector(`.ct-ans-btn[data-tid="${id}"]`);
-        if (mode === 'resolve') { if (ta) ta.placeholder = 'Describe the outcome / result (required)…'; if (sub) sub.textContent = '✓ Resolve'; }
-        else { if (ta) ta.placeholder = 'Post an update without resolving…'; if (sub) sub.textContent = '↩ Post response'; }
-      });
-    });
-    body.querySelectorAll('.ct-ans-btn').forEach(b => b.addEventListener('click', () => submitEntry(Number(b.dataset.tid))));
-    body.querySelectorAll('.ct-result-edit').forEach(b => b.addEventListener('click', () => openResultModal(Number(b.dataset.tid), sorted)));
+    body.querySelectorAll('.ct-ans-btn').forEach(b => b.addEventListener('click', () => submitResponse(Number(b.dataset.tid))));
+    const outcomeFor = (tid) => { const t = sorted.find(x => Number(x.id) === Number(tid)); if (t) openOutcomeModal(t); };
+    body.querySelectorAll('.ct-resolve-btn').forEach(b => b.addEventListener('click', () => outcomeFor(b.dataset.tid)));
+    body.querySelectorAll('.ct-result-edit').forEach(b => b.addEventListener('click', () => outcomeFor(b.dataset.tid)));
     body.querySelectorAll('.ct-del').forEach(b => b.addEventListener('click', () => delTurnover(Number(b.dataset.tid))));
     body.querySelectorAll('.ct-reassign').forEach(b => b.addEventListener('click', () => {
       const t = sorted.find(x => Number(x.id) === Number(b.dataset.tid));
@@ -1654,29 +1690,26 @@ async function openCoachTurnoverListModal(studentId, studentName) {
     }));
   }
 
-  // Post a Response (add-turnover-comment) or a Resolution (set-turnover-result).
-  // Both notify the turnover's rep + the people already on it; Tag coach also
-  // notifies the coach. Mirrors the CRM's submitTurnoverEntry.
-  async function submitEntry(id) {
+  // Post a quick Response (add-turnover-comment). Notifies the turnover's rep +
+  // people already on it; Tag coach also notifies the coach. Resolving is a
+  // separate flow (openOutcomeModal → the Re-sign Outcome questionnaire).
+  async function submitResponse(id) {
     const body = document.getElementById('ctBody');
-    const mode = body.querySelector(`input[name="ctmode-${id}"]:checked`)?.value || 'response';
     const text = (body.querySelector(`.ct-ans-note[data-tid="${id}"]`)?.value || '').trim();
-    if (!text) { alert(mode === 'resolve' ? 'A result is required.' : 'Write a response first.'); return; }
+    if (!text) { alert('Write a response first.'); return; }
     const tag = body.querySelector(`.ct-ans-tagcoach[data-tid="${id}"]`)?.checked === true;
     const btn = body.querySelector(`.ct-ans-btn[data-tid="${id}"]`);
-    if (btn) { btn.disabled = true; btn.textContent = mode === 'resolve' ? 'Resolving…' : 'Posting…'; }
+    if (btn) { btn.disabled = true; btn.textContent = 'Posting…'; }
     try {
-      const endpoint = mode === 'resolve' ? '?api=set-turnover-result' : '?api=add-turnover-comment';
-      const payload = mode === 'resolve' ? { id, result: text, tag_coach: tag } : { turnoverId: id, body: text, tag_coach: tag };
-      const r = await fetch(STUDENTS_BASE + endpoint, {
+      const r = await fetch(STUDENTS_BASE + '?api=add-turnover-comment', {
         method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ turnoverId: id, body: text, tag_coach: tag }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || 'Failed');
       await load();
     } catch (e) {
-      if (btn) { btn.disabled = false; btn.textContent = mode === 'resolve' ? '✓ Resolve' : '↩ Post response'; }
+      if (btn) { btn.disabled = false; btn.textContent = '↩ Post response'; }
       alert('Failed: ' + (e.message || e));
     }
   }
@@ -1696,47 +1729,63 @@ async function openCoachTurnoverListModal(studentId, studentName) {
     } catch (e) { if (msg) { msg.className = 'msg err'; msg.textContent = e.message || e; } }
   }
 
-  // Edit / clear the result on an already-resolved turnover.
-  function openResultModal(id, sorted) {
-    const t = sorted.find(x => Number(x.id) === Number(id));
-    if (!t) return;
+  // Resolve a turnover by filling the Re-sign Outcome Form (6 Sales questions).
+  // Also used to edit an already-resolved turnover (pre-fills prior answers).
+  // On save: set-turnover-result (result = Q1 summary) + persist result_answers.
+  async function openOutcomeModal(t) {
+    const forms = await _coachGetTurnoverForms();
+    const questions = forms.result || [];
+    const id = Number(t.id);
+    const isEdit = !!(t.result && String(t.result).trim());
     const r = document.createElement('div');
     r.className = 'modal-bg'; r.style.zIndex = '10200';
     r.innerHTML = `
-      <div class="modal-card" style="max-width:480px;">
-        <div class="modal-head"><h2>${t.result ? 'Edit' : 'Add'} result · ${esc(t.rep_name || '')}</h2><button class="close" data-x>×</button></div>
-        <div class="modal-body" style="grid-template-columns:1fr;">
-          <label style="display:grid;gap:4px;font-size:0.78rem;color:var(--text-dim);">Result
-            <textarea id="ctrText" rows="5" placeholder="Closed / not interested / scheduling / refunded / etc." style="padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);resize:vertical;">${esc(t.result || '')}</textarea>
-          </label>
+      <div class="modal-card" style="max-width:640px;">
+        <div class="modal-head"><h2>🎯 Re-sign Outcome Form · ${esc(t.rep_name || '')}</h2><button class="close" data-x>×</button></div>
+        <div class="modal-body" id="ctoBody" style="grid-template-columns:1fr;display:grid;gap:14px;max-height:66vh;overflow-y:auto;">
+          <div style="font-size:0.78rem;color:var(--text-dim);">Filling this resolves the turnover as a re-sign. Answer what you can.</div>
+          ${_turnoverQFields(questions, t.result_answers)}
         </div>
         <div class="modal-foot">
-          <span class="msg" id="ctrMsg"></span>
-          ${t.result ? '<button class="btn-ghost" id="ctrClear" style="color:var(--red);margin-right:auto;">Clear result</button>' : ''}
+          <span class="msg" id="ctoMsg"></span>
+          ${isEdit ? '<button class="btn-ghost" id="ctoClear" style="color:var(--red);margin-right:auto;">Reopen (clear result)</button>' : ''}
           <button class="btn-ghost" data-x>Cancel</button>
-          <button class="btn-primary" id="ctrSave">Save result</button>
+          <button class="btn-primary" id="ctoSave">${isEdit ? 'Save outcome' : '✓ Resolve as re-sign'}</button>
         </div>
       </div>`;
     document.body.appendChild(r);
     r.addEventListener('click', e => { if (e.target === r || e.target.matches('[data-x]')) r.remove(); });
-    const save = async (val) => {
-      const msg = document.getElementById('ctrMsg'); if (msg) { msg.className = 'msg'; msg.textContent = 'Saving…'; }
+    document.getElementById('ctoSave').addEventListener('click', async () => {
+      const msg = document.getElementById('ctoMsg');
+      const answers = _readTurnoverQ(document.getElementById('ctoBody'));
+      const first = (answers.find(a => String(a.answer || '').trim())?.answer || '').trim();
+      if (!first) { msg.className = 'msg err'; msg.textContent = 'Answer at least one question to resolve.'; return; }
+      const summary = 'Re-signed — ' + (answers.find(a => a.question_id === 'r1' && String(a.answer||'').trim())?.answer || first).trim();
+      msg.className = 'msg'; msg.textContent = 'Saving…';
       try {
         const rr = await fetch(STUDENTS_BASE + '?api=set-turnover-result', {
           method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
-          body: JSON.stringify({ id, result: val }),
+          body: JSON.stringify({ id, result: summary }),
+        });
+        const j = await rr.json();
+        if (!rr.ok) throw new Error(j.error || 'Failed');
+        await _saveTurnoverAnswers(id, 'result', answers);
+        r.remove(); await load();
+      } catch (e) { msg.className = 'msg err'; msg.textContent = e.message || e; }
+    });
+    document.getElementById('ctoClear')?.addEventListener('click', async () => {
+      if (!confirm('Reopen this turnover? The result is cleared (the answers stay on record).')) return;
+      const msg = document.getElementById('ctoMsg'); msg.className = 'msg'; msg.textContent = 'Reopening…';
+      try {
+        const rr = await fetch(STUDENTS_BASE + '?api=set-turnover-result', {
+          method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
+          body: JSON.stringify({ id, result: '' }),
         });
         const j = await rr.json();
         if (!rr.ok) throw new Error(j.error || 'Failed');
         r.remove(); await load();
-      } catch (e) { if (msg) { msg.className = 'msg err'; msg.textContent = e.message || e; } }
-    };
-    document.getElementById('ctrSave').addEventListener('click', () => {
-      const val = (document.getElementById('ctrText').value || '').trim();
-      if (!val) { const msg = document.getElementById('ctrMsg'); msg.className = 'msg err'; msg.textContent = 'A result is required (or Clear).'; return; }
-      save(val);
+      } catch (e) { msg.className = 'msg err'; msg.textContent = e.message || e; }
     });
-    document.getElementById('ctrClear')?.addEventListener('click', () => { if (confirm('Clear this turnover result?')) save(''); });
   }
 
   // Reassign to another rep — admin / ms_ic / delivery_ic only (server enforces).
@@ -1778,6 +1827,7 @@ async function openCoachTurnoverListModal(studentId, studentName) {
 
   document.getElementById('ctAddBtn').addEventListener('click', async () => {
     const mentors = await _coachGetMentors();
+    const forms = await _coachGetTurnoverForms();
     document.getElementById('coachTurnoverModal')?.remove();
     const f = document.createElement('div');
     f.id = 'coachTurnoverModal';
@@ -1787,7 +1837,7 @@ async function openCoachTurnoverListModal(studentId, studentName) {
     f.innerHTML = `
       <div class="modal-card" style="max-width:520px;">
         <div class="modal-head"><h2>🔄 Turnover sale to a rep</h2><button class="close" data-x>×</button></div>
-        <div class="modal-body" style="grid-template-columns:1fr;display:grid;gap:10px;">
+        <div class="modal-body" style="grid-template-columns:1fr;display:grid;gap:10px;max-height:66vh;overflow-y:auto;">
           <div style="font-size:0.78rem;color:var(--text-dim);">Hand this student off to a rep. Defaults to the assigned rep — change it if handing to someone else.</div>
           <label style="display:grid;gap:4px;font-size:0.78rem;color:var(--text-dim);">Rep *
             <input id="ctfRep" list="ctfRepList" value="${esc(studentRep || '')}" placeholder="Pick or type a rep name" autocomplete="off" style="padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);">
@@ -1799,6 +1849,10 @@ async function openCoachTurnoverListModal(studentId, studentName) {
           <label style="display:grid;gap:4px;font-size:0.78rem;color:var(--text-dim);">Date (optional)
             <input type="date" id="ctfDate" value="${today}" style="padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);">
           </label>
+          ${forms.create && forms.create.length ? `<div style="border-top:1px solid var(--border);padding-top:12px;display:grid;gap:12px;">
+            <div style="font-size:0.82rem;font-weight:800;">🎯 Re-sign Turnover Form</div>
+            ${_turnoverQFields(forms.create, null)}
+          </div>` : ''}
         </div>
         <div class="modal-foot"><span class="msg" id="ctfMsg"></span><button class="btn-ghost" data-x>Cancel</button><button class="btn-primary" id="ctfSave">Log turnover</button></div>
       </div>`;
@@ -1810,6 +1864,7 @@ async function openCoachTurnoverListModal(studentId, studentName) {
       const note = (document.getElementById('ctfNote').value || '').trim();
       const msg = document.getElementById('ctfMsg');
       if (!rep_name) { msg.className = 'msg err'; msg.textContent = 'Rep is required'; return; }
+      const answers = _readTurnoverQ(f);
       msg.className = 'msg'; msg.textContent = 'Saving…';
       try {
         const r = await fetch(STUDENTS_BASE + '?api=add-turnover', {
@@ -1818,6 +1873,7 @@ async function openCoachTurnoverListModal(studentId, studentName) {
         });
         const j = await r.json();
         if (!r.ok) throw new Error(j.error || 'Failed');
+        if (j.id) { try { await _saveTurnoverAnswers(j.id, 'create', answers); } catch (_) {} }
         f.remove();
         openCoachTurnoverListModal(studentId, studentName);
       } catch (e) { msg.className = 'msg err'; msg.textContent = e.message || e; }

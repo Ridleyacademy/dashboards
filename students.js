@@ -44,6 +44,7 @@ let coaches = [];
 let reps = [];          // assignable rep display names — driven by ?api=reps
 let canReassignTurnover = false;   // admin / ms_ic / delivery_ic — may reassign turnovers
 const REASSIGN_BASE = SUPABASE_URL + '/functions/v1/reassign-turnover';
+const TURNOVER_FORMS_BASE = SUPABASE_URL + '/functions/v1/turnover-forms';
 let canRepView = false, canRepEdit = false;   // Rep Area: view = admin/rep/sales_mgr/ms_ic/delivery_ic, edit = admin/rep/ms_ic/delivery_ic
 const REPC_BASE = SUPABASE_URL + '/functions/v1/rep-contacts';
 let repDataMap = {};   // student_id -> { status, status_at, last_contact_date, recently_contacted }
@@ -3510,8 +3511,49 @@ function openLogsChooserModal() {
 }
 
 // ── Turnovers ─────────────────────────────────────────────────
-function openAddTurnoverModal() {
+// ── Re-sign questionnaire (turnover-forms edge fn — shared with the coach board) ──
+let _tfFormsCache = null;
+async function _tfGetForms() {
+  if (_tfFormsCache) return _tfFormsCache;
+  try {
+    const r = await fetch(TURNOVER_FORMS_BASE + '?api=forms', { headers: { Authorization: 'Bearer ' + currentSession.access_token } });
+    const j = await r.json();
+    _tfFormsCache = { create: Array.isArray(j.create) ? j.create : [], result: Array.isArray(j.result) ? j.result : [] };
+  } catch (_) { _tfFormsCache = { create: [], result: [] }; }
+  return _tfFormsCache;
+}
+function _tfEsc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+function _tfQFields(questions, answers) {
+  const by = {}; (answers || []).forEach(a => { if (a && a.question_id != null) by[String(a.question_id)] = a.answer || ''; });
+  return (questions || []).map((q, i) => `
+    <div class="field" style="margin-bottom:12px;">
+      <div class="field-label" style="text-transform:none;">${i + 1}. ${_tfEsc(q.text)}</div>
+      ${q.hint ? `<div style="font-size:0.72rem;color:#7880a8;margin:2px 0 6px;line-height:1.4;">${_tfEsc(q.hint)}</div>` : ''}
+      <textarea class="field-textarea tq-field" data-qid="${_tfEsc(q.id)}" style="min-height:60px;">${_tfEsc(by[String(q.id)] || '')}</textarea>
+    </div>`).join('');
+}
+function _tfReadQ(scope) { return [...scope.querySelectorAll('.tq-field')].map(t => ({ question_id: t.dataset.qid, answer: t.value })); }
+async function _tfSaveAnswers(turnoverId, phase, answers) {
+  const r = await fetch(TURNOVER_FORMS_BASE + '?api=save', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
+    body: JSON.stringify({ turnoverId, phase, answers }),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || 'Failed to save answers');
+  return j;
+}
+function _tfAnswersView(title, answers, color) {
+  const list = (answers || []).filter(a => a && String(a.answer || '').trim());
+  if (!list.length) return '';
+  return `<div style="margin-top:10px;padding-top:8px;border-top:1px dashed #1f2438;">
+    <div style="font-size:0.64rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:${color || '#7880a8'};margin-bottom:6px;">${_tfEsc(title)}</div>
+    ${list.map(a => `<div style="margin-bottom:7px;"><div style="font-size:0.72rem;color:#7880a8;">${_tfEsc(a.question)}</div><div style="font-size:0.83rem;color:#cbd1ee;line-height:1.45;white-space:pre-wrap;">${_tfEsc(a.answer)}</div></div>`).join('')}
+  </div>`;
+}
+
+async function openAddTurnoverModal() {
   if (!currentStudent || !currentStudent.id) return;
+  const forms = await _tfGetForms();
   document.getElementById('turnAddModal')?.remove();
   const today = new Date().toISOString().slice(0, 10);
   const datalistId = 'turnRepList';
@@ -3520,7 +3562,7 @@ function openAddTurnoverModal() {
   m.id = 'turnAddModal';
   m.style.cssText = 'position:fixed;inset:0;background:rgba(8,9,18,0.78);backdrop-filter:blur(8px);z-index:10006;display:flex;align-items:center;justify-content:center;padding:20px;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;';
   m.innerHTML = `
-    <div style="background:#13141f;border:1px solid #1f2438;border-radius:18px;padding:24px 26px;max-width:460px;width:100%;color:#eaecf8;box-shadow:0 24px 60px rgba(0,0,0,0.55);">
+    <div style="background:#13141f;border:1px solid #1f2438;border-radius:18px;padding:24px 26px;max-width:460px;width:100%;max-height:88vh;overflow-y:auto;color:#eaecf8;box-shadow:0 24px 60px rgba(0,0,0,0.55);">
       <div style="font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;margin-bottom:4px;display:flex;align-items:center;gap:8px;">${ICONS.refresh(16)} Turnover sale to a rep</div>
       <div style="font-size:0.78rem;color:#7880a8;margin-bottom:18px;">Hand this student off to a rep. Defaults to the assigned rep — change it if handing to someone else.</div>
       <div class="field" style="margin-bottom:12px;">
@@ -3536,6 +3578,10 @@ function openAddTurnoverModal() {
         <div class="field-label">Date <span style="text-transform:none;font-weight:500;color:var(--text-dim);">(optional)</span></div>
         <input class="field-input" type="date" id="turnModalDate" value="${today}">
       </div>
+      ${forms.create && forms.create.length ? `<div style="border-top:1px solid #1f2438;padding-top:14px;margin-bottom:6px;">
+        <div style="font-size:0.86rem;font-weight:800;margin-bottom:10px;">🎯 Re-sign Turnover Form</div>
+        ${_tfQFields(forms.create, null)}
+      </div>` : ''}
       <div id="turnAddErr" style="color:var(--red);font-size:0.78rem;min-height:1em;margin-bottom:8px;"></div>
       <div style="display:flex;gap:10px;justify-content:flex-end;">
         <button id="turnAddCancel" style="background:transparent;border:1px solid #1f2438;color:#7880a8;border-radius:9px;padding:8px 16px;font-weight:700;cursor:pointer;">Cancel</button>
@@ -3567,6 +3613,7 @@ function openAddTurnoverModal() {
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || 'Failed');
+      if (j.id) { try { await _tfSaveAnswers(j.id, 'create', _tfReadQ(m)); } catch (_) {} }
       close();
       await openStudent(currentStudent.id);
       await loadStudents();
@@ -3648,19 +3695,19 @@ function renderTurnoverList() {
         <div style="font-size:0.68rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:#34d399;margin-bottom:4px;">Result</div>
         <div class="turn-result-cell" style="font-size:0.86rem;color:#eaecf8;line-height:1.5;white-space:pre-wrap;"></div>
         ${resultMeta}
+        ${_tfAnswersView('Re-sign Outcome Form (Sales)', t.result_answers, '#34d399')}
         <div style="margin-top:8px;display:flex;gap:8px;">
-          <button class="turn-result-edit" data-tid="${t.id}" style="background:transparent;border:1px solid #1f2438;color:#7880a8;border-radius:7px;padding:3px 10px;font-weight:600;font-size:0.72rem;cursor:pointer;">Edit result</button>
+          <button class="turn-result-edit" data-tid="${t.id}" style="background:transparent;border:1px solid #1f2438;color:#7880a8;border-radius:7px;padding:3px 10px;font-weight:600;font-size:0.72rem;cursor:pointer;">Edit outcome</button>
         </div>
       </div>` : '';
     const answerForm = !hasResult ? `
       <div style="margin-top:12px;padding-top:10px;border-top:1px solid #1f2438;">
-        <div style="display:flex;gap:6px;margin-bottom:8px;">
-          <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:7px;border:1px solid #2a3050;border-radius:8px;font-size:0.76rem;cursor:pointer;color:#cbd1ee;"><input type="radio" name="turnmode-${t.id}" value="response" checked style="cursor:pointer;"> Response</label>
-          <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:7px;border:1px solid #2a3050;border-radius:8px;font-size:0.76rem;cursor:pointer;color:#cbd1ee;"><input type="radio" name="turnmode-${t.id}" value="resolve" style="cursor:pointer;"> Resolution</label>
-        </div>
-        <textarea class="field-textarea turn-ans-note" data-tid="${t.id}" placeholder="Post an update without resolving…" style="min-height:56px;width:100%;"></textarea>
+        <textarea class="field-textarea turn-ans-note" data-tid="${t.id}" placeholder="Post an update / response…" style="min-height:56px;width:100%;"></textarea>
         <label style="display:flex;align-items:center;gap:6px;margin:8px 0;font-size:0.74rem;color:#cbd1ee;cursor:pointer;"><input type="checkbox" class="turn-ans-tagcoach" data-tid="${t.id}" style="width:15px;height:15px;cursor:pointer;"> Tag coach (also notify the coach)</label>
-        <button class="profile-save turn-ans-btn" data-tid="${t.id}" style="padding:7px 14px;font-size:0.78rem;">↩ Post response</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <button class="turn-ans-btn" data-tid="${t.id}" style="background:transparent;border:1px solid #2a3050;color:#cbd1ee;border-radius:8px;padding:7px 14px;font-size:0.78rem;font-weight:700;cursor:pointer;">↩ Post response</button>
+          <button class="profile-save turn-resolve-btn" data-tid="${t.id}" style="padding:7px 14px;font-size:0.78rem;margin-left:auto;">✓ Resolve — Re-sign Outcome</button>
+        </div>
       </div>` : '';
     return `<div class="turn-row" data-tid="${t.id}" style="border:1px solid ${hasResult ? '#1f2438' : inProgress ? 'rgba(251,146,60,0.4)' : 'rgba(52,211,153,0.35)'};border-radius:12px;padding:14px;margin-bottom:12px;background:${hasResult ? 'transparent' : inProgress ? 'rgba(251,146,60,0.04)' : 'rgba(52,211,153,0.05)'};">
       <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:6px;">
@@ -3672,6 +3719,7 @@ function renderTurnoverList() {
         <button class="profile-delete turn-del" data-tid="${t.id}" style="padding:4px 10px;font-size:0.72rem;flex-shrink:0;">✕</button>
       </div>
       <div style="font-size:0.7rem;color:#7880a8;">${t.turnover_date ? '📅 ' + t.turnover_date + ' · ' : ''}Logged ${created}${loggedBy ? ' by ' + String(loggedBy).replace(/[<>]/g,'') : ''}</div>
+      ${_tfAnswersView('Re-sign Turnover Form', t.create_answers)}
       ${threadHtml}
       ${resolvedBlock}
       ${answerForm}
@@ -3694,11 +3742,15 @@ function renderTurnoverList() {
   body.querySelectorAll('.turn-del').forEach(btn => {
     btn.addEventListener('click', () => deleteTurnover(Number(btn.dataset.tid)));
   });
+  const openOutcome = (tid) => { const t = currentTurnovers.find(x => Number(x.id) === Number(tid)); if (t) openTurnoverOutcomeModal(t); };
   body.querySelectorAll('.turn-result-edit').forEach(btn => {
-    btn.addEventListener('click', () => openTurnoverResultModal(Number(btn.dataset.tid)));
+    btn.addEventListener('click', () => openOutcome(btn.dataset.tid));
+  });
+  body.querySelectorAll('.turn-resolve-btn').forEach(btn => {
+    btn.addEventListener('click', () => openOutcome(btn.dataset.tid));
   });
   body.querySelectorAll('.turn-ans-btn').forEach(btn => {
-    btn.addEventListener('click', () => submitTurnoverEntry(Number(btn.dataset.tid)));
+    btn.addEventListener('click', () => submitTurnoverResponse(Number(btn.dataset.tid)));
   });
   body.querySelectorAll('.turn-reassign').forEach(btn => {
     btn.addEventListener('click', (e) => {
@@ -3707,41 +3759,26 @@ function renderTurnoverList() {
       if (t) openReassignTurnoverModal(t, async () => { await openStudent(currentStudent.id); await loadStudents(); if (document.getElementById('turnListModal')) renderTurnoverList(); }, currentStudent && currentStudent.rep);
     });
   });
-  // Response / Resolution picker: swap placeholder + button label.
-  body.querySelectorAll('input[type="radio"][name^="turnmode-"]').forEach(radio => {
-    radio.addEventListener('change', () => {
-      const id = radio.name.slice('turnmode-'.length);
-      const mode = body.querySelector(`input[name="turnmode-${id}"]:checked`)?.value || 'response';
-      const ta  = body.querySelector(`.turn-ans-note[data-tid="${id}"]`);
-      const sub = body.querySelector(`.turn-ans-btn[data-tid="${id}"]`);
-      if (mode === 'resolve') { if (ta) ta.placeholder = 'Describe the outcome / result (required)…'; if (sub) sub.textContent = '✓ Resolve'; }
-      else { if (ta) ta.placeholder = 'Post an update without resolving…'; if (sub) sub.textContent = '↩ Post response'; }
-    });
-  });
 }
 
 // Single submit for the turnover Response/Resolution picker. 'resolve' closes
 // the turnover (result required) via set-turnover-result; 'response' posts an
 // in-progress update via add-turnover-comment. Both notify the selected rep
 // (default = assigned rep) and, if Tag coach is checked, the coach.
-async function submitTurnoverEntry(id) {
-  const mode = document.querySelector(`input[name="turnmode-${id}"]:checked`)?.value || 'response';
+// Post a quick Response (add-turnover-comment). Resolving is a separate flow
+// (openTurnoverOutcomeModal → the Re-sign Outcome questionnaire). Notifies the
+// turnover's rep + people already on it; Tag coach also notifies the coach.
+async function submitTurnoverResponse(id) {
   const text = (document.querySelector(`.turn-ans-note[data-tid="${id}"]`)?.value || '').trim();
-  if (!text) { alert(mode === 'resolve' ? 'A result is required.' : 'Write a response first.'); return; }
+  if (!text) { alert('Write a response first.'); return; }
   const tag = document.querySelector(`.turn-ans-tagcoach[data-tid="${id}"]`)?.checked === true;
   const btn = document.querySelector(`.turn-ans-btn[data-tid="${id}"]`);
-  if (btn) { btn.disabled = true; btn.textContent = mode === 'resolve' ? 'Resolving…' : 'Posting…'; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Posting…'; }
   try {
-    // Notifies the turnover's originally-assigned rep (server default), the rest
-    // of the people already on it, and the coach only if Tag coach is checked.
-    const endpoint = mode === 'resolve' ? '?api=set-turnover-result' : '?api=add-turnover-comment';
-    const payload  = mode === 'resolve'
-      ? { id, result: text, tag_coach: tag }
-      : { turnoverId: id, body: text, tag_coach: tag };
-    const r = await fetch(STUDENTS_BASE + endpoint, {
+    const r = await fetch(STUDENTS_BASE + '?api=add-turnover-comment', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ turnoverId: id, body: text, tag_coach: tag }),
     });
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || 'Failed');
@@ -3749,7 +3786,7 @@ async function submitTurnoverEntry(id) {
     await loadStudents();
     if (document.getElementById('turnListModal')) renderTurnoverList();
   } catch (e) {
-    if (btn) { btn.disabled = false; btn.textContent = mode === 'resolve' ? '✓ Resolve' : '↩ Post response'; }
+    if (btn) { btn.disabled = false; btn.textContent = '↩ Post response'; }
     alert('Failed: ' + (e.message || e));
   }
 }
@@ -3812,51 +3849,73 @@ function openReassignTurnoverModal(t, onDone, studentRep) {
   });
 }
 
-function openTurnoverResultModal(turnoverId) {
-  const t = currentTurnovers.find(x => Number(x.id) === Number(turnoverId));
+// Resolve a turnover by filling the Re-sign Outcome Form (6 Sales questions).
+// Also used to edit an already-resolved turnover (pre-fills prior answers).
+// On save: set-turnover-result (result = Q1/first-answer summary) + persist result_answers.
+async function openTurnoverOutcomeModal(t) {
   if (!t) return;
+  const turnoverId = Number(t.id);
+  const forms = await _tfGetForms();
+  const questions = forms.result || [];
+  const isEdit = !!(t.result && String(t.result).trim());
   document.getElementById('turnResultModal')?.remove();
   const m = document.createElement('div');
   m.id = 'turnResultModal';
   m.style.cssText = 'position:fixed;inset:0;background:rgba(8,9,18,0.78);backdrop-filter:blur(8px);z-index:10006;display:flex;align-items:center;justify-content:center;padding:20px;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;';
   m.innerHTML = `
-    <div style="background:#13141f;border:1px solid #1f2438;border-radius:18px;padding:24px 26px;max-width:460px;width:100%;color:#eaecf8;box-shadow:0 24px 60px rgba(0,0,0,0.55);">
-      <div style="font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;margin-bottom:4px;">${t.result ? 'Edit' : 'Add'} turnover result</div>
-      <div style="font-size:0.78rem;color:#7880a8;margin-bottom:14px;">Hand-off to <strong style="color:#eaecf8;" id="trResultRep"></strong> — what was the outcome?</div>
-      <div class="field" style="margin-bottom:18px;">
-        <div class="field-label">Result *</div>
-        <textarea class="field-textarea" id="trResultText" placeholder="Closed / not interested / scheduling / refunded / etc." style="min-height:120px;"></textarea>
-      </div>
-      <div id="trResultErr" style="color:var(--red);font-size:0.78rem;min-height:1em;margin-bottom:8px;"></div>
+    <div style="background:#13141f;border:1px solid #1f2438;border-radius:18px;padding:24px 26px;max-width:600px;width:100%;max-height:88vh;overflow-y:auto;color:#eaecf8;box-shadow:0 24px 60px rgba(0,0,0,0.55);">
+      <div style="font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;margin-bottom:4px;">🎯 Re-sign Outcome Form · ${_tfEsc(t.rep_name || '')}</div>
+      <div style="font-size:0.78rem;color:#7880a8;margin-bottom:16px;">Filling this resolves the turnover as a re-sign. Answer what you can.</div>
+      <div id="turnOutcomeBody">${_tfQFields(questions, t.result_answers)}</div>
+      <div id="turnOutcomeErr" style="color:var(--red);font-size:0.78rem;min-height:1em;margin-bottom:8px;"></div>
       <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">
-        ${t.result ? '<button id="trResultClear" style="background:rgba(248,113,113,0.12);border:1px solid rgba(248,113,113,0.4);color:#f87171;border-radius:9px;padding:8px 16px;font-weight:700;cursor:pointer;margin-right:auto;">Clear result</button>' : ''}
-        <button id="trResultCancel" style="background:transparent;border:1px solid #1f2438;color:#7880a8;border-radius:9px;padding:8px 16px;font-weight:700;cursor:pointer;">Cancel</button>
-        <button id="trResultSave" class="profile-save" style="padding:8px 18px;background:linear-gradient(135deg,#34d399,#10b981);color:#0b0c14;">Save result</button>
+        ${isEdit ? '<button id="turnOutcomeClear" style="background:rgba(248,113,113,0.12);border:1px solid rgba(248,113,113,0.4);color:#f87171;border-radius:9px;padding:8px 16px;font-weight:700;cursor:pointer;margin-right:auto;">Reopen (clear result)</button>' : ''}
+        <button id="turnOutcomeCancel" style="background:transparent;border:1px solid #1f2438;color:#7880a8;border-radius:9px;padding:8px 16px;font-weight:700;cursor:pointer;">Cancel</button>
+        <button id="turnOutcomeSave" class="profile-save" style="padding:8px 18px;background:linear-gradient(135deg,#34d399,#10b981);color:#0b0c14;">${isEdit ? 'Save outcome' : '✓ Resolve as re-sign'}</button>
       </div>
     </div>`;
   document.body.appendChild(m);
-  document.getElementById('trResultRep').textContent = t.rep_name || '';
-  const txt = document.getElementById('trResultText');
-  txt.value = t.result || '';
-  txt.focus();
   function close() { document.removeEventListener('keydown', onKey); m.remove(); }
   function onKey(e) { if (e.key === 'Escape') close(); }
   document.addEventListener('keydown', onKey);
   m.addEventListener('click', e => { if (e.target === m) close(); });
-  document.getElementById('trResultCancel').addEventListener('click', close);
-  document.getElementById('trResultSave').addEventListener('click', async () => {
-    const errEl = document.getElementById('trResultErr');
-    errEl.textContent = '';
-    const result = txt.value.trim();
-    if (!result) { errEl.textContent = 'A result is required (or use Clear result).'; return; }
-    await saveTurnoverResult(turnoverId, result, close, errEl);
+  document.getElementById('turnOutcomeCancel').addEventListener('click', close);
+  document.getElementById('turnOutcomeSave').addEventListener('click', async () => {
+    const errEl = document.getElementById('turnOutcomeErr'); errEl.textContent = '';
+    const answers = _tfReadQ(document.getElementById('turnOutcomeBody'));
+    const first = (answers.find(a => String(a.answer || '').trim())?.answer || '').trim();
+    if (!first) { errEl.textContent = 'Answer at least one question to resolve.'; return; }
+    const r1 = answers.find(a => a.question_id === 'r1' && String(a.answer || '').trim());
+    const summary = 'Re-signed — ' + ((r1 && r1.answer) || first).trim();
+    const btn = document.getElementById('turnOutcomeSave'); btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      const rr = await fetch(STUDENTS_BASE + '?api=set-turnover-result', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
+        body: JSON.stringify({ id: turnoverId, result: summary }),
+      });
+      const j = await rr.json();
+      if (!rr.ok) throw new Error(j.error || 'Failed');
+      await _tfSaveAnswers(turnoverId, 'result', answers);
+      close();
+      await openStudent(currentStudent.id);
+      await loadStudents();
+      if (document.getElementById('turnListModal')) renderTurnoverList();
+    } catch (e) { btn.disabled = false; btn.textContent = isEdit ? 'Save outcome' : '✓ Resolve as re-sign'; errEl.textContent = e.message || 'Failed'; }
   });
-  if (t.result) {
-    document.getElementById('trResultClear').addEventListener('click', async () => {
-      if (!confirm('Clear this turnover result?')) return;
-      await saveTurnoverResult(turnoverId, '', close, document.getElementById('trResultErr'));
-    });
-  }
+  document.getElementById('turnOutcomeClear')?.addEventListener('click', async () => {
+    if (!confirm('Reopen this turnover? The result is cleared (the answers stay on record).')) return;
+    try {
+      const rr = await fetch(STUDENTS_BASE + '?api=set-turnover-result', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
+        body: JSON.stringify({ id: turnoverId, result: '' }),
+      });
+      const j = await rr.json();
+      if (!rr.ok) throw new Error(j.error || 'Failed');
+      close();
+      await openStudent(currentStudent.id);
+      if (document.getElementById('turnListModal')) renderTurnoverList();
+    } catch (e) { const el = document.getElementById('turnOutcomeErr'); if (el) el.textContent = e.message || 'Failed'; }
+  });
 }
 
 async function saveTurnoverResult(id, result, onSuccess, errEl) {

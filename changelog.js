@@ -16,7 +16,7 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
-    { version: 'v578', title: 'Coach Dashboard: full turnover system', items: [
+    { version: 'v579', title: 'Coach Dashboard: full turnover system', items: [
       'The Coach Dashboard now has the same turnover system as the MS CRM. Open a student’s coaching-data popup and click the new 🔄 Turnovers button (next to Alerts).',
       'Each turnover now has a full Response / Resolution thread — post updates, resolve with an outcome, and optionally “Tag coach” to notify the coach. Statuses show as Open / In progress / Resolved.',
       'Admins / MS-IC / Delivery-IC can reassign a turnover to another rep right from the coach board. Everything writes to the same records as the CRM, so both stay in sync.',

@@ -25,3 +25,4 @@
 2026-07-17T16:00:00Z-v576-reports-rename
 2026-07-17T17:00:00Z-v577-remove-tostudy-entry
 2026-07-24T12:00:00Z-v578-coach-turnovers-parity
+2026-07-24T13:00:00Z-v579-coach-turnover-addform

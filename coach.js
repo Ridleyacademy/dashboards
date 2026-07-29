@@ -1531,6 +1531,7 @@ async function openCoachTurnoverListModal(studentId, studentName) {
   _turnoverAbort = ac;
   const canReassign = _coachCanReassignTurnover();
   const esc = escapeHtml;
+  let studentRep = '';   // the student's assigned rep — the add form defaults to this
   document.getElementById('coachTurnoverModal')?.remove();
   const m = document.createElement('div');
   m.id = 'coachTurnoverModal';
@@ -1565,7 +1566,7 @@ async function openCoachTurnoverListModal(studentId, studentName) {
       if (_turnoverLatestId !== studentId) return;
       const j = await r.json();
       if (_turnoverLatestId !== studentId) return;
-      if (r.ok) turnovers = j.turnovers || [];
+      if (r.ok) { turnovers = j.turnovers || []; if (j.row && j.row.rep) studentRep = String(j.row.rep); }
     } catch (e) { if (e?.name === 'AbortError') return; }
     if (!body) return;
     const sorted = [...turnovers].sort((a, b) => {
@@ -1785,20 +1786,21 @@ async function openCoachTurnoverListModal(studentId, studentName) {
     const today = new Date().toISOString().slice(0, 10);
     f.innerHTML = `
       <div class="modal-card" style="max-width:520px;">
-        <div class="modal-head"><h2>🔄 New turnover · ${esc(studentName || '(unnamed)')}</h2><button class="close" data-x>×</button></div>
+        <div class="modal-head"><h2>🔄 Turnover sale to a rep</h2><button class="close" data-x>×</button></div>
         <div class="modal-body" style="grid-template-columns:1fr;display:grid;gap:10px;">
-          <label style="display:grid;gap:4px;font-size:0.78rem;color:var(--text-dim);">Rep
-            <input id="ctfRep" list="ctfRepList" placeholder="Pick or type a rep name" autocomplete="off" style="padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);">
+          <div style="font-size:0.78rem;color:var(--text-dim);">Hand this student off to a rep. Defaults to the assigned rep — change it if handing to someone else.</div>
+          <label style="display:grid;gap:4px;font-size:0.78rem;color:var(--text-dim);">Rep *
+            <input id="ctfRep" list="ctfRepList" value="${esc(studentRep || '')}" placeholder="Pick or type a rep name" autocomplete="off" style="padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);">
             <datalist id="ctfRepList">${mentors.map(n => `<option value="${esc(n)}"></option>`).join('')}</datalist>
           </label>
-          <label style="display:grid;gap:4px;font-size:0.78rem;color:var(--text-dim);">Date
+          <label style="display:grid;gap:4px;font-size:0.78rem;color:var(--text-dim);">Note (optional)
+            <textarea id="ctfNote" rows="4" placeholder="Why is this being turned over? Context for the rep." style="padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);resize:vertical;"></textarea>
+          </label>
+          <label style="display:grid;gap:4px;font-size:0.78rem;color:var(--text-dim);">Date (optional)
             <input type="date" id="ctfDate" value="${today}" style="padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);">
           </label>
-          <label style="display:grid;gap:4px;font-size:0.78rem;color:var(--text-dim);">Note (optional)
-            <textarea id="ctfNote" rows="4" placeholder="Why are you turning this student over?" style="padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);resize:vertical;"></textarea>
-          </label>
         </div>
-        <div class="modal-foot"><span class="msg" id="ctfMsg"></span><button class="btn-ghost" data-x>Cancel</button><button class="btn-primary" id="ctfSave">Save</button></div>
+        <div class="modal-foot"><span class="msg" id="ctfMsg"></span><button class="btn-ghost" data-x>Cancel</button><button class="btn-primary" id="ctfSave">Log turnover</button></div>
       </div>`;
     document.body.appendChild(f);
     f.addEventListener('click', e => { if (e.target === f || e.target.matches('[data-x]')) { f.remove(); openCoachTurnoverListModal(studentId, studentName); } });

@@ -3952,27 +3952,51 @@ async function deleteTurnover(id) {
 }
 
 // ── Alerts ─────────────────────────────────────────────────────
+// The 5 structured questions for a Coach Change Request (kept as constants so
+// the form fields and the composed description stay in sync).
+const COACH_CHANGE_QUESTIONS = [
+  'Why is the student requesting a coach change? (Use the student’s own words whenever possible.)',
+  'When did the student first become dissatisfied with the coach?',
+  'Has the student discussed these concerns directly with the coach? If yes, what was discussed?',
+  'What is the student hoping will improve with a new coach?',
+  'Have you spoken with the coach about this situation? If yes, summarize the coach’s perspective.',
+];
 function openAddAlertModal() {
   if (!currentStudent || !currentStudent.id) return;
   document.getElementById('alertAddModal')?.remove();
   const m = document.createElement('div');
   m.id = 'alertAddModal';
   m.style.cssText = 'position:fixed;inset:0;background:rgba(8,9,18,0.78);backdrop-filter:blur(8px);z-index:10005;display:flex;align-items:center;justify-content:center;padding:20px;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;';
+  const tabBtn = (v, label) => `<button type="button" class="al-tab" data-tab="${v}" style="flex:1;padding:9px;border:1px solid #1f2438;background:transparent;color:#7880a8;border-radius:9px;font-weight:700;font-size:0.82rem;cursor:pointer;">${label}</button>`;
   m.innerHTML = `
-    <div style="background:#13141f;border:1px solid #1f2438;border-radius:18px;padding:24px 26px;max-width:460px;width:100%;color:#eaecf8;box-shadow:0 24px 60px rgba(0,0,0,0.55);">
-      <div style="font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;margin-bottom:4px;display:flex;align-items:center;gap:8px;">${ICONS.alertTri(16)} Submit a service</div>
-      <div style="font-size:0.78rem;color:#7880a8;margin-bottom:18px;">Track an unresolved issue for this student. Resolve it later with a note explaining what was done.</div>
-      <div class="field" style="margin-bottom:12px;">
-        <div class="field-label">Title *</div>
-        <input class="field-input" type="text" id="alertModalTitle" placeholder="e.g. Refund pending, missed welcome call…" required>
+    <div style="background:#13141f;border:1px solid #1f2438;border-radius:18px;padding:24px 26px;max-width:520px;width:100%;max-height:88vh;overflow-y:auto;color:#eaecf8;box-shadow:0 24px 60px rgba(0,0,0,0.55);">
+      <div style="font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;margin-bottom:12px;display:flex;align-items:center;gap:8px;">${ICONS.alertTri(16)} New service item</div>
+      <div style="display:flex;gap:8px;margin-bottom:16px;">
+        ${tabBtn('alert', '⚠ Service alert')}
+        ${tabBtn('coach', '↔ Coach change request')}
       </div>
-      <div class="field" style="margin-bottom:18px;">
-        <div class="field-label">Details</div>
-        <textarea class="field-textarea" id="alertModalDesc" placeholder="Context, history, what needs to happen…" style="min-height:110px;"></textarea>
+      <div id="alModeAlert">
+        <div style="font-size:0.78rem;color:#7880a8;margin-bottom:14px;">Track an unresolved issue for this student. Resolve it later with a note explaining what was done.</div>
+        <div class="field" style="margin-bottom:12px;">
+          <div class="field-label">Title *</div>
+          <input class="field-input" type="text" id="alertModalTitle" placeholder="e.g. Refund pending, missed welcome call…">
+        </div>
+        <div class="field" style="margin-bottom:18px;">
+          <div class="field-label">Details</div>
+          <textarea class="field-textarea" id="alertModalDesc" placeholder="Context, history, what needs to happen…" style="min-height:110px;"></textarea>
+        </div>
+      </div>
+      <div id="alModeCoach" style="display:none;">
+        <div style="font-size:0.78rem;color:#7880a8;margin-bottom:14px;">Coach change request for <strong style="color:#eaecf8;">${escapeHtml(currentStudent.name || 'this student')}</strong>${currentStudent.coach ? ' — current coach <strong style="color:#eaecf8;">' + escapeHtml(currentStudent.coach) + '</strong>' : ''}. Fill in what you can.</div>
+        ${COACH_CHANGE_QUESTIONS.map((q, i) => `
+          <div class="field" style="margin-bottom:12px;">
+            <div class="field-label" style="text-transform:none;">${i + 1}. ${escapeHtml(q)}</div>
+            <textarea class="field-textarea al-ccq" data-i="${i}" style="min-height:64px;"></textarea>
+          </div>`).join('')}
       </div>
       <label style="display:flex;align-items:flex-start;gap:9px;margin-bottom:16px;font-size:0.82rem;color:#cdd2ec;cursor:pointer;user-select:none;line-height:1.35;">
         <input type="checkbox" id="alertModalTagCoach" style="width:16px;height:16px;margin-top:1px;cursor:pointer;flex-shrink:0;">
-        <span>Tag coach<br><span style="font-size:0.72rem;color:#7880a8;">Also send this alert to the student's coach. Off by default — MS-IC / Delivery-IC are always notified.</span></span>
+        <span>Tag coach<br><span style="font-size:0.72rem;color:#7880a8;">Also send this to the student's coach. Off by default — MS-IC / Delivery-IC are always notified.</span></span>
       </label>
       <div id="alertAddErr" style="color:var(--red);font-size:0.78rem;min-height:1em;margin-bottom:8px;"></div>
       <div style="display:flex;gap:10px;justify-content:flex-end;">
@@ -3981,26 +4005,46 @@ function openAddAlertModal() {
       </div>
     </div>`;
   document.body.appendChild(m);
-  function close() { m.remove(); }
+  function close() { m.remove(); document.removeEventListener('keydown', onKey); }
+  function onKey(e) { if (e.key === 'Escape') close(); }
+  document.addEventListener('keydown', onKey);
   document.getElementById('alertAddCancel').addEventListener('click', close);
   m.addEventListener('click', e => { if (e.target === m) close(); });
-  function onKey(e) { if (e.key === 'Escape') { close(); document.removeEventListener('keydown', onKey); } }
-  document.addEventListener('keydown', onKey);
-  const titleEl = document.getElementById('alertModalTitle');
-  const descEl  = document.getElementById('alertModalDesc');
-  const errEl   = document.getElementById('alertAddErr');
+  const errEl = document.getElementById('alertAddErr');
   const saveBtn = document.getElementById('alertAddSave');
-  titleEl.focus();
+  let mode = 'alert';
+  const tabs = m.querySelectorAll('.al-tab');
+  const setTab = (v) => {
+    mode = v;
+    tabs.forEach(b => { const on = b.dataset.tab === v; b.style.background = on ? 'rgba(52,211,153,0.14)' : 'transparent'; b.style.color = on ? '#34d399' : '#7880a8'; b.style.borderColor = on ? '#34d399' : '#1f2438'; });
+    document.getElementById('alModeAlert').style.display = v === 'alert' ? '' : 'none';
+    document.getElementById('alModeCoach').style.display = v === 'coach' ? '' : 'none';
+    saveBtn.textContent = v === 'coach' ? 'Submit request' : 'Submit alert';
+    errEl.textContent = '';
+  };
+  tabs.forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
+  setTab('alert');
+  document.getElementById('alertModalTitle').focus();
   saveBtn.addEventListener('click', async () => {
     errEl.textContent = '';
-    const title = titleEl.value.trim();
-    if (!title) { errEl.textContent = 'Title is required.'; return; }
+    let title, description;
+    if (mode === 'coach') {
+      const answers = [...m.querySelectorAll('.al-ccq')].map(t => t.value.trim());
+      if (!answers[0]) { errEl.textContent = 'Please answer at least the first question (why the change is requested).'; return; }
+      title = 'Coach Change Request — ' + (currentStudent.name || 'Student');
+      description = 'COACH CHANGE REQUEST\nCurrent coach: ' + (currentStudent.coach || '—') + '\n\n'
+        + COACH_CHANGE_QUESTIONS.map((q, i) => (i + 1) + '. ' + q + '\n' + (answers[i] || '—')).join('\n\n');
+    } else {
+      title = document.getElementById('alertModalTitle').value.trim();
+      if (!title) { errEl.textContent = 'Title is required.'; return; }
+      description = document.getElementById('alertModalDesc').value.trim() || null;
+    }
     saveBtn.disabled = true; saveBtn.textContent = 'Submitting…';
     try {
       const r = await fetch(STUDENTS_BASE + '?api=add-alert', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + currentSession.access_token },
-        body: JSON.stringify({ studentId: currentStudent.id, title, description: descEl.value.trim() || null, tag_coach: document.getElementById('alertModalTagCoach')?.checked === true }),
+        body: JSON.stringify({ studentId: currentStudent.id, title, description, tag_coach: document.getElementById('alertModalTagCoach')?.checked === true }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || 'Failed');
@@ -4009,7 +4053,7 @@ function openAddAlertModal() {
       await loadStudents();
     } catch (e) {
       errEl.textContent = e.message || 'Failed';
-      saveBtn.disabled = false; saveBtn.textContent = 'Submit alert';
+      saveBtn.disabled = false; saveBtn.textContent = mode === 'coach' ? 'Submit request' : 'Submit alert';
     }
   });
 }

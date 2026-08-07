@@ -27,3 +27,4 @@
 2026-07-24T12:00:00Z-v578-coach-turnovers-parity
 2026-07-24T13:00:00Z-v579-coach-turnover-addform
 2026-07-24T15:00:00Z-v580-turnover-resign-forms
+2026-08-04T19:00:00Z-v581-alert-coach-change

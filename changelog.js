@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v581', title: 'Alerts: Coach Change Request form', items: [
+      'The “New service item” popup (student alerts) now has a tab at the top: Service alert vs Coach change request.',
+      'Coach change request brings up 5 guided questions (why the change, when dissatisfaction started, whether the coach was spoken to, what the student hopes improves, and the coach’s perspective). It files as an alert titled “Coach Change Request — <student>” with the answers in the body.',
+    ], roles: ['mentorship', 'ms_ic', 'delivery_ic'] },
     { version: 'v580', title: 'Turnover Re-sign questionnaires', items: [
       'Creating a turnover now includes the 🎯 Re-sign Turnover Form (5 questions the coach answers about the student). The answers save with the turnover and show in its detail.',
       'Resolving a turnover opens the 🎯 Re-sign Outcome Form (6 Sales questions) — filling it records the outcome and marks the turnover resolved. The Coach Dashboard and the MS CRM use the exact same forms.',

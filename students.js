@@ -990,7 +990,7 @@ function renderStudentList() {
       metaParts.push('· ' + s.days_until_start + 'd to start');
     } else if (s.days_left != null && s.derived_status !== 'Not onboarded') {
       const dl = s.days_left;
-      metaParts.push('· ' + (dl >= 0 ? `${dl}d left` : `${Math.abs(dl)}d ago`));
+      metaParts.push('· ' + (dl >= 0 ? fmtDaysLeft(dl) + ' left' : fmtDaysLeft(Math.abs(dl)) + ' ago'));
     } else if (s.months_count != null) {
       metaParts.push('· ' + s.months_count + 'mo');
     }
@@ -1035,7 +1035,7 @@ function _updateStudentRowInPlace(s) {
       metaParts.push('· ' + s.days_until_start + 'd to start');
     } else if (s.days_left != null && s.derived_status !== 'Not onboarded') {
       const dl = s.days_left;
-      metaParts.push('· ' + (dl >= 0 ? `${dl}d left` : `${Math.abs(dl)}d ago`));
+      metaParts.push('· ' + (dl >= 0 ? fmtDaysLeft(dl) + ' left' : fmtDaysLeft(Math.abs(dl)) + ' ago'));
     } else if (s.months_count != null) {
       metaParts.push('· ' + s.months_count + 'mo');
     }
@@ -1100,6 +1100,18 @@ function _exportFilteredRows() {
     (s.mentor || '').toLowerCase().includes(q) || (s.coach || '').toLowerCase().includes(q) ||
     (s.product || '').toLowerCase().includes(q));
   return _applyAdvFilters(rows);
+}
+// Format a day count as years / months / days (approx: 365d/yr, 30d/mo) for the
+// picker's "time left" counter. 400 → "1y 1m 5d", 12 → "12d", 0 → "0d".
+function fmtDaysLeft(days) {
+  let n = Math.max(0, Math.round(Number(days) || 0));
+  const y = Math.floor(n / 365); n -= y * 365;
+  const mo = Math.floor(n / 30);  n -= mo * 30;
+  const parts = [];
+  if (y) parts.push(y + 'y');
+  if (mo) parts.push(mo + 'm');
+  if (n || !parts.length) parts.push(n + 'd');
+  return parts.join(' ');
 }
 const EXPORT_COLS = ['name','email','phone','derived_status','status','rep','coach','mentor','product','level','masterclass_level','months_count','days_left','joined_at','first_purchase_date','last_purchase_date','last_activity_date','welcome_call_date','student_onboarded_date','verified','winning_student','dead_file','refunded_date','refunded_amount','end_date','location','current_module'];
 function _csvCell(v) {

@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v582', title: 'Student list: time-left shown as y/m/d', items: [
+      'The “time left” counter in the student list now reads as years / months / days (e.g. “1y 2m 5d left”) instead of a raw day count.',
+    ] },
     { version: 'v581', title: 'Alerts: Coach Change Request form', items: [
       'The “New service item” popup (student alerts) now has a tab at the top: Service alert vs Coach change request.',
       'Coach change request brings up 5 guided questions (why the change, when dissatisfaction started, whether the coach was spoken to, what the student hopes improves, and the coach’s perspective). It files as an alert titled “Coach Change Request — <student>” with the answers in the body.',

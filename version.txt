@@ -29,3 +29,4 @@
 2026-07-24T15:00:00Z-v580-turnover-resign-forms
 2026-08-04T19:00:00Z-v581-alert-coach-change
 2026-08-04T20:00:00Z-v582-timeleft-ymd
+2026-08-20T12:00:00Z-v583-coach-timeleft-ymd

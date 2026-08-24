@@ -509,6 +509,19 @@ document.getElementById('drApply').addEventListener('click', () => {
   try { localStorage.setItem('coach:dateRange:v1', JSON.stringify({ preset: null, from, to })); } catch (_) {}
   selectedIds.clear(); renderAll();
 });
+// Format a day count as years / months / days (approx: 365d/yr, 30d/mo) so the
+// table reads like the MS CRM student list: 400 → "1y 1m 5d", 65 → "2m 5d",
+// 12 → "12d". Mirrors fmtDaysLeft() in students.js.
+function fmtDaysLeft(days) {
+  let n = Math.max(0, Math.round(Number(days) || 0));
+  const y = Math.floor(n / 365); n -= y * 365;
+  const mo = Math.floor(n / 30);  n -= mo * 30;
+  const parts = [];
+  if (y) parts.push(y + 'y');
+  if (mo) parts.push(mo + 'm');
+  if (n || !parts.length) parts.push(n + 'd');
+  return parts.join(' ');
+}
 function _daysSince(d) {
   if (!d) return null;
   const t = new Date(d).getTime();
@@ -709,7 +722,7 @@ function renderAll() {
       const da = _daysSince(s.last_assignment_received);
       const ds = _daysSince(s.last_assignment_sent);
       const cls = (d) => d === null ? '' : (d <= 14 ? 'fresh' : d <= 30 ? 'stale' : 'dead');
-      const fmt = (d, raw) => raw ? `<span class="dsince ${cls(d)}">${d}d</span>` : '<span class="dsince" style="opacity:.4">—</span>';
+      const fmt = (d, raw) => raw ? `<span class="dsince ${cls(d)}" title="${d}d ago">${fmtDaysLeft(d)}</span>` : '<span class="dsince" style="opacity:.4">—</span>';
       const status = s.derived_status || "—";
       const statusClass = status === 'Expired' ? 'bad' : status === 'Expiring soon' ? 'warn' : status === 'Paused' ? 'muted' : status === 'Active' ? 'ok' : 'muted';
       const checked = selectedIds.has(s.id) ? 'checked' : '';
@@ -735,7 +748,7 @@ function renderAll() {
         <td data-label="Last Zoom">${fmt(dz, s.last_zoom_date)}</td>
         <td data-label="Asgmt Sent">${fmt(ds, s.last_assignment_sent)}</td>
         <td data-label="Asgmt Recv">${fmt(da, s.last_assignment_received)}</td>
-        <td class="num" data-label="Days left">${s.days_left == null ? '—' : (s.days_left + 'd')}</td>
+        <td class="num" data-label="Days left" title="${s.days_left == null ? '' : s.days_left + 'd'}">${s.days_left == null ? '—' : (s.days_left >= 0 ? fmtDaysLeft(s.days_left) : fmtDaysLeft(Math.abs(s.days_left)) + ' ago')}</td>
         <td data-label="Status"><span class="pill ${statusClass}">${escapeHtml(status)}</span></td>
       </tr>`;
     }).join('');

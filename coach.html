@@ -284,7 +284,7 @@
   table.students tbody tr:hover { background: rgba(52,211,153,0.06); }
   table.students tbody tr.selected { background: rgba(52,211,153,0.1); }
   table.students td:first-child, table.students th:first-child { width: 30px; padding: 10px 6px 10px 14px; }
-  table.students td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  table.students td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
   table.students tr.pinned { background: rgba(251,191,36,0.04); border-left: 3px solid var(--gold, #fbbf24); }
   table.students tr.pinned:hover { background: rgba(251,191,36,0.08); }
   /* Row action icons — SVG icons matching the dashboard style (Lucide-stroke) */
@@ -370,7 +370,7 @@
   .pill.muted { background: rgba(120,128,168,0.18); color: var(--text-dim); }
 
   /* Days-since coloring */
-  .dsince { font-variant-numeric: tabular-nums; }
+  .dsince { font-variant-numeric: tabular-nums; white-space: nowrap; }
   .dsince.fresh { color: var(--accent2); }
   .dsince.stale { color: #fbbf24; }
   .dsince.dead  { color: #f87171; }

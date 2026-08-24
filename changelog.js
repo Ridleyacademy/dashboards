@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v583', title: 'Coach Dashboard: times shown as y/m/d', items: [
+      'Last Zoom, Asgmt Sent, Asgmt Recv and Days left now read as years / months / days (e.g. “2m 5d”, “1y 1m 5d”) instead of a raw day count — matching the MS CRM student list.',
+      'An expired student’s Days left shows as “2m 5d ago”. Hover any of these to see the exact number of days.',
+    ], roles: ['coach', 'ms_ic', 'delivery_ic'] },
     { version: 'v582', title: 'Student list: time-left shown as y/m/d', items: [
       'The “time left” counter in the student list now reads as years / months / days (e.g. “1y 2m 5d left”) instead of a raw day count.',
     ] },

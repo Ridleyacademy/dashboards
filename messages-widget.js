@@ -1580,7 +1580,23 @@
     const days = Math.floor(s / 86400); if (days < 7) return days + 'd ago';
     return d.toLocaleDateString();
   }
-  async function beat() { try { const tok = await getToken(); if (tok) fetch(PRESENCE_BASE + '?api=beat', { method: 'POST', headers: { Authorization: 'Bearer ' + tok } }); } catch (_) {} }
+  // Last-seen heartbeat. Throttled to 5 min and deduped ACROSS TABS (and with
+  // ux.js, which shares this localStorage key) — one beat per user per 5 min no
+  // matter how many tabs/pages are open. It used to fire every 60s per tab, on
+  // top of ux.js's own 60s beat, which kept the DB writing 24/7 and pegged Disk
+  // IO/CPU. The live "online" dots come from Realtime presence, not this, so the
+  // slower beat only affects the offline "last seen" stamp.
+  const PRESENCE_MS = 5 * 60 * 1000;
+  const PRESENCE_KEY = 'ra:presence:beat';   // shared with ux.js
+  function presenceDue() {
+    try {
+      const last = Number(localStorage.getItem(PRESENCE_KEY) || 0);
+      if (Date.now() - last < PRESENCE_MS) return false;
+      localStorage.setItem(PRESENCE_KEY, String(Date.now()));   // claim the slot
+      return true;
+    } catch (_) { return true; }
+  }
+  async function beat() { try { if (!presenceDue()) return; const tok = await getToken(); if (tok) fetch(PRESENCE_BASE + '?api=beat', { method: 'POST', headers: { Authorization: 'Bearer ' + tok } }); } catch (_) {} }
   function startPresence() {
     const s = ensureSupa(); if (!s || presenceCh || !me) return;
     presenceCh = s.channel('presence:chat', { config: { presence: { key: me.user_id } } });
@@ -1588,7 +1604,7 @@
       onlineIds = new Set(Object.keys(presenceCh.presenceState()));
       renderList(); renderThreadPresence();
     }).subscribe(async (status) => { if (status === 'SUBSCRIBED') { try { await presenceCh.track({ at: Date.now() }); } catch (_) {} } });
-    beat(); clearInterval(_beatT); _beatT = setInterval(beat, 60000);
+    beat(); clearInterval(_beatT); _beatT = setInterval(beat, PRESENCE_MS);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) beat(); });
   }
   async function renderThreadPresence() {
@@ -1660,7 +1676,8 @@
     loadConversations().then(startPresence); startRealtime(); loadUsers();
     s.auth.onAuthStateChange((_e, sess) => { if (sess) { loadConversations().then(startPresence); startRealtime(); } });
     // periodic badge refresh as a safety net (realtime is primary)
-    setInterval(() => { getToken().then(t => { if (t) loadConversations(); }); }, 120000);
+    // Safety net only — realtime pushes new messages, so this can be slow.
+    setInterval(() => { getToken().then(t => { if (t) loadConversations(); }); }, 300000);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();

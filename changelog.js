@@ -16,6 +16,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v584', title: 'Performance: presence heartbeat throttled', items: [
+      'The “last seen” heartbeat now fires once every 5 minutes per person instead of twice a minute per open tab, and is shared across tabs and pages.',
+      'One request now updates both last-seen stores instead of two separate writes. This was the main thing keeping the database busy 24/7 and pushing CPU/Disk IO to ~99%.',
+      'No visible change: the green “online” dots come from realtime, not this heartbeat.',
+    ] },
     { version: 'v583', title: 'Coach Dashboard: times shown as y/m/d', items: [
       'Last Zoom, Asgmt Sent, Asgmt Recv and Days left now read as years / months / days (e.g. “2m 5d”, “1y 1m 5d”) instead of a raw day count — matching the MS CRM student list.',
       'An expired student’s Days left shows as “2m 5d ago”. Hover any of these to see the exact number of days.',

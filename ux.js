@@ -205,17 +205,42 @@
   }
 
   // ── Presence heartbeat ───────────────────────────────────────────
-  // Pings public.touch_user_presence() every 60s while the tab is
-  // visible, so the admin Sessions tab can show a truthful "● live"
-  // signal (vs the unreliable last_sign_in_at, which only updates on
-  // token refresh).
+  // Marks the user "seen" so the admin Sessions tab and chat can show a
+  // truthful last-seen (vs last_sign_in_at, which only updates on token
+  // refresh). ONE endpoint (presence?api=beat) writes BOTH stores
+  // (user_presence + profiles.last_seen_at) — see the presence edge fn.
+  //
+  // Throttled to 5 min and deduped ACROSS TABS via localStorage: this used
+  // to fire every 60s per tab (and a second beat came from the chat widget),
+  // so a few people with a few tabs open wrote to the DB constantly, 24/7.
+  // Every write makes WAL that Realtime then decodes — that treadmill pegged
+  // Disk IO / CPU on a small instance. "Online now" is Realtime-based and is
+  // unaffected by this interval; only the offline "last seen" stamp uses it.
+  const PRESENCE_MS = 5 * 60 * 1000;
+  const PRESENCE_KEY = 'ra:presence:beat';   // shared with messages-widget.js
   let _presenceTimer = null;
-  async function presenceTick() {
+  // True only if no tab (this one included) has beaten within PRESENCE_MS.
+  // Claims the slot immediately so two tabs waking together don't both fire.
+  function presenceDue() {
+    try {
+      const last = Number(localStorage.getItem(PRESENCE_KEY) || 0);
+      if (Date.now() - last < PRESENCE_MS) return false;
+      localStorage.setItem(PRESENCE_KEY, String(Date.now()));
+      return true;
+    } catch (_) { return true; }   // no localStorage → just beat
+  }
+  async function presenceTick(force) {
     try {
       if (typeof supa === 'undefined') return;
+      if (!force && !presenceDue()) return;
       const { data: { session } } = await supa.auth.getSession();
       if (!session) return;
-      await supa.rpc('touch_user_presence', { p_user_agent: navigator.userAgent || null });
+      // Resolve at call time: ux.js may load before the page defines SUPABASE_URL.
+      const base = (typeof SUPABASE_URL !== 'undefined' && SUPABASE_URL)
+        ? SUPABASE_URL : 'https://pojqljrhhtnigyrtzdzz.supabase.co';
+      await fetch(base + '/functions/v1/presence?api=beat', {
+        method: 'POST', headers: { Authorization: 'Bearer ' + session.access_token },
+      });
     } catch (_) { /* non-fatal */ }
   }
   function startPresence() {
@@ -224,12 +249,13 @@
     _presenceTimer = setInterval(() => {
       // Only ping while the document is visible.
       if (document.visibilityState === 'visible') presenceTick();
-    }, 60000);
+    }, PRESENCE_MS);
   }
   function stopPresence() {
     if (_presenceTimer) { clearInterval(_presenceTimer); _presenceTimer = null; }
   }
-  // Fire on load and whenever the tab becomes visible (post-bg).
+  // Fire on load and whenever the tab becomes visible (post-bg) — still
+  // throttled, so flipping between tabs can't spam the beat.
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') presenceTick();
   });

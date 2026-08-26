@@ -467,6 +467,16 @@
     </button>
     <button class="tbtn tbtn-ghost" id="themeBtn" style="font-size:1rem;padding:5px 10px;" title="Toggle theme"></button>
 
+    <!-- Dashboard picker. nav-menu.js fills this container on DOMContentLoaded;
+         without it the picker silently does not render on this page. -->
+    <div class="nav-dropdown" id="navDropdown">
+      <button class="tbtn tbtn-ghost" id="navDropdownBtn">
+        Dashboards
+        <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="nav-dropdown-menu" id="navDropdownMenu"></div>
+    </div>
+
     <div class="user-pill">
       <div class="user-pill-av" id="userAvatar">U</div>
       <span class="user-pill-email" id="userEmail"></span>
@@ -754,6 +764,13 @@ document.getElementById('drApply').addEventListener('click', () => {
   document.getElementById('drLabel').textContent = f + ' → ' + t;
   drWrap.classList.remove('open');
   loadData();
+});
+document.getElementById('navDropdownBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  document.getElementById('navDropdownMenu').classList.toggle('open');
+});
+document.addEventListener('click', () => {
+  document.getElementById('navDropdownMenu').classList.remove('open');
 });
 document.getElementById('refreshBtn').addEventListener('click', loadData);
 

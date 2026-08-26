@@ -17,6 +17,9 @@
     { href: 'performance.html',  id: 'performance',  roles: ['marketing', 'sales', 'sales_manager'] },
     { href: 'income.html',       id: 'income',       roles: ['finance'] },
     { href: 'calls.html',        id: 'calls',        roles: ['calls', 'sales_manager', 'rep'] },
+    // Booked Calls — Calendly bookings + source attribution. Same audience as
+    // calls.html so nobody needs reconfiguring; granular keys layer on top.
+    { href: 'calendly.html',     id: 'calendly',     roles: ['calls', 'sales_manager', 'rep'], granular: ['calendly.view', 'calendly.view_others'] },
     { href: 'declarations.html', id: 'declarations', roles: ['rep', 'sales_manager', 'declarations'], granular: ['declarations.view', 'declarations.view_all'] },
     // Collections dashboard — chasing missed/disputed rebills. Lives in a
     // separate table so it never mixes into rep declaration stats. Gated by

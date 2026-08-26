@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg?v=303">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=303">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=303">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Booked Calls</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="permissions.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<style>
+  :root {
+    --bg: #080a14;
+    --surface: #0f1120; --surface2: #141728; --surface3: #191e30;
+    --border: #1f2438; --border-light: #272d45;
+    --text: #eaecf8; --text-muted: #7880a8; --text-dim: #3e4668;
+    --blue: #6b9eff; --blue-glow: rgba(107,158,255,0.3); --blue-bg: rgba(107,158,255,0.1);
+    --green: #34d399; --green-glow: rgba(52,211,153,0.3); --green-bg: rgba(52,211,153,0.1);
+    --pink: #f472b6; --pink-glow: rgba(244,114,182,0.3); --pink-bg: rgba(244,114,182,0.1);
+    --purple: #a78bfa; --purple-bg: rgba(167,139,250,0.1);
+    --gold: #fbbf24; --gold-bg: rgba(251,191,36,0.1);
+    --red: #f87171; --cyan: #22d3ee;
+  }
+  body.light {
+    --bg: #f0f2fa; --surface: #ffffff; --surface2: #f5f6fc; --surface3: #eceef8;
+    --border: #dde1f2; --border-light: #ccd1e8;
+    --text: #0f1220; --text-muted: #525b82; --text-dim: #9099be;
+    --blue-glow: rgba(107,158,255,0.15); --green-glow: rgba(52,211,153,0.15); --pink-glow: rgba(244,114,182,0.15);
+    --blue-bg: rgba(107,158,255,0.1); --green-bg: rgba(52,211,153,0.1); --pink-bg: rgba(244,114,182,0.1);
+  }
+  body.light .topbar { background: rgba(255,255,255,0.9); }
+  body.light .board-card { background: #fff; }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+    background: var(--bg); color: var(--text); min-height: 100vh;
+    -webkit-font-smoothing: antialiased; overflow-x: hidden;
+  }
+
+  /* ── Animated ambient background ─────────────── */
+  body::before {
+    content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background:
+      radial-gradient(ellipse at 15% 15%, rgba(107,158,255,0.07) 0%, transparent 55%),
+      radial-gradient(ellipse at 85% 85%, rgba(167,139,250,0.05) 0%, transparent 55%),
+      radial-gradient(ellipse at 80% 10%, rgba(244,114,182,0.05) 0%, transparent 50%);
+    animation: ambientShift 18s ease-in-out infinite;
+  }
+  @keyframes ambientShift {
+    0%,100% { opacity: 1; } 50% { opacity: 0.6; }
+  }
+
+  /* ── Auth / State layouts ─────────────────────── */
+  .full-center { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; position: relative; z-index: 1; }
+
+  .login-wrap { width: 100%; max-width: 420px; }
+  .login-logo { width: 56px; height: 56px; border-radius: 16px; margin: 0 auto 24px;
+    background: linear-gradient(135deg, #22d3ee, #6b9eff);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 8px 32px rgba(34,211,238,0.4); }
+  .login-card { background: var(--surface); border: 1px solid var(--border); border-radius: 24px; padding: 40px 36px; box-shadow: 0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.03) inset; }
+  .login-card h1 { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.03em; text-align: center; margin-bottom: 4px; }
+  .login-card .sub { color: var(--text-muted); font-size: 0.84rem; text-align: center; margin-bottom: 28px; }
+  .input-group { margin-bottom: 12px; }
+  .input-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-muted); margin-bottom: 6px; display: block; }
+  .auth-input { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 13px 16px; color: var(--text); font-size: 0.92rem; outline: none; transition: border-color 0.15s, box-shadow 0.15s; }
+  .auth-input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-bg); }
+  .auth-btn { width: 100%; margin-top: 8px; background: linear-gradient(135deg, #6b9eff, #4a7de0); border: none; border-radius: 12px; padding: 14px; color: #fff; font-size: 0.92rem; font-weight: 700; cursor: pointer; transition: transform 0.12s, box-shadow 0.12s; box-shadow: 0 4px 16px rgba(107,158,255,0.35); }
+  .auth-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(107,158,255,0.45); }
+  .auth-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+  .auth-error { color: var(--red); font-size: 0.78rem; margin-top: 10px; min-height: 1em; text-align: center; }
+
+  /* ── Spinner ──────────────────────────────────── */
+  .spinner { width: 40px; height: 40px; border: 3px solid var(--border); border-top-color: var(--cyan); border-radius: 50%; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spin { animation: spin .7s linear infinite; }
+
+  /* ── State machine ────────────────────────────── */
+  body[data-state="loading"] #app,
+  body[data-state="loading"] #login,
+  body[data-state="loading"] #denied { display: none; }
+  body[data-state="loading"] #boot { display: flex; }
+
+  body[data-state="login"] #app,
+  body[data-state="login"] #boot,
+  body[data-state="login"] #denied { display: none; }
+  body[data-state="login"] #login { display: flex; }
+
+  body[data-state="denied"] #app,
+  body[data-state="denied"] #boot,
+  body[data-state="denied"] #login { display: none; }
+  body[data-state="denied"] #denied { display: flex; }
+
+  body[data-state="dashboard"] #login,
+  body[data-state="dashboard"] #boot,
+  body[data-state="dashboard"] #denied { display: none; }
+  body[data-state="dashboard"] #app { display: block; }
+
+  /* ── Topbar ───────────────────────────────────── */
+  .topbar {
+    display: flex; align-items: center; gap: 10px; padding: 12px 32px;
+    background: rgba(8,10,20,0.85); backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100;
+  }
+  .topbar-logo {
+    width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0;
+    background: linear-gradient(135deg, #22d3ee, #6b9eff);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 14px rgba(34,211,238,0.4);
+  }
+  .topbar-brand { font-size: 0.9rem; font-weight: 700; letter-spacing: -0.02em; }
+  .topbar-spacer { flex: 1; }
+  .tbtn { border: none; border-radius: 8px; padding: 6px 12px; font-size: 0.74rem; font-weight: 600; cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 5px; }
+  .tbtn-ghost { background: var(--surface2); color: var(--text-muted); border: 1px solid var(--border); }
+  .tbtn-ghost:hover { color: var(--text); border-color: var(--border-light); }
+  .tbtn-ghost:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* ── Date Range Picker ─────────────────────────── */
+  .daterange-wrap { position: relative; }
+  .daterange-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 6px 11px; font-size: 0.74rem; color: var(--text-muted); cursor: pointer;
+    transition: all 0.15s; white-space: nowrap; font-weight: 600; font-family: inherit;
+  }
+  .daterange-btn:hover { border-color: var(--border-light); color: var(--text); }
+  .daterange-popup {
+    display: none; position: absolute; top: calc(100% + 8px); right: 0;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+    padding: 14px; min-width: 270px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.03) inset;
+    z-index: 500;
+  }
+  .daterange-popup.open { display: block; }
+  .dr-presets { display: flex; flex-direction: column; gap: 2px; }
+  .dr-preset {
+    display: block; width: 100%; text-align: left; background: none; border: none;
+    padding: 9px 12px; border-radius: 9px; font-size: 0.8rem; font-weight: 600;
+    color: var(--text-muted); cursor: pointer; transition: all 0.12s; font-family: inherit;
+  }
+  .dr-preset:hover { background: var(--surface2); color: var(--text); }
+  .dr-preset.active { background: rgba(34,211,238,0.1); color: var(--cyan); }
+  .dr-divider { height: 1px; background: var(--border); margin: 10px 0; }
+  .dr-custom-label {
+    font-size: 0.64rem; font-weight: 800; text-transform: uppercase;
+    letter-spacing: 0.1em; color: var(--text-dim); margin-bottom: 8px;
+  }
+  .dr-custom-row { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
+  .dr-date-input {
+    flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 7px 8px; color: var(--text); font-size: 0.73rem; outline: none;
+    font-family: inherit; transition: border-color 0.15s; color-scheme: dark; min-width: 0;
+  }
+  .dr-date-input:focus { border-color: var(--blue); }
+  body.light .dr-date-input { color-scheme: light; }
+  .dr-sep { color: var(--text-dim); font-size: 0.7rem; flex-shrink: 0; }
+  .dr-apply {
+    width: 100%; background: linear-gradient(135deg, var(--blue), #4a7de0); border: none;
+    border-radius: 8px; padding: 8px; color: #fff; font-size: 0.78rem; font-weight: 700;
+    cursor: pointer; font-family: inherit; transition: opacity 0.15s;
+  }
+  .dr-apply:hover { opacity: 0.9; }
+
+  /* Live indicator */
+  .live-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 0.67rem; font-weight: 700; color: var(--red);
+    background: rgba(248,113,113,0.1); border: 1px solid rgba(248,113,113,0.2);
+    border-radius: 20px; padding: 3px 8px;
+  }
+  .live-dot {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--red);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.8)} }
+
+  /* Nav dropdown */
+  .nav-dropdown { position: relative; }
+  .nav-dropdown-menu {
+    display: none; position: absolute; top: calc(100% + 8px); right: 0;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    padding: 6px; min-width: 200px;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+    z-index: 200;
+  }
+  .nav-dropdown-menu.open { display: block; }
+  .nav-dropdown-item {
+    display: block; padding: 9px 13px; font-size: 0.78rem; font-weight: 600;
+    color: var(--text-muted); text-decoration: none; border-radius: 9px;
+    transition: all 0.12s;
+  }
+  .nav-dropdown-item:hover { background: var(--surface2); color: var(--text); }
+  .nav-dropdown-item.active { color: var(--cyan); background: rgba(34,211,238,0.08); }
+
+  .user-pill { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 4px 14px 4px 4px; cursor: default; }
+  .user-pill-av { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; background: linear-gradient(135deg, #22d3ee, #6b9eff); color: #fff; font-size: 0.62rem; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+  .user-pill-email { font-size: 0.73rem; color: var(--text-muted); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* ── Page ─────────────────────────────────────── */
+  #app { position: relative; z-index: 1; }
+  .main { max-width: 1200px; margin: 0 auto; padding: 36px 32px 100px; animation: fadeUp 0.5s ease both; }
+  @keyframes fadeUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+  @media(max-width:700px) { .main { padding: 24px 16px 80px; } .topbar { padding: 10px 16px; gap: 6px; } }
+
+  /* ── Controls row ─────────────────────────────── */
+  .controls-row { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; flex-wrap: wrap; }
+  .platform-select {
+    background: var(--surface2); color: var(--text-muted); border: 1px solid var(--border);
+    border-radius: 8px; padding: 5px 30px 5px 10px; font-size: 0.74rem; font-weight: 600;
+    cursor: pointer; outline: none; appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%237880a8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 8px center;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .platform-select:hover { border-color: var(--border-light); color: var(--text); }
+  .platform-select option { background: var(--surface); color: var(--text); }
+
+  /* Pill tab group */
+  .pill-tabs {
+    display: inline-flex; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 3px; gap: 2px;
+  }
+  .pill-tab {
+    border: none; background: transparent; color: var(--text-muted); border-radius: 7px;
+    padding: 7px 14px; font-size: 0.78rem; font-weight: 600; cursor: pointer;
+    transition: all 0.15s; white-space: nowrap;
+  }
+  .pill-tab:hover { color: var(--text); }
+  .pill-tab.active {
+    background: var(--surface3); color: var(--text);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+  }
+
+  /* ── Section label ────────────────────────────── */
+  .sec-label { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+  .sec-label-text { font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-dim); white-space: nowrap; }
+  .sec-label-line { flex: 1; height: 1px; background: var(--border); }
+
+  /* ── KPI Cards ────────────────────────────────── */
+  .kpi-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; margin-bottom: 28px; }
+  @media(max-width:1100px) { .kpi-grid { grid-template-columns: repeat(3,1fr); } }
+  @media(max-width:700px)  { .kpi-grid { grid-template-columns: repeat(2,1fr); } }
+  @media(max-width:480px)  { .kpi-grid { grid-template-columns: 1fr; } }
+
+  .board-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 22px;
+    padding: 24px 22px 20px; color: inherit; display: flex;
+    flex-direction: column; position: relative; overflow: hidden;
+    transition: transform 0.22s cubic-bezier(.4,0,.2,1), box-shadow 0.22s, border-color 0.22s;
+  }
+  .board-card::before {
+    content: ''; position: absolute; inset: 0; opacity: 0; transition: opacity 0.3s;
+    background: radial-gradient(ellipse at top right, var(--c-glow, rgba(107,158,255,0.14)), transparent 65%);
+    pointer-events: none;
+  }
+  .board-card::after {
+    content: ''; position: absolute; top: 0; left: 0; right: 100%; height: 2px;
+    background: var(--c-color, var(--blue)); border-radius: 22px 22px 0 0;
+    transition: right 0.35s cubic-bezier(.4,0,.2,1);
+  }
+  .board-card:hover { transform: translateY(-4px); box-shadow: 0 16px 40px rgba(0,0,0,0.3), 0 0 0 1px var(--c-color, var(--blue)) inset; border-color: var(--c-color, var(--blue)); }
+  .board-card:hover::before { opacity: 1; }
+  .board-card:hover::after { right: 0; }
+
+  .kpi-label { font-size: 0.67rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-dim); margin-bottom: 10px; }
+  .kpi-value { font-size: 1.75rem; font-weight: 900; letter-spacing: -0.04em; line-height: 1; margin-bottom: 6px; color: var(--c-color, var(--text)); }
+  .kpi-sub { font-size: 0.74rem; color: var(--text-muted); }
+
+  /* ── Charts row ───────────────────────────────── */
+  .charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 28px; }
+  @media(max-width:800px) { .charts-row { grid-template-columns: 1fr; } }
+
+  .chart-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 20px;
+    padding: 24px;
+  }
+  .chart-card-title { font-size: 0.65rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 18px; }
+  .chart-wrap { position: relative; }
+
+  /* ── Summary table ────────────────────────────── */
+  .table-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 20px;
+    overflow: hidden; margin-bottom: 20px;
+  }
+  .table-toolbar {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 16px 20px; border-bottom: 1px solid var(--border);
+  }
+  .table-title { font-size: 0.78rem; font-weight: 700; color: var(--text); }
+  .row-count-badge {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 20px;
+    padding: 3px 10px; font-size: 0.68rem; font-weight: 700; color: var(--text-muted);
+  }
+  .search-box {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 9px;
+    padding: 7px 12px; color: var(--text); font-size: 0.78rem; outline: none;
+    transition: border-color 0.15s; font-family: inherit;
+  }
+  .search-box:focus { border-color: var(--blue); }
+  .search-box::placeholder { color: var(--text-dim); }
+
+  .data-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+  .data-table th {
+    padding: 11px 16px; text-align: left; font-size: 0.65rem; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim);
+    border-bottom: 1px solid var(--border); background: var(--surface2);
+    white-space: nowrap; cursor: pointer; user-select: none;
+    transition: color 0.12s;
+  }
+  .data-table th:hover { color: var(--text-muted); }
+  .data-table th.sort-asc::after { content: ' ↑'; color: var(--cyan); }
+  .data-table th.sort-desc::after { content: ' ↓'; color: var(--cyan); }
+  .data-table td {
+    padding: 11px 16px; border-bottom: 1px solid var(--border);
+    color: var(--text-muted); vertical-align: middle;
+  }
+  .data-table tr:last-child td { border-bottom: none; }
+  .data-table tr:hover td { background: var(--surface2); }
+  .data-table .td-main { color: var(--text); font-weight: 600; }
+  .data-table .td-num { text-align: right; font-variant-numeric: tabular-nums; }
+  .data-table .td-money { color: var(--text); font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* Status badges */
+  .badge {
+    display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px;
+    border-radius: 20px; font-size: 0.67rem; font-weight: 800; letter-spacing: 0.03em;
+    white-space: nowrap;
+  }
+  .badge-green { background: var(--green-bg); color: var(--green); }
+  .badge-blue  { background: var(--blue-bg);  color: var(--blue);  }
+  .badge-purple{ background: var(--purple-bg);color: var(--purple);}
+  .badge-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+
+  /* ── Error / empty states ─────────────────────── */
+  .inline-error { color: var(--red); font-size: 0.82rem; padding: 20px; text-align: center; }
+  .empty-state { color: var(--text-dim); font-size: 0.84rem; padding: 40px; text-align: center; }
+
+  /* Loading skeleton rows */
+  .skeleton-row { height: 44px; background: linear-gradient(90deg, var(--surface2) 0%, var(--surface3) 50%, var(--surface2) 100%); background-size: 200% 100%; animation: shimmer 1.4s infinite; margin-bottom: 1px; }
+  @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+  /* ── Progress bar (rep % column) ──────────────── */
+  .mini-bar-wrap { display: flex; align-items: center; gap: 8px; }
+  .mini-bar-bg { flex: 1; height: 5px; background: var(--surface3); border-radius: 3px; overflow: hidden; min-width: 60px; }
+  .mini-bar-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
+  .mini-bar-pct { font-size: 0.72rem; color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  /* Rep badge */
+  .rep-badge {
+    display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 20px;
+    font-size: 0.67rem; font-weight: 800; letter-spacing: 0.03em; white-space: nowrap;
+  }
+
+  /* ── Calendly page additions ─────────────────── */
+  .setup-note {
+    background: var(--gold-bg); border: 1px solid rgba(251,191,36,0.35);
+    border-radius: 12px; padding: 16px 18px; margin-bottom: 20px;
+    display: none; gap: 12px; align-items: flex-start;
+  }
+  .setup-note.show { display: flex; }
+  .setup-note svg { flex: 0 0 auto; margin-top: 1px; }
+  .setup-note h4 { font-size: 0.88rem; margin-bottom: 4px; color: var(--gold); }
+  .setup-note p  { font-size: 0.8rem; color: var(--text-muted); line-height: 1.55; }
+  .setup-note code {
+    background: var(--surface3); border: 1px solid var(--border);
+    border-radius: 4px; padding: 1px 5px; font-size: 0.75rem;
+  }
+  .outcome-sel {
+    background: var(--surface3); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 4px 8px; font-size: 0.76rem; cursor: pointer;
+    font-family: inherit;
+  }
+  .outcome-sel:focus { outline: 2px solid var(--blue); outline-offset: 1px; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px;
+    border-radius: 100px; font-size: 0.7rem; font-weight: 600; white-space: nowrap;
+  }
+  .pill-active   { background: var(--green-bg); color: var(--green); }
+  .pill-canceled { background: rgba(248,113,113,0.12); color: var(--red); }
+  .pill-held     { background: var(--blue-bg);  color: var(--blue); }
+  .pill-noshow   { background: var(--gold-bg);  color: var(--gold); }
+  .pill-won      { background: var(--purple-bg); color: var(--purple); }
+  .attr-src { font-size: 0.72rem; color: var(--text-dim); }
+  .two-col { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  @media(min-width: 1000px) { .two-col { grid-template-columns: 1fr 1fr; } }
+</style>
+</head>
+<body data-state="loading">
+
+<div id="boot" class="full-center">
+  <div style="text-align:center;">
+    <div class="spinner" style="margin:0 auto 16px;"></div>
+    <div style="color:var(--text-muted);font-size:0.84rem;letter-spacing:0.02em;">Loading Booked Calls…</div>
+  </div>
+</div>
+
+<div id="login" class="full-center">
+  <div class="login-wrap">
+    <div class="login-logo"><svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="9 16 11 18 15 14"/></svg></div>
+    <div class="login-card">
+      <h1>Booked Calls</h1>
+      <p class="sub">Sign in to see Calendly bookings</p>
+      <form id="loginForm">
+        <div class="input-group">
+          <label class="input-label" for="email">Email address</label>
+          <input class="auth-input" type="email" id="email" placeholder="you@company.com" required autocomplete="email">
+        </div>
+        <div class="input-group">
+          <label class="input-label" for="password">Password</label>
+          <input class="auth-input" type="password" id="password" placeholder="••••••••" required autocomplete="current-password">
+        </div>
+        <button type="submit" class="auth-btn" id="sendBtn">Sign In</button>
+        <div class="auth-error" id="loginError"></div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div id="denied" class="full-center">
+  <div class="login-wrap">
+    <div class="login-logo" style="background:linear-gradient(135deg,#f87171,#ef4444);box-shadow:0 8px 32px rgba(248,113,113,0.4);"><svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="9 16 11 18 15 14"/></svg></div>
+    <div class="login-card">
+      <h1>Access Denied</h1>
+      <p class="sub" id="deniedEmail" style="margin-bottom:8px;"></p>
+      <p class="sub">You need Calls or Admin access to view booked calls. Contact your administrator.</p>
+      <button class="auth-btn" id="deniedSignOutBtn" style="background:linear-gradient(135deg,#f87171,#ef4444);box-shadow:0 4px 16px rgba(248,113,113,0.35);">Sign Out</button>
+    </div>
+  </div>
+</div>
+
+<div id="app">
+  <header class="topbar">
+    <div class="topbar-logo"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="9 16 11 18 15 14"/></svg></div>
+    <span class="topbar-brand">Booked Calls</span>
+    <div class="topbar-spacer"></div>
+
+    <div class="daterange-wrap" id="daterangeWrap">
+      <button class="daterange-btn" id="daterangeBtn">
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <span id="drLabel">Last 30 Days</span>
+        <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="daterange-popup" id="daterangePopup">
+        <div class="dr-presets">
+          <button class="dr-preset active" data-preset="last-30">Last 30 Days</button>
+          <button class="dr-preset" data-preset="next-30">Next 30 Days</button>
+          <button class="dr-preset" data-preset="this-week">This Week (Thu – Wed)</button>
+          <button class="dr-preset" data-preset="mtd">Month to Date</button>
+        </div>
+        <div class="dr-divider"></div>
+        <div class="dr-custom-label">Custom Range</div>
+        <div class="dr-custom-row">
+          <input type="date" class="dr-date-input" id="dateFrom">
+          <span class="dr-sep">→</span>
+          <input type="date" class="dr-date-input" id="dateTo">
+        </div>
+        <button class="dr-apply" id="drApply">Apply</button>
+      </div>
+    </div>
+
+    <button class="tbtn tbtn-ghost" id="refreshBtn" title="Refresh data">
+      <svg id="refreshIcon" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+      Refresh
+    </button>
+    <button class="tbtn tbtn-ghost" id="themeBtn" style="font-size:1rem;padding:5px 10px;" title="Toggle theme"></button>
+
+    <div class="user-pill">
+      <div class="user-pill-av" id="userAvatar">U</div>
+      <span class="user-pill-email" id="userEmail"></span>
+    </div>
+    <button class="tbtn tbtn-ghost" id="signOutBtn">
+      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      Sign Out
+    </button>
+  </header>
+
+  <div class="main">
+    <div class="setup-note" id="setupNote">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <div>
+        <h4>Calendly is not connected yet</h4>
+        <p id="setupMsg">Set <code>CALENDLY_TOKEN</code> and <code>CALENDLY_WEBHOOK_SECRET</code> as Supabase secrets, point a Calendly webhook at <code>/functions/v1/calendly-webhook</code> for <code>invitee.created</code> and <code>invitee.canceled</code>, then run a sync. Bookings will appear here automatically.</p>
+      </div>
+    </div>
+
+    <div class="kpi-grid" id="kpiGrid"></div>
+
+    <div class="chart-card" style="margin-top:18px;">
+      <div class="chart-card-title">Bookings per day</div>
+      <div class="chart-wrap"><canvas id="dailyChart"></canvas></div>
+    </div>
+
+    <div class="two-col" style="margin-top:18px;">
+      <div class="board-card">
+        <div class="chart-card-title">By rep</div>
+        <div style="overflow-x:auto;"><table class="data-table" id="repTable"></table></div>
+      </div>
+      <div class="board-card">
+        <div class="chart-card-title">Where the booking came from</div>
+        <div style="overflow-x:auto;"><table class="data-table" id="campTable"></table></div>
+      </div>
+    </div>
+
+    <div class="board-card" style="margin-top:18px;">
+      <div class="chart-card-title">Bookings</div>
+      <div style="overflow-x:auto;"><table class="data-table" id="bookTable"></table></div>
+      <div class="empty-state" id="bookEmpty" style="display:none;">No bookings in this range.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Config ─────────────────────────────────────────────────────
+const SUPABASE_URL      = 'https://pojqljrhhtnigyrtzdzz.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBvanFsanJoaHRuaWd5cnR6ZHp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTA3ODMsImV4cCI6MjA5MTM4Njc4M30.PcSBDqOzbiZxZ7IAs5efqx0gsAlAG0cj3GqUOkAmxos';
+const API = SUPABASE_URL + '/functions/v1/calendly-api';
+
+const REP_COLORS = {
+  'Jordin':'#6b9eff','Katarina':'#f472b6','Nick':'#34d399','Dani':'#fbbf24',
+  'Chicca':'#a78bfa','Jennifer':'#22d3ee','Josiah':'#f97316','Isabella':'#e879f9',
+  'Charlie':'#84cc16','Matt':'#fb7185','Roxana':'#38bdf8','Luca':'#a3e635',
+};
+const repColor = n => REP_COLORS[(n||'').trim()] || '#7880a8';
+
+let currentSession = null, statsData = null, rows = [], chartInst = null, canManage = false;
+let dFrom = daysAgo(30), dTo = isoDate(new Date());
+
+const supa = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: { persistSession: true, detectSessionInUrl: true, autoRefreshToken: true }
+});
+
+function setState(s) { document.body.dataset.state = s; }
+function isoDate(d) { return d.toISOString().slice(0,10); }
+function daysAgo(n) { const d = new Date(); d.setDate(d.getDate()-n); return isoDate(d); }
+function daysAhead(n) { const d = new Date(); d.setDate(d.getDate()+n); return isoDate(d); }
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]); }
+function fmtDT(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d)) return '—';
+  return d.toLocaleString('en-US', { timeZone:'America/New_York', month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
+}
+
+// ── Auth ───────────────────────────────────────────────────────
+async function initAuth() {
+  const t = setTimeout(() => setState('login'), 8000);
+  try {
+    const { data: { session }, error } = await supa.auth.getSession();
+    clearTimeout(t);
+    if (error) throw error;
+    if (session) { await onAuthed(session); return; }
+    setState('login');
+  } catch (e) { clearTimeout(t); console.error('Auth init error:', e); setState('login'); }
+  supa.auth.onAuthStateChange(async (_e, sess) => {
+    if (sess) await onAuthed(sess); else setState('login');
+  });
+}
+
+async function onAuthed(session) {
+  try {
+    currentSession = session;
+    const email = session.user.email || '';
+    document.getElementById('userEmail').textContent  = email;
+    document.getElementById('userAvatar').textContent = (email[0] || 'U').toUpperCase();
+    if (!window.RidleyPerms.canOpen('calendly.html', session.user)) {
+      document.getElementById('deniedEmail').textContent = email;
+      setState('denied');
+      return;
+    }
+    setState('dashboard');
+    await loadData();
+  } catch (e) { console.error('onAuthed error:', e); setState('login'); }
+}
+
+document.getElementById('loginForm').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const btn = document.getElementById('sendBtn'), err = document.getElementById('loginError');
+  err.textContent = ''; btn.disabled = true; btn.textContent = 'Signing in…';
+  const { error } = await supa.auth.signInWithPassword({
+    email: document.getElementById('email').value.trim(),
+    password: document.getElementById('password').value,
+  });
+  btn.disabled = false; btn.textContent = 'Sign In';
+  if (error) err.textContent = error.message;
+});
+document.getElementById('signOutBtn').addEventListener('click', () => supa.auth.signOut());
+document.getElementById('deniedSignOutBtn').addEventListener('click', () => supa.auth.signOut());
+
+// ── Data ───────────────────────────────────────────────────────
+async function api(path, opts = {}) {
+  const { data: { session } } = await supa.auth.getSession();
+  if (!session) { setState('login'); throw new Error('No session'); }
+  const r = await fetch(API + path, {
+    ...opts,
+    headers: { Authorization: 'Bearer ' + session.access_token, 'Content-Type': 'application/json', ...(opts.headers||{}) },
+  });
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.error || ('HTTP ' + r.status));
+  return body;
+}
+
+async function loadData() {
+  const icon = document.getElementById('refreshIcon');
+  icon.style.transition = 'transform .6s'; icon.style.transform = 'rotate(360deg)';
+  setTimeout(() => { icon.style.transition = 'none'; icon.style.transform = 'rotate(0)'; }, 600);
+  const qs = `?from=${dFrom}&to=${dTo}`;
+  try {
+    const [s, l] = await Promise.all([api('?api=stats' + qs.slice(1)), api('?api=list' + qs.slice(1))]);
+    statsData = s; rows = Array.isArray(l) ? l : [];
+    canManage = !!s.canManage;
+    document.getElementById('setupNote').classList.toggle('show', statsData.overall.booked === 0);
+    render();
+  } catch (e) {
+    // A missing CALENDLY_TOKEN surfaces here — say so plainly instead of a blank page.
+    document.getElementById('setupNote').classList.add('show');
+    document.getElementById('setupMsg').innerHTML =
+      'Could not load bookings: <code>' + esc(e.message) + '</code>. '
+      + 'If this mentions <code>CALENDLY_TOKEN</code>, the secret is not set yet.';
+    statsData = null; rows = []; render();
+  }
+}
+
+// ── Render ─────────────────────────────────────────────────────
+function kpi(label, value, sub, color) {
+  return `<div class="board-card"><div class="kpi-label">${label}</div>`
+       + `<div class="kpi-value" ${color ? `style="color:${color}"` : ''}>${value}</div>`
+       + `<div class="kpi-sub">${sub || ''}</div></div>`;
+}
+
+function render() {
+  const o = statsData?.overall || { booked:0, active:0, canceled:0, held:0, noShow:0, won:0, showRate:0, cancelRate:0 };
+  document.getElementById('kpiGrid').innerHTML = [
+    kpi('Booked', o.booked, 'in range'),
+    kpi('Still on', o.active, 'not canceled', '#34d399'),
+    kpi('Canceled', o.canceled, o.cancelRate + '% of booked', '#f87171'),
+    kpi('Held', o.held, 'marked held', '#6b9eff'),
+    kpi('No-show', o.noShow, 'marked no-show', '#fbbf24'),
+    kpi('Show rate', o.showRate + '%', 'held vs held+no-show', '#a78bfa'),
+  ].join('');
+
+  // daily chart
+  const daily = statsData?.daily || [];
+  const ctx = document.getElementById('dailyChart');
+  if (chartInst) chartInst.destroy();
+  chartInst = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: daily.map(d => d.date.slice(5)),
+      datasets: [
+        { label: 'Booked',   data: daily.map(d => d.booked),   backgroundColor: 'rgba(107,158,255,0.75)', borderRadius: 4 },
+        { label: 'Canceled', data: daily.map(d => d.canceled), backgroundColor: 'rgba(248,113,113,0.7)',  borderRadius: 4 },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#7880a8', boxWidth: 12 } } },
+      scales: {
+        x: { ticks: { color: '#7880a8' }, grid: { display: false } },
+        y: { ticks: { color: '#7880a8', precision: 0 }, grid: { color: 'rgba(120,128,168,0.12)' } },
+      },
+    },
+  });
+
+  // by rep
+  const byRep = statsData?.byRep || {};
+  const repRows = Object.entries(byRep).sort((a,b) => b[1].booked - a[1].booked);
+  document.getElementById('repTable').innerHTML =
+    '<thead><tr><th>Rep</th><th>Booked</th><th>Canceled</th><th>Held</th><th>No-show</th><th>Won</th></tr></thead><tbody>'
+    + (repRows.length ? repRows.map(([rep, v]) =>
+        `<tr><td><span class="badge-dot" style="background:${repColor(rep)}"></span> ${esc(rep)}</td>`
+        + `<td>${v.booked}</td><td>${v.canceled}</td><td>${v.held}</td><td>${v.no_show}</td><td>${v.won}</td></tr>`
+      ).join('') : '<tr><td colspan="6" style="color:var(--text-dim)">No data yet</td></tr>')
+    + '</tbody>';
+
+  // by campaign — the attribution loop
+  const byCamp = statsData?.byCampaign || {};
+  const campRows = Object.entries(byCamp).sort((a,b) => b[1].booked - a[1].booked);
+  document.getElementById('campTable').innerHTML =
+    '<thead><tr><th>Campaign</th><th>Booked</th><th>Canceled</th><th>Won</th></tr></thead><tbody>'
+    + (campRows.length ? campRows.map(([c, v]) =>
+        `<tr><td>${esc(c)}</td><td>${v.booked}</td><td>${v.canceled}</td><td>${v.won}</td></tr>`
+      ).join('') : '<tr><td colspan="4" style="color:var(--text-dim)">No data yet</td></tr>')
+    + '</tbody>';
+
+  // bookings
+  const OUTCOMES = ['', 'held', 'no_show', 'rescheduled', 'won', 'lost'];
+  const LABEL = { '':'—', held:'Held', no_show:'No-show', rescheduled:'Rescheduled', won:'Won', lost:'Lost' };
+  document.getElementById('bookEmpty').style.display = rows.length ? 'none' : 'block';
+  document.getElementById('bookTable').innerHTML = !rows.length ? '' :
+    '<thead><tr><th>When</th><th>Who</th><th>Rep</th><th>Status</th><th>Source</th><th>Outcome</th></tr></thead><tbody>'
+    + rows.map(r => {
+        const statusPill = r.status === 'canceled'
+          ? '<span class="pill pill-canceled">Canceled</span>'
+          : '<span class="pill pill-active">Active</span>';
+        const src = [r.utm_campaign, r.utm_source].filter(Boolean).join(' · ') || 'direct';
+        const sel = OUTCOMES.map(o =>
+          `<option value="${o}"${(r.outcome||'') === o ? ' selected' : ''}>${LABEL[o]}</option>`).join('');
+        return `<tr>
+          <td>${fmtDT(r.scheduled_at)}</td>
+          <td>${esc(r.invitee_name || r.invitee_email || '—')}<div class="attr-src">${esc(r.invitee_email || '')}</div></td>
+          <td>${esc(r.rep || 'Unassigned')}</td>
+          <td>${statusPill}</td>
+          <td><div>${esc(src)}</div></td>
+          <td><select class="outcome-sel" data-uri="${esc(r.invitee_uri)}" ${canManage ? '' : 'disabled'}>${sel}</select></td>
+        </tr>`;
+      }).join('')
+    + '</tbody>';
+
+  document.querySelectorAll('.outcome-sel').forEach(sel => {
+    sel.addEventListener('change', async () => {
+      const prev = sel.dataset.prev ?? '';
+      try {
+        sel.disabled = true;
+        await api('?api=outcome', { method: 'POST', body: JSON.stringify({ invitee_uri: sel.dataset.uri, outcome: sel.value }) });
+        sel.dataset.prev = sel.value;
+        await loadData();
+      } catch (e) {
+        alert('Could not save outcome: ' + e.message);
+        sel.value = prev;
+      } finally { sel.disabled = !canManage; }
+    });
+  });
+}
+
+// ── Date range ─────────────────────────────────────────────────
+const drWrap = document.getElementById('daterangeWrap');
+document.getElementById('daterangeBtn').addEventListener('click', () => drWrap.classList.toggle('open'));
+document.addEventListener('click', e => { if (!drWrap.contains(e.target)) drWrap.classList.remove('open'); });
+document.querySelectorAll('.dr-preset').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('.dr-preset').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    const p = b.dataset.preset;
+    if (p === 'last-30')  { dFrom = daysAgo(30);  dTo = isoDate(new Date()); }
+    if (p === 'next-30')  { dFrom = isoDate(new Date()); dTo = daysAhead(30); }
+    if (p === 'this-week') {
+      const d = new Date(); const off = (d.getDay() - 4 + 7) % 7;
+      const s = new Date(d); s.setDate(d.getDate() - off);
+      dFrom = isoDate(s); dTo = isoDate(new Date(s.getTime() + 6*864e5));
+    }
+    if (p === 'mtd') { const d = new Date(); dFrom = isoDate(new Date(d.getFullYear(), d.getMonth(), 1)); dTo = isoDate(d); }
+    document.getElementById('drLabel').textContent = b.textContent.trim();
+    drWrap.classList.remove('open');
+    loadData();
+  });
+});
+document.getElementById('drApply').addEventListener('click', () => {
+  const f = document.getElementById('dateFrom').value, t = document.getElementById('dateTo').value;
+  if (!f || !t) return;
+  dFrom = f; dTo = t;
+  document.getElementById('drLabel').textContent = f + ' → ' + t;
+  drWrap.classList.remove('open');
+  loadData();
+});
+document.getElementById('refreshBtn').addEventListener('click', loadData);
+
+setState('loading');
+initAuth().catch(e => { console.error('Unhandled auth error:', e); setState('login'); });
+</script>
+<script src="forgot-password.js"></script>
+<script src="access-guard.js"></script>
+<script src="theme.js"></script>
+<script src="changelog.js"></script>
+<script src="notifications.js"></script>
+<script src="messages-widget.js"></script>
+<script src="pwa.js"></script>
+<script src="ux.js"></script>
+<script src="filters.js"></script>
+<script src="nav-menu.js"></script>
+</body>
+</html>

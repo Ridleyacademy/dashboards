@@ -47,6 +47,7 @@ const REASSIGN_BASE = SUPABASE_URL + '/functions/v1/reassign-turnover';
 const TURNOVER_FORMS_BASE = SUPABASE_URL + '/functions/v1/turnover-forms';
 let canRepView = false, canRepEdit = false;   // Rep Area: view = admin/rep/sales_mgr/ms_ic/delivery_ic, edit = admin/rep/ms_ic/delivery_ic
 const REPC_BASE = SUPABASE_URL + '/functions/v1/rep-contacts';
+const KAJABI_BASE = SUPABASE_URL + '/functions/v1/kajabi-sync';
 let repDataMap = {};   // student_id -> { status, status_at, last_contact_date, recently_contacted }
 let repStatusOptions = ['Hot', 'Warm', 'Cold', 'Qualified', 'Not qualified', 'Needs help', 'Do not contact'];
 let _qContactsClose = null;
@@ -2257,6 +2258,9 @@ function renderProfile() {
           <button class="win-btn-list" id="prof-list-videos" title="Open this student's videos from Dropbox">
             ${ICONS.film()} Videos
           </button>
+          <button class="win-btn-list" id="prof-list-convo" title="Coaching conversation with this student from the Kajabi community">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg> Conversation
+          </button>
           <button class="win-btn-list" id="prof-list-surveys" title="View Typeform survey responses for this student">
             ${ICONS.fileText()} Surveys <span class="win-badge${(s.surveys_count||0)>0?' has-any':''}">${s.surveys_count||0}</span>
           </button>
@@ -2470,6 +2474,7 @@ function renderProfile() {
     if (canRepView && !isNew) renderRepArea(s);
     document.getElementById('prof-list-logs')?.addEventListener('click', openLogsChooserModal);
     document.getElementById('prof-list-videos')?.addEventListener('click', openDropboxVideosModal);
+    document.getElementById('prof-list-convo')?.addEventListener('click', openConversationModal);
     document.getElementById('prof-list-surveys')?.addEventListener('click', openSurveysHistoryModal);
     document.getElementById('prof-list-emails')?.addEventListener('click', openEmailHistoryModal);
   }
@@ -4877,3 +4882,129 @@ document.getElementById('globalAlertsBtn')?.addEventListener('click', openGlobal
 document.getElementById('globalTurnoversBtn')?.addEventListener('click', openGlobalTurnoversModal);
 document.getElementById('refreshBtn')?.addEventListener('click', () => { if (currentSession) loadGlobalQueueCounts(); });
 (function _initQueueCounts(){ let n = 0; const t = setInterval(() => { n++; if (currentSession) { clearInterval(t); loadGlobalQueueCounts(); } else if (n > 40) { clearInterval(t); } }, 500); })();
+
+// ── Kajabi coaching conversation ──────────────────────────────────
+// Reads the student's private Kajabi assignment channel live via the
+// kajabi-sync edge fn. Nothing is stored locally: list_posts only returns a
+// truncated preview, so full bodies are fetched one post at a time on demand.
+// NOTE: post bodies are member-written text — always escape, never innerHTML raw.
+function _cvEsc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g,
+    c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+function _cvWhen(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleDateString(undefined, { day:'numeric', month:'short', year:'numeric' })
+       + ' · ' + d.toLocaleTimeString(undefined, { hour:'2-digit', minute:'2-digit' });
+}
+
+async function openConversationModal() {
+  if (!currentStudent || !currentStudent.id) return;
+  document.getElementById('convoModal')?.remove();
+  const m = document.createElement('div');
+  m.id = 'convoModal';
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(8,9,18,0.78);backdrop-filter:blur(8px);z-index:10005;display:flex;align-items:center;justify-content:center;padding:20px;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;';
+  m.innerHTML = `
+    <div style="background:#13141f;border:1px solid #1f2438;border-radius:18px;max-width:860px;width:100%;max-height:88vh;display:flex;flex-direction:column;color:#eaecf8;box-shadow:0 24px 60px rgba(0,0,0,0.55);overflow:hidden;">
+      <div style="padding:18px 22px;border-bottom:1px solid #1f2438;display:flex;align-items:center;gap:10px;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:1.0rem;font-weight:800;letter-spacing:-0.02em;">Coaching conversation — ${_cvEsc(currentStudent.name || '')}</div>
+          <div style="font-size:0.74rem;color:#7880a8;margin-top:3px;" id="cvCount">Loading from Kajabi…</div>
+        </div>
+        <select id="cvChan" style="display:none;background:#0d0e17;border:1px solid #1f2438;color:#eaecf8;border-radius:8px;padding:6px 10px;font-size:0.76rem;font-family:inherit;max-width:230px;"></select>
+        <button id="cvClose" style="background:transparent;border:none;color:#7880a8;font-size:1.5rem;cursor:pointer;padding:0 8px;">×</button>
+      </div>
+      <div id="cvBody" style="flex:1;overflow-y:auto;padding:16px 22px;"></div>
+    </div>`;
+  document.body.appendChild(m);
+  function close() { m.remove(); document.removeEventListener('keydown', onKey); }
+  function onKey(e) { if (e.key === 'Escape') close(); }
+  document.addEventListener('keydown', onKey);
+  document.getElementById('cvClose').addEventListener('click', close);
+  m.addEventListener('click', e => { if (e.target === m) close(); });
+
+  const body = document.getElementById('cvBody');
+  const cnt  = document.getElementById('cvCount');
+  const sel  = document.getElementById('cvChan');
+
+  function renderPost(p, depth) {
+    const coach = !!p.is_coach;
+    const pad   = depth * 22;
+    const accent = coach ? '#22d3ee' : '#a78bfa';
+    const bg     = coach ? 'rgba(34,211,238,0.06)' : 'rgba(167,139,250,0.06)';
+    const brd    = coach ? 'rgba(34,211,238,0.28)' : 'rgba(167,139,250,0.28)';
+    const wait   = (!coach && p.is_unanswered)
+      ? '<span style="margin-left:8px;font-size:0.66rem;font-weight:700;color:#fbbf24;border:1px solid rgba(251,191,36,0.4);border-radius:999px;padding:1px 7px;">awaiting coach</span>' : '';
+    const more   = p.maybe_truncated
+      ? `<button class="cv-more" data-id="${_cvEsc(p.id)}" style="background:transparent;border:none;color:${accent};font-size:0.72rem;font-weight:700;cursor:pointer;padding:4px 0 0;font-family:inherit;">Show full message</button>` : '';
+    return `
+      <div style="margin:0 0 10px ${pad}px;border:1px solid ${brd};background:${bg};border-radius:12px;padding:11px 13px;">
+        <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;">
+          <span style="font-weight:700;font-size:0.86rem;color:${accent};">${_cvEsc(p.author)}</span>
+          <span style="font-size:0.66rem;font-weight:700;color:${accent};opacity:0.75;">${coach ? 'COACH' : 'STUDENT'}</span>
+          <span style="font-size:0.7rem;color:#7880a8;">${_cvWhen(p.created_at)}</span>${wait}
+        </div>
+        <div class="cv-text" data-id="${_cvEsc(p.id)}" style="margin-top:6px;font-size:0.85rem;line-height:1.5;white-space:pre-wrap;word-break:break-word;">${_cvEsc(p.preview)}</div>
+        ${more}
+      </div>` + (p.children || []).map(c => renderPost(c, depth + 1)).join('');
+  }
+
+  async function load(channelId) {
+    body.innerHTML = '<div style="padding:40px;text-align:center;color:#7880a8;font-size:0.86rem;">Loading conversation…</div>';
+    try {
+      let u = KAJABI_BASE + '?api=conversation&student_id=' + encodeURIComponent(currentStudent.id);
+      if (channelId) u += '&channel_id=' + encodeURIComponent(channelId);
+      const r = await fetch(u, { headers: { Authorization: 'Bearer ' + currentSession.access_token } });
+      const d = await r.json();
+      if (!r.ok || d.error) throw new Error(d.error || ('HTTP ' + r.status));
+
+      if (!d.channels || !d.channels.length) {
+        cnt.textContent = 'No Kajabi channel linked';
+        body.innerHTML = '<div style="padding:36px;text-align:center;color:#7880a8;font-size:0.86rem;">This student has no Kajabi assignment channel linked yet.<br><br>Channels link automatically by name; a handful need mapping by hand.</div>';
+        return;
+      }
+
+      if (d.channels.length > 1) {
+        sel.style.display = '';
+        sel.innerHTML = d.channels.map(c =>
+          `<option value="${_cvEsc(c.channel_id)}"${c.channel_id === d.active_channel ? ' selected' : ''}>${_cvEsc(c.name_raw)} (${c.posts_count})</option>`).join('');
+      }
+
+      const c = d.counts || {};
+      cnt.textContent = `${c.roots || 0} posts · ${c.comments || 0} comments · ${c.replies || 0} replies`
+        + (c.has_more ? ` — showing the ${c.shown_roots} most recent` : '');
+
+      if (!d.thread || !d.thread.length) {
+        body.innerHTML = '<div style="padding:36px;text-align:center;color:#7880a8;font-size:0.86rem;">This channel has no posts yet.</div>';
+        return;
+      }
+      body.innerHTML = d.thread.map(p => renderPost(p, 0)).join('');
+
+      body.querySelectorAll('.cv-more').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id = btn.dataset.id;
+          btn.textContent = 'Loading…'; btn.disabled = true;
+          try {
+            const rr = await fetch(KAJABI_BASE + '?api=post&post_id=' + encodeURIComponent(id),
+              { headers: { Authorization: 'Bearer ' + currentSession.access_token } });
+            const dd = await rr.json();
+            if (dd.error) throw new Error(dd.error);
+            const el = body.querySelector('.cv-text[data-id="' + CSS.escape(id) + '"]');
+            if (el) el.textContent = dd.message || el.textContent;
+            btn.remove();
+          } catch (e) {
+            btn.textContent = 'Could not load full message';
+            btn.disabled = false;
+          }
+        });
+      });
+    } catch (e) {
+      cnt.textContent = 'Failed to load';
+      body.innerHTML = '<div style="padding:36px;text-align:center;color:#f87171;font-size:0.86rem;">Could not load the conversation.<br><br>' + _cvEsc(e.message || String(e)) + '</div>';
+    }
+  }
+
+  sel.addEventListener('change', () => load(sel.value));
+  load(null);
+}

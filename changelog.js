@@ -16,6 +16,13 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+    { version: 'v585', title: 'MS CRM: coaching conversation from Kajabi', items: [
+      'A new Conversation button on the student profile opens the student’s private Kajabi assignment channel — every post and reply between them and their coach, colour-coded by who wrote it.',
+      'Posts arrive truncated from Kajabi, so long ones show a “Show full message” link that fetches the complete text on demand.',
+      'Students with more than one channel (an old one and a current one) get a picker in the top-right.',
+      'Last assignment sent / received are now filled in automatically from the same data, alongside the values entered by hand. Many records were months out of date.',
+      'Students who posted and have had no coach reply are flagged “awaiting coach”.',
+    ], roles: ['mentorship', 'sales_manager', 'coach'] },
     { version: 'v584', title: 'Performance: presence heartbeat throttled', items: [
       'The “last seen” heartbeat now fires once every 5 minutes per person instead of twice a minute per open tab, and is shared across tabs and pages.',
       'One request now updates both last-seen stores instead of two separate writes. This was the main thing keeping the database busy 24/7 and pushing CPU/Disk IO to ~99%.',

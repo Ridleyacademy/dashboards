@@ -2054,3 +2054,89 @@ There is **no Supabase CLI / deno / access token in this environment** — the o
 ### Knowledge graph
 
 A graphify knowledge graph of the **whole stack** (frontend + all 56 edge functions, with backend data-flow: fn→table, fn→service, page→script, page→endpoint, file→permissions) lives at `/tmp/dashx/graphify-out/` and as an Obsidian vault at `~/Documents/ridley-graph-vault`. Rebuild after changes: from `/tmp/dashx`, run `/graphify . --update` (content-hash cache makes unchanged files free). Query: `/graphify query "…"`, `/graphify path "A" "B"`, `/graphify explain "node"`.
+
+---
+
+## Kajabi community sync (v585)
+
+Pulls coaching activity out of the Kajabi community into the Mentorship CRM.
+Backend is the `kajabi-sync` edge fn (`verify_jwt:false` — it does its own auth).
+
+### Why it exists
+
+Coaches and students talk in private Kajabi channels named
+`<Student>'s Assignments` (699 of them). `last_assignment_sent` /
+`last_assignment_received` were maintained by hand and had drifted badly —
+228 of 679 active students had both blank, and 246 more were >90 days stale.
+
+### How the data gets in
+
+Kajabi has **no public REST API for community data**. The only surface is
+their MCP server (`mcp.kajabi.com/mcp`), which is plain HTTPS JSON-RPC with a
+Bearer token, so an edge fn can call it. Non-obvious things that will bite you:
+
+- The refresh token **rotates and the old one is revoked on use**, so it cannot
+  live in a function secret. It lives in `kajabi_oauth` and is written back on
+  every refresh, guarded by a `lease_until` mutex. The access token is cached
+  for its full hour so a whole run refreshes once.
+- **Always send `scope=read` on refresh.** Kajabi ignores scope narrowing at
+  authorize time and otherwise grants `write:*` + `publish`.
+- **Send a real `User-Agent`** or Cloudflare 403s you.
+- Toolsets are **per-connection**: `enable_toolset {communities}` after
+  `initialize`. Concurrent tool calls lose it — issue them **sequentially**.
+- Argument types are inconsistent: `site_id` and `level` are **strings**,
+  `per` is an **integer**.
+- `list_posts` returns a **truncated** `message_preview`; full bodies need
+  `get_post`, which is why the UI expands one post at a time.
+- Videos are **not reachable**. They are uploaded natively to posts and appear
+  in no API field and not in the media library. Do not re-investigate.
+
+### Endpoints
+
+| `?api=` | Auth | Purpose |
+|---|---|---|
+| `health` | `x-sync-secret` | Sweep all channels (11 calls, ~7s), update counts, re-run the matcher |
+| `derive` | `x-sync-secret` | 2 calls/channel → last coach/student post; `&limit=` (max 60) |
+| `sync` | `x-sync-secret` | health + derive |
+| `status` | `x-sync-secret` | Token + backfill state |
+| `conversation` | user JWT | Thread for `&student_id=`, optional `&channel_id=` |
+| `post` | user JWT | Full body of one `&post_id=` |
+
+Ops auth is the vault `dispatch_event_secret`, compared inside Postgres via
+`kajabi_check_sync_secret()` — the secret never enters a function env var.
+The service-role key is **not** in the vault; don't gate on it.
+Dashboard auth is the normal user JWT plus `mentorship`/`sales_manager`/`coach`.
+
+### Tables and functions
+
+| Object | Notes |
+|---|---|
+| `kajabi_channels` | One row per channel; `student_id`, `is_primary`, derived activity. RLS on, service-role only. |
+| `kajabi_oauth` | Single row. Rotating refresh token + cached access token + lease. |
+| `kajabi_sync_runs` | Run log. |
+| `kajabi_reparse_and_match()` | Re-derives `parsed_name` and re-runs the 3-stage matcher. Auto-links new channels. |
+| `kajabi_rollup_to_students()` | Max across a student's channels → `mentorship_students.kajabi_*`. |
+| `kajabi_sync_status()` | Counts for `?api=status`. |
+
+Cron: `kajabi-health-2x-daily` (05:00/17:00) and `kajabi-derive-10min` (only
+fires when a channel's post count actually moved).
+
+### Matching gotchas
+
+Channel names are hand-typed (`Assignments`/`asignments`/`Assingments`/
+`Asssignments`/`Assginments`/`Assignements`). The matcher normalizes, then
+tries exact → substring → first+last token. Two traps:
+
+- A student whose name normalizes to an **empty string** (e.g. a CJK name)
+  substring-matches every channel. Always guard `length(key) > 2`.
+- Students legitimately own **more than one** channel. Never put a unique index
+  on `student_id` — use `is_primary` with a partial unique index.
+- **`is_privileged` does NOT identify coaches** (one coach is `false`, another
+  `true`). A post's author is the student iff their name matches the student's
+  CRM name; everyone else is the coach. Coaches also differ in layout — some
+  post the assignment as the root, others reply in comments — so direction must
+  key on author, never on post level.
+
+~11 channels can't be auto-linked (nicknames like `Dvora Cope` vs CRM
+`Deborah Cope`, one-letter typos, first-name-only channels) and need mapping
+by hand.

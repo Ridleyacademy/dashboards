@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v587-precache-paths';
+const CACHE_NAME = 'ridley-v588-loading-states';
 
 // Files to pre-cache on install (offline shell).
 // Paths are extensionless on purpose: the host 308-redirects /foo.html -> /foo,
@@ -19,6 +19,7 @@ const PRECACHE = [
   '/mobile.css',
   '/forgot-password.js',
   '/access-guard.js',
+  '/loading-states.js',
   '/pwa.js',
   '/students.js',
   '/masterclass',

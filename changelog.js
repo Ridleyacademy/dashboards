@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+  { version: 'v588', title: 'Loading skeletons are back', items: [
+    'KPI tiles show a shimmer placeholder again while their numbers load, instead of sitting on a dash. The script that did this was deleted by accident a long time ago and never noticed.',
+    'Also removed a stylesheet link that 14 pages were still requesting after the file was merged into the shared stylesheet — every one of those pages was throwing a 404 on load.',
+  ] },
   { version: 'v587', title: 'Offline cache: pages now actually cache', items: [
     'Follow-up to v586. The cached page list still used .html addresses, but the site redirects those to the clean address — and a redirected response cannot be stored. Every page was still being skipped.',
     'All 38 entries now load correctly, so the dashboards open instantly and work offline.',

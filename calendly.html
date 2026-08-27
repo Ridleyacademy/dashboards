@@ -386,6 +386,30 @@
   .attr-src { font-size: 0.72rem; color: var(--text-dim); }
   .two-col { display: grid; grid-template-columns: 1fr; gap: 16px; }
   @media(min-width: 1000px) { .two-col { grid-template-columns: 1fr 1fr; } }
+
+  /* ── Pipeline health ─────────────────────────── */
+  .health-pill {
+    display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px;
+    border-radius: 100px; font-size: 0.72rem; font-weight: 600; white-space: nowrap;
+    border: 1px solid var(--border); background: var(--surface2); color: var(--text-muted);
+    cursor: default; flex: 0 0 auto;
+  }
+  .health-pill .hp-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-dim); }
+  .health-pill.ok       { color: var(--green); border-color: rgba(52,211,153,0.35); background: var(--green-bg); }
+  .health-pill.ok .hp-dot       { background: var(--green); box-shadow: 0 0 0 3px rgba(52,211,153,0.18); }
+  .health-pill.bad      { color: var(--gold);  border-color: rgba(251,191,36,0.4);  background: var(--gold-bg); }
+  .health-pill.bad .hp-dot      { background: var(--gold);  box-shadow: 0 0 0 3px rgba(251,191,36,0.2); }
+  @media(max-width:900px) { .health-pill .hp-text { display: none; } .health-pill { padding: 5px 8px; } }
+
+  .health-banner {
+    display: none; gap: 12px; align-items: flex-start; margin-bottom: 18px;
+    background: var(--gold-bg); border: 1px solid rgba(251,191,36,0.35);
+    border-radius: 12px; padding: 16px 18px;
+  }
+  .health-banner.show { display: flex; }
+  .health-banner h4 { font-size: 0.88rem; margin-bottom: 6px; color: var(--gold); }
+  .health-banner ul { margin: 0; padding-left: 18px; }
+  .health-banner li { font-size: 0.8rem; color: var(--text-muted); line-height: 1.6; }
 </style>
 </head>
 <body data-state="loading">
@@ -477,6 +501,8 @@
       <div class="nav-dropdown-menu" id="navDropdownMenu"></div>
     </div>
 
+    <div class="health-pill" id="healthPill" title="Calendly pipeline status"><span class="hp-dot"></span><span class="hp-text" id="healthText">Checking…</span></div>
+
     <div class="user-pill">
       <div class="user-pill-av" id="userAvatar">U</div>
       <span class="user-pill-email" id="userEmail"></span>
@@ -488,6 +514,14 @@
   </header>
 
   <div class="main">
+    <div class="health-banner" id="healthBanner">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto;margin-top:1px;"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <div>
+        <h4>Booking pipeline needs attention</h4>
+        <ul id="healthProblems"></ul>
+      </div>
+    </div>
+
     <div class="setup-note" id="setupNote">
       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
       <div>
@@ -619,6 +653,7 @@ async function loadData() {
   const qs = `?from=${dFrom}&to=${dTo}`;
   try {
     const [s, l] = await Promise.all([api('?api=stats' + qs.slice(1)), api('?api=list' + qs.slice(1))]);
+    loadHealth();   // fire and forget: never blocks the dashboard
     statsData = s; rows = Array.isArray(l) ? l : [];
     canManage = !!s.canManage;
     document.getElementById('setupNote').classList.toggle('show', statsData.overall.booked === 0);
@@ -630,6 +665,46 @@ async function loadData() {
       'Could not load bookings: <code>' + esc(e.message) + '</code>. '
       + 'If this mentions <code>CALENDLY_TOKEN</code>, the secret is not set yet.';
     statsData = null; rows = []; render();
+  }
+}
+
+
+// ── Pipeline health ────────────────────────────────────────────
+// The webhook fails SILENTLY: if the signing key ever drifts, Calendly keeps
+// posting, every request is refused as a forgery, and bookings just stop.
+// Nothing else on this page would show that, so check it explicitly.
+async function loadHealth() {
+  const pill = document.getElementById('healthPill');
+  const text = document.getElementById('healthText');
+  const banner = document.getElementById('healthBanner');
+  const list = document.getElementById('healthProblems');
+  try {
+    const { data: { session } } = await supa.auth.getSession();
+    if (!session) return;
+    const r = await fetch(SUPABASE_URL + '/functions/v1/calendly-health', {
+      headers: { Authorization: 'Bearer ' + session.access_token }
+    });
+    const h = await r.json();
+    if (!r.ok) throw new Error(h.error || ('HTTP ' + r.status));
+
+    const ok = h.status === 'ok';
+    pill.classList.toggle('ok', ok);
+    pill.classList.toggle('bad', !ok);
+    text.textContent = ok ? 'Pipeline OK' : 'Pipeline issue';
+    pill.title = ok
+      ? 'Calendly connected \u00b7 webhook active \u00b7 ' + (h.data?.bookings_total ?? 0) + ' bookings'
+      : (h.problems || []).join(' \u00b7 ');
+
+    const probs = h.problems || [];
+    list.innerHTML = probs.map(p => '<li>' + esc(p) + '</li>').join('');
+    banner.classList.toggle('show', probs.length > 0);
+  } catch (e) {
+    // A failed check is not the same as a broken pipeline - say so honestly
+    // rather than showing a false green or a false alarm.
+    pill.classList.remove('ok', 'bad');
+    text.textContent = 'Health unknown';
+    pill.title = 'Could not run the health check: ' + e.message;
+    banner.classList.remove('show');
   }
 }
 

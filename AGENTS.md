@@ -2137,6 +2137,45 @@ tries exact → substring → first+last token. Two traps:
   post the assignment as the root, others reply in comments — so direction must
   key on author, never on post level.
 
+
+### Stats (v586)
+
+`kajabi_channels` only holds the LATEST coach/student post per channel, which
+can answer "when" but never "how many this week". Counts over time come from
+`kajabi_posts` (one row per post, ~52k rows), filled by `?api=posts`.
+
+- **Incremental**: `list_posts` accepts `since`, so after the first backfill a
+  channel only ever fetches what is new. `kajabi_channels.posts_synced_at` /
+  `posts_newest_at` are the watermarks; a channel is re-fetched only when
+  `last_post_at > posts_synced_at`.
+- **`author_name` is stored, not the student's current coach.** Coach
+  attribution must reflect who actually posted at the time — joining to
+  `mentorship_students.coach` would silently rewrite past weeks whenever a
+  student is reassigned.
+
+`kajabi_metric(key, from, to)` is the single entry point for every metric:
+`assignments_sent`, `assignments_received`, `students_posting`,
+`coaches_posting`, `response_pct_48h`, `median_response_hours`,
+`unanswered_count`, `awaiting_coach_now`. A `:Coach` suffix scopes to one coach
+(`assignments_sent:Madison`).
+
+**Response is measured PER CHANNEL, not per thread.** Some coaches reply inside
+the student's thread; others answer by posting the next assignment as a new
+root. Thread-scoping scored the second group as "never replied" (0% response
+rates). A channel belongs to one student, so any later coach post in it counts.
+
+**Dashboard wiring deliberately avoids the derived dispatcher.** The five
+metrics are registered in `weekly_stats_metrics` as `source='manual'`, and
+`kajabi_write_weekly_stats(weeks)` (cron `kajabi-weekly-stats-daily`, 05:30)
+computes and upserts them into `weekly_stats`. This means **no edits to the
+large weekly-stats edge function**. Rows are tagged `notes='auto: kajabi-sync'`
+and the upsert only overwrites rows still carrying that tag, so a value edited
+by hand in the dashboard is never clobbered.
+
+Crons: `kajabi-health-2x-daily`, `kajabi-derive-10min`, `kajabi-posts-5min`,
+`kajabi-weekly-stats-daily`. The derive/posts jobs no-op unless a channel's
+post count actually moved.
+
 ~11 channels can't be auto-linked (nicknames like `Dvora Cope` vs CRM
 `Deborah Cope`, one-letter typos, first-name-only channels) and need mapping
 by hand.

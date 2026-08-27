@@ -2204,3 +2204,44 @@ post count actually moved.
 ~11 channels can't be auto-linked (nicknames like `Dvora Cope` vs CRM
 `Deborah Cope`, one-letter typos, first-name-only channels) and need mapping
 by hand.
+
+### Missing files fail SILENTLY here (v588)
+
+Two files — `loading-states.js` and `skeletons.css` — were deleted as collateral
+in an unrelated commit (`2bc59a2`, "v99: service alert fan-out") and nothing
+noticed for ~489 versions. 16 pages kept requesting a script that was gone.
+
+Nothing surfaced it, for three separate reasons:
+
+**Cloudflare answers a missing path with `200 text/html`** (the SPA fallback),
+not 404. So a dead `<link>`/`<script>` is not a failed request — the browser
+fetches an HTML document and quietly rejects it on MIME grounds. `curl` against
+production cannot tell present from absent. **Audit the repo, not the site.**
+
+**`cache.addAll()` is atomic.** One missing entry rejects the whole batch, and
+the call was wrapped in `.catch(() => {})`. The result was that NONE of the 40
+precache entries were ever cached — the PWA had no offline cache at all, and
+said nothing. Use per-entry `cache.add()` + `Promise.allSettled` so one bad
+entry costs one file.
+
+**The Cache API refuses to store a redirected response** (`cache.put` throws on
+`response.redirected`). This host 308s `/foo.html` → `/foo`, so every `.html`
+entry in PRECACHE silently failed even after the atomicity fix. **PRECACHE paths
+must be extensionless.**
+
+`skeletons.css` was NOT restored: its rules already live in `mobile.css`
+(`.skel`, `skel-shimmer`, `.skel-row/-kpi/-table-row`). That half of the deletion
+was a real migration. Only the JS was lost.
+
+Run `node tools/audit-refs.mjs` from the repo root before a release. It checks
+asset references, page links, the three registries, and all four service-worker
+traps, and exits non-zero on failure.
+
+### `activate.html` is unregistered on purpose
+
+It is not in `permissions.js` PAGES, and must not be. `access-guard.js` only
+redirects when it finds a matching `PAGES` entry (`if (!didRedirect && def)`),
+so an unregistered page passes through. `activate.html` is reached from an
+invite email by someone who is not signed in yet — registering it would bounce
+invitees to `home.html`. Anyone tightening that guard needs to keep this path
+open.

@@ -16,6 +16,12 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+  { version: 'v586', title: 'Booked Calls dashboard + offline cache fix', items: [
+    'New Booked Calls dashboard: Calendly bookings with show rate, cancellations and per-rep outcomes. Find it in the dashboard picker or on Home.',
+    'A “Where the booking came from” table shows which article, ad or page produced each call, so a booking can be traced back to what caused it.',
+    'A pipeline indicator in the top bar goes amber if bookings stop arriving — the Calendly connection used to fail silently, with nothing to show it had.',
+    'Fixed: the offline cache had never been working. One file in the precache list no longer existed, and because the whole batch is all-or-nothing, none of the 40 files were being cached. Pages should now load faster and work offline.',
+  ] },
     { version: 'v585', title: 'MS CRM: coaching conversation from Kajabi', items: [
       'A new Conversation button on the student profile opens the student’s private Kajabi assignment channel — every post and reply between them and their coach, colour-coded by who wrote it.',
       'Posts arrive truncated from Kajabi, so long ones show a “Show full message” link that fetches the complete text on demand.',

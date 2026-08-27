@@ -1,7 +1,7 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v585-kajabi-conversation';
+const CACHE_NAME = 'ridley-v586-booked-calls';
 
 // Files to pre-cache on install (offline shell).
 const PRECACHE = [
@@ -13,11 +13,9 @@ const PRECACHE = [
   '/apple-touch-icon.png',
   '/icon-192.png',
   '/icon-512.png',
-  '/skeletons.css',
   '/mobile.css',
   '/forgot-password.js',
   '/access-guard.js',
-  '/loading-states.js',
   '/pwa.js',
   '/students.js',
   '/masterclass.html',
@@ -51,9 +49,16 @@ self.addEventListener('install', (event) => {
   // Activate as soon as install completes, replacing any old SW.
   self.skipWaiting();
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) =>
-      cache.addAll(PRECACHE).catch(() => {})
-    )
+    // NOT cache.addAll(): that is atomic, so ONE missing file rejects the whole
+    // batch and nothing gets cached at all. It failed silently for exactly that
+    // reason (two entries pointed at files that no longer exist), leaving the
+    // PWA with no offline cache whatsoever. Cache each entry on its own so a
+    // single 404 costs one file instead of all of them.
+    caches.open(CACHE_NAME).then(async (cache) => {
+      const results = await Promise.allSettled(PRECACHE.map((u) => cache.add(u)));
+      const failed = PRECACHE.filter((_, i) => results[i].status === 'rejected');
+      if (failed.length) console.warn('[SW] precache skipped', failed);
+    })
   );
 });
 

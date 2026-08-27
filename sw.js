@@ -1,12 +1,15 @@
 // Service worker — Ridley Academy Dashboards
 // Bumped on every meaningful deploy. The version string is the cache namespace —
 // bumping invalidates all old caches automatically.
-const CACHE_NAME = 'ridley-v586-booked-calls';
+const CACHE_NAME = 'ridley-v587-precache-paths';
 
 // Files to pre-cache on install (offline shell).
+// Paths are extensionless on purpose: the host 308-redirects /foo.html -> /foo,
+// and the Cache API REFUSES to store a redirected response, so every .html
+// entry silently failed to precache.
 const PRECACHE = [
   '/',
-  '/home.html',
+  '/home',
   '/manifest.json',
   '/favicon.svg',
   '/favicon-32.png',
@@ -18,30 +21,30 @@ const PRECACHE = [
   '/access-guard.js',
   '/pwa.js',
   '/students.js',
-  '/masterclass.html',
+  '/masterclass',
   '/masterclass.js',
-  '/ms-alerts.html',
+  '/ms-alerts',
   '/coach.js',
   '/email-automations.js',
-  '/access.html',
+  '/access',
   '/access.js',
-  '/weekly-stats.html',
+  '/weekly-stats',
   '/weekly-stats.js',
-  '/weekly-stats-entry.html',
+  '/weekly-stats-entry',
   '/weekly-stats-entry.js',
-  '/org-board.html',
-  '/targets.html',
+  '/org-board',
+  '/targets',
   '/targets-widget.js',
   '/policy-widget.js',
   '/org-board.js',
-  '/policies.html',
+  '/policies',
   '/policies.js',
-  '/collections.html',
-  '/refunds.html',
-  '/support.html',
-  '/daily-reports.html',
-  '/messages.html',
-  '/subscriptions.html',
+  '/collections',
+  '/refunds',
+  '/support',
+  '/daily-reports',
+  '/messages',
+  '/subscriptions',
   '/ux.js',
 ];
 

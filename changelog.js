@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+  { version: 'v587', title: 'Offline cache: pages now actually cache', items: [
+    'Follow-up to v586. The cached page list still used .html addresses, but the site redirects those to the clean address — and a redirected response cannot be stored. Every page was still being skipped.',
+    'All 38 entries now load correctly, so the dashboards open instantly and work offline.',
+  ] },
   { version: 'v586', title: 'Booked Calls dashboard + offline cache fix', items: [
     'New Booked Calls dashboard: Calendly bookings with show rate, cancellations and per-rep outcomes. Find it in the dashboard picker or on Home.',
     'A “Where the booking came from” table shows which article, ad or page produced each call, so a booking can be traced back to what caused it.',

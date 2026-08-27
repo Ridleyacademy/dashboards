@@ -2172,6 +2172,31 @@ large weekly-stats edge function**. Rows are tagged `notes='auto: kajabi-sync'`
 and the upsert only overwrites rows still carrying that tag, so a value edited
 by hand in the dashboard is never clobbered.
 
+
+### Coach vs student: the roster (v586)
+
+**Never classify by comparing the author's name to the student's.** Display
+names drift ("Gary M Whitfield" vs "Gary Whitfield", "CleoStone" vs "Cleone
+Stone") and every miss turns a STUDENT into a COACH -- that was 32% of all
+coach posts and inflated "assignments sent" badly.
+
+`kajabi_staff_authors` is the roster, built by REACH: an author seen in >= 3
+distinct channels is staff (no student posts in three students' channels), plus
+anyone whose first name matches a CRM coach (catches a new coach with few
+students). `kajabi_refresh_staff_authors()` rebuilds it and reclassifies
+`kajabi_posts.is_coach`; rows with `source='manual'` are never overwritten, so
+a human decision sticks.
+
+`counts_as_coach=false` marks staff who are not coaching -- "Ridley Academy"
+posts announcements across 90 channels and must not count as assignments sent.
+
+Per-coach metrics resolve through `coach_key`, because the CRM stores a first
+name ("Madison") and Kajabi carries a full name ("Madison Johnson").
+
+Nightly self-heal order (`kajabi_write_weekly_stats`): refresh roster ->
+`kajabi_derive_from_posts()` (recompute channel dates from stored posts, free
+and exact) -> write weekly_stats.
+
 Crons: `kajabi-health-2x-daily`, `kajabi-derive-10min`, `kajabi-posts-5min`,
 `kajabi-weekly-stats-daily`. The derive/posts jobs no-op unless a channel's
 post count actually moved.

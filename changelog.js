@@ -16,6 +16,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+  { version: 'v589', title: 'Webinar Registrations dashboard', items: [
+    'New dashboard for the AXL webinar registration page (ridleyacademy.net/register): registrations per day, by UTM source and medium, and how many came in through a personal a_c link.',
+    'After the event, “Sync attendance” pulls who actually showed up from AXL and adds show-up rate overall and per source. The sync needs the Supabase AXL API key to have the “Webinar participants” right; until then it says so.',
+    'Pick the webinar in the top-left selector. Only counts are shown, no names or emails.',
+  ], roles: ['marketing', 'sales_manager', 'mentorship'] },
   { version: 'v588', title: 'Loading skeletons are back', items: [
     'KPI tiles show a shimmer placeholder again while their numbers load, instead of sitting on a dash. The script that did this was deleted by accident a long time ago and never noticed.',
     'Also removed a stylesheet link that 14 pages were still requesting after the file was merged into the shared stylesheet — every one of those pages was throwing a 404 on load.',

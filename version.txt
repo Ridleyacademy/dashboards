@@ -35,3 +35,4 @@
 2026-08-27T20:00:00Z-v586-booked-calls
 2026-08-27T20:30:00Z-v587-precache-paths
 2026-08-27T21:00:00Z-v588-loading-states-restored
+2026-09-02T16:00:00Z-v589-webinars-dashboard

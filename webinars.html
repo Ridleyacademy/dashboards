@@ -155,9 +155,7 @@
     $('webinarWhen').textContent = d.webinar && d.webinar.scheduledAt ? fmtWhen(d.webinar.scheduledAt) : '';
     $('kpis').innerHTML =
       kpi(d.total, 'Registrations', d.today ? d.today + ' today' : '', 'blue') +
-      kpi(pct(d.via_link_pct), 'Came via personal link', d.via_reported ? d.via_reported + ' with source data' : 'no source data yet', 'purple') +
-      kpi(d.synced ? d.attended : '—', 'Attended', d.synced ? d.synced + ' checked' : 'sync after the event', 'green') +
-      kpi(d.synced ? pct(d.show_up_pct) : '—', 'Show-up rate', d.last_attendance_sync ? 'synced ' + new Date(d.last_attendance_sync).toLocaleString() : '', 'gold');
+      kpi(pct(d.via_link_pct), 'Came via personal link', d.via_reported ? d.via_reported + ' with source data' : 'no source data yet', 'purple');
 
     chart('chDays', { type: 'bar', data: { labels: d.days.map(x => fmtDay(x.day)), datasets: [{ label: 'Registrations', data: d.days.map(x => x.regs), backgroundColor: cssv('--blue') }] },
       options: { maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false } }, y: { grid: { color: grid }, ticks: { precision: 0 }, beginAtZero: true } } } });
@@ -174,7 +172,7 @@
 
     const n = $('syncNote');
     if (d.sync) { n.className = 'note ' + (d.sync.ok ? 'ok' : 'bad'); n.textContent = d.sync.message; n.style.display = ''; }
-    else if (!d.synced) { n.className = 'note'; n.textContent = 'Attendance is pulled from AXL after the event with “Sync attendance”. The sync needs the Supabase AXL API key to have the “Webinar participants” right (AXL → Settings → API keys); until then it reports the refusal.'; n.style.display = ''; }
+    else if (!d.synced) { n.className = 'note'; n.textContent = 'Attendance & Sales updates automatically ~45 min after the webinar ends. “Sync attendance” is optional — it only fills the per-source Attended / Show-up columns in the Source breakdown.'; n.style.display = ''; }
     else n.style.display = 'none';
 
     $('genAt').textContent = new Date(d.generated_at).toLocaleString();
@@ -196,7 +194,7 @@
       kpi(w.attendees, 'Attendees', 'of ' + w.registered + ' registered (' + pct(w.show_up_pct) + ')' + (w.avg_minutes != null ? ' · avg ' + w.avg_minutes + ' min' : ''), 'blue') +
       kpi(w.saw_offer + ' · ' + pct(w.saw_offer_pct), 'Saw offer (90m+)', 'of attendees', 'gold') +
       kpi(w.buyers + ' · ' + pct(w.buyers_pct_attendees), 'Buyers', pct(w.buyers_pct_saw_offer) + ' of those who saw the offer', 'green') +
-      kpi(money(w.revenue), 'Revenue', 'first charges, rebills excluded', 'purple');
+      kpi(money(w.revenue), 'Revenue', 'all Sales Log sales in this webinar’s window', 'purple');
   }
 
   async function loadAttendance() {

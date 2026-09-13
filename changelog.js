@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+  { version: 'v598', title: 'Webinars: page visitors in the funnel', items: [
+    'The funnel now starts with unique visitors on the registration page (from AXL site analytics, counted over the webinar registration window), with the visitor-to-registration rate on the arrow.',
+  ], roles: ['marketing', 'sales_manager', 'mentorship'] },
   { version: 'v597', title: 'Webinars: funnel polish + live viewers chart', items: [
     'Funnel stages got colored accents, conversion pills on the arrows, and a highlighted revenue card.',
     'New chart under the funnel: live viewers minute by minute through the webinar (from AXL), so you can see exactly when the room filled and when people dropped.',

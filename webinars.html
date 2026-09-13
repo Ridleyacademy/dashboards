@@ -226,6 +226,7 @@
 
       let funnel =
         (m.connected ? stage(money(spend), 'Ad spend', 'Meta \u00b7 last ' + (m.window_days || 7) + ' days', null) + arrow(null) : '') +
+        (f.visitors != null ? stage(Number(f.visitors).toLocaleString(), 'Page visitors', 'unique \u00b7 register page', null) + arrow(f.visitors_to_reg_pct) : '') +
         stage(s.registered, 'Registrations', m.connected && s.registered ? money(spend / s.registered) + ' per reg' : '', null) +
         arrow(s.show_up_pct) +
         stage(s.attendees, 'Attended', 'avg ' + (s.avg_minutes == null ? '\u2014' : s.avg_minutes) + ' min', 'blue') +
@@ -246,7 +247,6 @@
       if (m.connected && m.ctr != null) chips += chip('Click rate', m.ctr + '%', '\u00b7 ' + Number(m.clicks).toLocaleString() + ' clicks');
       if (!m.connected) chips += dimChip('Meta Ads not connected \u2014 spend \u00b7 cost/reg \u00b7 click rate \u00b7 ROAS');
       chips += dimChip('Google Ads not connected');
-      chips += dimChip('Leads \u2192 reg \u2014 needs landing-page tracking');
 
       $('attKpis').innerHTML = `<div class="funnel">${funnel}</div><div class="chips">${chips}</div>`;
 

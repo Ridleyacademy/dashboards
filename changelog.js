@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+  { version: 'v591', title: 'Webinars: attendance stats follow the selected webinar', items: [
+    'The Attendance & Sales numbers at the top now show the webinar picked in the selector (attendees, saw offer 90m+, buyers, revenue) instead of all-time totals. The all-webinars table stays below.',
+  ], roles: ['marketing', 'sales_manager', 'mentorship'] },
   { version: 'v590', title: 'Webinars: Attendance & Sales', items: [
     'The Webinar Registrations dashboard now has an "Attendance & Sales" section covering every webinar: attendees, who saw the offer (stayed 90 minutes or more) with percentages, buyers with conversion rates, and revenue.',
     'Attendance is collected automatically about 45 minutes after each webinar ends — no more manual sync needed for these numbers. Buyers are attendees whose later payment appears in the income feed (first charge only, rebills excluded).',

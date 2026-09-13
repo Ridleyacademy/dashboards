@@ -110,9 +110,9 @@
       </div>
       <div class="note" id="syncNote"></div>
 
-      <div class="sec-title"><span class="ic">◔</span> Attendance &amp; Sales — all webinars</div>
+      <div class="sec-title"><span class="ic">◔</span> Attendance &amp; Sales — <span id="attTitle">this webinar</span></div>
       <div class="kpis" id="attKpis"></div>
-      <div class="card" style="margin-top:14px"><h4>Per webinar</h4><div id="tblAttendance" style="overflow-x:auto"><div class="empty">Loading attendance…</div></div></div>
+      <div class="card" style="margin-top:14px"><h4>All webinars</h4><div id="tblAttendance" style="overflow-x:auto"><div class="empty">Loading attendance…</div></div></div>
       <div class="muted" style="font-size:0.72rem;margin:10px 2px 0">Attendance is collected automatically 45 min after each webinar ends (webinar-pixel-sync → webinar_attendees). “Saw offer” = stayed 90 minutes or more. Buyers = attendees with a later payment in the income feed (first charge, rebills excluded), attributed to their latest webinar before the purchase.</div>
 
       <div class="muted" style="font-size:0.72rem;margin:16px 2px">Generated <span id="genAt">—</span> · registrations come from the AXL page scenario (ridleyacademy.net/register) via the axl-webinar-link function; source tags are reported by the thank-you page. No personal data is stored or shown here.</div>
@@ -184,15 +184,26 @@
   const money = (v) => v == null ? '—' : '$' + Number(v).toLocaleString(undefined, { maximumFractionDigits: 0 });
   const fmtEnd = (iso) => { if (!iso) return '—'; const d = new Date(iso); return isNaN(d) ? '—' : d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'America/New_York' }); };
 
+  let attData = null;
+  function renderAttKpis() {
+    const w = attData && (attData.webinars || []).find(x => x.webinar_id === selectedWebinar());
+    $('attTitle').textContent = 'this webinar';
+    if (!w) {
+      $('attKpis').innerHTML = '<div class="kpi"><div class="n muted">—</div><div class="l">No attendance yet</div><div class="sub">appears automatically ~45 min after this webinar ends</div></div>';
+      return;
+    }
+    $('attKpis').innerHTML =
+      kpi(w.attendees, 'Attendees', w.avg_minutes != null ? 'avg ' + w.avg_minutes + ' min watched' : '', 'blue') +
+      kpi(w.saw_offer + ' · ' + pct(w.saw_offer_pct), 'Saw offer (90m+)', 'of attendees', 'gold') +
+      kpi(w.buyers + ' · ' + pct(w.buyers_pct_attendees), 'Buyers', pct(w.buyers_pct_saw_offer) + ' of those who saw the offer', 'green') +
+      kpi(money(w.revenue), 'Revenue', 'first charges, rebills excluded', 'purple');
+  }
+
   async function loadAttendance() {
     try {
       const d = await authedFetch('?api=attendance');
-      const t = d.totals || {};
-      $('attKpis').innerHTML =
-        kpi(t.attendees || 0, 'Attendees (all time)', (d.webinars || []).length + ' webinars tracked', 'blue') +
-        kpi((t.saw_offer || 0) + ' · ' + pct(t.saw_offer_pct), 'Saw offer (90m+)', 'of all attendees', 'gold') +
-        kpi((t.buyers || 0) + ' · ' + pct(t.buyers_pct_attendees), 'Buyers', pct(t.buyers_pct_saw_offer) + ' of those who saw the offer', 'green') +
-        kpi(money(t.revenue), 'Revenue from attendees', 'first charges, rebills excluded', 'purple');
+      attData = d;
+      renderAttKpis();
       const rows = (d.webinars || []).filter(w => w.attendees > 0);
       $('tblAttendance').innerHTML = rows.length ? `<table class="tbl"><thead><tr><th>Webinar</th><th>Ended</th><th>Attendees</th><th>Saw offer (90m+)</th><th>%</th><th>Avg min</th><th>Buyers</th><th>% of attendees</th><th>% of saw-offer</th><th>Revenue</th></tr></thead><tbody>${
         rows.map(w => `<tr><td>${esc(w.name)}</td><td class="muted">${fmtEnd(w.ended_at)}</td><td>${w.attendees}</td><td>${w.saw_offer}</td><td>${pct(w.saw_offer_pct)}</td><td class="muted">${w.avg_minutes == null ? '—' : w.avg_minutes}</td><td>${w.buyers}</td><td>${pct(w.buyers_pct_attendees)}</td><td>${pct(w.buyers_pct_saw_offer)}</td><td>${money(w.revenue)}</td></tr>`).join('')
@@ -219,6 +230,7 @@
       const w = selectedWebinar();
       localStorage.setItem(WKEY, w);
       render(await authedFetch('?api=' + (extraQuery || 'summary') + '&w=' + encodeURIComponent(w), opts));
+      renderAttKpis();
     } catch (e) { $('loading').innerHTML = `<span style="color:var(--red)">${esc(e.message)}</span>`; }
   }
 

@@ -62,15 +62,21 @@
     .kpi.accent-blue .n{ color:var(--blue); } .kpi.accent-gold .n{ color:var(--gold); }
     .kpi.accent-purple .n{ color:var(--purple); }
     .funnel{ display:flex; align-items:stretch; flex-wrap:wrap; gap:6px 0; }
-    .fstage{ flex:1 1 140px; min-width:132px; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:13px 15px; }
-    .fstage .n{ font-size:1.4rem; font-weight:800; white-space:nowrap; }
-    .fstage .l{ font-size:0.68rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; margin-top:3px; }
+    .fstage{ position:relative; flex:1 1 140px; min-width:132px; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:14px 15px 12px; overflow:hidden; }
+    .fstage::before{ content:''; position:absolute; inset:0 auto 0 0; width:3px; background:var(--stage,var(--border-light)); }
+    .fstage .n{ font-size:1.45rem; font-weight:800; white-space:nowrap; letter-spacing:-0.01em; }
+    .fstage .l{ font-size:0.66rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em; margin-top:4px; font-weight:700; }
     .fstage .sub{ font-size:0.7rem; color:var(--text-dim); margin-top:3px; }
-    .fstage.c-blue .n{ color:var(--blue); } .fstage.c-gold .n{ color:var(--gold); }
-    .fstage.c-green .n{ color:var(--green); } .fstage.c-purple .n{ color:var(--purple); }
-    .farrow{ display:flex; flex-direction:column; align-items:center; justify-content:center; padding:0 4px; min-width:54px; }
-    .farrow .a{ color:var(--text-dim); font-size:1.05rem; line-height:1; }
-    .farrow .p{ font-size:0.74rem; font-weight:800; color:var(--text-muted); margin-top:2px; }
+    .fstage.c-blue{ --stage:var(--blue); } .fstage.c-blue .n{ color:var(--blue); }
+    .fstage.c-gold{ --stage:var(--gold); } .fstage.c-gold .n{ color:var(--gold); }
+    .fstage.c-green{ --stage:var(--green); } .fstage.c-green .n{ color:var(--green); }
+    .fstage.c-purple{ --stage:var(--purple); background:linear-gradient(135deg, rgba(167,139,250,0.10), var(--surface) 55%); }
+    .fstage.c-purple .n{ color:var(--purple); }
+    .farrow{ display:flex; flex-direction:column; align-items:center; justify-content:center; padding:0 5px; min-width:56px; gap:4px; }
+    .farrow .a{ color:var(--text-dim); font-size:1rem; line-height:1; }
+    .farrow .p{ font-size:0.72rem; font-weight:800; color:var(--text); background:var(--surface2); border:1px solid var(--border); border-radius:999px; padding:2px 8px; }
+    .curve-card{ margin-top:12px; }
+    .curve-wrap{ position:relative; height:150px; }
     .chips{ display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
     .chip{ background:var(--surface2); border:1px solid var(--border); border-radius:999px; padding:6px 13px; font-size:0.78rem; color:var(--text-muted); display:inline-flex; gap:6px; align-items:baseline; }
     .chip b{ font-weight:800; color:var(--text); font-size:0.86rem; }
@@ -117,6 +123,7 @@
       <div class="kpis" id="kpis"></div>
       <div class="sec-title" style="margin-top:16px"><span class="ic">◔</span> Funnel — <span id="attTitle">this webinar</span></div>
       <div id="attKpis"></div>
+      <div class="card curve-card" id="liveCard" style="display:none"><h4>Live viewers during the webinar</h4><div class="curve-wrap"><canvas id="chLive"></canvas></div></div>
       <div class="grid2">
         <div class="card"><h4>Registrations per day</h4><div class="chart-wrap"><canvas id="chDays"></canvas></div></div>
         <div class="card"><h4>By source (utm_source)</h4><div class="chart-wrap"><canvas id="chSources"></canvas></div></div>
@@ -242,6 +249,17 @@
       chips += dimChip('Leads \u2192 reg \u2014 needs landing-page tracking');
 
       $('attKpis').innerHTML = `<div class="funnel">${funnel}</div><div class="chips">${chips}</div>`;
+
+      const curve = Array.isArray(f.curve) ? f.curve : [];
+      if (curve.length > 2) {
+        $('liveCard').style.display = '';
+        const grid = cssv('--border'), mutedC = cssv('--text-muted'), blue = cssv('--blue');
+        chart('chLive', { type: 'line',
+          data: { labels: curve.map(p => p.m), datasets: [{ data: curve.map(p => p.c), fill: true, borderColor: blue, backgroundColor: 'rgba(107,158,255,0.12)', pointRadius: 0, borderWidth: 2, tension: 0.35 }] },
+          options: { maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { title: (i) => i[0].label + ' min in' } } },
+            scales: { x: { grid: { display: false }, ticks: { color: mutedC, maxTicksLimit: 10, callback: function (v) { return this.getLabelForValue(v) + 'm'; } } },
+                      y: { grid: { color: grid }, ticks: { color: mutedC, precision: 0 }, beginAtZero: true } } } });
+      } else { $('liveCard').style.display = 'none'; }
     } catch (e) {
       $('attKpis').innerHTML = `<div class="fstage"><div class="n" style="color:var(--red);font-size:0.9rem">${esc(e.message)}</div><div class="l">Funnel</div></div>`;
     }

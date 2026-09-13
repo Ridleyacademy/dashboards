@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+  { version: 'v597', title: 'Webinars: funnel polish + live viewers chart', items: [
+    'Funnel stages got colored accents, conversion pills on the arrows, and a highlighted revenue card.',
+    'New chart under the funnel: live viewers minute by minute through the webinar (from AXL), so you can see exactly when the room filled and when people dropped.',
+  ], roles: ['marketing', 'sales_manager', 'mentorship'] },
   { version: 'v596', title: 'Webinars: funnel redesigned', items: [
     'The funnel is now one clean flow - Ad spend (when connected) to Registrations to Attended to Saw offer to Sales to Revenue - with the conversion percentage shown on each arrow.',
     'Secondary numbers (peak live viewers, phone sales, full pay vs plan, click rate) are compact chips under the funnel, and everything not yet connected is a single subtle dashed chip instead of a wall of empty tiles.',

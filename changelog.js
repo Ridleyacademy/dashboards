@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+  { version: 'v595', title: 'Webinars: full funnel board', items: [
+    'The selected webinar now shows the whole funnel: ad spend / cost per registration / click rate (Meta - shown as "not connected" until the Meta Ads sync runs regularly), registrations, show-up rate, peak live viewers with how full the room stayed, saw offer (90m+), conversion rate, sales with full-pay vs payment-plan split, phone (affiliate) sales, revenue, ROAS, and Google Ads placeholder.',
+    'Peak live viewers comes from the AXL concurrent-viewers curve. Sales splits come from the Sales Log: phone sales = rows with an affiliate; full pay = $1,000+.',
+  ], roles: ['marketing', 'sales_manager', 'mentorship'] },
   { version: 'v594', title: 'Webinars: KPI cleanup', items: [
     'Removed the redundant Attended / Show-up rate tiles (the Attendees tile already shows show-up automatically). Revenue subtitle now reflects the Sales Log window counting.',
   ], roles: ['marketing', 'sales_manager', 'mentorship'] },

@@ -61,6 +61,9 @@
     .kpi.accent-red .n{ color:var(--red); } .kpi.accent-green .n{ color:var(--green); }
     .kpi.accent-blue .n{ color:var(--blue); } .kpi.accent-gold .n{ color:var(--gold); }
     .kpi.accent-purple .n{ color:var(--purple); }
+    .kpi.conn{ border-style:dashed; opacity:0.75; }
+    .kpi.conn .n{ color:var(--text-dim); font-size:1.1rem; padding-top:5px; }
+    .kpi.conn .sub{ color:var(--gold); }
     .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:14px; }
     @media(max-width:820px){ .grid2{ grid-template-columns:1fr; } }
     .card{ background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:14px 16px; }
@@ -182,26 +185,45 @@
   const money = (v) => v == null ? '—' : '$' + Number(v).toLocaleString(undefined, { maximumFractionDigits: 0 });
   const fmtEnd = (iso) => { if (!iso) return '—'; const d = new Date(iso); return isNaN(d) ? '—' : d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'America/New_York' }); };
 
-  let attData = null;
-  function renderAttKpis() {
-    const w = attData && (attData.webinars || []).find(x => x.webinar_id === selectedWebinar());
-    $('attTitle').textContent = 'this webinar';
-    if (!w) {
-      $('attKpis').innerHTML = '<div class="kpi"><div class="n muted">—</div><div class="l">No attendance yet</div><div class="sub">appears automatically ~45 min after this webinar ends</div></div>';
-      return;
+  function connTile(label, sub) { return `<div class="kpi conn"><div class="n">not connected</div><div class="l">${esc(label)}</div><div class="sub">${esc(sub)}</div></div>`; }
+
+  async function loadFunnel() {
+    const w = selectedWebinar();
+    if (!w) return;
+    try {
+      const f = await authedFetch('?api=funnel&w=' + encodeURIComponent(w));
+      const s = f.stats, sl = f.sales, m = f.meta || {}, pk = f.peak || {};
+      if (!s) {
+        $('attKpis').innerHTML = '<div class="kpi"><div class="n muted">—</div><div class="l">No attendance yet</div><div class="sub">appears automatically ~45 min after this webinar ends</div></div>';
+        return;
+      }
+      const spend = m.connected ? Number(m.spend || 0) : null;
+      const salesN = sl ? Number(sl.sales_count || 0) : 0;
+      const conv = s.attendees ? Math.round(1000 * salesN / s.attendees) / 10 : null;
+      $('attKpis').innerHTML =
+        (m.connected ? kpi(money(spend), 'Ad spend (Meta)', 'last ' + (m.window_days || 7) + ' days before the webinar', 'red') : connTile('Ad spend (Meta)', 'connect the Meta Ads sync')) +
+        (m.connected && s.registered ? kpi(money(spend / s.registered), 'Cost per registration', money(spend) + ' ÷ ' + s.registered + ' regs', 'red') : connTile('Cost per registration', 'needs Meta Ads spend')) +
+        (m.connected && m.ctr != null ? kpi(m.ctr + '%', 'Click rate (Meta)', m.clicks + ' clicks · ' + Number(m.impressions).toLocaleString() + ' impressions', 'red') : connTile('Click rate (Meta)', 'connect the Meta Ads sync')) +
+        connTile('Leads → registration', 'needs landing-page tracking') +
+        kpi(s.registered, 'Registrations', '', 'blue') +
+        kpi(s.attendees + ' · ' + pct(s.show_up_pct), 'Show-up rate', 'attendees of registered · avg ' + (s.avg_minutes == null ? '—' : s.avg_minutes) + ' min', 'blue') +
+        (pk.peak != null ? kpi(pk.peak, 'Peak live viewers', pk.avg_of_peak_pct != null ? 'room held ' + pct(pk.avg_of_peak_pct) + ' of peak on average' : '', 'blue') : connTile('Peak live viewers', 'no live curve for this webinar')) +
+        kpi(s.saw_offer + ' · ' + pct(s.saw_offer_pct), 'Saw offer (90m+)', 'of attendees', 'gold') +
+        kpi(conv == null ? '—' : conv + '%', 'Conversion rate', salesN + ' sales ÷ ' + s.attendees + ' attendees', 'green') +
+        kpi(salesN, 'Sales', (sl ? sl.fullpay_count + ' full pay · ' + sl.plan_count + ' payment plan' : ''), 'green') +
+        kpi(sl ? sl.phone_sales : 0, 'Phone sales (affiliate)', sl ? money(sl.phone_revenue) + ' via reps/affiliate links' : '', 'green') +
+        kpi(sl ? (sl.fullpay_count + ' / ' + sl.plan_count) : '—', 'Full pay / plan', sl ? money(sl.fullpay_revenue) + ' / ' + money(sl.plan_revenue) : '', 'green') +
+        kpi(money(s.revenue), 'Revenue', 'all Sales Log sales in this webinar’s window', 'purple') +
+        (m.connected && spend > 0 ? kpi((Math.round(10 * s.revenue / spend) / 10) + '×', 'ROAS', money(s.revenue) + ' ÷ ' + money(spend), 'purple') : connTile('ROAS', 'needs Meta Ads spend')) +
+        connTile('Google Ads', 'not connected');
+    } catch (e) {
+      $('attKpis').innerHTML = `<div class="kpi"><div class="n" style="color:var(--red);font-size:0.9rem">${esc(e.message)}</div><div class="l">Funnel</div></div>`;
     }
-    $('attKpis').innerHTML =
-      kpi(w.attendees, 'Attendees', 'of ' + w.registered + ' registered (' + pct(w.show_up_pct) + ')' + (w.avg_minutes != null ? ' · avg ' + w.avg_minutes + ' min' : ''), 'blue') +
-      kpi(w.saw_offer + ' · ' + pct(w.saw_offer_pct), 'Saw offer (90m+)', 'of attendees', 'gold') +
-      kpi(w.buyers + ' · ' + pct(w.buyers_pct_attendees), 'Buyers', pct(w.buyers_pct_saw_offer) + ' of those who saw the offer', 'green') +
-      kpi(money(w.revenue), 'Revenue', 'all Sales Log sales in this webinar’s window', 'purple');
   }
 
   async function loadAttendance() {
     try {
       const d = await authedFetch('?api=attendance');
-      attData = d;
-      renderAttKpis();
       const rows = (d.webinars || []).filter(w => w.attendees > 0);
       $('tblAttendance').innerHTML = rows.length ? `<table class="tbl"><thead><tr><th>Webinar</th><th>Ended</th><th>Registered</th><th>Attendees</th><th>Saw offer (90m+)</th><th>%</th><th>Avg min</th><th>Buyers</th><th>% of attendees</th><th>% of saw-offer</th><th>Revenue</th></tr></thead><tbody>${
         rows.map(w => `<tr><td>${esc(w.name)}</td><td class="muted">${fmtEnd(w.ended_at)}</td><td class="muted">${w.registered}</td><td>${w.attendees}</td><td>${w.saw_offer}</td><td>${pct(w.saw_offer_pct)}</td><td class="muted">${w.avg_minutes == null ? '—' : w.avg_minutes}</td><td>${w.buyers}</td><td>${pct(w.buyers_pct_attendees)}</td><td>${pct(w.buyers_pct_saw_offer)}</td><td>${money(w.revenue)}</td></tr>`).join('')
@@ -228,7 +250,7 @@
       const w = selectedWebinar();
       localStorage.setItem(WKEY, w);
       render(await authedFetch('?api=' + (extraQuery || 'summary') + '&w=' + encodeURIComponent(w), opts));
-      renderAttKpis();
+      loadFunnel();
     } catch (e) { $('loading').innerHTML = `<span style="color:var(--red)">${esc(e.message)}</span>`; }
   }
 

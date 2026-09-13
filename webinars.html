@@ -235,7 +235,8 @@
         arrow(convOffer) +
         stage(salesN, 'Sales', convAtt == null ? '' : convAtt + '% of attendees', 'green') +
         arrow(null) +
-        stage(money(s.revenue), 'Revenue', m.connected && spend > 0 ? (Math.round(10 * s.revenue / spend) / 10) + '\u00d7 ROAS' : '', 'purple');
+        stage(money(s.revenue), 'Revenue', m.connected && spend > 0 ? (Math.round(10 * s.revenue / spend) / 10) + '\u00d7 ROAS' : '', 'purple') +
+        (sl && sl.net_revenue != null ? arrow(null) + stage(money(sl.net_revenue), 'Net revenue', 'after fees \u00b7 \u221215% phone \u00b7 \u221220% BNPL', 'green') : '');
 
       let chips = '';
       if (pk.peak != null) chips += chip('Peak live', pk.peak, pk.avg_of_peak_pct != null ? '\u00b7 room held ' + pct(pk.avg_of_peak_pct) : '');
@@ -244,6 +245,7 @@
         chips += chip('Full pay', sl.fullpay_count, '\u00b7 ' + money(sl.fullpay_revenue));
         chips += chip('Payment plan', sl.plan_count, '\u00b7 ' + money(sl.plan_revenue));
       }
+      if (sl && sl.processor_fees != null) chips += chip('Processor fees', money(sl.processor_fees), Number(sl.bnpl_count) > 0 ? '\u00b7 BNPL sales ' + sl.bnpl_count + ' (' + money(sl.bnpl_revenue) + ')' : '');
       if (m.connected && m.ctr != null) chips += chip('Click rate', m.ctr + '%', '\u00b7 ' + Number(m.clicks).toLocaleString() + ' clicks');
       if (!m.connected) chips += dimChip('Meta Ads not connected \u2014 spend \u00b7 cost/reg \u00b7 click rate \u00b7 ROAS');
       chips += dimChip('Google Ads not connected');

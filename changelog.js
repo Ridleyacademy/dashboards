@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+  { version: 'v599', title: 'Webinars: net revenue + tighter visitor window', items: [
+    'New funnel stage after Revenue: Net revenue = revenue minus processor fees (real fee when the processor reports it, 3% estimate otherwise), minus 15% of phone (affiliate) sales, minus 20% of buy-now-pay-later sales where detectable (Klarna/Afterpay/Affirm). A Processor fees chip shows the deduction.',
+    'Page visitors now counts only from the first registration for the webinar until the webinar STARTS (was: until it ended).',
+  ], roles: ['marketing', 'sales_manager', 'mentorship'] },
   { version: 'v598', title: 'Webinars: page visitors in the funnel', items: [
     'The funnel now starts with unique visitors on the registration page (from AXL site analytics, counted over the webinar registration window), with the visitor-to-registration rate on the arrow.',
   ], roles: ['marketing', 'sales_manager', 'mentorship'] },

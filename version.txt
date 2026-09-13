@@ -36,3 +36,4 @@
 2026-08-27T20:30:00Z-v587-precache-paths
 2026-08-27T21:00:00Z-v588-loading-states-restored
 2026-09-02T16:00:00Z-v589-webinars-dashboard
+2026-09-13T21:30:00Z-v590-webinar-attendance-sales

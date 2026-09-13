@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+  { version: 'v590', title: 'Webinars: Attendance & Sales', items: [
+    'The Webinar Registrations dashboard now has an "Attendance & Sales" section covering every webinar: attendees, who saw the offer (stayed 90 minutes or more) with percentages, buyers with conversion rates, and revenue.',
+    'Attendance is collected automatically about 45 minutes after each webinar ends — no more manual sync needed for these numbers. Buyers are attendees whose later payment appears in the income feed (first charge only, rebills excluded).',
+  ], roles: ['marketing', 'sales_manager', 'mentorship'] },
   { version: 'v589', title: 'Webinar Registrations dashboard', items: [
     'New dashboard for the AXL webinar registration page (ridleyacademy.net/register): registrations per day, by UTM source and medium, and how many came in through a personal a_c link.',
     'After the event, “Sync attendance” pulls who actually showed up from AXL and adds show-up rate overall and per source. The sync needs the Supabase AXL API key to have the “Webinar participants” right; until then it says so.',

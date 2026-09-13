@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+  { version: 'v592', title: 'Webinars: all stats at the top', items: [
+    'Registrations and Attendance & Sales KPIs for the selected webinar now sit together at the top of the page; charts and the all-webinars table follow below.',
+  ], roles: ['marketing', 'sales_manager', 'mentorship'] },
   { version: 'v591', title: 'Webinars: attendance stats follow the selected webinar', items: [
     'The Attendance & Sales numbers at the top now show the webinar picked in the selector (attendees, saw offer 90m+, buyers, revenue) instead of all-time totals. The all-webinars table stays below.',
   ], roles: ['marketing', 'sales_manager', 'mentorship'] },

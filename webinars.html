@@ -193,7 +193,7 @@
       return;
     }
     $('attKpis').innerHTML =
-      kpi(w.attendees, 'Attendees', w.avg_minutes != null ? 'avg ' + w.avg_minutes + ' min watched' : '', 'blue') +
+      kpi(w.attendees, 'Attendees', 'of ' + w.registered + ' registered (' + pct(w.show_up_pct) + ')' + (w.avg_minutes != null ? ' · avg ' + w.avg_minutes + ' min' : ''), 'blue') +
       kpi(w.saw_offer + ' · ' + pct(w.saw_offer_pct), 'Saw offer (90m+)', 'of attendees', 'gold') +
       kpi(w.buyers + ' · ' + pct(w.buyers_pct_attendees), 'Buyers', pct(w.buyers_pct_saw_offer) + ' of those who saw the offer', 'green') +
       kpi(money(w.revenue), 'Revenue', 'first charges, rebills excluded', 'purple');
@@ -205,8 +205,8 @@
       attData = d;
       renderAttKpis();
       const rows = (d.webinars || []).filter(w => w.attendees > 0);
-      $('tblAttendance').innerHTML = rows.length ? `<table class="tbl"><thead><tr><th>Webinar</th><th>Ended</th><th>Attendees</th><th>Saw offer (90m+)</th><th>%</th><th>Avg min</th><th>Buyers</th><th>% of attendees</th><th>% of saw-offer</th><th>Revenue</th></tr></thead><tbody>${
-        rows.map(w => `<tr><td>${esc(w.name)}</td><td class="muted">${fmtEnd(w.ended_at)}</td><td>${w.attendees}</td><td>${w.saw_offer}</td><td>${pct(w.saw_offer_pct)}</td><td class="muted">${w.avg_minutes == null ? '—' : w.avg_minutes}</td><td>${w.buyers}</td><td>${pct(w.buyers_pct_attendees)}</td><td>${pct(w.buyers_pct_saw_offer)}</td><td>${money(w.revenue)}</td></tr>`).join('')
+      $('tblAttendance').innerHTML = rows.length ? `<table class="tbl"><thead><tr><th>Webinar</th><th>Ended</th><th>Registered</th><th>Attendees</th><th>Saw offer (90m+)</th><th>%</th><th>Avg min</th><th>Buyers</th><th>% of attendees</th><th>% of saw-offer</th><th>Revenue</th></tr></thead><tbody>${
+        rows.map(w => `<tr><td>${esc(w.name)}</td><td class="muted">${fmtEnd(w.ended_at)}</td><td class="muted">${w.registered}</td><td>${w.attendees}</td><td>${w.saw_offer}</td><td>${pct(w.saw_offer_pct)}</td><td class="muted">${w.avg_minutes == null ? '—' : w.avg_minutes}</td><td>${w.buyers}</td><td>${pct(w.buyers_pct_attendees)}</td><td>${pct(w.buyers_pct_saw_offer)}</td><td>${money(w.revenue)}</td></tr>`).join('')
       }</tbody></table>` : '<div class="empty">No attendance collected yet — it appears automatically ~45 min after a webinar ends.</div>';
     } catch (e) {
       $('attKpis').innerHTML = '';

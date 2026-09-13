@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+  { version: 'v593', title: 'Webinars: accurate attendance & revenue', items: [
+    'Attendees now counts people who actually joined the webinar (matches AXL participants) instead of everyone registered; a Registered column and show-up % were added.',
+    'Revenue now includes purchases made DURING the webinar, not just after it ended, and no longer double-counts Kajabi multipay duplicate rows. Verified against the Sep 13 masterclass: 572 registered, 185 attendees, 94 saw the offer, 10 buyers, $9,378.',
+  ], roles: ['marketing', 'sales_manager', 'mentorship'] },
   { version: 'v592', title: 'Webinars: all stats at the top', items: [
     'Registrations and Attendance & Sales KPIs for the selected webinar now sit together at the top of the page; charts and the all-webinars table follow below.',
   ], roles: ['marketing', 'sales_manager', 'mentorship'] },

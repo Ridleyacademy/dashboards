@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+  { version: 'v596', title: 'Webinars: funnel redesigned', items: [
+    'The funnel is now one clean flow - Ad spend (when connected) to Registrations to Attended to Saw offer to Sales to Revenue - with the conversion percentage shown on each arrow.',
+    'Secondary numbers (peak live viewers, phone sales, full pay vs plan, click rate) are compact chips under the funnel, and everything not yet connected is a single subtle dashed chip instead of a wall of empty tiles.',
+  ], roles: ['marketing', 'sales_manager', 'mentorship'] },
   { version: 'v595', title: 'Webinars: full funnel board', items: [
     'The selected webinar now shows the whole funnel: ad spend / cost per registration / click rate (Meta - shown as "not connected" until the Meta Ads sync runs regularly), registrations, show-up rate, peak live viewers with how full the room stayed, saw offer (90m+), conversion rate, sales with full-pay vs payment-plan split, phone (affiliate) sales, revenue, ROAS, and Google Ads placeholder.',
     'Peak live viewers comes from the AXL concurrent-viewers curve. Sales splits come from the Sales Log: phone sales = rows with an affiliate; full pay = $1,000+.',

@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+  { version: 'v603', title: 'Webinars: funnel in three rows', items: [
+    'The funnel is now three aligned rows: Traffic (ad spend, impressions, page visitors, registrations), Webinar (attended, saw offer, sales) and Money (revenue, net revenue, profit after ads). The show-up rate carries over at the start of the Webinar row.',
+    'On phones the stages show as a tidy two-column grid.',
+  ], roles: ['marketing', 'sales_manager', 'mentorship'] },
   { version: 'v602', title: 'Webinars: impressions in the funnel', items: [
     'The funnel now follows the full path: Ad spend, Impressions (with clicks, CTR and cost per 1,000 impressions), Page visitors, Registrations, Attended, Saw offer. The arrow into Page visitors shows the share of impressions that became visits.',
     'Each funnel row now stays on a single line on desktop.',

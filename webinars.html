@@ -76,6 +76,21 @@
       #attKpis .funnel .farrow{ display:none; }
       #attKpis .funnel .fstage{ min-width:0; }
     }
+    table.tbl th.txt, table.tbl td.txt{ text-align:left; }
+    table.tbl td.clip{ max-width:190px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    #tblAds table.tbl td:first-child{ min-width:220px; }
+    #tblCamps, #tblAds{ scrollbar-color:var(--border-light) transparent; }
+    #tblCamps::-webkit-scrollbar, #tblAds::-webkit-scrollbar{ height:8px; }
+    #tblCamps::-webkit-scrollbar-track, #tblAds::-webkit-scrollbar-track{ background:transparent; }
+    #tblCamps::-webkit-scrollbar-thumb, #tblAds::-webkit-scrollbar-thumb{ background:var(--border-light); border-radius:8px; }
+    .small-ad{ display:none; }
+    #tblAds.show-all .small-ad{ display:table-row; }
+    .show-more{ background:none; border:0; color:var(--blue); cursor:pointer; font-size:0.78rem; padding:8px 0 0; }
+    .cmp-row td{ background:var(--surface2); font-weight:800; }
+    .adset-row td:first-child{ padding-left:22px; }
+    .tgt{ font-size:0.7rem; color:var(--text-muted); font-weight:400; margin-top:3px; white-space:normal; line-height:1.45; }
+    .pill{ display:inline-block; font-size:0.62rem; font-weight:800; letter-spacing:0.04em; padding:1px 7px; border-radius:999px; border:1px solid var(--border-light); color:var(--text-muted); vertical-align:middle; }
+    .pill.on{ color:var(--green); border-color:rgba(52,211,153,0.4); }
     .frow-label{ font-size:0.64rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.08em; font-weight:800; margin:4px 2px 6px; }
     .funnel + .frow-label{ margin-top:14px; }
     .fstage .cost{ margin-top:auto; padding-top:8px; border-top:1px dashed var(--border-light); display:flex; flex-direction:column; gap:1px; }
@@ -144,6 +159,7 @@
       <div class="sec-title" style="margin-top:16px"><span class="ic">◔</span> Funnel — <span id="attTitle">this webinar</span></div>
       <div id="attKpis"></div>
       <div class="card curve-card" id="liveCard" style="display:none"><h4>Live viewers during the webinar</h4><div class="curve-wrap"><canvas id="chLive"></canvas></div></div>
+      <div class="card curve-card" id="campCard" style="display:none"><h4>Campaigns &amp; ad sets</h4><div id="tblCamps" style="overflow-x:auto"></div></div>
       <div class="card curve-card" id="adsCard" style="display:none"><h4>Ads that fed this webinar</h4><div id="tblAds" style="overflow-x:auto"></div><div class="muted" id="adsNote" style="font-size:0.72rem;margin-top:8px"></div></div>
       <div class="grid2">
         <div class="card"><h4>Registrations per day</h4><div class="chart-wrap"><canvas id="chDays"></canvas></div></div>
@@ -311,15 +327,43 @@
         $('adsCard').style.display = '';
         const r2 = (v) => v == null ? '\u2014' : v;
         const roasCell = (a) => a.roas == null ? '\u2014' : `<span style="color:${a.roas >= 1 ? 'var(--green)' : 'var(--red)'};font-weight:700">${a.roas}\u00d7</span>`;
-        const rows = ads.map(a => `<tr${a.paid ? '' : ' class="muted"'}><td>${esc(a.ad)}${a.paid ? '' : ' <span class="muted">(organic / unmatched)</span>'}</td><td>${a.paid ? money(a.spend) : '\u2014'}</td><td>${a.paid ? Number(a.clicks).toLocaleString() : '\u2014'}</td><td>${a.ctr == null ? '\u2014' : a.ctr + '%'}</td><td>${a.regs}</td><td>${a.cost_per_reg == null ? '\u2014' : money(a.cost_per_reg)}</td><td>${a.attended}</td><td>${a.saw_offer}</td><td>${a.sales}</td><td>${a.revenue ? money(a.revenue) : '\u2014'}</td><td>${roasCell(a)}</td></tr>`).join('');
+        const isSmall = (a) => a.paid && a.spend < 5 && a.regs === 0;
+        const smallCount = ads.filter(isSmall).length;
+        const rows = ads.map(a => `<tr class="${a.paid ? '' : 'muted'}${isSmall(a) ? ' small-ad' : ''}"><td>${esc(a.ad)}${a.paid ? '' : ' <span class="muted">(organic / unmatched)</span>'}</td><td class="muted txt clip" title="${esc(a.adset || '')}">${esc(a.adset || '\u2014')}</td><td class="muted txt clip" title="${a.paid ? esc(a.campaign || '') : ''}">${a.paid ? esc(a.campaign || '\u2014') : '\u2014'}</td><td>${a.paid ? money(a.spend) : '\u2014'}</td><td>${a.paid ? Number(a.clicks).toLocaleString() : '\u2014'}</td><td>${a.ctr == null ? '\u2014' : a.ctr + '%'}</td><td>${a.regs}</td><td>${a.cost_per_reg == null ? '\u2014' : money(a.cost_per_reg)}</td><td>${a.attended}</td><td>${a.saw_offer}</td><td>${a.sales}</td><td>${a.revenue ? money(a.revenue) : '\u2014'}</td><td>${roasCell(a)}</td></tr>`).join('');
         const totRoas = spend > 0 ? Math.round(100 * m.attributed_revenue / spend) / 100 : null;
-        $('tblAds').innerHTML = `<table class="tbl"><thead><tr><th>Ad</th><th>Spend</th><th>Clicks</th><th>CTR</th><th>Regs</th><th>Cost/reg</th><th>Attended</th><th>Saw offer</th><th>Sales</th><th>Revenue</th><th>ROAS</th></tr></thead><tbody>${rows}</tbody>
-          <tfoot><tr style="font-weight:800"><td>All ads</td><td>${money(spend)}</td><td>${Number(m.clicks).toLocaleString()}</td><td>${r2(m.ctr)}${m.ctr == null ? '' : '%'}</td><td>${m.paid_regs}</td><td>${per(spend, m.paid_regs)}</td><td>${m.paid_attended}</td><td>${m.paid_saw_offer}</td><td>${m.attributed_sales}</td><td>${money(m.attributed_revenue)}</td><td>${totRoas == null ? '\u2014' : totRoas + '\u00d7'}</td></tr></tfoot></table>`;
+        $('tblAds').innerHTML = `<table class="tbl"><thead><tr><th>Ad</th><th class="txt">Ad set</th><th class="txt">Campaign</th><th>Spend</th><th>Clicks</th><th>CTR</th><th>Regs</th><th>Cost/reg</th><th>Attended</th><th>Saw offer</th><th>Sales</th><th>Revenue</th><th>ROAS</th></tr></thead><tbody>${rows}</tbody>
+          <tfoot><tr style="font-weight:800"><td>All ads</td><td></td><td></td><td>${money(spend)}</td><td>${Number(m.clicks).toLocaleString()}</td><td>${r2(m.ctr)}${m.ctr == null ? '' : '%'}</td><td>${m.paid_regs}</td><td>${per(spend, m.paid_regs)}</td><td>${m.paid_attended}</td><td>${m.paid_saw_offer}</td><td>${m.attributed_sales}</td><td>${money(m.attributed_revenue)}</td><td>${totRoas == null ? '\u2014' : totRoas + '\u00d7'}</td></tr></tfoot></table>` +
+          (smallCount ? `<button class="show-more" onclick="const t=document.getElementById('tblAds');t.classList.toggle('show-all');this.textContent=t.classList.contains('show-all')?'Hide small ads':'Show ${smallCount} more ads (under $5 spend, no registrations)'">Show ${smallCount} more ads (under $5 spend, no registrations)</button>` : '');
+
+        const camps = Array.isArray(f.campaigns) ? f.campaigns : [];
+        if (camps.length) {
+          $('campCard').style.display = '';
+          const status = (st) => st ? `<span class="pill${st === 'ACTIVE' ? ' on' : ''}">${esc(st.toLowerCase())}</span>` : '';
+          const budget = (x) => x.daily_budget ? money(x.daily_budget) + '/day' : (x.lifetime_budget ? money(x.lifetime_budget) + ' total' : '\u2014');
+          const who = (t) => {
+            if (!t) return '';
+            const parts = [];
+            if (t.locations && t.locations.length) parts.push(t.locations.join(', '));
+            if (t.ages) parts.push('ages ' + t.ages);
+            if (t.gender) parts.push(t.gender);
+            if (t.audiences && t.audiences.length) parts.push('Audience: ' + t.audiences.join(', '));
+            if (t.interests && t.interests.length) parts.push('Interests: ' + t.interests.slice(0, 6).join(', ') + (t.interests.length > 6 ? ' +' + (t.interests.length - 6) : ''));
+            if (!(t.audiences && t.audiences.length) && !(t.interests && t.interests.length)) parts.push(t.advantage_audience ? 'Advantage+ audience' : 'Broad (no audience or interests)');
+            if (t.excluded && t.excluded.length) parts.push('Excluding: ' + t.excluded.join(', '));
+            return `<div class="tgt">${esc(parts.join(' \u00b7 '))}</div>`;
+          };
+          const cells = (x) => `<td>${money(x.spend)}</td><td>${Number(x.impressions).toLocaleString()}</td><td>${x.ctr == null ? '\u2014' : x.ctr + '%'}</td><td>${x.cpm == null ? '\u2014' : money(x.cpm)}</td><td>${x.regs}</td><td>${x.cost_per_reg == null ? '\u2014' : money(x.cost_per_reg)}</td><td>${x.attended}</td><td>${x.saw_offer}</td><td>${x.sales}</td><td>${x.cost_per_sale == null ? '\u2014' : money(x.cost_per_sale)}</td><td>${x.revenue ? money(x.revenue) : '\u2014'}</td><td>${roasCell(x)}</td>`;
+          const body = camps.map(c =>
+            `<tr class="cmp-row"><td>${esc(c.name)} ${status(c.status)}</td><td>${budget(c)}</td>${cells(c)}</tr>` +
+            (c.adsets || []).map(a => `<tr class="adset-row"><td style="min-width:260px"><b>${esc(a.name)}</b> ${status(a.status)}${who(a.targeting)}</td><td>${budget(a)}</td>${cells(a)}</tr>`).join('')
+          ).join('');
+          $('tblCamps').innerHTML = `<table class="tbl"><thead><tr><th>Campaign / ad set \u00b7 who it targets</th><th>Budget</th><th>Spend</th><th>Impr.</th><th>CTR</th><th>CPM</th><th>Regs</th><th>Cost/reg</th><th>Attended</th><th>Saw offer</th><th>Sales</th><th>Cost/sale</th><th>Revenue</th><th>ROAS</th></tr></thead><tbody>${body}</tbody></table>`;
+        } else { $('campCard').style.display = 'none'; }
         const untraced = salesN - Number(m.attributed_sales || 0);
         $('adsNote').textContent = (m.campaigns && m.campaigns.length ? 'Campaign: ' + m.campaigns.join(', ') + '. ' : '') +
-          'An ad is linked when a registrant\u2019s utm_content equals its Meta ad name; spend counts from the first registration to the webinar end. Sales per ad match the buyer\u2019s email to the registrant' +
+          'An ad is linked when a registrant\u2019s utm_content equals its Meta ad name and utm_term equals its ad set name; spend counts from the first registration to the webinar end. Sales per ad match the buyer\u2019s email to the registrant' +
           (untraced > 0 ? ' \u2014 ' + untraced + ' of ' + salesN + ' sales could not be traced to an ad (bought with a different email, or came from non-ad traffic).' : '.');
-      } else { $('adsCard').style.display = 'none'; }
+      } else { $('adsCard').style.display = 'none'; $('campCard').style.display = 'none'; }
     } catch (e) {
       $('attKpis').innerHTML = `<div class="fstage"><div class="n" style="color:var(--red);font-size:0.9rem">${esc(e.message)}</div><div class="l">Funnel</div></div>`;
     }

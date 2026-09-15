@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+  { version: 'v604', title: 'Webinars: campaigns and ad sets', items: [
+    'New "Campaigns & ad sets" table: each Meta campaign that fed the webinar with its ad sets underneath, showing who each ad set targets (location, ages, gender, audience or lookalike, interests, exclusions) plus status, budget, spend, impressions, CTR, CPM, registrations, cost per registration, attended, saw offer, sales, cost per sale, revenue and ROAS.',
+    'The ads table now has Ad set and Campaign columns, and stats split per ad set (the same ad running in two ad sets shows as two rows). Tiny ads with under $5 spend and no registrations are tucked behind a "Show more" link.',
+  ], roles: ['marketing', 'sales_manager', 'mentorship'] },
   { version: 'v603', title: 'Webinars: funnel in three rows', items: [
     'The funnel is now three aligned rows: Traffic (ad spend, impressions, page visitors, registrations), Webinar (attended, saw offer, sales) and Money (revenue, net revenue, profit after ads). The show-up rate carries over at the start of the Webinar row.',
     'On phones the stages show as a tidy two-column grid.',

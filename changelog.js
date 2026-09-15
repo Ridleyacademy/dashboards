@@ -16,6 +16,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+  { version: 'v606', title: 'Webinars: loading skeletons and profit per ad', items: [
+    'The page shows shimmering placeholders while data loads: the registration tiles, all three funnel rows, the live viewers chart, the campaigns and ads tables, and the all-webinars table.',
+    'The campaigns and ads tables have a Profit column (revenue minus ad spend): losses show in red with a minus sign, gains in green. Zero revenue now shows as $0.',
+    'Fixed: switching webinars quickly could briefly show the previous webinar\u2019s funnel, and an error in the all-webinars table could blank the funnel.',
+  ], roles: ['marketing', 'sales_manager', 'mentorship'] },
   { version: 'v605', title: 'Webinars: ads tables fit on screen', items: [
     'The ads and campaigns tables are tighter so Sales, Revenue and ROAS are visible again without scrolling sideways on a desktop screen. Long ad set and campaign names are shortened with "\u2026"; hover to see the full name.',
   ], roles: ['marketing', 'sales_manager', 'mentorship'] },

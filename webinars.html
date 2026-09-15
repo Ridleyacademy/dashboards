@@ -77,15 +77,21 @@
       #attKpis .funnel .fstage{ min-width:0; }
     }
     table.tbl th.txt, table.tbl td.txt{ text-align:left; }
-    table.tbl td.clip{ max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    #tblAds table.tbl td:first-child{ min-width:160px; }
-    #tblAds table.tbl th, #tblAds table.tbl td, #tblCamps table.tbl th, #tblCamps table.tbl td{ padding:6px 7px; }
+    table.tbl td.clip{ max-width:100px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    #tblAds table.tbl td:first-child{ min-width:140px; }
+    #tblAds table.tbl th, #tblAds table.tbl td, #tblCamps table.tbl th, #tblCamps table.tbl td{ padding:6px 5px; }
     #tblAds table.tbl thead th, #tblCamps table.tbl thead th{ font-size:0.64rem; letter-spacing:0.02em; }
     #tblCamps, #tblAds{ scrollbar-color:var(--border-light) transparent; }
     #tblCamps::-webkit-scrollbar, #tblAds::-webkit-scrollbar{ height:8px; }
     #tblCamps::-webkit-scrollbar-track, #tblAds::-webkit-scrollbar-track{ background:transparent; }
     #tblCamps::-webkit-scrollbar-thumb, #tblAds::-webkit-scrollbar-thumb{ background:var(--border-light); border-radius:8px; }
     .small-ad{ display:none; }
+    .skel{ background:linear-gradient(90deg, var(--surface3) 0%, var(--border-light) 50%, var(--surface3) 100%); background-size:200% 100%; }
+    .skel-block{ display:block; }
+    .fstage .skel{ display:block; }
+    .skel-fill{ display:none; }
+    .curve-card.loading .skel-fill{ display:block; }
+    .curve-card.loading .curve-wrap{ display:none; }
     #tblAds.show-all .small-ad{ display:table-row; }
     .show-more{ background:none; border:0; color:var(--blue); cursor:pointer; font-size:0.78rem; padding:8px 0 0; }
     .cmp-row td{ background:var(--surface2); font-weight:800; }
@@ -154,13 +160,13 @@
       <span class="topbar-spacer"></span>
       <button class="tbtn" id="syncBtn" title="Pull attendance from AXL">⇉ Sync attendance</button>
     </div>
-    <div class="empty" id="loading">Loading analytics…</div>
+    <div id="loading"></div>
     <div id="content" style="display:none">
       <div class="sec-title"><span class="ic">▤</span> Registrations</div>
       <div class="kpis" id="kpis"></div>
       <div class="sec-title" style="margin-top:16px"><span class="ic">◔</span> Funnel — <span id="attTitle">this webinar</span></div>
       <div id="attKpis"></div>
-      <div class="card curve-card" id="liveCard" style="display:none"><h4>Live viewers during the webinar</h4><div class="curve-wrap"><canvas id="chLive"></canvas></div></div>
+      <div class="card curve-card" id="liveCard" style="display:none"><h4>Live viewers during the webinar</h4><div class="skel-fill"><span class="skel skel-block" style="height:150px"></span></div><div class="curve-wrap"><canvas id="chLive"></canvas></div></div>
       <div class="card curve-card" id="campCard" style="display:none"><h4>Campaigns &amp; ad sets</h4><div id="tblCamps" style="overflow-x:auto"></div></div>
       <div class="card curve-card" id="adsCard" style="display:none"><h4>Ads that fed this webinar</h4><div id="tblAds" style="overflow-x:auto"></div><div class="muted" id="adsNote" style="font-size:0.72rem;margin-top:8px"></div></div>
       <div class="grid2">
@@ -173,7 +179,7 @@
       </div>
       <div class="note" id="syncNote"></div>
 
-      <div class="card" style="margin-top:14px"><h4>All webinars — attendance &amp; sales</h4><div id="tblAttendance" style="overflow-x:auto"><div class="empty">Loading attendance…</div></div></div>
+      <div class="card" style="margin-top:14px"><h4>All webinars — attendance &amp; sales</h4><div id="tblAttendance" style="overflow-x:auto"></div></div>
       <div class="muted" style="font-size:0.72rem;margin:10px 2px 0">Attendance is collected automatically 45 min after each webinar ends (webinar-pixel-sync → webinar_attendees). “Saw offer” = stayed 90 minutes or more. Buyers = attendees with a later payment in the income feed (first charge, rebills excluded), attributed to their latest webinar before the purchase.</div>
 
       <div class="muted" style="font-size:0.72rem;margin:16px 2px">Generated <span id="genAt">—</span> · registrations come from the AXL page scenario (ridleyacademy.net/register) via the axl-webinar-link function; source tags are reported by the thank-you page. No personal data is stored or shown here.</div>
@@ -243,14 +249,49 @@
   const money = (v) => v == null ? '—' : '$' + Number(v).toLocaleString(undefined, { maximumFractionDigits: 0 });
   const fmtEnd = (iso) => { if (!iso) return '—'; const d = new Date(iso); return isNaN(d) ? '—' : d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'America/New_York' }); };
 
+  function skelTable(rows, cols) {
+    const row = `<div class="skel-table-row" style="grid-template-columns:2fr repeat(${cols - 1}, 1fr)">${Array.from({ length: cols }, () => '<span class="skel"></span>').join('')}</div>`;
+    return Array.from({ length: rows }, () => row).join('');
+  }
+  function skelFunnel() {
+    const card = () => `<div class="fstage"><div class="top"><span class="skel" style="width:58%;height:22px"></span><span class="skel" style="width:72%;height:10px;margin-top:9px"></span><span class="skel" style="width:46%;height:9px;margin-top:6px"></span></div><div class="cost"><span class="skel" style="width:52%;height:9px"></span><span class="skel" style="width:34%;height:14px;margin-top:5px"></span></div></div>`;
+    const arrow = () => '<div class="farrow"><div class="a">\u2192</div></div>';
+    const lead = () => '<div class="farrow lead"><div class="a"></div></div>';
+    const row = (label, n) => `<div class="frow-label">${label}</div><div class="funnel">${lead()}${Array.from({ length: n }, card).join(arrow())}</div>`;
+    return row('Traffic', 4) + row('Webinar', 3) + row('Money', 3) +
+      `<div class="chips">${[140, 120, 160].map(w => `<span class="chip"><span class="skel" style="width:${w}px;height:12px"></span></span>`).join('')}</div>`;
+  }
+  function skelPage() {
+    const tile = '<div class="kpi"><span class="skel skel-kpi skel-block"></span><span class="skel skel-sub skel-block"></span></div>';
+    return `<div class="sec-title"><span class="ic">\u25a4</span> Registrations</div><div class="kpis">${tile}${tile}</div>
+      <div class="sec-title" style="margin-top:16px"><span class="ic">\u25d4</span> Funnel</div>${skelFunnel()}
+      <div class="grid2"><div class="card"><span class="skel skel-bar skel-block"></span></div><div class="card"><span class="skel skel-bar skel-block"></span></div></div>`;
+  }
+  function showFunnelLoading() {
+    $('attKpis').innerHTML = skelFunnel();
+    $('liveCard').style.display = ''; $('liveCard').classList.add('loading');
+    $('campCard').style.display = ''; $('tblCamps').innerHTML = skelTable(4, 8);
+    $('adsCard').style.display = ''; $('tblAds').innerHTML = skelTable(6, 8); $('adsNote').textContent = '';
+  }
+  function hideFunnelExtras() {
+    $('liveCard').style.display = 'none'; $('liveCard').classList.remove('loading');
+    $('campCard').style.display = 'none'; $('adsCard').style.display = 'none';
+  }
+
+  let funnelSeq = 0;
   async function loadFunnel() {
     const w = selectedWebinar();
     if (!w) return;
+    const seq = ++funnelSeq;
+    showFunnelLoading();
     try {
       const f = await authedFetch('?api=funnel&w=' + encodeURIComponent(w));
+      if (seq !== funnelSeq) return; // a newer webinar was selected meanwhile
+      $('liveCard').classList.remove('loading');
       const s = f.stats, sl = f.sales, m = f.meta || {}, pk = f.peak || {};
       if (!s) {
         $('attKpis').innerHTML = '<div class="fstage"><div class="n muted">\u2014</div><div class="l">No attendance yet</div><div class="sub">appears automatically ~45 min after this webinar ends</div></div>';
+        hideFunnelExtras();
         return;
       }
       const hasAds = !!(m.connected && m.linked);
@@ -329,12 +370,13 @@
         $('adsCard').style.display = '';
         const r2 = (v) => v == null ? '\u2014' : v;
         const roasCell = (a) => a.roas == null ? '\u2014' : `<span style="color:${a.roas >= 1 ? 'var(--green)' : 'var(--red)'};font-weight:700">${a.roas}\u00d7</span>`;
+        const signed = (v) => { const n = Math.round(Number(v) || 0); if (n === 0) return '$0'; const txt = (n < 0 ? '\u2212$' : '+$') + Math.abs(n).toLocaleString(); return `<span style="color:${n < 0 ? 'var(--red)' : 'var(--green)'};font-weight:700">${txt}</span>`; };
         const isSmall = (a) => a.paid && a.spend < 5 && a.regs === 0;
         const smallCount = ads.filter(isSmall).length;
-        const rows = ads.map(a => `<tr class="${a.paid ? '' : 'muted'}${isSmall(a) ? ' small-ad' : ''}"><td>${esc(a.ad)}${a.paid ? '' : ' <span class="muted">(organic / unmatched)</span>'}</td><td class="muted txt clip" title="${esc(a.adset || '')}">${esc(a.adset || '\u2014')}</td><td class="muted txt clip" title="${a.paid ? esc(a.campaign || '') : ''}">${a.paid ? esc(a.campaign || '\u2014') : '\u2014'}</td><td>${a.paid ? money(a.spend) : '\u2014'}</td><td>${a.paid ? Number(a.clicks).toLocaleString() : '\u2014'}</td><td>${a.ctr == null ? '\u2014' : a.ctr + '%'}</td><td>${a.regs}</td><td>${a.cost_per_reg == null ? '\u2014' : money(a.cost_per_reg)}</td><td>${a.attended}</td><td>${a.saw_offer}</td><td>${a.sales}</td><td>${a.revenue ? money(a.revenue) : '\u2014'}</td><td>${roasCell(a)}</td></tr>`).join('');
+        const rows = ads.map(a => `<tr class="${a.paid ? '' : 'muted'}${isSmall(a) ? ' small-ad' : ''}"><td>${esc(a.ad)}${a.paid ? '' : ' <span class="muted">(organic / unmatched)</span>'}</td><td class="muted txt clip" title="${esc(a.adset || '')}">${esc(a.adset || '\u2014')}</td><td class="muted txt clip" title="${a.paid ? esc(a.campaign || '') : ''}">${a.paid ? esc(a.campaign || '\u2014') : '\u2014'}</td><td>${a.paid ? money(a.spend) : '\u2014'}</td><td>${a.paid ? Number(a.clicks).toLocaleString() : '\u2014'}</td><td>${a.ctr == null ? '\u2014' : a.ctr + '%'}</td><td>${a.regs}</td><td>${a.cost_per_reg == null ? '\u2014' : money(a.cost_per_reg)}</td><td>${a.attended}</td><td>${a.saw_offer}</td><td>${a.sales}</td><td>${a.paid ? money(a.revenue) : (a.revenue ? money(a.revenue) : '\u2014')}</td><td>${a.paid ? signed(a.revenue - a.spend) : '\u2014'}</td><td>${roasCell(a)}</td></tr>`).join('');
         const totRoas = spend > 0 ? Math.round(100 * m.attributed_revenue / spend) / 100 : null;
-        $('tblAds').innerHTML = `<table class="tbl"><thead><tr><th>Ad</th><th class="txt">Ad set</th><th class="txt">Campaign</th><th>Spend</th><th>Clicks</th><th>CTR</th><th>Regs</th><th>Cost/reg</th><th>Attended</th><th>Saw offer</th><th>Sales</th><th>Revenue</th><th>ROAS</th></tr></thead><tbody>${rows}</tbody>
-          <tfoot><tr style="font-weight:800"><td>All ads</td><td></td><td></td><td>${money(spend)}</td><td>${Number(m.clicks).toLocaleString()}</td><td>${r2(m.ctr)}${m.ctr == null ? '' : '%'}</td><td>${m.paid_regs}</td><td>${per(spend, m.paid_regs)}</td><td>${m.paid_attended}</td><td>${m.paid_saw_offer}</td><td>${m.attributed_sales}</td><td>${money(m.attributed_revenue)}</td><td>${totRoas == null ? '\u2014' : totRoas + '\u00d7'}</td></tr></tfoot></table>` +
+        $('tblAds').innerHTML = `<table class="tbl"><thead><tr><th>Ad</th><th class="txt">Ad set</th><th class="txt">Campaign</th><th>Spend</th><th>Clicks</th><th>CTR</th><th>Regs</th><th>Cost/reg</th><th>Attended</th><th>Saw offer</th><th>Sales</th><th>Revenue</th><th>Profit</th><th>ROAS</th></tr></thead><tbody>${rows}</tbody>
+          <tfoot><tr style="font-weight:800"><td>All ads</td><td></td><td></td><td>${money(spend)}</td><td>${Number(m.clicks).toLocaleString()}</td><td>${r2(m.ctr)}${m.ctr == null ? '' : '%'}</td><td>${m.paid_regs}</td><td>${per(spend, m.paid_regs)}</td><td>${m.paid_attended}</td><td>${m.paid_saw_offer}</td><td>${m.attributed_sales}</td><td>${money(m.attributed_revenue)}</td><td>${signed(m.attributed_revenue - spend)}</td><td>${totRoas == null ? '\u2014' : totRoas + '\u00d7'}</td></tr></tfoot></table>` +
           (smallCount ? `<button class="show-more" onclick="const t=document.getElementById('tblAds');t.classList.toggle('show-all');this.textContent=t.classList.contains('show-all')?'Hide small ads':'Show ${smallCount} more ads (under $5 spend, no registrations)'">Show ${smallCount} more ads (under $5 spend, no registrations)</button>` : '');
 
         const camps = Array.isArray(f.campaigns) ? f.campaigns : [];
@@ -354,12 +396,12 @@
             if (t.excluded && t.excluded.length) parts.push('Excluding: ' + t.excluded.join(', '));
             return `<div class="tgt">${esc(parts.join(' \u00b7 '))}</div>`;
           };
-          const cells = (x) => `<td>${money(x.spend)}</td><td>${Number(x.impressions).toLocaleString()}</td><td>${x.ctr == null ? '\u2014' : x.ctr + '%'}</td><td>${x.cpm == null ? '\u2014' : money(x.cpm)}</td><td>${x.regs}</td><td>${x.cost_per_reg == null ? '\u2014' : money(x.cost_per_reg)}</td><td>${x.attended}</td><td>${x.saw_offer}</td><td>${x.sales}</td><td>${x.cost_per_sale == null ? '\u2014' : money(x.cost_per_sale)}</td><td>${x.revenue ? money(x.revenue) : '\u2014'}</td><td>${roasCell(x)}</td>`;
+          const cells = (x) => `<td>${money(x.spend)}</td><td>${Number(x.impressions).toLocaleString()}</td><td>${x.ctr == null ? '\u2014' : x.ctr + '%'}</td><td>${x.cpm == null ? '\u2014' : money(x.cpm)}</td><td>${x.regs}</td><td>${x.cost_per_reg == null ? '\u2014' : money(x.cost_per_reg)}</td><td>${x.attended}</td><td>${x.saw_offer}</td><td>${x.sales}</td><td>${x.cost_per_sale == null ? '\u2014' : money(x.cost_per_sale)}</td><td>${money(x.revenue)}</td><td>${signed(x.revenue - x.spend)}</td><td>${roasCell(x)}</td>`;
           const body = camps.map(c =>
             `<tr class="cmp-row"><td>${esc(c.name)} ${status(c.status)}</td><td>${budget(c)}</td>${cells(c)}</tr>` +
-            (c.adsets || []).map(a => `<tr class="adset-row"><td style="min-width:220px"><b>${esc(a.name)}</b> ${status(a.status)}${who(a.targeting)}</td><td>${budget(a)}</td>${cells(a)}</tr>`).join('')
+            (c.adsets || []).map(a => `<tr class="adset-row"><td style="min-width:200px"><b>${esc(a.name)}</b> ${status(a.status)}${who(a.targeting)}</td><td>${budget(a)}</td>${cells(a)}</tr>`).join('')
           ).join('');
-          $('tblCamps').innerHTML = `<table class="tbl"><thead><tr><th>Campaign / ad set \u00b7 who it targets</th><th>Budget</th><th>Spend</th><th>Impr.</th><th>CTR</th><th>CPM</th><th>Regs</th><th>Cost/reg</th><th>Attended</th><th>Saw offer</th><th>Sales</th><th>Cost/sale</th><th>Revenue</th><th>ROAS</th></tr></thead><tbody>${body}</tbody></table>`;
+          $('tblCamps').innerHTML = `<table class="tbl"><thead><tr><th>Campaign / ad set \u00b7 who it targets</th><th>Budget</th><th>Spend</th><th>Impr.</th><th>CTR</th><th>CPM</th><th>Regs</th><th>Cost/reg</th><th>Attended</th><th>Saw offer</th><th>Sales</th><th>Cost/sale</th><th>Revenue</th><th>Profit</th><th>ROAS</th></tr></thead><tbody>${body}</tbody></table>`;
         } else { $('campCard').style.display = 'none'; }
         const untraced = salesN - Number(m.attributed_sales || 0);
         $('adsNote').textContent = (m.campaigns && m.campaigns.length ? 'Campaign: ' + m.campaigns.join(', ') + '. ' : '') +
@@ -367,12 +409,15 @@
           (untraced > 0 ? ' \u2014 ' + untraced + ' of ' + salesN + ' sales could not be traced to an ad (bought with a different email, or came from non-ad traffic).' : '.');
       } else { $('adsCard').style.display = 'none'; $('campCard').style.display = 'none'; }
     } catch (e) {
+      if (seq !== funnelSeq) return;
       $('attKpis').innerHTML = `<div class="fstage"><div class="n" style="color:var(--red);font-size:0.9rem">${esc(e.message)}</div><div class="l">Funnel</div></div>`;
+      hideFunnelExtras();
     }
   }
 
 
   async function loadAttendance() {
+    $('tblAttendance').innerHTML = skelTable(6, 11);
     try {
       const d = await authedFetch('?api=attendance');
       const rows = (d.webinars || []).filter(w => w.attendees > 0);
@@ -380,7 +425,6 @@
         rows.map(w => `<tr><td>${esc(w.name)}</td><td class="muted">${fmtEnd(w.ended_at)}</td><td class="muted">${w.registered}</td><td>${w.attendees}</td><td>${w.saw_offer}</td><td>${pct(w.saw_offer_pct)}</td><td class="muted">${w.avg_minutes == null ? '—' : w.avg_minutes}</td><td>${w.buyers}</td><td>${pct(w.buyers_pct_attendees)}</td><td>${pct(w.buyers_pct_saw_offer)}</td><td>${money(w.revenue)}</td></tr>`).join('')
       }</tbody></table>` : '<div class="empty">No attendance collected yet — it appears automatically ~45 min after a webinar ends.</div>';
     } catch (e) {
-      $('attKpis').innerHTML = '';
       $('tblAttendance').innerHTML = `<div class="empty" style="color:var(--red)">${esc(e.message)}</div>`;
     }
   }
@@ -395,14 +439,14 @@
   }
 
   async function load(extraQuery, opts) {
-    $('loading').style.display = ''; $('loading').textContent = 'Loading analytics…'; $('content').style.display = 'none';
+    $('loading').style.display = ''; $('loading').innerHTML = skelPage(); $('content').style.display = 'none';
     try {
       if (!$('webinarSel').options.length || !$('webinarSel').value) await loadWebinars();
       const w = selectedWebinar();
       localStorage.setItem(WKEY, w);
       render(await authedFetch('?api=' + (extraQuery || 'summary') + '&w=' + encodeURIComponent(w), opts));
       loadFunnel();
-    } catch (e) { $('loading').innerHTML = `<span style="color:var(--red)">${esc(e.message)}</span>`; }
+    } catch (e) { $('loading').innerHTML = `<div class="empty" style="color:var(--red)">${esc(e.message)}</div>`; }
   }
 
   $('refreshBtn').addEventListener('click', () => { load(); loadAttendance(); });

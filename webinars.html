@@ -64,6 +64,7 @@
     .funnel{ display:flex; align-items:stretch; flex-wrap:wrap; gap:6px 0; }
     .fstage{ position:relative; flex:1 1 140px; min-width:132px; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:14px 15px 12px; overflow:hidden; display:flex; flex-direction:column; }
     .fstage .top{ margin-bottom:10px; }
+    @media(min-width:900px){ .funnel{ flex-wrap:nowrap; } .fstage{ flex:1 1 0; min-width:0; } .farrow{ min-width:44px; padding:0 3px; } .fstage .n{ font-size:1.3rem; } }
     .frow-label{ font-size:0.64rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.08em; font-weight:800; margin:4px 2px 6px; }
     .funnel + .frow-label{ margin-top:14px; }
     .fstage .cost{ margin-top:auto; padding-top:8px; border-top:1px dashed var(--border-light); display:flex; flex-direction:column; gap:1px; }
@@ -241,8 +242,12 @@
       const convAtt = s.attendees ? Math.round(1000 * salesN / s.attendees) / 10 : null;
       const convOffer = s.saw_offer ? Math.round(1000 * salesN / s.saw_offer) / 10 : null;
 
+      const imps = hasAds ? Number(m.impressions || 0) : 0;
+      const pct2 = (a, b) => (b ? Math.round(10000 * a / b) / 100 : null);
       const audience =
-        (hasAds ? stage(money(spend), 'Ad spend', 'Meta \u00b7 ' + m.ads_count + ' ads' + (m.ctr == null ? '' : ' \u00b7 ' + m.ctr + '% CTR'), 'red', m.clicks ? { k: 'Cost / click', v: costMoney(spend / m.clicks) } : null) + arrow(null) : '') +
+        (hasAds ? stage(money(spend), 'Ad spend', 'Meta \u00b7 ' + m.ads_count + ' ads', 'red', null) + arrow(null) : '') +
+        (hasAds && imps ? stage(imps.toLocaleString(), 'Impressions', Number(m.clicks).toLocaleString() + ' clicks' + (m.ctr == null ? '' : ' \u00b7 ' + m.ctr + '% CTR'), null, { k: 'Cost / 1K impressions', v: costMoney(1000 * spend / imps) }) +
+          arrow(f.visitors != null ? pct2(f.visitors, imps) : pct2(s.registered, imps)) : '') +
         (f.visitors != null ? stage(Number(f.visitors).toLocaleString(), 'Page visitors', 'unique \u00b7 register page', null, costOf('Cost / visitor', f.visitors)) + arrow(f.visitors_to_reg_pct) : '') +
         stage(s.registered, 'Registrations', hasAds ? m.paid_regs + ' from ads' : '', null, costOf('Cost / registration', s.registered)) +
         arrow(s.show_up_pct) +

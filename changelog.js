@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+  { version: 'v602', title: 'Webinars: impressions in the funnel', items: [
+    'The funnel now follows the full path: Ad spend, Impressions (with clicks, CTR and cost per 1,000 impressions), Page visitors, Registrations, Attended, Saw offer. The arrow into Page visitors shows the share of impressions that became visits.',
+    'Each funnel row now stays on a single line on desktop.',
+  ], roles: ['marketing', 'sales_manager', 'mentorship'] },
   { version: 'v601', title: 'Webinars: costs under every funnel stage', items: [
     'Each funnel stage now has its own labeled cost line at the bottom of the card: cost per click, per visitor, per registration, per attendee, per offer view and per sale, with return on ad spend under Revenue and ROI under Profit after ads.',
     'The funnel is split into two rows, Audience and Money, so it no longer wraps mid-flow. Small costs show cents.',

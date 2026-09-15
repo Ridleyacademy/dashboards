@@ -16,6 +16,9 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+  { version: 'v605', title: 'Webinars: ads tables fit on screen', items: [
+    'The ads and campaigns tables are tighter so Sales, Revenue and ROAS are visible again without scrolling sideways on a desktop screen. Long ad set and campaign names are shortened with "\u2026"; hover to see the full name.',
+  ], roles: ['marketing', 'sales_manager', 'mentorship'] },
   { version: 'v604', title: 'Webinars: campaigns and ad sets', items: [
     'New "Campaigns & ad sets" table: each Meta campaign that fed the webinar with its ad sets underneath, showing who each ad set targets (location, ages, gender, audience or lookalike, interests, exclusions) plus status, budget, spend, impressions, CTR, CPM, registrations, cost per registration, attended, saw offer, sales, cost per sale, revenue and ROAS.',
     'The ads table now has Ad set and Campaign columns, and stats split per ad set (the same ad running in two ad sets shows as two rows). Tiny ads with under $5 spend and no registrations are tucked behind a "Show more" link.',

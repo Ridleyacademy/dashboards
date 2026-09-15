@@ -77,8 +77,10 @@
       #attKpis .funnel .fstage{ min-width:0; }
     }
     table.tbl th.txt, table.tbl td.txt{ text-align:left; }
-    table.tbl td.clip{ max-width:190px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    #tblAds table.tbl td:first-child{ min-width:220px; }
+    table.tbl td.clip{ max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    #tblAds table.tbl td:first-child{ min-width:160px; }
+    #tblAds table.tbl th, #tblAds table.tbl td, #tblCamps table.tbl th, #tblCamps table.tbl td{ padding:6px 7px; }
+    #tblAds table.tbl thead th, #tblCamps table.tbl thead th{ font-size:0.64rem; letter-spacing:0.02em; }
     #tblCamps, #tblAds{ scrollbar-color:var(--border-light) transparent; }
     #tblCamps::-webkit-scrollbar, #tblAds::-webkit-scrollbar{ height:8px; }
     #tblCamps::-webkit-scrollbar-track, #tblAds::-webkit-scrollbar-track{ background:transparent; }
@@ -355,7 +357,7 @@
           const cells = (x) => `<td>${money(x.spend)}</td><td>${Number(x.impressions).toLocaleString()}</td><td>${x.ctr == null ? '\u2014' : x.ctr + '%'}</td><td>${x.cpm == null ? '\u2014' : money(x.cpm)}</td><td>${x.regs}</td><td>${x.cost_per_reg == null ? '\u2014' : money(x.cost_per_reg)}</td><td>${x.attended}</td><td>${x.saw_offer}</td><td>${x.sales}</td><td>${x.cost_per_sale == null ? '\u2014' : money(x.cost_per_sale)}</td><td>${x.revenue ? money(x.revenue) : '\u2014'}</td><td>${roasCell(x)}</td>`;
           const body = camps.map(c =>
             `<tr class="cmp-row"><td>${esc(c.name)} ${status(c.status)}</td><td>${budget(c)}</td>${cells(c)}</tr>` +
-            (c.adsets || []).map(a => `<tr class="adset-row"><td style="min-width:260px"><b>${esc(a.name)}</b> ${status(a.status)}${who(a.targeting)}</td><td>${budget(a)}</td>${cells(a)}</tr>`).join('')
+            (c.adsets || []).map(a => `<tr class="adset-row"><td style="min-width:220px"><b>${esc(a.name)}</b> ${status(a.status)}${who(a.targeting)}</td><td>${budget(a)}</td>${cells(a)}</tr>`).join('')
           ).join('');
           $('tblCamps').innerHTML = `<table class="tbl"><thead><tr><th>Campaign / ad set \u00b7 who it targets</th><th>Budget</th><th>Spend</th><th>Impr.</th><th>CTR</th><th>CPM</th><th>Regs</th><th>Cost/reg</th><th>Attended</th><th>Saw offer</th><th>Sales</th><th>Cost/sale</th><th>Revenue</th><th>ROAS</th></tr></thead><tbody>${body}</tbody></table>`;
         } else { $('campCard').style.display = 'none'; }

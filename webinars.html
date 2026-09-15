@@ -72,6 +72,7 @@
     .fstage.c-green{ --stage:var(--green); } .fstage.c-green .n{ color:var(--green); }
     .fstage.c-purple{ --stage:var(--purple); background:linear-gradient(135deg, rgba(167,139,250,0.10), var(--surface) 55%); }
     .fstage.c-purple .n{ color:var(--purple); }
+    .fstage.c-red{ --stage:var(--red); } .fstage.c-red .n{ color:var(--red); }
     .farrow{ display:flex; flex-direction:column; align-items:center; justify-content:center; padding:0 5px; min-width:56px; gap:4px; }
     .farrow .a{ color:var(--text-dim); font-size:1rem; line-height:1; }
     .farrow .p{ font-size:0.72rem; font-weight:800; color:var(--text); background:var(--surface2); border:1px solid var(--border); border-radius:999px; padding:2px 8px; }
@@ -124,6 +125,7 @@
       <div class="sec-title" style="margin-top:16px"><span class="ic">◔</span> Funnel — <span id="attTitle">this webinar</span></div>
       <div id="attKpis"></div>
       <div class="card curve-card" id="liveCard" style="display:none"><h4>Live viewers during the webinar</h4><div class="curve-wrap"><canvas id="chLive"></canvas></div></div>
+      <div class="card curve-card" id="adsCard" style="display:none"><h4>Ads that fed this webinar</h4><div id="tblAds" style="overflow-x:auto"></div><div class="muted" id="adsNote" style="font-size:0.72rem;margin-top:8px"></div></div>
       <div class="grid2">
         <div class="card"><h4>Registrations per day</h4><div class="chart-wrap"><canvas id="chDays"></canvas></div></div>
         <div class="card"><h4>By source (utm_source)</h4><div class="chart-wrap"><canvas id="chSources"></canvas></div></div>
@@ -214,8 +216,14 @@
         $('attKpis').innerHTML = '<div class="fstage"><div class="n muted">\u2014</div><div class="l">No attendance yet</div><div class="sub">appears automatically ~45 min after this webinar ends</div></div>';
         return;
       }
-      const spend = m.connected ? Number(m.spend || 0) : null;
+      const hasAds = !!(m.connected && m.linked);
+      const spend = hasAds ? Number(m.spend || 0) : null;
       const salesN = sl ? Number(sl.sales_count || 0) : 0;
+      const netRev = sl && sl.net_revenue != null ? Number(sl.net_revenue) : null;
+      const per = (num, den) => (den ? money(num / den) : '\u2014');
+      const profit = hasAds && netRev != null ? netRev - spend : null;
+      const roi = hasAds && spend > 0 && netRev != null ? Math.round(100 * (netRev - spend) / spend) : null;
+      const roas = hasAds && spend > 0 ? Math.round(100 * s.revenue / spend) / 100 : null;
       const stage = (n, l, sub, c) => `<div class="fstage${c ? ' c-' + c : ''}"><div class="n">${n}</div><div class="l">${esc(l)}</div>${sub ? `<div class="sub">${esc(sub)}</div>` : ''}</div>`;
       const arrow = (p) => `<div class="farrow"><div class="a">\u2192</div><div class="p">${p == null ? '' : pct(p)}</div></div>`;
       const chip = (l, v, extra) => `<span class="chip">${esc(l)} <b>${v}</b>${extra ? ' <span>' + esc(extra) + '</span>' : ''}</span>`;
@@ -225,18 +233,19 @@
       const convOffer = s.saw_offer ? Math.round(1000 * salesN / s.saw_offer) / 10 : null;
 
       let funnel =
-        (m.connected ? stage(money(spend), 'Ad spend', 'Meta \u00b7 last ' + (m.window_days || 7) + ' days', null) + arrow(null) : '') +
+        (hasAds ? stage(money(spend), 'Ad spend', 'Meta \u00b7 ' + m.ads_count + ' ads \u00b7 ' + Number(m.clicks).toLocaleString() + ' clicks', 'red') + arrow(null) : '') +
         (f.visitors != null ? stage(Number(f.visitors).toLocaleString(), 'Page visitors', 'unique \u00b7 register page', null) + arrow(f.visitors_to_reg_pct) : '') +
-        stage(s.registered, 'Registrations', m.connected && s.registered ? money(spend / s.registered) + ' per reg' : '', null) +
+        stage(s.registered, 'Registrations', hasAds ? per(spend, s.registered) + ' per reg \u00b7 ' + m.paid_regs + ' from ads' : '', null) +
         arrow(s.show_up_pct) +
-        stage(s.attendees, 'Attended', 'avg ' + (s.avg_minutes == null ? '\u2014' : s.avg_minutes) + ' min', 'blue') +
+        stage(s.attendees, 'Attended', (hasAds ? per(spend, s.attendees) + ' per attendee \u00b7 ' : '') + 'avg ' + (s.avg_minutes == null ? '\u2014' : s.avg_minutes) + ' min', 'blue') +
         arrow(s.saw_offer_pct) +
         stage(s.saw_offer, 'Saw offer (90m+)', '', 'gold') +
         arrow(convOffer) +
-        stage(salesN, 'Sales', convAtt == null ? '' : convAtt + '% of attendees', 'green') +
+        stage(salesN, 'Sales', (hasAds ? per(spend, salesN) + ' per sale \u00b7 ' : '') + (convAtt == null ? '' : convAtt + '% of attendees'), 'green') +
         arrow(null) +
-        stage(money(s.revenue), 'Revenue', m.connected && spend > 0 ? (Math.round(10 * s.revenue / spend) / 10) + '\u00d7 ROAS' : '', 'purple') +
-        (sl && sl.net_revenue != null ? arrow(null) + stage(money(sl.net_revenue), 'Net revenue', 'after fees \u00b7 \u221215% phone \u00b7 \u221220% BNPL', 'green') : '');
+        stage(money(s.revenue), 'Revenue', roas != null ? roas + '\u00d7 ROAS' : '', 'purple') +
+        (netRev != null ? arrow(null) + stage(money(netRev), 'Net revenue', 'after fees \u00b7 \u221215% phone \u00b7 \u221220% BNPL', 'green') : '') +
+        (profit != null ? arrow(null) + stage((profit < 0 ? '\u2212' : '') + money(Math.abs(profit)), 'Profit after ads', 'ROI ' + roi + '%', profit < 0 ? 'red' : 'green') : '');
 
       let chips = '';
       if (pk.peak != null) chips += chip('Peak live', pk.peak, pk.avg_of_peak_pct != null ? '\u00b7 room held ' + pct(pk.avg_of_peak_pct) : '');
@@ -246,8 +255,13 @@
         chips += chip('Payment plan', sl.plan_count, '\u00b7 ' + money(sl.plan_revenue));
       }
       if (sl && sl.processor_fees != null) chips += chip('Processor fees', money(sl.processor_fees), Number(sl.bnpl_count) > 0 ? '\u00b7 BNPL sales ' + sl.bnpl_count + ' (' + money(sl.bnpl_revenue) + ')' : '');
-      if (m.connected && m.ctr != null) chips += chip('Click rate', m.ctr + '%', '\u00b7 ' + Number(m.clicks).toLocaleString() + ' clicks');
-      if (!m.connected) chips += dimChip('Meta Ads not connected \u2014 spend \u00b7 cost/reg \u00b7 click rate \u00b7 ROAS');
+      if (hasAds) {
+        chips += chip('Click rate', m.ctr == null ? '\u2014' : m.ctr + '%', '\u00b7 ' + (m.cpc == null ? '' : money(m.cpc) + ' per click'));
+        chips += chip('Impressions', Number(m.impressions).toLocaleString());
+        chips += chip('Sales traced to an ad', m.attributed_sales + ' of ' + salesN, '\u00b7 ' + money(m.attributed_revenue));
+      }
+      if (!m.connected) chips += dimChip('Meta Ads not connected \u2014 spend \u00b7 cost/reg \u00b7 click rate \u00b7 ROAS \u00b7 ROI');
+      else if (!m.linked) chips += dimChip('No Meta ads linked \u2014 registrant utm_content must match a Meta ad name');
       chips += dimChip('Google Ads not connected');
 
       $('attKpis').innerHTML = `<div class="funnel">${funnel}</div><div class="chips">${chips}</div>`;
@@ -262,6 +276,21 @@
             scales: { x: { grid: { display: false }, ticks: { color: mutedC, maxTicksLimit: 10, callback: function (v) { return this.getLabelForValue(v) + 'm'; } } },
                       y: { grid: { color: grid }, ticks: { color: mutedC, precision: 0 }, beginAtZero: true } } } });
       } else { $('liveCard').style.display = 'none'; }
+
+      const ads = Array.isArray(f.ads) ? f.ads : [];
+      if (hasAds && ads.length) {
+        $('adsCard').style.display = '';
+        const r2 = (v) => v == null ? '\u2014' : v;
+        const roasCell = (a) => a.roas == null ? '\u2014' : `<span style="color:${a.roas >= 1 ? 'var(--green)' : 'var(--red)'};font-weight:700">${a.roas}\u00d7</span>`;
+        const rows = ads.map(a => `<tr${a.paid ? '' : ' class="muted"'}><td>${esc(a.ad)}${a.paid ? '' : ' <span class="muted">(organic / unmatched)</span>'}</td><td>${a.paid ? money(a.spend) : '\u2014'}</td><td>${a.paid ? Number(a.clicks).toLocaleString() : '\u2014'}</td><td>${a.ctr == null ? '\u2014' : a.ctr + '%'}</td><td>${a.regs}</td><td>${a.cost_per_reg == null ? '\u2014' : money(a.cost_per_reg)}</td><td>${a.attended}</td><td>${a.saw_offer}</td><td>${a.sales}</td><td>${a.revenue ? money(a.revenue) : '\u2014'}</td><td>${roasCell(a)}</td></tr>`).join('');
+        const totRoas = spend > 0 ? Math.round(100 * m.attributed_revenue / spend) / 100 : null;
+        $('tblAds').innerHTML = `<table class="tbl"><thead><tr><th>Ad</th><th>Spend</th><th>Clicks</th><th>CTR</th><th>Regs</th><th>Cost/reg</th><th>Attended</th><th>Saw offer</th><th>Sales</th><th>Revenue</th><th>ROAS</th></tr></thead><tbody>${rows}</tbody>
+          <tfoot><tr style="font-weight:800"><td>All ads</td><td>${money(spend)}</td><td>${Number(m.clicks).toLocaleString()}</td><td>${r2(m.ctr)}${m.ctr == null ? '' : '%'}</td><td>${m.paid_regs}</td><td>${per(spend, m.paid_regs)}</td><td>${m.paid_attended}</td><td>${m.paid_saw_offer}</td><td>${m.attributed_sales}</td><td>${money(m.attributed_revenue)}</td><td>${totRoas == null ? '\u2014' : totRoas + '\u00d7'}</td></tr></tfoot></table>`;
+        const untraced = salesN - Number(m.attributed_sales || 0);
+        $('adsNote').textContent = (m.campaigns && m.campaigns.length ? 'Campaign: ' + m.campaigns.join(', ') + '. ' : '') +
+          'An ad is linked when a registrant\u2019s utm_content equals its Meta ad name; spend counts from the first registration to the webinar end. Sales per ad match the buyer\u2019s email to the registrant' +
+          (untraced > 0 ? ' \u2014 ' + untraced + ' of ' + salesN + ' sales could not be traced to an ad (bought with a different email, or came from non-ad traffic).' : '.');
+      } else { $('adsCard').style.display = 'none'; }
     } catch (e) {
       $('attKpis').innerHTML = `<div class="fstage"><div class="n" style="color:var(--red);font-size:0.9rem">${esc(e.message)}</div><div class="l">Funnel</div></div>`;
     }

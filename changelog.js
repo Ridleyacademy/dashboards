@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+  { version: 'v600', title: 'Webinars: ad spend, ROAS and ROI per webinar and per ad', items: [
+    'The funnel now uses the Meta ads that actually fed the selected webinar (ads whose name matches registrants\u2019 utm_content), not the whole ad account: Ad spend, cost per registration, per attendee and per sale, ROAS, and a new Profit after ads stage with ROI.',
+    'New "Ads that fed this webinar" table: spend, clicks, CTR, registrations, cost per reg, attended, saw offer, sales, revenue and ROAS for every ad, so you can see which creatives actually sell.',
+  ], roles: ['marketing', 'sales_manager', 'mentorship'] },
   { version: 'v599', title: 'Webinars: net revenue + tighter visitor window', items: [
     'New funnel stage after Revenue: Net revenue = revenue minus processor fees (real fee when the processor reports it, 3% estimate otherwise), minus 15% of phone (affiliate) sales, minus 20% of buy-now-pay-later sales where detectable (Klarna/Afterpay/Affirm). A Processor fees chip shows the deduction.',
     'Page visitors now counts only from the first registration for the webinar until the webinar STARTS (was: until it ended).',

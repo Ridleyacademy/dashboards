@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+  { version: 'v601', title: 'Webinars: costs under every funnel stage', items: [
+    'Each funnel stage now has its own labeled cost line at the bottom of the card: cost per click, per visitor, per registration, per attendee, per offer view and per sale, with return on ad spend under Revenue and ROI under Profit after ads.',
+    'The funnel is split into two rows, Audience and Money, so it no longer wraps mid-flow. Small costs show cents.',
+  ], roles: ['marketing', 'sales_manager', 'mentorship'] },
   { version: 'v600', title: 'Webinars: ad spend, ROAS and ROI per webinar and per ad', items: [
     'The funnel now uses the Meta ads that actually fed the selected webinar (ads whose name matches registrants\u2019 utm_content), not the whole ad account: Ad spend, cost per registration, per attendee and per sale, ROAS, and a new Profit after ads stage with ROI.',
     'New "Ads that fed this webinar" table: spend, clicks, CTR, registrations, cost per reg, attended, saw offer, sales, revenue and ROAS for every ad, so you can see which creatives actually sell.',

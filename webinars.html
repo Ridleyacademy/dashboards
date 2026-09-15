@@ -62,7 +62,14 @@
     .kpi.accent-blue .n{ color:var(--blue); } .kpi.accent-gold .n{ color:var(--gold); }
     .kpi.accent-purple .n{ color:var(--purple); }
     .funnel{ display:flex; align-items:stretch; flex-wrap:wrap; gap:6px 0; }
-    .fstage{ position:relative; flex:1 1 140px; min-width:132px; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:14px 15px 12px; overflow:hidden; }
+    .fstage{ position:relative; flex:1 1 140px; min-width:132px; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:14px 15px 12px; overflow:hidden; display:flex; flex-direction:column; }
+    .fstage .top{ margin-bottom:10px; }
+    .frow-label{ font-size:0.64rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.08em; font-weight:800; margin:4px 2px 6px; }
+    .funnel + .frow-label{ margin-top:14px; }
+    .fstage .cost{ margin-top:auto; padding-top:8px; border-top:1px dashed var(--border-light); display:flex; flex-direction:column; gap:1px; }
+    .fstage .cost .k{ font-size:0.6rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em; font-weight:700; }
+    .fstage .cost .v{ font-size:0.95rem; font-weight:800; color:var(--text); white-space:nowrap; }
+    .fstage .cost.good .v{ color:var(--green); } .fstage .cost.bad .v{ color:var(--red); }
     .fstage::before{ content:''; position:absolute; inset:0 auto 0 0; width:3px; background:var(--stage,var(--border-light)); }
     .fstage .n{ font-size:1.45rem; font-weight:800; white-space:nowrap; letter-spacing:-0.01em; }
     .fstage .l{ font-size:0.66rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em; margin-top:4px; font-weight:700; }
@@ -224,7 +231,9 @@
       const profit = hasAds && netRev != null ? netRev - spend : null;
       const roi = hasAds && spend > 0 && netRev != null ? Math.round(100 * (netRev - spend) / spend) : null;
       const roas = hasAds && spend > 0 ? Math.round(100 * s.revenue / spend) / 100 : null;
-      const stage = (n, l, sub, c) => `<div class="fstage${c ? ' c-' + c : ''}"><div class="n">${n}</div><div class="l">${esc(l)}</div>${sub ? `<div class="sub">${esc(sub)}</div>` : ''}</div>`;
+      const stage = (n, l, sub, c, cost) => `<div class="fstage${c ? ' c-' + c : ''}"><div class="top"><div class="n">${n}</div><div class="l">${esc(l)}</div>${sub ? `<div class="sub">${esc(sub)}</div>` : ''}</div>${cost ? `<div class="cost${cost.tone ? ' ' + cost.tone : ''}"><span class="k">${esc(cost.k)}</span><span class="v">${cost.v}</span></div>` : ''}</div>`;
+      const costMoney = (v) => '$' + Number(v).toLocaleString(undefined, { minimumFractionDigits: v < 100 ? 2 : 0, maximumFractionDigits: v < 100 ? 2 : 0 });
+      const costOf = (k, den) => (hasAds && den ? { k, v: costMoney(spend / den) } : null);
       const arrow = (p) => `<div class="farrow"><div class="a">\u2192</div><div class="p">${p == null ? '' : pct(p)}</div></div>`;
       const chip = (l, v, extra) => `<span class="chip">${esc(l)} <b>${v}</b>${extra ? ' <span>' + esc(extra) + '</span>' : ''}</span>`;
       const dimChip = (t) => `<span class="chip dim">${esc(t)}</span>`;
@@ -232,20 +241,21 @@
       const convAtt = s.attendees ? Math.round(1000 * salesN / s.attendees) / 10 : null;
       const convOffer = s.saw_offer ? Math.round(1000 * salesN / s.saw_offer) / 10 : null;
 
-      let funnel =
-        (hasAds ? stage(money(spend), 'Ad spend', 'Meta \u00b7 ' + m.ads_count + ' ads \u00b7 ' + Number(m.clicks).toLocaleString() + ' clicks', 'red') + arrow(null) : '') +
-        (f.visitors != null ? stage(Number(f.visitors).toLocaleString(), 'Page visitors', 'unique \u00b7 register page', null) + arrow(f.visitors_to_reg_pct) : '') +
-        stage(s.registered, 'Registrations', hasAds ? per(spend, s.registered) + ' per reg \u00b7 ' + m.paid_regs + ' from ads' : '', null) +
+      const audience =
+        (hasAds ? stage(money(spend), 'Ad spend', 'Meta \u00b7 ' + m.ads_count + ' ads' + (m.ctr == null ? '' : ' \u00b7 ' + m.ctr + '% CTR'), 'red', m.clicks ? { k: 'Cost / click', v: costMoney(spend / m.clicks) } : null) + arrow(null) : '') +
+        (f.visitors != null ? stage(Number(f.visitors).toLocaleString(), 'Page visitors', 'unique \u00b7 register page', null, costOf('Cost / visitor', f.visitors)) + arrow(f.visitors_to_reg_pct) : '') +
+        stage(s.registered, 'Registrations', hasAds ? m.paid_regs + ' from ads' : '', null, costOf('Cost / registration', s.registered)) +
         arrow(s.show_up_pct) +
-        stage(s.attendees, 'Attended', (hasAds ? per(spend, s.attendees) + ' per attendee \u00b7 ' : '') + 'avg ' + (s.avg_minutes == null ? '\u2014' : s.avg_minutes) + ' min', 'blue') +
+        stage(s.attendees, 'Attended', 'avg ' + (s.avg_minutes == null ? '\u2014' : s.avg_minutes) + ' min watched', 'blue', costOf('Cost / attendee', s.attendees)) +
         arrow(s.saw_offer_pct) +
-        stage(s.saw_offer, 'Saw offer (90m+)', '', 'gold') +
-        arrow(convOffer) +
-        stage(salesN, 'Sales', (hasAds ? per(spend, salesN) + ' per sale \u00b7 ' : '') + (convAtt == null ? '' : convAtt + '% of attendees'), 'green') +
+        stage(s.saw_offer, 'Saw offer (90m+)', 'stayed 90 min or more', 'gold', costOf('Cost / offer view', s.saw_offer));
+
+      const moneyRow =
+        stage(salesN, 'Sales', (convOffer == null ? '' : convOffer + '% of offer viewers') + (convAtt == null ? '' : ' \u00b7 ' + convAtt + '% of attendees'), 'green', costOf('Cost / sale', salesN)) +
         arrow(null) +
-        stage(money(s.revenue), 'Revenue', roas != null ? roas + '\u00d7 ROAS' : '', 'purple') +
-        (netRev != null ? arrow(null) + stage(money(netRev), 'Net revenue', 'after fees \u00b7 \u221215% phone \u00b7 \u221220% BNPL', 'green') : '') +
-        (profit != null ? arrow(null) + stage((profit < 0 ? '\u2212' : '') + money(Math.abs(profit)), 'Profit after ads', 'ROI ' + roi + '%', profit < 0 ? 'red' : 'green') : '');
+        stage(money(s.revenue), 'Revenue', 'gross', 'purple', roas != null ? { k: 'Return on ad spend', v: roas + '\u00d7', tone: roas >= 1 ? 'good' : 'bad' } : null) +
+        (netRev != null ? arrow(null) + stage(money(netRev), 'Net revenue', 'after fees \u00b7 \u221215% phone \u00b7 \u221220% BNPL', 'green', null) : '') +
+        (profit != null ? arrow(null) + stage((profit < 0 ? '\u2212' : '') + money(Math.abs(profit)), 'Profit after ads', 'net revenue \u2212 ad spend', profit < 0 ? 'red' : 'green', { k: 'ROI', v: roi + '%', tone: roi >= 0 ? 'good' : 'bad' }) : '');
 
       let chips = '';
       if (pk.peak != null) chips += chip('Peak live', pk.peak, pk.avg_of_peak_pct != null ? '\u00b7 room held ' + pct(pk.avg_of_peak_pct) : '');
@@ -264,7 +274,7 @@
       else if (!m.linked) chips += dimChip('No Meta ads linked \u2014 registrant utm_content must match a Meta ad name');
       chips += dimChip('Google Ads not connected');
 
-      $('attKpis').innerHTML = `<div class="funnel">${funnel}</div><div class="chips">${chips}</div>`;
+      $('attKpis').innerHTML = `<div class="frow-label">Audience</div><div class="funnel">${audience}</div><div class="frow-label">Money</div><div class="funnel">${moneyRow}</div><div class="chips">${chips}</div>`;
 
       const curve = Array.isArray(f.curve) ? f.curve : [];
       if (curve.length > 2) {

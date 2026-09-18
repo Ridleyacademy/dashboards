@@ -16,6 +16,11 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+  { version: 'v607', title: 'Webinars: ad data freshness is visible', items: [
+    'The funnel now says how current the Meta numbers are: a green "Ad data live" chip, or a red warning naming the date the data stops at and why the sync is failing (for example an expired access token).',
+    'Past webinars keep their ad spend even while the sync is broken, instead of the ad tiles quietly disappearing.',
+    'Meta now syncs hourly instead of once a day.',
+  ], roles: ['marketing', 'sales_manager', 'mentorship'] },
   { version: 'v606', title: 'Webinars: loading skeletons and profit per ad', items: [
     'The page shows shimmering placeholders while data loads: the registration tiles, all three funnel rows, the live viewers chart, the campaigns and ads tables, and the all-webinars table.',
     'The campaigns and ads tables have a Profit column (revenue minus ad spend): losses show in red with a minus sign, gains in green. Zero revenue now shows as $0.',

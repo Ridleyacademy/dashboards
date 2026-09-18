@@ -125,6 +125,7 @@
     .chip b{ font-weight:800; color:var(--text); font-size:0.86rem; }
     .chip.dim{ border-style:dashed; color:var(--text-dim); }
     .chip.dim b{ color:var(--text-dim); font-weight:700; }
+    .chip.warn{ border-color:rgba(248,113,113,0.45); color:var(--red); background:var(--red-bg); }
     .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:14px; }
     @media(max-width:820px){ .grid2{ grid-template-columns:1fr; } }
     .card{ background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:14px 16px; }
@@ -347,6 +348,12 @@
         chips += chip('Click rate', m.ctr == null ? '\u2014' : m.ctr + '%', '\u00b7 ' + (m.cpc == null ? '' : money(m.cpc) + ' per click'));
         chips += chip('Impressions', Number(m.impressions).toLocaleString());
         chips += chip('Sales traced to an ad', m.attributed_sales + ' of ' + salesN, '\u00b7 ' + money(m.attributed_revenue));
+      }
+      if (m.connected) {
+        const through = m.data_through ? fmtEnd(m.data_through + 'T12:00:00Z') : '\u2014';
+        if (m.sync_error) chips += `<span class="chip warn">Meta sync failing since ${esc(fmtEnd(m.sync_error.at))} \u2014 ad data stops at ${esc(through)} <b>${esc((m.sync_error.message || '').slice(0, 70))}</b></span>`;
+        else if (m.stale) chips += `<span class="chip warn">Ad data only through ${esc(through)}</span>`;
+        else chips += chip('Ad data', 'live', '\u00b7 through ' + through);
       }
       if (!m.connected) chips += dimChip('Meta Ads not connected \u2014 spend \u00b7 cost/reg \u00b7 click rate \u00b7 ROAS \u00b7 ROI');
       else if (!m.linked) chips += dimChip('No Meta ads linked \u2014 registrant utm_content must match a Meta ad name');

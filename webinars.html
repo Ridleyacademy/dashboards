@@ -201,6 +201,7 @@
   const fmtWhen = (iso) => { if (!iso) return ''; const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' }) + ' ET'; };
 
   let charts = [];
+  let webinarWhen = null;
   function chart(id, cfg) { const c = charts.find(x => x.id === id); if (c) c.ch.destroy(); const ch = new Chart($(id), cfg); charts.push({ id, ch }); }
   function kpi(n, l, sub, accent) { return `<div class="kpi${accent ? ' accent-' + accent : ''}"><div class="n">${n}</div><div class="l">${esc(l)}</div>${sub ? `<div class="sub">${esc(sub)}</div>` : ''}</div>`; }
   const WKEY = 'webinars-selected';
@@ -220,6 +221,7 @@
     Chart.defaults.color = muted; Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
     Chart.defaults.plugins.legend.labels.boxWidth = 12;
 
+    webinarWhen = d.webinar || null;
     $('webinarWhen').textContent = d.webinar && d.webinar.scheduledAt ? fmtWhen(d.webinar.scheduledAt) : '';
     $('kpis').innerHTML =
       kpi(d.total, 'Registrations', d.today ? d.today + ' today' : '', 'blue') +
@@ -359,7 +361,13 @@
       else if (!m.linked) chips += dimChip('No Meta ads linked \u2014 registrant utm_content must match a Meta ad name');
       chips += dimChip('Google Ads not connected');
 
-      $('attKpis').innerHTML = `<div class="frow-label">Traffic</div><div class="funnel">${trafficRow}</div><div class="frow-label">Webinar</div><div class="funnel">${webinarRow}</div><div class="frow-label">Money</div><div class="funnel">${moneyRow}</div><div class="chips">${chips}</div>`;
+      const startsAt = webinarWhen && (webinarWhen.startedAt || webinarWhen.scheduledAt);
+      const upcoming = s.attendees === 0 && startsAt && Date.parse(startsAt) > Date.now() - 3 * 3600e3;
+      $('attKpis').innerHTML = upcoming
+        ? `<div class="frow-label">Traffic so far</div><div class="funnel">${trafficRow}</div>
+           <div class="chips"><span class="chip">Webinar hasn\u2019t run yet <b>${esc(fmtWhen(startsAt))}</b></span>
+           <span class="chip dim">Attendance, sales and ROI appear ~45 min after it ends</span>${chips}</div>`
+        : `<div class="frow-label">Traffic</div><div class="funnel">${trafficRow}</div><div class="frow-label">Webinar</div><div class="funnel">${webinarRow}</div><div class="frow-label">Money</div><div class="funnel">${moneyRow}</div><div class="chips">${chips}</div>`;
 
       const curve = Array.isArray(f.curve) ? f.curve : [];
       if (curve.length > 2) {

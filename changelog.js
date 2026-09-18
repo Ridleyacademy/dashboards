@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+  { version: 'v608', title: 'Webinars: see the funnel before the webinar runs', items: [
+    'An upcoming webinar now shows its live Traffic row \u2014 ad spend, impressions, page visitors, registrations and cost per registration \u2014 plus the campaigns, ad sets and ads feeding it, instead of showing nothing until the day after.',
+    'Attendance, sales and ROI are marked as pending until the roster is collected ~45 min after the webinar ends.',
+  ], roles: ['marketing', 'sales_manager', 'mentorship'] },
   { version: 'v607', title: 'Webinars: ad data freshness is visible', items: [
     'The funnel now says how current the Meta numbers are: a green "Ad data live" chip, or a red warning naming the date the data stops at and why the sync is failing (for example an expired access token).',
     'Past webinars keep their ad spend even while the sync is broken, instead of the ad tiles quietly disappearing.',

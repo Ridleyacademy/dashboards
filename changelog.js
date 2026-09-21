@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+  { version: 'v611', title: 'Webinars: a sale only counts if the buyer is linked to that webinar', items: [
+    'Revenue now requires a connection to the webinar: attended (counts for 30 days afterwards), registered but did not show (counts until the next webinar), or bought during the event itself with an unmatched email.',
+    'This removes sales that merely happened in the same week \u2014 mentorship and retreat deals from people who never attended were being credited to a webinar they had nothing to do with.',
+  ], roles: ['marketing', 'sales_manager', 'mentorship'] },
   { version: 'v610', title: 'Webinars: attribution runs to the next webinar', items: [
     'A webinar now owns its whole week: sales count from the webinar until the next one starts, instead of stopping 12 hours after it ends.',
     'If the buyer attended a webinar, the sale is credited to that webinar for up to 30 days \u2014 so mentorship and phone-closed deals land on the webinar that produced them, even after the next one has run.',

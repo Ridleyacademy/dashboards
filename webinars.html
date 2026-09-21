@@ -181,7 +181,7 @@
       <div class="note" id="syncNote"></div>
 
       <div class="card" style="margin-top:14px"><h4>All webinars — attendance &amp; sales</h4><div id="tblAttendance" style="overflow-x:auto"></div></div>
-      <div class="muted" style="font-size:0.72rem;margin:10px 2px 0">Attendance is collected automatically 45 min after each webinar ends (webinar-pixel-sync → webinar_attendees). “Saw offer” = stayed 90 minutes or more. Buyers = sales from the Sales Log (rebills, refunds and chargebacks excluded). A buyer who attended the webinar counts for up to 30 days afterwards, credited to the last webinar they attended \u2014 so mentorship and phone-closed deals land on the webinar that produced them. Everyone else counts if they bought in that webinar\u2019s week, which runs until the next webinar starts.</div>
+      <div class="muted" style="font-size:0.72rem;margin:10px 2px 0">Attendance is collected automatically 45 min after each webinar ends (webinar-pixel-sync → webinar_attendees). “Saw offer” = stayed 90 minutes or more. Buyers = sales from the Sales Log (rebills, refunds and chargebacks excluded), and only from people linked to this webinar: someone who attended counts for up to 30 days afterwards (so follow-up and phone-closed deals land here); someone who registered but did not show counts until the next webinar starts; anyone with no registration counts only if they bought during the event itself, which catches buyers checking out with a different email.</div>
 
       <div class="muted" style="font-size:0.72rem;margin:16px 2px">Generated <span id="genAt">—</span> · registrations come from the AXL page scenario (ridleyacademy.net/register) via the axl-webinar-link function; source tags are reported by the thank-you page. No personal data is stored or shown here.</div>
     </div>
@@ -347,7 +347,7 @@
       }
       if (sl && sl.attended_count != null && (sl.attended_count || sl.week_count)) {
         chips += chip('Sales from attendees', sl.attended_count, '\u00b7 ' + money(sl.attended_revenue));
-        if (sl.week_count) chips += chip('Other sales this week', sl.week_count, '\u00b7 ' + money(sl.week_revenue));
+        if (sl.week_count) chips += chip('Sales from non-attendees', sl.week_count, '\u00b7 ' + money(sl.week_revenue));
       }
       if (sl && sl.processor_fees != null) chips += chip('Processor fees', money(sl.processor_fees), Number(sl.bnpl_count) > 0 ? '\u00b7 BNPL sales ' + sl.bnpl_count + ' (' + money(sl.bnpl_revenue) + ')' : '');
       if (hasAds) {

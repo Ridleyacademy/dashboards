@@ -16,6 +16,10 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+  { version: 'v609', title: 'Webinars: follow-up sales now count', items: [
+    'A sale from someone who attended the webinar now counts for up to 7 days afterwards, so calls closed the next day land on the webinar that produced them. Previously anything more than 12 hours after the end was invisible.',
+    'Buyers who never attended still count only inside the webinar window, so unrelated sales are not swept in.',
+  ], roles: ['marketing', 'sales_manager', 'mentorship'] },
   { version: 'v608', title: 'Webinars: see the funnel before the webinar runs', items: [
     'An upcoming webinar now shows its live Traffic row \u2014 ad spend, impressions, page visitors, registrations and cost per registration \u2014 plus the campaigns, ad sets and ads feeding it, instead of showing nothing until the day after.',
     'Attendance, sales and ROI are marked as pending until the roster is collected ~45 min after the webinar ends.',

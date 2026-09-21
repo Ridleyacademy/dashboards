@@ -16,6 +16,12 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+  { version: 'v610', title: 'Webinars: attribution runs to the next webinar', items: [
+    'A webinar now owns its whole week: sales count from the webinar until the next one starts, instead of stopping 12 hours after it ends.',
+    'If the buyer attended a webinar, the sale is credited to that webinar for up to 30 days \u2014 so mentorship and phone-closed deals land on the webinar that produced them, even after the next one has run.',
+    'New chips show how many sales came from attendees versus other sales in the week.',
+    'Fixed a timezone mismatch in the Sales Log (reconciler rows store UTC, manual rows New York time) that could hide a sale for several hours.',
+  ], roles: ['marketing', 'sales_manager', 'mentorship'] },
   { version: 'v609', title: 'Webinars: follow-up sales now count', items: [
     'A sale from someone who attended the webinar now counts for up to 7 days afterwards, so calls closed the next day land on the webinar that produced them. Previously anything more than 12 hours after the end was invisible.',
     'Buyers who never attended still count only inside the webinar window, so unrelated sales are not swept in.',

@@ -421,16 +421,6 @@
 
       const trafficRow = lead(undefined) +
         (hasAds ? stage(money(spend), 'Ad spend', 'Meta \u00b7 ' + m.ads_count + ' ads', 'red', null, vsLast(spend, pHasAds ? pSpend : null, money, 'flat')) + arrow(null) : '') +
-        (smsCost != null && smsCost > 0 ? stage(money(smsCost), 'SMS', (sms.messages || 0).toLocaleString() + ' to registrants \u00b7 ' + (sms.recipients || 0) + ' people', 'red',
-            s.registered ? { k: 'Cost / registrant', v: costMoney(smsCost / s.registered) } : null,
-            vsLast(smsCost, pSmsCost, money, 'flat'),
-            '<div class="brk">' +
-              brkRow('promo', sms.promo_cost, pSms && pSms.promo_cost, money1, (sms.promo_messages || 0) + ' messages more than 24h before the webinar', 'down') +
-              brkRow('remind', sms.reminder_cost, pSms && pSms.reminder_cost, money1, (sms.reminder_messages || 0) + ' reminder messages in the 24h before it started', 'down') +
-              brkRow('during', sms.during_cost, pSms && pSms.during_cost, money1, (sms.during_messages || 0) + ' messages sent while the webinar was live', 'down') +
-              brkRow('after', sms.followup_cost, pSms && pSms.followup_cost, money1, (sms.followup_messages || 0) + ' follow-up messages in the week after', 'down') +
-              brkRow('failed', sms.failed || 0, pSms && pSms.failed, null, 'Undelivered or failed \u2014 ' + money(sms.undelivered_cost || 0) + ' of it billed anyway', 'down') +
-            '</div>') + arrow(null) : '') +
         (hasAds && imps ? stage(imps.toLocaleString(), 'Impressions', Number(m.clicks).toLocaleString() + ' clicks' + (m.ctr == null ? '' : ' \u00b7 ' + m.ctr + '% CTR'), null,
           { k: 'Cost / 1K impressions', v: costMoney(1000 * spend / imps), cmp: vsLast(1000 * spend / imps, pm.cpm, costMoney, 'down') },
           vsLast(imps, pHasAds ? pm.impressions : null)) +
@@ -450,7 +440,14 @@
       const moneyRow = lead(null) +
         stage(money(s.revenue), 'Revenue', 'gross', 'purple', roas != null ? { k: 'Return on ad spend', v: roas + '\u00d7', tone: roas >= 1 ? 'good' : 'bad', cmp: vsLast(roas, pRoas, (v) => v + '\u00d7') } : null, vsLast(s.revenue, ps && ps.revenue, money), salesSplit(money1, 'revenue')) +
         (netRev != null ? arrow(null) + stage(money(netRev), 'Net revenue', 'after everything below', 'green', null, vsLast(netRev, pNetRev, money), netBrk) : '') +
-        (profit != null ? arrow(null) + stage(signed(profit), 'Profit', smsCost ? 'net revenue \u2212 ads \u2212 SMS' : 'net revenue \u2212 ad spend', profit < 0 ? 'red' : 'green', { k: 'ROI', v: roi + '%', tone: roi >= 0 ? 'good' : 'bad', cmp: vsLast(roi, pRoi, (v) => v + '%') }, vsLast(profit, pProfit, signed)) : '');
+        (profit != null ? arrow(null) + stage(signed(profit), 'Profit', 'what is left after what it cost', profit < 0 ? 'red' : 'green',
+          { k: 'ROI', v: roi + '%', tone: roi >= 0 ? 'good' : 'bad', cmp: vsLast(roi, pRoi, (v) => v + '%') },
+          vsLast(profit, pProfit, signed),
+          '<div class="brk">' +
+            (hasAds ? brkRow('ads', spend, pHasAds ? pSpend : null, money1, 'Meta ad spend for this webinar', 'flat') : '') +
+            (smsCost ? brkRow('sms', smsCost, pSmsCost, money1, 'Twilio cost of the messages sent to this webinar\u2019s registrants', 'down') : '') +
+            brkRow('total', costBase, pCostBase || null, money1, 'Everything spent to run this webinar', 'flat') +
+          '</div>') : '');
 
       const crm = f.crm, pcrm = P && P.crm;
       let leadChips = '';
@@ -518,6 +515,10 @@
       }
 
       let chips = '';
+      if (sms && sms.messages) {
+        const failPct = Math.round(1000 * (sms.failed || 0) / sms.messages) / 10;
+        chips += `<span class="chip${failPct >= 10 ? ' warn' : ''}" title="Messages sent to this webinar\u2019s registrants \u00b7 promo ${money(sms.promo_cost)} \u00b7 reminders ${money(sms.reminder_cost)} \u00b7 during ${money(sms.during_cost)} \u00b7 after ${money(sms.followup_cost)}">SMS <b>${Number(sms.messages).toLocaleString()}</b> <span>sent \u00b7 ${Number(sms.failed || 0).toLocaleString()} failed (${failPct}%) \u00b7 ${money(sms.undelivered_cost)} of it billed</span></span>`;
+      }
       // live / rep / cash / PP are in the Sales and Revenue stages now \u2014 only the audit gap is left here
       if (sl && sl.rep_no_call) chips += `<span class="chip warn" title="A rep is credited but the Calls Log has no call to that person in the 30 days before the sale \u2014 either the call went out on another line or the credit is wrong">${sl.rep_no_call} rep sale${sl.rep_no_call > 1 ? 's' : ''} with no call logged</span>`;
       if (sl && sl.attended_count != null && (sl.attended_count || sl.week_count)) {

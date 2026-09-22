@@ -366,8 +366,15 @@
         const pc = Math.round(1000 * (Number(cur) - Number(prevVal)) / Math.abs(Number(prevVal))) / 10;
         return `<span class="d${extra ? ' ' + extra : ''} ${pc > 0 ? 'up' : (pc < 0 ? 'dn' : '')}">${pc > 0 ? '\u25b2' : (pc < 0 ? '\u25bc' : '')}${Math.abs(pc)}%</span>`;
       };
-      // one breakdown line: how many, how much, and how each moved vs the last webinar
-      const brkRow = (k, cur, prevVal, cash, prevCash, title) => `<div class="r" title="${esc(title)}"><span class="k">${esc(k)}</span><span class="v">${Number(cur).toLocaleString()}</span>${brkD(cur, prevVal)}<span class="m">${money1(cash)}</span>${brkD(cash, prevCash, 'm2')}</div>`;
+      // one breakdown line: the value and how it moved vs the last webinar
+      const brkRow = (k, cur, prevVal, fmt, title) => `<div class="r" title="${esc(title)}"><span class="k">${esc(k)}</span><span class="v">${(fmt || ((v) => Number(v).toLocaleString()))(cur)}</span>${brkD(cur, prevVal)}</div>`;
+      // live / rep / cash / PP, as counts in the Sales stage and as money in the Revenue stage
+      const salesSplit = (fmt, k) => !sl ? null : '<div class="brk">' +
+        brkRow('live', sl['live_' + k], psl && psl['live_' + k], fmt, 'Bought straight off the webinar \u2014 nobody closed them \u00b7 ' + sl.live_sales + ' \u00b7 ' + money(sl.live_revenue)) +
+        brkRow('rep', sl['phone_' + k], psl && psl['phone_' + k], fmt, 'Closed by a rep \u00b7 ' + sl.phone_sales + ' \u00b7 ' + money(sl.phone_revenue) + ' \u00b7 found by: ' + (sl.rep_by_affiliate || 0) + ' Affiliate column, ' + (sl.rep_by_declaration || 0) + ' declaration, ' + (sl.rep_by_call || 0) + ' call of 3+ min') +
+        brkRow('cash', sl[k === 'sales' ? 'fullpay_count' : 'fullpay_revenue'], psl && psl[k === 'sales' ? 'fullpay_count' : 'fullpay_revenue'], fmt, 'Paid in full \u00b7 ' + sl.fullpay_count + ' \u00b7 ' + money(sl.fullpay_revenue)) +
+        brkRow('pp', sl[k === 'sales' ? 'plan_count' : 'plan_revenue'], psl && psl[k === 'sales' ? 'plan_count' : 'plan_revenue'], fmt, 'Payment plan \u00b7 ' + sl.plan_count + ' \u00b7 ' + money(sl.plan_revenue)) +
+      '</div>';
       const costMoney = (v) => '$' + Number(v).toLocaleString(undefined, { minimumFractionDigits: v < 100 ? 2 : 0, maximumFractionDigits: v < 100 ? 2 : 0 });
       const costOf = (k, den, pDen) => {
         if (!hasAds || !den) return null;
@@ -406,19 +413,10 @@
         stage(s.saw_offer, 'Saw offer (90m+)', 'stayed 90 min or more', 'gold', costOf('Cost / offer view', s.saw_offer, ps && ps.saw_offer), vsLast(s.saw_offer, ps && ps.saw_offer)) +
         arrow(convOffer, ps && ps.saw_offer && pSalesN != null ? Math.round(1000 * pSalesN / ps.saw_offer) / 10 : null) +
         stage(salesN, 'Sales', convAtt == null ? '' : convAtt + '% of attendees', 'green', costOf('Cost / sale', salesN, pSalesN), vsLast(salesN, pSalesN),
-          sl ? '<div class="brk">' +
-            brkRow('live', sl.live_sales, psl && psl.live_sales, sl.live_revenue, psl && psl.live_revenue,
-              'Bought straight off the webinar \u2014 nobody closed them \u00b7 ' + money(sl.live_revenue)) +
-            brkRow('rep', sl.phone_sales, psl && psl.phone_sales, sl.phone_revenue, psl && psl.phone_revenue,
-              'Closed by a rep \u00b7 ' + money(sl.phone_revenue) + ' \u00b7 found by: ' + (sl.rep_by_affiliate || 0) + ' Affiliate column, ' + (sl.rep_by_declaration || 0) + ' declaration, ' + (sl.rep_by_call || 0) + ' call of 3+ min') +
-            brkRow('cash', sl.fullpay_count, psl && psl.fullpay_count, sl.fullpay_revenue, psl && psl.fullpay_revenue,
-              'Paid in full \u00b7 ' + money(sl.fullpay_revenue)) +
-            brkRow('pp', sl.plan_count, psl && psl.plan_count, sl.plan_revenue, psl && psl.plan_revenue,
-              'Payment plan \u00b7 ' + money(sl.plan_revenue)) +
-          '</div>' : null);
+          salesSplit(null, 'sales'));
 
       const moneyRow = lead(null) +
-        stage(money(s.revenue), 'Revenue', 'gross', 'purple', roas != null ? { k: 'Return on ad spend', v: roas + '\u00d7', tone: roas >= 1 ? 'good' : 'bad', cmp: vsLast(roas, pRoas, (v) => v + '\u00d7') } : null, vsLast(s.revenue, ps && ps.revenue, money)) +
+        stage(money(s.revenue), 'Revenue', 'gross', 'purple', roas != null ? { k: 'Return on ad spend', v: roas + '\u00d7', tone: roas >= 1 ? 'good' : 'bad', cmp: vsLast(roas, pRoas, (v) => v + '\u00d7') } : null, vsLast(s.revenue, ps && ps.revenue, money), salesSplit(money1, 'revenue')) +
         (netRev != null ? arrow(null) + stage(money(netRev), 'Net revenue', 'after fees \u00b7 \u221215% phone \u00b7 \u221220% BNPL', 'green', null, vsLast(netRev, pNetRev, money)) : '') +
         (profit != null ? arrow(null) + stage(signed(profit), 'Profit after ads', 'net revenue \u2212 ad spend', profit < 0 ? 'red' : 'green', { k: 'ROI', v: roi + '%', tone: roi >= 0 ? 'good' : 'bad', cmp: vsLast(roi, pRoi, (v) => v + '%') }, vsLast(profit, pProfit, signed)) : '');
 

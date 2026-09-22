@@ -16,6 +16,7 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+  { version: 619, date: '2026-09-22', title: 'Webinars: money split moved to the Revenue stage', items: ['Sales shows live / rep / cash / PP as counts; Revenue shows the same four as money, each with its own change vs the last webinar.'] },
   { version: 618, date: '2026-09-22', title: 'Webinars: revenue on every sales breakdown line', items: ['live / rep / cash / PP now each show their revenue next to the count, and both the count and the revenue carry their own change vs the last webinar.'] },
   { version: 617, date: '2026-09-22', title: 'Webinars: the Calls Log is now a third rep signal', items: ['A sale also counts as rep-closed when the Calls Log has a call of 3+ minutes to that person \u2014 after the Affiliate column and the rep\u2019s declaration.', 'The rep line shows which signal found each sale, and a warning chip counts rep-credited sales with no call logged at all.'] },
   { version: 616, date: '2026-09-22', title: 'Webinars: rep sales now read the Declarations board too', items: ['A sale counts as rep-closed if the Sales Log Affiliate column names someone OR a rep declared it on the Declarations board \u2014 the Affiliate column alone was crediting rep sales to \"live\".', 'Sep 20 moves from 10 live / 7 rep to 8 live / 9 rep, Sep 13 from 6/6 to 3/9. Net revenue drops slightly on both because the 15% rep cut now applies to the newly identified rep sales.'] },

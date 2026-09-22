@@ -396,8 +396,8 @@
       const dimChip = (t) => `<span class="chip dim">${esc(t)}</span>`;
 
       const roomBrk = pk.peak == null ? null : '<div class="brk">' +
-        brkRow('peak', pk.peak, null, null, 'Most people in the room at once') +
-        (pk.avg_of_peak_pct == null ? '' : brkRow('held', pk.avg_of_peak_pct, null, pct, 'Average room size as a share of the peak \u2014 how well the room held')) +
+        brkRow('peak', pk.peak, P && P.peak && P.peak.peak, null, 'Most people in the room at once') +
+        (pk.avg_of_peak_pct == null ? '' : brkRow('held', pk.avg_of_peak_pct, P && P.peak && P.peak.avg_of_peak_pct, pct, 'Average room size as a share of the peak \u2014 how well the room held')) +
         '</div>';
       const netBrk = !sl || sl.processor_fees == null ? null : '<div class="brk">' +
         brkRow('fees', sl.processor_fees, psl && psl.processor_fees, money1, 'Payment processor fees taken off the gross', 'down') +

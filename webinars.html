@@ -399,9 +399,13 @@
         brkRow('peak', pk.peak, P && P.peak && P.peak.peak, null, 'Most people in the room at once') +
         (pk.avg_of_peak_pct == null ? '' : brkRow('held', pk.avg_of_peak_pct, P && P.peak && P.peak.avg_of_peak_pct, pct, 'Average room size as a share of the peak \u2014 how well the room held')) +
         '</div>';
+      // everything that comes off the gross, itemised
       const netBrk = !sl || sl.processor_fees == null ? null : '<div class="brk">' +
+        brkRow('rep 10%', sl.rep_commission, psl && psl.rep_commission, money1, 'Rep commission \u2014 10% of the ' + money(sl.phone_revenue) + ' they closed', 'down') +
+        brkRow('mgr 5%', sl.manager_commission, psl && psl.manager_commission, money1, 'Rep manager commission \u2014 5% of the ' + money(sl.phone_revenue) + ' the reps closed', 'down') +
         brkRow('fees', sl.processor_fees, psl && psl.processor_fees, money1, 'Payment processor fees taken off the gross', 'down') +
-        (Number(sl.bnpl_count) ? brkRow('bnpl', sl.bnpl_count, psl && psl.bnpl_count, null, 'Buy now, pay later sales \u2014 20% comes off these \u00b7 ' + money(sl.bnpl_revenue), 'down') : '') +
+        brkRow('bnpl 20%', sl.bnpl_fee || 0, psl && psl.bnpl_fee, money1, 'Buy now, pay later cost \u2014 20% of the ' + money(sl.bnpl_revenue) + ' on ' + (sl.bnpl_count || 0) + ' sale' + (Number(sl.bnpl_count) === 1 ? '' : 's'), 'down') +
+        brkRow('total', sl.total_deductions, psl && psl.total_deductions, money1, 'Everything taken off the gross revenue', 'down') +
         '</div>';
 
       const convAtt = s.attendees ? Math.round(1000 * salesN / s.attendees) / 10 : null;
@@ -431,7 +435,7 @@
 
       const moneyRow = lead(null) +
         stage(money(s.revenue), 'Revenue', 'gross', 'purple', roas != null ? { k: 'Return on ad spend', v: roas + '\u00d7', tone: roas >= 1 ? 'good' : 'bad', cmp: vsLast(roas, pRoas, (v) => v + '\u00d7') } : null, vsLast(s.revenue, ps && ps.revenue, money), salesSplit(money1, 'revenue')) +
-        (netRev != null ? arrow(null) + stage(money(netRev), 'Net revenue', 'after fees \u00b7 \u221215% rep \u00b7 \u221220% BNPL', 'green', null, vsLast(netRev, pNetRev, money), netBrk) : '') +
+        (netRev != null ? arrow(null) + stage(money(netRev), 'Net revenue', 'after everything below', 'green', null, vsLast(netRev, pNetRev, money), netBrk) : '') +
         (profit != null ? arrow(null) + stage(signed(profit), 'Profit after ads', 'net revenue \u2212 ad spend', profit < 0 ? 'red' : 'green', { k: 'ROI', v: roi + '%', tone: roi >= 0 ? 'good' : 'bad', cmp: vsLast(roi, pRoi, (v) => v + '%') }, vsLast(profit, pProfit, signed)) : '');
 
       const crm = f.crm, pcrm = P && P.crm;

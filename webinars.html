@@ -101,6 +101,10 @@
     .pill.on{ color:var(--green); border-color:rgba(52,211,153,0.4); }
     .frow-label{ font-size:0.64rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.08em; font-weight:800; margin:4px 2px 6px; }
     .funnel + .frow-label{ margin-top:14px; }
+    .fstage .cmp{ font-size:0.67rem; color:var(--text-dim); margin-top:5px; white-space:nowrap; }
+    .fstage .cmp b{ color:var(--text-muted); font-weight:700; }
+    .fstage .cmp .up{ color:var(--green); font-weight:800; }
+    .fstage .cmp .dn{ color:var(--red); font-weight:800; }
     .fstage .cost{ margin-top:auto; padding-top:8px; border-top:1px dashed var(--border-light); display:flex; flex-direction:column; gap:1px; }
     .fstage .cost .k{ font-size:0.6rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em; font-weight:700; }
     .fstage .cost .v{ font-size:0.95rem; font-weight:800; color:var(--text); white-space:nowrap; }
@@ -202,6 +206,8 @@
 
   let charts = [];
   let webinarWhen = null;
+  let attendanceRows = null, attendancePromise = null;
+  let prevWebinar = null, prevLabel = '';
   function chart(id, cfg) { const c = charts.find(x => x.id === id); if (c) c.ch.destroy(); const ch = new Chart($(id), cfg); charts.push({ id, ch }); }
   function kpi(n, l, sub, accent) { return `<div class="kpi${accent ? ' accent-' + accent : ''}"><div class="n">${n}</div><div class="l">${esc(l)}</div>${sub ? `<div class="sub">${esc(sub)}</div>` : ''}</div>`; }
   const WKEY = 'webinars-selected';
@@ -281,6 +287,22 @@
     $('campCard').style.display = 'none'; $('adsCard').style.display = 'none';
   }
 
+  // the all-webinars data doubles as the "previous webinar" source (fetched once)
+  function loadAttendanceData() {
+    if (!attendancePromise) attendancePromise = authedFetch('?api=attendance').then(d => { attendanceRows = d.webinars || []; return d; });
+    return attendancePromise;
+  }
+  function pickPrevWebinar(currentId) {
+    prevWebinar = null; prevLabel = '';
+    const rows = attendanceRows || [];
+    const cur = rows.find(r => r.webinar_id === currentId);
+    const real = rows.filter(r => r.attendees >= 20 && r.ended_at).sort((a, b) => String(b.ended_at).localeCompare(String(a.ended_at)));
+    const prev = cur && cur.ended_at
+      ? real.find(r => r.webinar_id !== currentId && String(r.ended_at) < String(cur.ended_at))
+      : real.find(r => r.webinar_id !== currentId);
+    if (prev) { prevWebinar = prev; prevLabel = fmtEnd(prev.ended_at); }
+  }
+
   let funnelSeq = 0;
   async function loadFunnel() {
     const w = selectedWebinar();
@@ -288,8 +310,9 @@
     const seq = ++funnelSeq;
     showFunnelLoading();
     try {
-      const f = await authedFetch('?api=funnel&w=' + encodeURIComponent(w));
+      const [f] = await Promise.all([authedFetch('?api=funnel&w=' + encodeURIComponent(w)), loadAttendanceData().catch(() => null)]);
       if (seq !== funnelSeq) return; // a newer webinar was selected meanwhile
+      pickPrevWebinar(w);
       $('liveCard').classList.remove('loading');
       const s = f.stats, sl = f.sales, m = f.meta || {}, pk = f.peak || {};
       if (!s) {
@@ -305,7 +328,17 @@
       const profit = hasAds && netRev != null ? netRev - spend : null;
       const roi = hasAds && spend > 0 && netRev != null ? Math.round(100 * (netRev - spend) / spend) : null;
       const roas = hasAds && spend > 0 ? Math.round(100 * s.revenue / spend) / 100 : null;
-      const stage = (n, l, sub, c, cost) => `<div class="fstage${c ? ' c-' + c : ''}"><div class="top"><div class="n">${n}</div><div class="l">${esc(l)}</div>${sub ? `<div class="sub">${esc(sub)}</div>` : ''}</div>${cost ? `<div class="cost${cost.tone ? ' ' + cost.tone : ''}"><span class="k">${esc(cost.k)}</span><span class="v">${cost.v}</span></div>` : ''}</div>`;
+      const stage = (n, l, sub, c, cost, cmp) => `<div class="fstage${c ? ' c-' + c : ''}"><div class="top"><div class="n">${n}</div><div class="l">${esc(l)}</div>${sub ? `<div class="sub">${esc(sub)}</div>` : ''}${cmp || ''}</div>${cost ? `<div class="cost${cost.tone ? ' ' + cost.tone : ''}"><span class="k">${esc(cost.k)}</span><span class="v">${cost.v}</span></div>` : ''}</div>`;
+      // "vs last webinar": that webinar's value plus the change
+      const vsLast = (cur, prevVal, fmt) => {
+        if (!prevWebinar || prevVal == null || cur == null) return '';
+        const shown = (fmt || ((v) => Number(v).toLocaleString()))(prevVal);
+        if (!Number(prevVal)) return `<div class="cmp">vs ${esc(prevLabel)} <b>${shown}</b></div>`;
+        const d = Math.round(1000 * (Number(cur) - Number(prevVal)) / Number(prevVal)) / 10;
+        const cls = d > 0 ? 'up' : (d < 0 ? 'dn' : '');
+        const arrow = d > 0 ? '\u25b2' : (d < 0 ? '\u25bc' : '');
+        return `<div class="cmp">vs ${esc(prevLabel)} <b>${shown}</b> <span class="${cls}">${arrow}${Math.abs(d)}%</span></div>`;
+      };
       const costMoney = (v) => '$' + Number(v).toLocaleString(undefined, { minimumFractionDigits: v < 100 ? 2 : 0, maximumFractionDigits: v < 100 ? 2 : 0 });
       const costOf = (k, den) => (hasAds && den ? { k, v: costMoney(spend / den) } : null);
       const arrow = (p) => `<div class="farrow"><div class="a">\u2192</div><div class="p">${p == null ? '' : pct(p)}</div></div>`;
@@ -324,17 +357,17 @@
         (hasAds && imps ? stage(imps.toLocaleString(), 'Impressions', Number(m.clicks).toLocaleString() + ' clicks' + (m.ctr == null ? '' : ' \u00b7 ' + m.ctr + '% CTR'), null, { k: 'Cost / 1K impressions', v: costMoney(1000 * spend / imps) }) +
           arrow(f.visitors != null ? pct2(f.visitors, imps) : pct2(s.registered, imps)) : '') +
         (f.visitors != null ? stage(Number(f.visitors).toLocaleString(), 'Page visitors', 'unique \u00b7 register page', null, costOf('Cost / visitor', f.visitors)) + arrow(f.visitors_to_reg_pct) : '') +
-        stage(s.registered, 'Registrations', hasAds ? m.paid_regs + ' from ads' : '', null, costOf('Cost / registration', s.registered));
+        stage(s.registered, 'Registrations', hasAds ? m.paid_regs + ' from ads' : '', null, costOf('Cost / registration', s.registered), vsLast(s.registered, prevWebinar && prevWebinar.registered));
 
       const webinarRow = lead(s.show_up_pct) +
-        stage(s.attendees, 'Attended', 'avg ' + (s.avg_minutes == null ? '\u2014' : s.avg_minutes) + ' min watched', 'blue', costOf('Cost / attendee', s.attendees)) +
+        stage(s.attendees, 'Attended', 'avg ' + (s.avg_minutes == null ? '\u2014' : s.avg_minutes) + ' min watched', 'blue', costOf('Cost / attendee', s.attendees), vsLast(s.attendees, prevWebinar && prevWebinar.attendees)) +
         arrow(s.saw_offer_pct) +
-        stage(s.saw_offer, 'Saw offer (90m+)', 'stayed 90 min or more', 'gold', costOf('Cost / offer view', s.saw_offer)) +
+        stage(s.saw_offer, 'Saw offer (90m+)', 'stayed 90 min or more', 'gold', costOf('Cost / offer view', s.saw_offer), vsLast(s.saw_offer, prevWebinar && prevWebinar.saw_offer)) +
         arrow(convOffer) +
-        stage(salesN, 'Sales', convAtt == null ? '' : convAtt + '% of attendees', 'green', costOf('Cost / sale', salesN));
+        stage(salesN, 'Sales', convAtt == null ? '' : convAtt + '% of attendees', 'green', costOf('Cost / sale', salesN), vsLast(salesN, prevWebinar && prevWebinar.buyers));
 
       const moneyRow = lead(null) +
-        stage(money(s.revenue), 'Revenue', 'gross', 'purple', roas != null ? { k: 'Return on ad spend', v: roas + '\u00d7', tone: roas >= 1 ? 'good' : 'bad' } : null) +
+        stage(money(s.revenue), 'Revenue', 'gross', 'purple', roas != null ? { k: 'Return on ad spend', v: roas + '\u00d7', tone: roas >= 1 ? 'good' : 'bad' } : null, vsLast(s.revenue, prevWebinar && prevWebinar.revenue, money)) +
         (netRev != null ? arrow(null) + stage(money(netRev), 'Net revenue', 'after fees \u00b7 \u221215% phone \u00b7 \u221220% BNPL', 'green', null) : '') +
         (profit != null ? arrow(null) + stage((profit < 0 ? '\u2212' : '') + money(Math.abs(profit)), 'Profit after ads', 'net revenue \u2212 ad spend', profit < 0 ? 'red' : 'green', { k: 'ROI', v: roi + '%', tone: roi >= 0 ? 'good' : 'bad' }) : '');
 
@@ -438,7 +471,7 @@
   async function loadAttendance() {
     $('tblAttendance').innerHTML = skelTable(6, 11);
     try {
-      const d = await authedFetch('?api=attendance');
+      const d = await loadAttendanceData();
       const rows = (d.webinars || []).filter(w => w.attendees > 0);
       $('tblAttendance').innerHTML = rows.length ? `<table class="tbl"><thead><tr><th>Webinar</th><th>Ended</th><th>Registered</th><th>Attendees</th><th>Saw offer (90m+)</th><th>%</th><th>Avg min</th><th>Buyers</th><th>% of attendees</th><th>% of saw-offer</th><th>Revenue</th></tr></thead><tbody>${
         rows.map(w => `<tr><td>${esc(w.name)}</td><td class="muted">${fmtEnd(w.ended_at)}</td><td class="muted">${w.registered}</td><td>${w.attendees}</td><td>${w.saw_offer}</td><td>${pct(w.saw_offer_pct)}</td><td class="muted">${w.avg_minutes == null ? '—' : w.avg_minutes}</td><td>${w.buyers}</td><td>${pct(w.buyers_pct_attendees)}</td><td>${pct(w.buyers_pct_saw_offer)}</td><td>${money(w.revenue)}</td></tr>`).join('')

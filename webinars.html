@@ -107,10 +107,12 @@
     .fstage .cmp .dn{ color:var(--red); font-weight:800; }
     .fstage .cost .cmp{ margin-top:3px; }
     .fstage .brk{ margin-top:7px; padding-top:6px; border-top:1px dashed var(--border-light); display:flex; flex-direction:column; gap:3px; }
-    .fstage .brk .r{ display:flex; align-items:baseline; gap:5px; font-size:0.67rem; }
+    .fstage .brk .r{ display:flex; align-items:baseline; flex-wrap:wrap; gap:3px 5px; font-size:0.67rem; }
     .fstage .brk .k{ color:var(--text-muted); font-weight:700; text-transform:uppercase; letter-spacing:0.04em; min-width:30px; }
     .fstage .brk .v{ font-weight:800; color:var(--text); }
-    .fstage .brk .d{ margin-left:auto; font-weight:800; }
+    .fstage .brk .m{ margin-left:auto; font-weight:800; color:var(--text-muted); }
+    .fstage .brk .d{ font-weight:800; font-size:0.62rem; }
+    .fstage .brk .d.m2{ min-width:44px; text-align:right; }
     .fstage .brk .up{ color:var(--green); }
     .fstage .brk .dn{ color:var(--red); }
     .tbl .sp{ display:block; font-size:0.62rem; font-weight:700; color:var(--text-muted); margin-top:2px; white-space:nowrap; }
@@ -269,6 +271,8 @@
   }
 
   const money = (v) => v == null ? '—' : '$' + Number(v).toLocaleString(undefined, { maximumFractionDigits: 0 });
+  // compact money for tight spots: $9.9k
+  const money1 = (v) => { if (v == null) return '—'; const n = Math.round(Number(v)); return Math.abs(n) >= 1000 ? '$' + (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : '$' + n; };
   const fmtEnd = (iso) => { if (!iso) return '—'; const d = new Date(iso); return isNaN(d) ? '—' : d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'America/New_York' }); };
 
   function skelTable(rows, cols) {
@@ -357,14 +361,13 @@
         return `<div class="cmp">vs ${esc(pLabel)} <b>${shown}</b>${delta(cur, prevVal, dir)}</div>`;
       };
       const signed = (v) => (v < 0 ? '\u2212' : '') + money(Math.abs(v));
-      const brkRow = (k, cur, prevVal, title) => {
-        let d = '';
-        if (P && prevVal != null && Number(prevVal)) {
-          const pc = Math.round(1000 * (Number(cur) - Number(prevVal)) / Math.abs(Number(prevVal))) / 10;
-          d = `<span class="d ${pc > 0 ? 'up' : (pc < 0 ? 'dn' : '')}">${pc > 0 ? '\u25b2' : (pc < 0 ? '\u25bc' : '')}${Math.abs(pc)}%</span>`;
-        }
-        return `<div class="r" title="${esc(title)}"><span class="k">${esc(k)}</span><span class="v">${Number(cur).toLocaleString()}</span>${d}</div>`;
+      const brkD = (cur, prevVal, extra) => {
+        if (!P || prevVal == null || cur == null || !Number(prevVal)) return '';
+        const pc = Math.round(1000 * (Number(cur) - Number(prevVal)) / Math.abs(Number(prevVal))) / 10;
+        return `<span class="d${extra ? ' ' + extra : ''} ${pc > 0 ? 'up' : (pc < 0 ? 'dn' : '')}">${pc > 0 ? '\u25b2' : (pc < 0 ? '\u25bc' : '')}${Math.abs(pc)}%</span>`;
       };
+      // one breakdown line: how many, how much, and how each moved vs the last webinar
+      const brkRow = (k, cur, prevVal, cash, prevCash, title) => `<div class="r" title="${esc(title)}"><span class="k">${esc(k)}</span><span class="v">${Number(cur).toLocaleString()}</span>${brkD(cur, prevVal)}<span class="m">${money1(cash)}</span>${brkD(cash, prevCash, 'm2')}</div>`;
       const costMoney = (v) => '$' + Number(v).toLocaleString(undefined, { minimumFractionDigits: v < 100 ? 2 : 0, maximumFractionDigits: v < 100 ? 2 : 0 });
       const costOf = (k, den, pDen) => {
         if (!hasAds || !den) return null;
@@ -404,10 +407,14 @@
         arrow(convOffer, ps && ps.saw_offer && pSalesN != null ? Math.round(1000 * pSalesN / ps.saw_offer) / 10 : null) +
         stage(salesN, 'Sales', convAtt == null ? '' : convAtt + '% of attendees', 'green', costOf('Cost / sale', salesN, pSalesN), vsLast(salesN, pSalesN),
           sl ? '<div class="brk">' +
-            brkRow('live', sl.live_sales, psl && psl.live_sales, 'Bought straight off the webinar \u2014 nobody closed them \u00b7 ' + money(sl.live_revenue)) +
-            brkRow('rep', sl.phone_sales, psl && psl.phone_sales, 'Closed by a rep \u00b7 ' + money(sl.phone_revenue) + ' \u00b7 found by: ' + (sl.rep_by_affiliate || 0) + ' Affiliate column, ' + (sl.rep_by_declaration || 0) + ' declaration, ' + (sl.rep_by_call || 0) + ' call of 3+ min') +
-            brkRow('cash', sl.fullpay_count, psl && psl.fullpay_count, 'Paid in full \u00b7 ' + money(sl.fullpay_revenue)) +
-            brkRow('pp', sl.plan_count, psl && psl.plan_count, 'Payment plan \u00b7 ' + money(sl.plan_revenue)) +
+            brkRow('live', sl.live_sales, psl && psl.live_sales, sl.live_revenue, psl && psl.live_revenue,
+              'Bought straight off the webinar \u2014 nobody closed them \u00b7 ' + money(sl.live_revenue)) +
+            brkRow('rep', sl.phone_sales, psl && psl.phone_sales, sl.phone_revenue, psl && psl.phone_revenue,
+              'Closed by a rep \u00b7 ' + money(sl.phone_revenue) + ' \u00b7 found by: ' + (sl.rep_by_affiliate || 0) + ' Affiliate column, ' + (sl.rep_by_declaration || 0) + ' declaration, ' + (sl.rep_by_call || 0) + ' call of 3+ min') +
+            brkRow('cash', sl.fullpay_count, psl && psl.fullpay_count, sl.fullpay_revenue, psl && psl.fullpay_revenue,
+              'Paid in full \u00b7 ' + money(sl.fullpay_revenue)) +
+            brkRow('pp', sl.plan_count, psl && psl.plan_count, sl.plan_revenue, psl && psl.plan_revenue,
+              'Payment plan \u00b7 ' + money(sl.plan_revenue)) +
           '</div>' : null);
 
       const moneyRow = lead(null) +

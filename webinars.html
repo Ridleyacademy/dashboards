@@ -106,6 +106,13 @@
     .fstage .cmp .up{ color:var(--green); font-weight:800; }
     .fstage .cmp .dn{ color:var(--red); font-weight:800; }
     .fstage .cost .cmp{ margin-top:3px; }
+    .fstage .brk{ margin-top:7px; padding-top:6px; border-top:1px dashed var(--border-light); display:flex; flex-direction:column; gap:3px; }
+    .fstage .brk .r{ display:flex; align-items:baseline; gap:5px; font-size:0.67rem; }
+    .fstage .brk .k{ color:var(--text-muted); font-weight:700; text-transform:uppercase; letter-spacing:0.04em; min-width:30px; }
+    .fstage .brk .v{ font-weight:800; color:var(--text); }
+    .fstage .brk .d{ margin-left:auto; font-weight:800; }
+    .fstage .brk .up{ color:var(--green); }
+    .fstage .brk .dn{ color:var(--red); }
     .tbl .sp{ display:block; font-size:0.62rem; font-weight:700; color:var(--text-muted); margin-top:2px; white-space:nowrap; }
     .tbl .sp .lv{ color:var(--blue); }
     .tbl .sp .rg{ color:var(--text-dim); }
@@ -125,6 +132,9 @@
     .fstage.c-red{ --stage:var(--red); } .fstage.c-red .n{ color:var(--red); }
     .farrow{ display:flex; flex-direction:column; align-items:center; justify-content:center; padding:0 5px; min-width:56px; gap:4px; }
     .farrow .a{ color:var(--text-dim); font-size:1rem; line-height:1; }
+    .farrow .pd{ font-size:0.62rem; font-weight:800; white-space:nowrap; color:var(--text-muted); }
+    .farrow .pd.up{ color:var(--green); }
+    .farrow .pd.dn{ color:var(--red); }
     .farrow .p{ font-size:0.72rem; font-weight:800; color:var(--text); background:var(--surface2); border:1px solid var(--border); border-radius:999px; padding:2px 8px; }
     .curve-card{ margin-top:12px; }
     .curve-wrap{ position:relative; height:150px; }
@@ -330,7 +340,7 @@
       const pProfit = pHasAds && pNetRev != null ? pNetRev - pSpend : null;
       const pRoi = pHasAds && pSpend > 0 && pNetRev != null ? Math.round(100 * (pNetRev - pSpend) / pSpend) : null;
       const pRoas = pHasAds && pSpend > 0 && ps ? Math.round(100 * ps.revenue / pSpend) / 100 : null;
-      const stage = (n, l, sub, c, cost, cmp) => `<div class="fstage${c ? ' c-' + c : ''}"><div class="top"><div class="n">${n}</div><div class="l">${esc(l)}</div>${sub ? `<div class="sub">${esc(sub)}</div>` : ''}${cmp || ''}</div>${cost ? `<div class="cost${cost.tone ? ' ' + cost.tone : ''}"><span class="k">${esc(cost.k)}</span><span class="v">${cost.v}</span>${cost.cmp || ''}</div>` : ''}</div>`;
+      const stage = (n, l, sub, c, cost, cmp, brk) => `<div class="fstage${c ? ' c-' + c : ''}"><div class="top"><div class="n">${n}</div><div class="l">${esc(l)}</div>${sub ? `<div class="sub">${esc(sub)}</div>` : ''}${cmp || ''}${brk || ''}</div>${cost ? `<div class="cost${cost.tone ? ' ' + cost.tone : ''}"><span class="k">${esc(cost.k)}</span><span class="v">${cost.v}</span>${cost.cmp || ''}</div>` : ''}</div>`;
       // "vs last webinar": that webinar's value plus the change.
       // dir: 'up' = higher is better (default), 'down' = lower is better (costs),
       //      'flat' = neither (ad spend \u2014 spending more is only good if it earns more)
@@ -347,13 +357,26 @@
         return `<div class="cmp">vs ${esc(pLabel)} <b>${shown}</b>${delta(cur, prevVal, dir)}</div>`;
       };
       const signed = (v) => (v < 0 ? '\u2212' : '') + money(Math.abs(v));
+      const brkRow = (k, cur, prevVal, title) => {
+        let d = '';
+        if (P && prevVal != null && Number(prevVal)) {
+          const pc = Math.round(1000 * (Number(cur) - Number(prevVal)) / Math.abs(Number(prevVal))) / 10;
+          d = `<span class="d ${pc > 0 ? 'up' : (pc < 0 ? 'dn' : '')}">${pc > 0 ? '\u25b2' : (pc < 0 ? '\u25bc' : '')}${Math.abs(pc)}%</span>`;
+        }
+        return `<div class="r" title="${esc(title)}"><span class="k">${esc(k)}</span><span class="v">${Number(cur).toLocaleString()}</span>${d}</div>`;
+      };
       const costMoney = (v) => '$' + Number(v).toLocaleString(undefined, { minimumFractionDigits: v < 100 ? 2 : 0, maximumFractionDigits: v < 100 ? 2 : 0 });
       const costOf = (k, den, pDen) => {
         if (!hasAds || !den) return null;
         const pv = (pHasAds && pDen) ? pSpend / pDen : null;
         return { k, v: costMoney(spend / den), cmp: vsLast(spend / den, pv, costMoney, 'down') };
       };
-      const arrow = (p) => `<div class="farrow"><div class="a">\u2192</div><div class="p">${p == null ? '' : pct(p)}</div></div>`;
+      const ptsDelta = (p, pp) => {
+        if (!P || p == null || pp == null) return '';
+        const d = Math.round(10 * (Number(p) - Number(pp))) / 10;
+        return `<div class="pd ${d > 0 ? 'up' : (d < 0 ? 'dn' : '')}" title="last webinar: ${pct(pp)}">${d > 0 ? '\u25b2' : (d < 0 ? '\u25bc' : '')}${Math.abs(d)} pt</div>`;
+      };
+      const arrow = (p, pp) => `<div class="farrow"><div class="a">\u2192</div><div class="p">${p == null ? '' : pct(p)}</div>${ptsDelta(p, pp)}</div>`;
       const chip = (l, v, extra) => `<span class="chip">${esc(l)} <b>${v}</b>${extra ? ' <span>' + esc(extra) + '</span>' : ''}</span>`;
       const dimChip = (t) => `<span class="chip dim">${esc(t)}</span>`;
 
@@ -362,23 +385,30 @@
 
       const imps = hasAds ? Number(m.impressions || 0) : 0;
       const pct2 = (a, b) => (b ? Math.round(10000 * a / b) / 100 : null);
-      const lead = (p) => `<div class="farrow lead"><div class="a">${p === undefined ? '' : '\u21b3'}</div>${p == null ? '' : `<div class="p">${pct(p)}</div>`}</div>`;
+      const lead = (p, pp) => `<div class="farrow lead"><div class="a">${p === undefined ? '' : '\u21b3'}</div>${p == null ? '' : `<div class="p">${pct(p)}</div>` + ptsDelta(p, pp)}</div>`;
 
       const trafficRow = lead(undefined) +
         (hasAds ? stage(money(spend), 'Ad spend', 'Meta \u00b7 ' + m.ads_count + ' ads', 'red', null, vsLast(spend, pHasAds ? pSpend : null, money, 'flat')) + arrow(null) : '') +
         (hasAds && imps ? stage(imps.toLocaleString(), 'Impressions', Number(m.clicks).toLocaleString() + ' clicks' + (m.ctr == null ? '' : ' \u00b7 ' + m.ctr + '% CTR'), null,
           { k: 'Cost / 1K impressions', v: costMoney(1000 * spend / imps), cmp: vsLast(1000 * spend / imps, pm.cpm, costMoney, 'down') },
           vsLast(imps, pHasAds ? pm.impressions : null)) +
-          arrow(f.visitors != null ? pct2(f.visitors, imps) : pct2(s.registered, imps)) : '') +
-        (f.visitors != null ? stage(Number(f.visitors).toLocaleString(), 'Page visitors', 'unique \u00b7 register page', null, costOf('Cost / visitor', f.visitors, P && P.visitors), vsLast(f.visitors, P && P.visitors)) + arrow(f.visitors_to_reg_pct) : '') +
+          arrow(f.visitors != null ? pct2(f.visitors, imps) : pct2(s.registered, imps),
+                pHasAds && pm.impressions ? (P.visitors != null ? pct2(P.visitors, pm.impressions) : (ps ? pct2(ps.registered, pm.impressions) : null)) : null) : '') +
+        (f.visitors != null ? stage(Number(f.visitors).toLocaleString(), 'Page visitors', 'unique \u00b7 register page', null, costOf('Cost / visitor', f.visitors, P && P.visitors), vsLast(f.visitors, P && P.visitors)) + arrow(f.visitors_to_reg_pct, P && P.visitors && ps ? pct2(ps.registered, P.visitors) : null) : '') +
         stage(s.registered, 'Registrations', hasAds ? m.paid_regs + ' from ads' : '', null, costOf('Cost / registration', s.registered, ps && ps.registered), vsLast(s.registered, ps && ps.registered));
 
-      const webinarRow = lead(s.show_up_pct) +
+      const webinarRow = lead(s.show_up_pct, ps && ps.show_up_pct) +
         stage(s.attendees, 'Attended', 'avg ' + (s.avg_minutes == null ? '\u2014' : s.avg_minutes) + ' min watched', 'blue', costOf('Cost / attendee', s.attendees, ps && ps.attendees), vsLast(s.attendees, ps && ps.attendees)) +
-        arrow(s.saw_offer_pct) +
+        arrow(s.saw_offer_pct, ps && ps.saw_offer_pct) +
         stage(s.saw_offer, 'Saw offer (90m+)', 'stayed 90 min or more', 'gold', costOf('Cost / offer view', s.saw_offer, ps && ps.saw_offer), vsLast(s.saw_offer, ps && ps.saw_offer)) +
-        arrow(convOffer) +
-        stage(salesN, 'Sales', convAtt == null ? '' : convAtt + '% of attendees', 'green', costOf('Cost / sale', salesN, pSalesN), vsLast(salesN, pSalesN));
+        arrow(convOffer, ps && ps.saw_offer && pSalesN != null ? Math.round(1000 * pSalesN / ps.saw_offer) / 10 : null) +
+        stage(salesN, 'Sales', convAtt == null ? '' : convAtt + '% of attendees', 'green', costOf('Cost / sale', salesN, pSalesN), vsLast(salesN, pSalesN),
+          sl ? '<div class="brk">' +
+            brkRow('live', sl.live_sales, psl && psl.live_sales, 'Bought straight off the webinar \u2014 nobody closed them \u00b7 ' + money(sl.live_revenue)) +
+            brkRow('rep', sl.phone_sales, psl && psl.phone_sales, 'Closed by a rep \u00b7 ' + money(sl.phone_revenue)) +
+            brkRow('cash', sl.fullpay_count, psl && psl.fullpay_count, 'Paid in full \u00b7 ' + money(sl.fullpay_revenue)) +
+            brkRow('pp', sl.plan_count, psl && psl.plan_count, 'Payment plan \u00b7 ' + money(sl.plan_revenue)) +
+          '</div>' : null);
 
       const moneyRow = lead(null) +
         stage(money(s.revenue), 'Revenue', 'gross', 'purple', roas != null ? { k: 'Return on ad spend', v: roas + '\u00d7', tone: roas >= 1 ? 'good' : 'bad', cmp: vsLast(roas, pRoas, (v) => v + '\u00d7') } : null, vsLast(s.revenue, ps && ps.revenue, money)) +
@@ -388,9 +418,10 @@
       let chips = '';
       if (pk.peak != null) chips += chip('Peak live', pk.peak, pk.avg_of_peak_pct != null ? '\u00b7 room held ' + pct(pk.avg_of_peak_pct) : '');
       if (sl) {
-        chips += chip('Phone sales', sl.phone_sales, '\u00b7 ' + money(sl.phone_revenue));
-        chips += chip('Full pay', sl.fullpay_count, '\u00b7 ' + money(sl.fullpay_revenue));
-        chips += chip('Payment plan', sl.plan_count, '\u00b7 ' + money(sl.plan_revenue));
+        chips += chip('Live sales', sl.live_sales, '\u00b7 ' + money(sl.live_revenue));
+        chips += chip('Rep sales', sl.phone_sales, '\u00b7 ' + money(sl.phone_revenue));
+        chips += chip('Cash', sl.fullpay_count, '\u00b7 ' + money(sl.fullpay_revenue));
+        chips += chip('PP', sl.plan_count, '\u00b7 ' + money(sl.plan_revenue));
       }
       if (sl && sl.attended_count != null && (sl.attended_count || sl.week_count)) {
         chips += chip('Sales from attendees', sl.attended_count, '\u00b7 ' + money(sl.attended_revenue));
@@ -439,14 +470,14 @@
         const signed = (v) => { const n = Math.round(Number(v) || 0); if (n === 0) return '$0'; const txt = (n < 0 ? '\u2212$' : '+$') + Math.abs(n).toLocaleString(); return `<span style="color:${n < 0 ? 'var(--red)' : 'var(--green)'};font-weight:700">${txt}</span>`; };
         // every sales/revenue figure splits into LIVE (buyer was in the room) and REG (registered, never showed)
         const kMoney = (v) => { const n = Math.round(Number(v) || 0); return n >= 1000 ? '$' + (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : '$' + n; };
-        const splitN = (x) => (Number(x.sales) ? `<span class="sp"><span class="lv">${Number(x.live_sales) || 0}</span> / <span class="rg">${Number(x.reg_sales) || 0}</span></span>` : '');
-        const splitM = (x) => (Number(x.revenue) ? `<span class="sp"><span class="lv">${kMoney(x.live_revenue)}</span> / <span class="rg">${kMoney(x.reg_revenue)}</span></span>` : '');
+        const splitN = (x) => (Number(x.sales) ? `<span class="sp"><span class="lv">${Number(x.att_sales) || 0}</span> / <span class="rg">${Number(x.reg_sales) || 0}</span></span>` : '');
+        const splitM = (x) => (Number(x.revenue) ? `<span class="sp"><span class="lv">${kMoney(x.att_revenue)}</span> / <span class="rg">${kMoney(x.reg_revenue)}</span></span>` : '');
         const isSmall = (a) => a.paid && a.spend < 5 && a.regs === 0;
         const smallCount = ads.filter(isSmall).length;
         const rows = ads.map(a => `<tr class="${a.paid ? '' : 'muted'}${isSmall(a) ? ' small-ad' : ''}"><td>${esc(a.ad)}${a.paid ? '' : ' <span class="muted">(organic / unmatched)</span>'}</td><td class="muted txt clip" title="${esc(a.adset || '')}">${esc(a.adset || '\u2014')}</td><td class="muted txt clip" title="${a.paid ? esc(a.campaign || '') : ''}">${a.paid ? esc(a.campaign || '\u2014') : '\u2014'}</td><td>${a.paid ? money(a.spend) : '\u2014'}</td><td>${a.paid ? Number(a.clicks).toLocaleString() : '\u2014'}</td><td>${a.ctr == null ? '\u2014' : a.ctr + '%'}</td><td>${a.regs}</td><td>${a.cost_per_reg == null ? '\u2014' : money(a.cost_per_reg)}</td><td>${a.attended}</td><td>${a.saw_offer}</td><td>${a.sales}${splitN(a)}</td><td>${a.paid ? money(a.revenue) : (a.revenue ? money(a.revenue) : '\u2014')}${splitM(a)}</td><td>${a.paid ? signed(a.revenue - a.spend) : '\u2014'}</td><td>${roasCell(a)}</td></tr>`).join('');
         const totRoas = spend > 0 ? Math.round(100 * m.attributed_revenue / spend) / 100 : null;
-        $('tblAds').innerHTML = `<table class="tbl"><thead><tr><th>Ad</th><th class="txt">Ad set</th><th class="txt">Campaign</th><th>Spend</th><th>Clicks</th><th>CTR</th><th>Regs</th><th>Cost/reg</th><th>Attended</th><th>Saw offer</th><th>Sales<br><span class="sp">live / reg</span></th><th>Revenue<br><span class="sp">live / reg</span></th><th>Profit</th><th>ROAS</th></tr></thead><tbody>${rows}</tbody>
-          <tfoot><tr style="font-weight:800"><td>All ads</td><td></td><td></td><td>${money(spend)}</td><td>${Number(m.clicks).toLocaleString()}</td><td>${r2(m.ctr)}${m.ctr == null ? '' : '%'}</td><td>${m.paid_regs}</td><td>${per(spend, m.paid_regs)}</td><td>${m.paid_attended}</td><td>${m.paid_saw_offer}</td><td>${m.attributed_sales}${splitN({ sales: m.attributed_sales, live_sales: m.attributed_live_sales, reg_sales: m.attributed_reg_sales })}</td><td>${money(m.attributed_revenue)}${splitM({ revenue: m.attributed_revenue, live_revenue: m.attributed_live_revenue, reg_revenue: m.attributed_reg_revenue })}</td><td>${signed(m.attributed_revenue - spend)}</td><td>${totRoas == null ? '\u2014' : totRoas + '\u00d7'}</td></tr></tfoot></table>` +
+        $('tblAds').innerHTML = `<table class="tbl"><thead><tr><th>Ad</th><th class="txt">Ad set</th><th class="txt">Campaign</th><th>Spend</th><th>Clicks</th><th>CTR</th><th>Regs</th><th>Cost/reg</th><th>Attended</th><th>Saw offer</th><th>Sales<br><span class="sp">att / reg</span></th><th>Revenue<br><span class="sp">att / reg</span></th><th>Profit</th><th>ROAS</th></tr></thead><tbody>${rows}</tbody>
+          <tfoot><tr style="font-weight:800"><td>All ads</td><td></td><td></td><td>${money(spend)}</td><td>${Number(m.clicks).toLocaleString()}</td><td>${r2(m.ctr)}${m.ctr == null ? '' : '%'}</td><td>${m.paid_regs}</td><td>${per(spend, m.paid_regs)}</td><td>${m.paid_attended}</td><td>${m.paid_saw_offer}</td><td>${m.attributed_sales}${splitN({ sales: m.attributed_sales, att_sales: m.attributed_att_sales, reg_sales: m.attributed_reg_sales })}</td><td>${money(m.attributed_revenue)}${splitM({ revenue: m.attributed_revenue, att_revenue: m.attributed_att_revenue, reg_revenue: m.attributed_reg_revenue })}</td><td>${signed(m.attributed_revenue - spend)}</td><td>${totRoas == null ? '\u2014' : totRoas + '\u00d7'}</td></tr></tfoot></table>` +
           (smallCount ? `<button class="show-more" onclick="const t=document.getElementById('tblAds');t.classList.toggle('show-all');this.textContent=t.classList.contains('show-all')?'Hide small ads':'Show ${smallCount} more ads (under $5 spend, no registrations)'">Show ${smallCount} more ads (under $5 spend, no registrations)</button>` : '');
 
         const camps = Array.isArray(f.campaigns) ? f.campaigns : [];
@@ -471,7 +502,7 @@
             `<tr class="cmp-row"><td>${esc(c.name)} ${status(c.status)}</td><td>${budget(c)}</td>${cells(c)}</tr>` +
             (c.adsets || []).map(a => `<tr class="adset-row"><td style="min-width:200px"><b>${esc(a.name)}</b> ${status(a.status)}${who(a.targeting)}</td><td>${budget(a)}</td>${cells(a)}</tr>`).join('')
           ).join('');
-          $('tblCamps').innerHTML = `<table class="tbl"><thead><tr><th>Campaign / ad set \u00b7 who it targets</th><th>Budget</th><th>Spend</th><th>Impr.</th><th>CTR</th><th>CPM</th><th>Regs</th><th>Cost/reg</th><th>Attended</th><th>Saw offer</th><th>Sales<br><span class="sp">live / reg</span></th><th>Cost/sale</th><th>Revenue<br><span class="sp">live / reg</span></th><th>Profit</th><th>ROAS</th></tr></thead><tbody>${body}</tbody></table>`;
+          $('tblCamps').innerHTML = `<table class="tbl"><thead><tr><th>Campaign / ad set \u00b7 who it targets</th><th>Budget</th><th>Spend</th><th>Impr.</th><th>CTR</th><th>CPM</th><th>Regs</th><th>Cost/reg</th><th>Attended</th><th>Saw offer</th><th>Sales<br><span class="sp">att / reg</span></th><th>Cost/sale</th><th>Revenue<br><span class="sp">att / reg</span></th><th>Profit</th><th>ROAS</th></tr></thead><tbody>${body}</tbody></table>`;
         } else { $('campCard').style.display = 'none'; }
         const untraced = salesN - Number(m.attributed_sales || 0);
         $('adsNote').textContent = (m.campaigns && m.campaigns.length ? 'Campaign: ' + m.campaigns.join(', ') + '. ' : '') +

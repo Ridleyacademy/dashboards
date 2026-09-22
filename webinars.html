@@ -405,7 +405,7 @@
         stage(salesN, 'Sales', convAtt == null ? '' : convAtt + '% of attendees', 'green', costOf('Cost / sale', salesN, pSalesN), vsLast(salesN, pSalesN),
           sl ? '<div class="brk">' +
             brkRow('live', sl.live_sales, psl && psl.live_sales, 'Bought straight off the webinar \u2014 nobody closed them \u00b7 ' + money(sl.live_revenue)) +
-            brkRow('rep', sl.phone_sales, psl && psl.phone_sales, 'Closed by a rep \u00b7 ' + money(sl.phone_revenue)) +
+            brkRow('rep', sl.phone_sales, psl && psl.phone_sales, 'Closed by a rep \u00b7 ' + money(sl.phone_revenue) + ' \u00b7 ' + (sl.rep_by_affiliate || 0) + ' credited on the Sales Log, ' + (sl.rep_by_declaration || 0) + ' from a rep\u2019s declaration') +
             brkRow('cash', sl.fullpay_count, psl && psl.fullpay_count, 'Paid in full \u00b7 ' + money(sl.fullpay_revenue)) +
             brkRow('pp', sl.plan_count, psl && psl.plan_count, 'Payment plan \u00b7 ' + money(sl.plan_revenue)) +
           '</div>' : null);
@@ -419,7 +419,7 @@
       if (pk.peak != null) chips += chip('Peak live', pk.peak, pk.avg_of_peak_pct != null ? '\u00b7 room held ' + pct(pk.avg_of_peak_pct) : '');
       if (sl) {
         chips += chip('Live sales', sl.live_sales, '\u00b7 ' + money(sl.live_revenue));
-        chips += chip('Rep sales', sl.phone_sales, '\u00b7 ' + money(sl.phone_revenue));
+        chips += chip('Rep sales', sl.phone_sales, '\u00b7 ' + money(sl.phone_revenue) + (sl.rep_by_declaration ? ' \u00b7 ' + sl.rep_by_declaration + ' via declarations' : ''));
         chips += chip('Cash', sl.fullpay_count, '\u00b7 ' + money(sl.fullpay_revenue));
         chips += chip('PP', sl.plan_count, '\u00b7 ' + money(sl.plan_revenue));
       }

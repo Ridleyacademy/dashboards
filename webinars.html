@@ -421,13 +421,15 @@
 
       const trafficRow = lead(undefined) +
         (hasAds ? stage(money(spend), 'Ad spend', 'Meta \u00b7 ' + m.ads_count + ' ads', 'red', null, vsLast(spend, pHasAds ? pSpend : null, money, 'flat')) + arrow(null) : '') +
-        (smsCost != null && smsCost > 0 ? stage(money(smsCost), 'SMS', (sms.messages || 0).toLocaleString() + ' to registrants', 'red',
+        (smsCost != null && smsCost > 0 ? stage(money(smsCost), 'SMS', (sms.messages || 0).toLocaleString() + ' to registrants \u00b7 ' + (sms.recipients || 0) + ' people', 'red',
             s.registered ? { k: 'Cost / registrant', v: costMoney(smsCost / s.registered) } : null,
             vsLast(smsCost, pSmsCost, money, 'flat'),
             '<div class="brk">' +
-              brkRow('sent', sms.messages, pSms && pSms.messages, null, (sms.recipients || 0) + ' registrants reached \u00b7 ' + (sms.segments || 0) + ' segments') +
-              brkRow('failed', sms.failed || 0, pSms && pSms.failed, null, 'Undelivered or failed \u2014 ' + money(sms.undelivered_cost || 0) + ' of it still billed', 'down') +
-              brkRow('to reps', sms.lead_messages || 0, pSms && pSms.lead_messages, null, 'Messages to the leads handed to the sales team \u00b7 ' + money(sms.lead_cost || 0)) +
+              brkRow('promo', sms.promo_cost, pSms && pSms.promo_cost, money1, (sms.promo_messages || 0) + ' messages more than 24h before the webinar', 'down') +
+              brkRow('remind', sms.reminder_cost, pSms && pSms.reminder_cost, money1, (sms.reminder_messages || 0) + ' reminder messages in the 24h before it started', 'down') +
+              brkRow('during', sms.during_cost, pSms && pSms.during_cost, money1, (sms.during_messages || 0) + ' messages sent while the webinar was live', 'down') +
+              brkRow('after', sms.followup_cost, pSms && pSms.followup_cost, money1, (sms.followup_messages || 0) + ' follow-up messages in the week after', 'down') +
+              brkRow('failed', sms.failed || 0, pSms && pSms.failed, null, 'Undelivered or failed \u2014 ' + money(sms.undelivered_cost || 0) + ' of it billed anyway', 'down') +
             '</div>') + arrow(null) : '') +
         (hasAds && imps ? stage(imps.toLocaleString(), 'Impressions', Number(m.clicks).toLocaleString() + ' clicks' + (m.ctr == null ? '' : ' \u00b7 ' + m.ctr + '% CTR'), null,
           { k: 'Cost / 1K impressions', v: costMoney(1000 * spend / imps), cmp: vsLast(1000 * spend / imps, pm.cpm, costMoney, 'down') },

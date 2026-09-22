@@ -475,6 +475,23 @@
               + (was == null ? '' : ` \u00b7 last webinar ${was}%`);
             return `<span class="chip lead" title="${esc(title)}">${esc(label)} <b>${called} of ${total}</b> <span>${cur == null ? '\u2014' : cur + '%'} \u00b7 ${reached} reached</span>${d}</span>`;
           };
+          // speed to lead: the clock starts when the webinar ends
+          const mins = (v) => (v == null ? '\u2014' : (v < 90 ? Math.round(v) + ' min' : (Math.round(v / 6) / 10) + ' h'));
+          const speedChip = (label, med, pMed, within, called, note) => {
+            if (med == null) return '';
+            let d = '';
+            if (pMed != null && Number(pMed)) {
+              const pc = Math.round(1000 * (med - pMed) / Math.abs(pMed)) / 10;
+              if (pc) d = ` <span class="pt ${pc < 0 ? 'up' : 'dn'}">${pc > 0 ? '\u25b2' : '\u25bc'}${Math.abs(pc)}%</span>`;
+            }
+            const title = `${note} \u00b7 median ${mins(med)} from the webinar ending to the first call \u00b7 ${within} of the ${called} called were reached within the hour`
+              + (pMed == null ? '' : ` \u00b7 last webinar ${mins(pMed)}`);
+            return `<span class="chip lead" title="${esc(title)}">${esc(label)} <b>${mins(med)}</b> <span>${called ? Math.round(1000 * within / called) / 10 : 0}% within 1h</span>${d}</span>`;
+          };
+          leadChips += speedChip('Speed to lead', cc.lead_median_min, pcc && pcc.lead_median_min, cc.lead_within_1h, cc.lead_called,
+              'How fast the sales team gets to a handed-over lead')
+            + speedChip('Speed \u00b7 saw offer', cc.offer_median_min, pcc && pcc.offer_median_min, cc.offer_within_1h, cc.offer_called,
+              'How fast the offer-viewers who were never handed over get a call');
           leadChips += callChip('Leads called', cc.lead_called, cc.lead_total, cc.lead_reached,
               pcc && pcc.lead_called, pcc && pcc.lead_total,
               'Leads handed to the sales team' + (cc.lead_no_phone ? ' \u00b7 ' + cc.lead_no_phone + ' more had no phone number' : ''))

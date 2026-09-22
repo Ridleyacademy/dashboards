@@ -438,21 +438,25 @@
       let leadChips = '';
       if (crm) {
         const rate = (n, den) => (den ? Math.round(1000 * n / den) / 10 : null);
-        const qChip = (label, n, pn) => {
-          const cur = rate(n, s.saw_offer), was = (pcrm && ps) ? rate(pn, ps.saw_offer) : null;
+        // counted by TAG, so a lead a rep has already picked up still counts as handed over
+        const qChip = (label, k) => {
+          const c = crm[k] || { total: 0, worked: 0, bought: 0 };
+          const pc = (pcrm && pcrm[k]) || null;
+          const cur = rate(c.total, s.saw_offer), was = (pc && ps) ? rate(pc.total, ps.saw_offer) : null;
           let d = '';
           if (cur != null && was != null) {
             const pt = Math.round(10 * (cur - was)) / 10;
             d = ` <span class="pt ${pt > 0 ? 'up' : (pt < 0 ? 'dn' : '')}">${pt > 0 ? '\u25b2' : (pt < 0 ? '\u25bc' : '')}${Math.abs(pt)} pt</span>`;
           }
-          return `<span class="chip lead" title="${esc(label)}: ${n} of the ${s.saw_offer} people who stayed for the offer${was == null ? '' : ' \u00b7 last webinar ' + was + '%'}">${esc(label)} <b>${n}</b> <span>${cur == null ? '\u2014' : cur + '% of offer views'}</span>${d}</span>`;
+          const title = `${label}: ${c.total} handed to the sales team \u00b7 ${c.worked} already worked \u00b7 ${c.bought} bought`
+            + (was == null ? '' : ` \u00b7 last webinar ${was}% of offer views`);
+          return `<span class="chip lead" title="${esc(title)}">${esc(label)} <b>${c.total}</b> <span>${cur == null ? '\u2014' : cur + '% of offer views'}${c.bought ? ' \u00b7 ' + c.bought + ' bought' : ''}</span>${d}</span>`;
         };
-        leadChips = qChip('Cart abandonment', crm.cart_abandonment, pcrm && pcrm.cart_abandonment) +
-          qChip('Contact attempted', crm.contact_attempted, pcrm && pcrm.contact_attempted) +
-          qChip('Survey', crm.survey, pcrm && pcrm.survey) +
-          qChip('Hot leads from chat', crm.hot_leads_chat, pcrm && pcrm.hot_leads_chat) +
-          (crm.leads_chat || (pcrm && pcrm.leads_chat) ? qChip('Leads from chat', crm.leads_chat, pcrm && pcrm.leads_chat) : '') +
-          qChip('All leads to reps', crm.total, pcrm && pcrm.total);
+        leadChips = qChip('Cart abandonment', 'cart_abandonment') +
+          qChip('Survey', 'survey') +
+          qChip('Hot leads from chat', 'hot_leads_chat') +
+          qChip('Leads from chat', 'leads_chat') +
+          `<span class="chip lead" title="Every lead handed to the sales team for this webinar \u00b7 ${crm.worked} already worked \u00b7 ${crm.bought} bought">All leads to reps <b>${crm.total}</b> <span>${s.saw_offer ? Math.round(1000 * crm.total / s.saw_offer) / 10 + '% of offer views' : '\u2014'}${crm.bought ? ' \u00b7 ' + crm.bought + ' bought' : ''}</span></span>`;
       }
 
       let chips = '';

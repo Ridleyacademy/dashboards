@@ -16,6 +16,7 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+  { version: 622, date: '2026-09-22', title: 'Webinars: peak room and processor fees became sub-stats', items: ['Peak live and room held moved inside the Attended stage; processor fees and BNPL moved inside Net revenue. Both chips are gone from the band below.', 'Fixed \"sales traced to an ad\": it compared traced BUYERS against SALE ROWS, so a split payment made it read 13 of 17. It now reads buyers against buyers.'] },
   { version: 621, date: '2026-09-22', title: 'Webinars: dropped the chips that repeat the stages', items: ['Live sales, rep sales, cash, PP and impressions are shown in the funnel stages now, so the duplicate chips under the funnel are gone. Click rate went too (it is on the Impressions stage) leaving just cost per click.'] },
   { version: 620, date: '2026-09-22', title: 'Webinars: lead quality band', items: ['New row under the funnel showing the AXL CRM leads handed to the sales team \u2014 cart abandonment, contact attempted, survey, hot leads from chat \u2014 each as a share of the people who sat through the offer, with the change in points vs the last webinar.'] },
   { version: 619, date: '2026-09-22', title: 'Webinars: money split moved to the Revenue stage', items: ['Sales shows live / rep / cash / PP as counts; Revenue shows the same four as money, each with its own change vs the last webinar.'] },

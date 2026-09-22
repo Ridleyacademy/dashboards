@@ -365,13 +365,14 @@
         return `<div class="cmp">vs ${esc(pLabel)} <b>${shown}</b>${delta(cur, prevVal, dir)}</div>`;
       };
       const signed = (v) => (v < 0 ? '\u2212' : '') + money(Math.abs(v));
-      const brkD = (cur, prevVal, extra) => {
+      const brkD = (cur, prevVal, dir) => {
         if (!P || prevVal == null || cur == null || !Number(prevVal)) return '';
         const pc = Math.round(1000 * (Number(cur) - Number(prevVal)) / Math.abs(Number(prevVal))) / 10;
-        return `<span class="d${extra ? ' ' + extra : ''} ${pc > 0 ? 'up' : (pc < 0 ? 'dn' : '')}">${pc > 0 ? '\u25b2' : (pc < 0 ? '\u25bc' : '')}${Math.abs(pc)}%</span>`;
+        const good = dir === 'down' ? pc < 0 : pc > 0;
+        return `<span class="d ${pc === 0 ? '' : (good ? 'up' : 'dn')}">${pc > 0 ? '\u25b2' : (pc < 0 ? '\u25bc' : '')}${Math.abs(pc)}%</span>`;
       };
       // one breakdown line: the value and how it moved vs the last webinar
-      const brkRow = (k, cur, prevVal, fmt, title) => `<div class="r" title="${esc(title)}"><span class="k">${esc(k)}</span><span class="v">${(fmt || ((v) => Number(v).toLocaleString()))(cur)}</span>${brkD(cur, prevVal)}</div>`;
+      const brkRow = (k, cur, prevVal, fmt, title, dir) => `<div class="r" title="${esc(title)}"><span class="k">${esc(k)}</span><span class="v">${(fmt || ((v) => Number(v).toLocaleString()))(cur)}</span>${brkD(cur, prevVal, dir)}</div>`;
       // live / rep / cash / PP, as counts in the Sales stage and as money in the Revenue stage
       const salesSplit = (fmt, k) => !sl ? null : '<div class="brk">' +
         brkRow('live', sl['live_' + k], psl && psl['live_' + k], fmt, 'Bought straight off the webinar \u2014 nobody closed them \u00b7 ' + sl.live_sales + ' \u00b7 ' + money(sl.live_revenue)) +
@@ -394,6 +395,15 @@
       const chip = (l, v, extra) => `<span class="chip">${esc(l)} <b>${v}</b>${extra ? ' <span>' + esc(extra) + '</span>' : ''}</span>`;
       const dimChip = (t) => `<span class="chip dim">${esc(t)}</span>`;
 
+      const roomBrk = pk.peak == null ? null : '<div class="brk">' +
+        brkRow('peak', pk.peak, null, null, 'Most people in the room at once') +
+        (pk.avg_of_peak_pct == null ? '' : brkRow('held', pk.avg_of_peak_pct, null, pct, 'Average room size as a share of the peak \u2014 how well the room held')) +
+        '</div>';
+      const netBrk = !sl || sl.processor_fees == null ? null : '<div class="brk">' +
+        brkRow('fees', sl.processor_fees, psl && psl.processor_fees, money1, 'Payment processor fees taken off the gross', 'down') +
+        (Number(sl.bnpl_count) ? brkRow('bnpl', sl.bnpl_count, psl && psl.bnpl_count, null, 'Buy now, pay later sales \u2014 20% comes off these \u00b7 ' + money(sl.bnpl_revenue), 'down') : '') +
+        '</div>';
+
       const convAtt = s.attendees ? Math.round(1000 * salesN / s.attendees) / 10 : null;
       const convOffer = s.saw_offer ? Math.round(1000 * salesN / s.saw_offer) / 10 : null;
 
@@ -412,7 +422,7 @@
         stage(s.registered, 'Registrations', hasAds ? m.paid_regs + ' from ads' : '', null, costOf('Cost / registration', s.registered, ps && ps.registered), vsLast(s.registered, ps && ps.registered));
 
       const webinarRow = lead(s.show_up_pct, ps && ps.show_up_pct) +
-        stage(s.attendees, 'Attended', 'avg ' + (s.avg_minutes == null ? '\u2014' : s.avg_minutes) + ' min watched', 'blue', costOf('Cost / attendee', s.attendees, ps && ps.attendees), vsLast(s.attendees, ps && ps.attendees)) +
+        stage(s.attendees, 'Attended', 'avg ' + (s.avg_minutes == null ? '\u2014' : s.avg_minutes) + ' min watched', 'blue', costOf('Cost / attendee', s.attendees, ps && ps.attendees), vsLast(s.attendees, ps && ps.attendees), roomBrk) +
         arrow(s.saw_offer_pct, ps && ps.saw_offer_pct) +
         stage(s.saw_offer, 'Saw offer (90m+)', 'stayed 90 min or more', 'gold', costOf('Cost / offer view', s.saw_offer, ps && ps.saw_offer), vsLast(s.saw_offer, ps && ps.saw_offer)) +
         arrow(convOffer, ps && ps.saw_offer && pSalesN != null ? Math.round(1000 * pSalesN / ps.saw_offer) / 10 : null) +
@@ -421,7 +431,7 @@
 
       const moneyRow = lead(null) +
         stage(money(s.revenue), 'Revenue', 'gross', 'purple', roas != null ? { k: 'Return on ad spend', v: roas + '\u00d7', tone: roas >= 1 ? 'good' : 'bad', cmp: vsLast(roas, pRoas, (v) => v + '\u00d7') } : null, vsLast(s.revenue, ps && ps.revenue, money), salesSplit(money1, 'revenue')) +
-        (netRev != null ? arrow(null) + stage(money(netRev), 'Net revenue', 'after fees \u00b7 \u221215% phone \u00b7 \u221220% BNPL', 'green', null, vsLast(netRev, pNetRev, money)) : '') +
+        (netRev != null ? arrow(null) + stage(money(netRev), 'Net revenue', 'after fees \u00b7 \u221215% rep \u00b7 \u221220% BNPL', 'green', null, vsLast(netRev, pNetRev, money), netBrk) : '') +
         (profit != null ? arrow(null) + stage(signed(profit), 'Profit after ads', 'net revenue \u2212 ad spend', profit < 0 ? 'red' : 'green', { k: 'ROI', v: roi + '%', tone: roi >= 0 ? 'good' : 'bad', cmp: vsLast(roi, pRoi, (v) => v + '%') }, vsLast(profit, pProfit, signed)) : '');
 
       const crm = f.crm, pcrm = P && P.crm;
@@ -446,17 +456,15 @@
       }
 
       let chips = '';
-      if (pk.peak != null) chips += chip('Peak live', pk.peak, pk.avg_of_peak_pct != null ? '\u00b7 room held ' + pct(pk.avg_of_peak_pct) : '');
       // live / rep / cash / PP are in the Sales and Revenue stages now \u2014 only the audit gap is left here
       if (sl && sl.rep_no_call) chips += `<span class="chip warn" title="A rep is credited but the Calls Log has no call to that person in the 30 days before the sale \u2014 either the call went out on another line or the credit is wrong">${sl.rep_no_call} rep sale${sl.rep_no_call > 1 ? 's' : ''} with no call logged</span>`;
       if (sl && sl.attended_count != null && (sl.attended_count || sl.week_count)) {
         chips += chip('Sales from attendees', sl.attended_count, '\u00b7 ' + money(sl.attended_revenue));
         if (sl.week_count) chips += chip('Sales from non-attendees', sl.week_count, '\u00b7 ' + money(sl.week_revenue));
       }
-      if (sl && sl.processor_fees != null) chips += chip('Processor fees', money(sl.processor_fees), Number(sl.bnpl_count) > 0 ? '\u00b7 BNPL sales ' + sl.bnpl_count + ' (' + money(sl.bnpl_revenue) + ')' : '');
       if (hasAds) {
         if (m.cpc != null) chips += chip('Cost per click', money(m.cpc));
-        chips += chip('Sales traced to an ad', m.attributed_sales + ' of ' + salesN, '\u00b7 ' + money(m.attributed_revenue));
+        chips += chip('Buyers traced to an ad', m.attributed_sales + ' of ' + (sl && sl.buyers ? sl.buyers : salesN), '\u00b7 ' + money(m.attributed_revenue) + ' of ' + money(s.revenue));
       }
       if (m.connected) {
         const through = m.data_through ? fmtEnd(m.data_through + 'T12:00:00Z') : '\u2014';

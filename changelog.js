@@ -16,6 +16,7 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+  { version: 620, date: '2026-09-22', title: 'Webinars: lead quality band', items: ['New row under the funnel showing the AXL CRM leads handed to the sales team \u2014 cart abandonment, contact attempted, survey, hot leads from chat \u2014 each as a share of the people who sat through the offer, with the change in points vs the last webinar.'] },
   { version: 619, date: '2026-09-22', title: 'Webinars: money split moved to the Revenue stage', items: ['Sales shows live / rep / cash / PP as counts; Revenue shows the same four as money, each with its own change vs the last webinar.'] },
   { version: 618, date: '2026-09-22', title: 'Webinars: revenue on every sales breakdown line', items: ['live / rep / cash / PP now each show their revenue next to the count, and both the count and the revenue carry their own change vs the last webinar.'] },
   { version: 617, date: '2026-09-22', title: 'Webinars: the Calls Log is now a third rep signal', items: ['A sale also counts as rep-closed when the Calls Log has a call of 3+ minutes to that person \u2014 after the Affiliate column and the rep\u2019s declaration.', 'The rep line shows which signal found each sale, and a warning chip counts rep-credited sales with no call logged at all.'] },

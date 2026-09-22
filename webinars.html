@@ -113,6 +113,10 @@
     .fstage .brk .m{ margin-left:auto; font-weight:800; color:var(--text-muted); }
     .fstage .brk .d{ font-weight:800; font-size:0.62rem; }
     .fstage .brk .d.m2{ min-width:44px; text-align:right; }
+    .chip .pt{ font-weight:800; margin-left:4px; }
+    .chip .pt.up{ color:var(--green); }
+    .chip .pt.dn{ color:var(--red); }
+    .chip.lead{ border-color:rgba(107,158,255,0.35); }
     .fstage .brk .up{ color:var(--green); }
     .fstage .brk .dn{ color:var(--red); }
     .tbl .sp{ display:block; font-size:0.62rem; font-weight:700; color:var(--text-muted); margin-top:2px; white-space:nowrap; }
@@ -420,6 +424,27 @@
         (netRev != null ? arrow(null) + stage(money(netRev), 'Net revenue', 'after fees \u00b7 \u221215% phone \u00b7 \u221220% BNPL', 'green', null, vsLast(netRev, pNetRev, money)) : '') +
         (profit != null ? arrow(null) + stage(signed(profit), 'Profit after ads', 'net revenue \u2212 ad spend', profit < 0 ? 'red' : 'green', { k: 'ROI', v: roi + '%', tone: roi >= 0 ? 'good' : 'bad', cmp: vsLast(roi, pRoi, (v) => v + '%') }, vsLast(profit, pProfit, signed)) : '');
 
+      const crm = f.crm, pcrm = P && P.crm;
+      let leadChips = '';
+      if (crm) {
+        const rate = (n, den) => (den ? Math.round(1000 * n / den) / 10 : null);
+        const qChip = (label, n, pn) => {
+          const cur = rate(n, s.saw_offer), was = (pcrm && ps) ? rate(pn, ps.saw_offer) : null;
+          let d = '';
+          if (cur != null && was != null) {
+            const pt = Math.round(10 * (cur - was)) / 10;
+            d = ` <span class="pt ${pt > 0 ? 'up' : (pt < 0 ? 'dn' : '')}">${pt > 0 ? '\u25b2' : (pt < 0 ? '\u25bc' : '')}${Math.abs(pt)} pt</span>`;
+          }
+          return `<span class="chip lead" title="${esc(label)}: ${n} of the ${s.saw_offer} people who stayed for the offer${was == null ? '' : ' \u00b7 last webinar ' + was + '%'}">${esc(label)} <b>${n}</b> <span>${cur == null ? '\u2014' : cur + '% of offer views'}</span>${d}</span>`;
+        };
+        leadChips = qChip('Cart abandonment', crm.cart_abandonment, pcrm && pcrm.cart_abandonment) +
+          qChip('Contact attempted', crm.contact_attempted, pcrm && pcrm.contact_attempted) +
+          qChip('Survey', crm.survey, pcrm && pcrm.survey) +
+          qChip('Hot leads from chat', crm.hot_leads_chat, pcrm && pcrm.hot_leads_chat) +
+          (crm.leads_chat || (pcrm && pcrm.leads_chat) ? qChip('Leads from chat', crm.leads_chat, pcrm && pcrm.leads_chat) : '') +
+          qChip('All leads to reps', crm.total, pcrm && pcrm.total);
+      }
+
       let chips = '';
       if (pk.peak != null) chips += chip('Peak live', pk.peak, pk.avg_of_peak_pct != null ? '\u00b7 room held ' + pct(pk.avg_of_peak_pct) : '');
       if (sl) {
@@ -456,7 +481,9 @@
         ? `<div class="frow-label">Traffic so far</div><div class="funnel">${trafficRow}</div>
            <div class="chips"><span class="chip">Webinar hasn\u2019t run yet <b>${esc(fmtWhen(startsAt))}</b></span>
            <span class="chip dim">Attendance, sales and ROI appear ~45 min after it ends</span>${chips}</div>`
-        : `<div class="frow-label">Traffic</div><div class="funnel">${trafficRow}</div><div class="frow-label">Webinar</div><div class="funnel">${webinarRow}</div><div class="frow-label">Money</div><div class="funnel">${moneyRow}</div><div class="chips">${chips}</div>`;
+        : `<div class="frow-label">Traffic</div><div class="funnel">${trafficRow}</div><div class="frow-label">Webinar</div><div class="funnel">${webinarRow}</div><div class="frow-label">Money</div><div class="funnel">${moneyRow}</div>`
+          + (leadChips ? `<div class="frow-label">Lead quality \u2014 share of the ${s.saw_offer} people who sat through the offer</div><div class="chips">${leadChips}</div>` : '')
+          + `<div class="chips">${chips}</div>`;
 
       const curve = Array.isArray(f.curve) ? f.curve : [];
       if (curve.length > 2) {

@@ -63,3 +63,4 @@
 2026-09-22T16:00:00Z-v614-ads-live-vs-reg-sales
 2026-09-22T17:00:00Z-v615-sales-breakdown-and-step-conversions
 2026-09-22T18:00:00Z-v616-rep-sales-from-declarations
+2026-09-22T19:00:00Z-v617-calls-log-rep-signal

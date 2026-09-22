@@ -461,6 +461,12 @@
           qChip('Hot leads from chat', 'hot_leads_chat') +
           qChip('Leads from chat', 'leads_chat') +
           `<span class="chip lead" title="Every lead handed to the sales team for this webinar \u00b7 ${crm.worked} already worked \u00b7 ${crm.bought} bought">All leads to reps <b>${crm.total}</b> <span>${s.saw_offer ? Math.round(1000 * crm.total / s.saw_offer) / 10 + '% of offer views' : '\u2014'}${crm.bought ? ' \u00b7 ' + crm.bought + ' bought' : ''}</span></span>`;
+        const cc = crm.calls;
+        if (cc) {
+          const cov = (n, den) => (den ? ' <span>' + Math.round(1000 * n / den) / 10 + '%</span>' : '');
+          leadChips += `<span class="chip lead" title="Of the ${cc.lead_total} leads handed to the sales team, ${cc.lead_called} have a call logged and ${cc.lead_reached} of those connected for a minute or more">Leads called <b>${cc.lead_called} of ${cc.lead_total}</b>${cov(cc.lead_called, cc.lead_total)} \u00b7 <span>${cc.lead_reached} reached</span></span>`
+            + `<span class="chip lead" title="People who sat through the offer but were never handed to a rep \u2014 ${cc.offer_called} of the ${cc.offer_total} were called anyway, ${cc.offer_reached} connected. Nobody is counted in both chips.">Other offer viewers called <b>${cc.offer_called} of ${cc.offer_total}</b>${cov(cc.offer_called, cc.offer_total)} \u00b7 <span>${cc.offer_reached} reached</span></span>`;
+        }
       }
 
       let chips = '';

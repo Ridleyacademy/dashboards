@@ -334,8 +334,10 @@
       const salesN = sl ? Number(sl.sales_count || 0) : 0;
       const netRev = sl && sl.net_revenue != null ? Number(sl.net_revenue) : null;
       const per = (num, den) => (den ? money(num / den) : '\u2014');
-      const profit = hasAds && netRev != null ? netRev - spend : null;
-      const roi = hasAds && spend > 0 && netRev != null ? Math.round(100 * (netRev - spend) / spend) : null;
+      const sms = f.sms || null, smsCost = sms && sms.cost != null ? Number(sms.cost) : null;
+      const costBase = (hasAds ? spend : 0) + (smsCost || 0);
+      const profit = (hasAds || smsCost != null) && netRev != null ? netRev - costBase : null;
+      const roi = costBase > 0 && netRev != null ? Math.round(100 * (netRev - costBase) / costBase) : null;
       const roas = hasAds && spend > 0 ? Math.round(100 * s.revenue / spend) / 100 : null;
 
       // the previous webinar, derived with the very same formulas so the deltas are like-for-like
@@ -345,8 +347,10 @@
       const pSpend = pHasAds ? Number(pm.spend || 0) : null;
       const pSalesN = psl ? Number(psl.sales_count || 0) : null;
       const pNetRev = psl && psl.net_revenue != null ? Number(psl.net_revenue) : null;
-      const pProfit = pHasAds && pNetRev != null ? pNetRev - pSpend : null;
-      const pRoi = pHasAds && pSpend > 0 && pNetRev != null ? Math.round(100 * (pNetRev - pSpend) / pSpend) : null;
+      const pSms = P && P.sms, pSmsCost = pSms && pSms.cost != null ? Number(pSms.cost) : null;
+      const pCostBase = (pHasAds ? pSpend : 0) + (pSmsCost || 0);
+      const pProfit = pNetRev != null && pCostBase > 0 ? pNetRev - pCostBase : null;
+      const pRoi = pCostBase > 0 && pNetRev != null ? Math.round(100 * (pNetRev - pCostBase) / pCostBase) : null;
       const pRoas = pHasAds && pSpend > 0 && ps ? Math.round(100 * ps.revenue / pSpend) / 100 : null;
       const stage = (n, l, sub, c, cost, cmp, brk) => `<div class="fstage${c ? ' c-' + c : ''}"><div class="top"><div class="n">${n}</div><div class="l">${esc(l)}</div>${sub ? `<div class="sub">${esc(sub)}</div>` : ''}${cmp || ''}${brk || ''}</div>${cost ? `<div class="cost${cost.tone ? ' ' + cost.tone : ''}"><span class="k">${esc(cost.k)}</span><span class="v">${cost.v}</span>${cost.cmp || ''}</div>` : ''}</div>`;
       // "vs last webinar": that webinar's value plus the change.
@@ -417,6 +421,14 @@
 
       const trafficRow = lead(undefined) +
         (hasAds ? stage(money(spend), 'Ad spend', 'Meta \u00b7 ' + m.ads_count + ' ads', 'red', null, vsLast(spend, pHasAds ? pSpend : null, money, 'flat')) + arrow(null) : '') +
+        (smsCost != null && smsCost > 0 ? stage(money(smsCost), 'SMS', (sms.messages || 0).toLocaleString() + ' to registrants', 'red',
+            s.registered ? { k: 'Cost / registrant', v: costMoney(smsCost / s.registered) } : null,
+            vsLast(smsCost, pSmsCost, money, 'flat'),
+            '<div class="brk">' +
+              brkRow('sent', sms.messages, pSms && pSms.messages, null, (sms.recipients || 0) + ' registrants reached \u00b7 ' + (sms.segments || 0) + ' segments') +
+              brkRow('failed', sms.failed || 0, pSms && pSms.failed, null, 'Undelivered or failed \u2014 ' + money(sms.undelivered_cost || 0) + ' of it still billed', 'down') +
+              brkRow('to reps', sms.lead_messages || 0, pSms && pSms.lead_messages, null, 'Messages to the leads handed to the sales team \u00b7 ' + money(sms.lead_cost || 0)) +
+            '</div>') + arrow(null) : '') +
         (hasAds && imps ? stage(imps.toLocaleString(), 'Impressions', Number(m.clicks).toLocaleString() + ' clicks' + (m.ctr == null ? '' : ' \u00b7 ' + m.ctr + '% CTR'), null,
           { k: 'Cost / 1K impressions', v: costMoney(1000 * spend / imps), cmp: vsLast(1000 * spend / imps, pm.cpm, costMoney, 'down') },
           vsLast(imps, pHasAds ? pm.impressions : null)) +
@@ -436,7 +448,7 @@
       const moneyRow = lead(null) +
         stage(money(s.revenue), 'Revenue', 'gross', 'purple', roas != null ? { k: 'Return on ad spend', v: roas + '\u00d7', tone: roas >= 1 ? 'good' : 'bad', cmp: vsLast(roas, pRoas, (v) => v + '\u00d7') } : null, vsLast(s.revenue, ps && ps.revenue, money), salesSplit(money1, 'revenue')) +
         (netRev != null ? arrow(null) + stage(money(netRev), 'Net revenue', 'after everything below', 'green', null, vsLast(netRev, pNetRev, money), netBrk) : '') +
-        (profit != null ? arrow(null) + stage(signed(profit), 'Profit after ads', 'net revenue \u2212 ad spend', profit < 0 ? 'red' : 'green', { k: 'ROI', v: roi + '%', tone: roi >= 0 ? 'good' : 'bad', cmp: vsLast(roi, pRoi, (v) => v + '%') }, vsLast(profit, pProfit, signed)) : '');
+        (profit != null ? arrow(null) + stage(signed(profit), 'Profit', smsCost ? 'net revenue \u2212 ads \u2212 SMS' : 'net revenue \u2212 ad spend', profit < 0 ? 'red' : 'green', { k: 'ROI', v: roi + '%', tone: roi >= 0 ? 'good' : 'bad', cmp: vsLast(roi, pRoi, (v) => v + '%') }, vsLast(profit, pProfit, signed)) : '');
 
       const crm = f.crm, pcrm = P && P.crm;
       let leadChips = '';

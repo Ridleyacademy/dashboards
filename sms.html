@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg?v=303">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=303">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=303">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SMS Health</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <script src="permissions.js"></script>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#000000">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Ridleyacademy">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=303">
+  <link rel="stylesheet" href="mobile.css">
+  <style>
+    :root{
+      --bg:#080a14; --surface:#0f1120; --surface2:#141728; --surface3:#191e30;
+      --border:#1f2438; --border-light:#272d45;
+      --text:#eaecf8; --text-muted:#7880a8; --text-dim:#3e4668;
+      --blue:#6b9eff; --blue-bg:rgba(107,158,255,0.12);
+      --green:#34d399; --green-bg:rgba(52,211,153,0.12);
+      --gold:#fbbf24; --gold-bg:rgba(251,191,36,0.12);
+      --red:#f87171; --red-bg:rgba(248,113,113,0.12);
+      --purple:#a78bfa;
+    }
+    body.light{ --bg:#f3f4fb; --surface:#fff; --surface2:#f6f7fc; --surface3:#eef0f8; --border:#e2e5f0; --border-light:#d3d7e6; --text:#1a1d2e; --text-muted:#5a6180; --text-dim:#9aa1bd; }
+    *{ box-sizing:border-box; }
+    body{ margin:0; background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:14px; }
+    a{ color:var(--blue); }
+    .topbar{ display:flex; align-items:center; gap:10px; padding:10px 18px; background:linear-gradient(180deg,rgba(15,17,32,0.96),rgba(8,10,20,0.92)); border-bottom:1px solid var(--border); position:sticky; top:0; z-index:100; backdrop-filter:blur(14px); }
+    body.light .topbar{ background:linear-gradient(180deg,#fff,#f6f7fc); }
+    .topbar-logo{ width:26px; height:26px; border-radius:8px; display:flex; align-items:center; justify-content:center; }
+    .topbar-brand{ font-weight:800; letter-spacing:0.01em; }
+    .topbar-spacer{ flex:1; }
+    .tbtn{ background:var(--surface2); border:1px solid var(--border); color:var(--text); border-radius:9px; padding:7px 12px; font-size:0.82rem; cursor:pointer; display:inline-flex; align-items:center; gap:6px; }
+    .tbtn:hover{ border-color:var(--border-light); }
+    .nav-dropdown{ position:relative; }
+    .nav-dropdown-menu{ display:none; position:absolute; top:100%; right:0; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:6px; margin-top:6px; min-width:210px; z-index:200; max-height:70vh; overflow:auto; }
+    .nav-menu-link{ display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:8px; color:var(--text); text-decoration:none; font-size:0.85rem; }
+    .nav-menu-link:hover{ background:var(--surface2); }
+    .nav-menu-link.active{ background:var(--blue-bg); color:var(--blue); }
+    .user-pill{ display:flex; align-items:center; gap:8px; background:var(--surface2); border:1px solid var(--border); border-radius:999px; padding:4px 10px 4px 4px; }
+    .user-pill-av{ width:26px; height:26px; border-radius:999px; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:0.8rem; }
+    .user-pill-email{ font-size:0.78rem; color:var(--text-muted); max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+    .wrap{ max-width:1180px; margin:0 auto; padding:18px; }
+    .toolbar{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:6px 2px 14px; }
+    .toolbar select{ background:var(--surface2); border:1px solid var(--border); color:var(--text); border-radius:9px; padding:7px 10px; font-size:0.85rem; max-width:100%; }
+    .toolbar .when{ font-size:0.78rem; color:var(--text-muted); }
+    .sec-title{ font-size:1.05rem; font-weight:800; margin:24px 2px 12px; display:flex; align-items:center; gap:8px; }
+    .sec-title .ic{ color:var(--text-muted); }
+    .kpis{ display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; }
+    .kpi{ background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:14px 16px; }
+    .kpi .n{ font-size:1.5rem; font-weight:800; }
+    .kpi .l{ font-size:0.72rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; margin-top:3px; }
+    .kpi .sub{ font-size:0.72rem; color:var(--text-dim); margin-top:4px; }
+    .kpi.accent-red .n{ color:var(--red); } .kpi.accent-green .n{ color:var(--green); }
+    .kpi.accent-blue .n{ color:var(--blue); } .kpi.accent-gold .n{ color:var(--gold); }
+    .kpi.accent-purple .n{ color:var(--purple); }
+    .funnel{ display:flex; align-items:stretch; flex-wrap:wrap; gap:6px 0; }
+    .fstage{ position:relative; flex:1 1 140px; min-width:132px; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:14px 15px 12px; overflow:hidden; display:flex; flex-direction:column; }
+    .fstage .top{ margin-bottom:10px; }
+    .farrow.lead .a{ font-size:1.1rem; }
+    @media(min-width:900px){
+      .funnel{ flex-wrap:nowrap; }
+      .fstage{ flex:0 0 calc((100% - 4 * 52px) / 4); min-width:0; }
+      .farrow{ flex:0 0 52px; min-width:0; padding:0; }
+      .fstage .n{ font-size:1.35rem; }
+    }
+    @media(max-width:899px){
+      #attKpis .funnel{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+      #attKpis .funnel .farrow{ display:none; }
+      #attKpis .funnel .fstage{ min-width:0; }
+    }
+    table.tbl th.txt, table.tbl td.txt{ text-align:left; }
+    table.tbl td.clip{ max-width:100px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    #tblAds table.tbl td:first-child{ min-width:140px; }
+    #tblAds table.tbl th, #tblAds table.tbl td, #tblCamps table.tbl th, #tblCamps table.tbl td{ padding:6px 5px; }
+    #tblAds table.tbl thead th, #tblCamps table.tbl thead th{ font-size:0.64rem; letter-spacing:0.02em; }
+    #tblCamps, #tblAds{ scrollbar-color:var(--border-light) transparent; }
+    #tblCamps::-webkit-scrollbar, #tblAds::-webkit-scrollbar{ height:8px; }
+    #tblCamps::-webkit-scrollbar-track, #tblAds::-webkit-scrollbar-track{ background:transparent; }
+    #tblCamps::-webkit-scrollbar-thumb, #tblAds::-webkit-scrollbar-thumb{ background:var(--border-light); border-radius:8px; }
+    .small-ad{ display:none; }
+    .skel{ background:linear-gradient(90deg, var(--surface3) 0%, var(--border-light) 50%, var(--surface3) 100%); background-size:200% 100%; }
+    .skel-block{ display:block; }
+    .fstage .skel{ display:block; }
+    .skel-fill{ display:none; }
+    .curve-card.loading .skel-fill{ display:block; }
+    .curve-card.loading .curve-wrap{ display:none; }
+    #tblAds.show-all .small-ad{ display:table-row; }
+    .show-more{ background:none; border:0; color:var(--blue); cursor:pointer; font-size:0.78rem; padding:8px 0 0; }
+    .cmp-row td{ background:var(--surface2); font-weight:800; }
+    .adset-row td:first-child{ padding-left:22px; }
+    .tgt{ font-size:0.7rem; color:var(--text-muted); font-weight:400; margin-top:3px; white-space:normal; line-height:1.45; }
+    .pill{ display:inline-block; font-size:0.62rem; font-weight:800; letter-spacing:0.04em; padding:1px 7px; border-radius:999px; border:1px solid var(--border-light); color:var(--text-muted); vertical-align:middle; }
+    .pill.on{ color:var(--green); border-color:rgba(52,211,153,0.4); }
+    .frow-label{ font-size:0.64rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.08em; font-weight:800; margin:4px 2px 6px; }
+    .funnel + .frow-label{ margin-top:14px; }
+    .fstage .cmp{ font-size:0.67rem; color:var(--text-dim); margin-top:5px; white-space:nowrap; }
+    .fstage .cmp b{ color:var(--text-muted); font-weight:700; }
+    .fstage .cmp .up{ color:var(--green); font-weight:800; }
+    .fstage .cmp .dn{ color:var(--red); font-weight:800; }
+    .fstage .cost .cmp{ margin-top:3px; }
+    .fstage .brk{ margin-top:7px; padding-top:6px; border-top:1px dashed var(--border-light); display:flex; flex-direction:column; gap:3px; }
+    .fstage .brk .r{ display:flex; align-items:baseline; flex-wrap:wrap; gap:3px 5px; font-size:0.67rem; }
+    .fstage .brk .k{ color:var(--text-muted); font-weight:700; text-transform:uppercase; letter-spacing:0.04em; min-width:30px; }
+    .fstage .brk .v{ font-weight:800; color:var(--text); }
+    .fstage .brk .m{ margin-left:auto; font-weight:800; color:var(--text-muted); }
+    .fstage .brk .d{ font-weight:800; font-size:0.62rem; }
+    .fstage .brk .d.m2{ min-width:44px; text-align:right; }
+    .chip .pt{ font-weight:800; margin-left:4px; }
+    .chip .pt.up{ color:var(--green); }
+    .chip .pt.dn{ color:var(--red); }
+    .chip.lead{ border-color:rgba(107,158,255,0.35); }
+    .fstage .brk .up{ color:var(--green); }
+    .fstage .brk .dn{ color:var(--red); }
+    .tbl .sp{ display:block; font-size:0.62rem; font-weight:700; color:var(--text-muted); margin-top:2px; white-space:nowrap; }
+    .tbl .sp .lv{ color:var(--blue); }
+    .tbl .sp .rg{ color:var(--text-dim); }
+    .fstage .cost{ margin-top:auto; padding-top:8px; border-top:1px dashed var(--border-light); display:flex; flex-direction:column; gap:1px; }
+    .fstage .cost .k{ font-size:0.6rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em; font-weight:700; }
+    .fstage .cost .v{ font-size:0.95rem; font-weight:800; color:var(--text); white-space:nowrap; }
+    .fstage .cost.good .v{ color:var(--green); } .fstage .cost.bad .v{ color:var(--red); }
+    .fstage::before{ content:''; position:absolute; inset:0 auto 0 0; width:3px; background:var(--stage,var(--border-light)); }
+    .fstage .n{ font-size:1.45rem; font-weight:800; white-space:nowrap; letter-spacing:-0.01em; }
+    .fstage .l{ font-size:0.66rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em; margin-top:4px; font-weight:700; }
+    .fstage .sub{ font-size:0.7rem; color:var(--text-dim); margin-top:3px; }
+    .fstage.c-blue{ --stage:var(--blue); } .fstage.c-blue .n{ color:var(--blue); }
+    .fstage.c-gold{ --stage:var(--gold); } .fstage.c-gold .n{ color:var(--gold); }
+    .fstage.c-green{ --stage:var(--green); } .fstage.c-green .n{ color:var(--green); }
+    .fstage.c-purple{ --stage:var(--purple); background:linear-gradient(135deg, rgba(167,139,250,0.10), var(--surface) 55%); }
+    .fstage.c-purple .n{ color:var(--purple); }
+    .fstage.c-red{ --stage:var(--red); } .fstage.c-red .n{ color:var(--red); }
+    .farrow{ display:flex; flex-direction:column; align-items:center; justify-content:center; padding:0 5px; min-width:56px; gap:4px; }
+    .farrow .a{ color:var(--text-dim); font-size:1rem; line-height:1; }
+    .farrow .pd{ font-size:0.62rem; font-weight:800; white-space:nowrap; color:var(--text-muted); }
+    .farrow .pd.up{ color:var(--green); }
+    .farrow .pd.dn{ color:var(--red); }
+    .farrow .p{ font-size:0.72rem; font-weight:800; color:var(--text); background:var(--surface2); border:1px solid var(--border); border-radius:999px; padding:2px 8px; }
+    .curve-card{ margin-top:12px; }
+    .curve-wrap{ position:relative; height:150px; }
+    .chips{ display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+    .chip{ background:var(--surface2); border:1px solid var(--border); border-radius:999px; padding:6px 13px; font-size:0.78rem; color:var(--text-muted); display:inline-flex; gap:6px; align-items:baseline; }
+    .chip b{ font-weight:800; color:var(--text); font-size:0.86rem; }
+    .chip.dim{ border-style:dashed; color:var(--text-dim); }
+    .chip.dim b{ color:var(--text-dim); font-weight:700; }
+    .chip.warn{ border-color:rgba(248,113,113,0.45); color:var(--red); background:var(--red-bg); }
+    .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:14px; }
+    @media(max-width:820px){ .grid2{ grid-template-columns:1fr; } }
+    .card{ background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:14px 16px; }
+    .card h4{ margin:0 0 10px; font-size:0.82rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; font-weight:700; }
+    .chart-wrap{ position:relative; height:240px; }
+    table.tbl{ width:100%; border-collapse:collapse; font-size:0.82rem; }
+    table.tbl th, table.tbl td{ padding:7px 10px; text-align:right; white-space:nowrap; border-bottom:1px solid var(--border); }
+    table.tbl th:first-child, table.tbl td:first-child{ text-align:left; white-space:normal; }
+    table.tbl thead th{ color:var(--text-muted); font-weight:700; font-size:0.7rem; text-transform:uppercase; letter-spacing:0.04em; }
+    .muted{ color:var(--text-muted); }
+    .empty{ padding:26px; text-align:center; color:var(--text-muted); }
+    .note{ margin-top:14px; padding:10px 12px; border-radius:10px; background:var(--gold-bg); border:1px solid rgba(251,191,36,0.3); font-size:0.8rem; }
+    .note.ok{ background:var(--green-bg); border-color:rgba(52,211,153,0.3); }
+    .note.bad{ background:var(--red-bg); border-color:rgba(248,113,113,0.3); }
+  </style>
+  <style>
+    .sel{ background:var(--surface2); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:6px 10px; font-size:0.8rem; font-family:inherit; }
+  </style>
+<body>
+  <header class="topbar">
+    <div class="topbar-logo"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#06231a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div>
+    <div class="topbar-brand">SMS Health</div>
+    <div class="topbar-spacer"></div>
+    <button class="tbtn" id="refreshBtn" title="Refresh"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> Refresh</button>
+    <button class="tbtn" id="themeBtn" style="font-size:1rem;" title="Toggle theme">◐</button>
+    <div class="nav-dropdown" id="navDropdown"><button class="tbtn" id="navDropdownBtn">Dashboards ▾</button><div class="nav-dropdown-menu" id="navDropMenu"></div></div>
+    <div class="user-pill"><div class="user-pill-av" id="userAvatar">U</div><div class="user-pill-email" id="userEmail">…</div></div>
+    <button class="tbtn" id="signOutBtn"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg> Sign Out</button>
+  </header>
+  <div class="wrap">
+    <div class="card" style="margin-bottom:14px">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <h4 style="margin:0">Sending health</h4>
+        <select id="daysSel" class="sel">
+          <option value="7">Last 7 days</option>
+          <option value="30" selected>Last 30 days</option>
+          <option value="90">Last 90 days</option>
+        </select>
+        <div class="muted" id="freshness" style="font-size:0.72rem;margin-left:auto"></div>
+      </div>
+      <div class="kpis" id="kpis" style="margin-top:12px"></div>
+      <div class="chips" id="chips"></div>
+    </div>
+
+    <div class="card curve-card" style="margin-bottom:14px"><h4>Delivery rate by day</h4><div style="height:220px"><canvas id="chDaily"></canvas></div></div>
+
+    <div class="card" style="margin-bottom:14px"><h4>Sending numbers</h4><div id="tblNumbers" style="overflow-x:auto"></div>
+      <div class="muted" style="font-size:0.72rem;margin-top:8px">A number sending through a registered Messaging Service is marked <b>service</b>. Numbers sending direct are the ones US carriers reject.</div>
+    </div>
+
+    <div class="card"><h4>Why messages fail</h4><div id="tblErrors" style="overflow-x:auto"></div>
+      <div class="muted" style="font-size:0.72rem;margin-top:8px">Only the last four digits of each sending number are shown. No message content and no recipient numbers are read by this page.</div>
+    </div>
+  </div>
+
+<script>
+  const SUPABASE_URL = 'https://pojqljrhhtnigyrtzdzz.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBvanFsanJoaHRuaWd5cnR6ZHp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTA3ODMsImV4cCI6MjA5MTM4Njc4M30.PcSBDqOzbiZxZ7IAs5efqx0gsAlAG0cj3GqUOkAmxos';
+  const BASE = SUPABASE_URL + '/functions/v1/twilio-analytics';
+  const supa = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  window.supa = supa;
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const cssv = (n) => getComputedStyle(document.body).getPropertyValue(n).trim() || '#888';
+  const money = (v) => v == null ? '—' : '$' + Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 });
+  const num = (v) => Number(v || 0).toLocaleString();
+  const pct = (v) => v == null ? '—' : (Math.round(v * 10) / 10) + '%';
+  const fmtWhen = (iso) => { if (!iso) return '—'; const d = new Date(iso); return isNaN(d) ? '—' : d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' }) + ' ET'; };
+
+  let chartRef = null;
+  async function authedFetch(path) {
+    const { data: { session } } = await supa.auth.getSession();
+    if (!session) { location.replace('index.html'); throw new Error('Not signed in'); }
+    const res = await fetch(BASE + path, { headers: { Authorization: 'Bearer ' + session.access_token } });
+    const j = await res.json();
+    if (!res.ok) throw new Error(j.error || ('HTTP ' + res.status));
+    return j;
+  }
+
+  const kpi = (n, l, sub, accent) => `<div class="kpi${accent ? ' accent-' + accent : ''}"><div class="n">${n}</div><div class="l">${esc(l)}</div>${sub ? `<div class="sub">${esc(sub)}</div>` : ''}</div>`;
+
+  function render(d) {
+    const s = d.summary || {};
+    const deliveredPct = s.sent ? Math.round(1000 * s.delivered / s.sent) / 10 : null;
+    // delivery under 90% is the number that matters; anything under 80 is bleeding money
+    const tone = deliveredPct == null ? null : (deliveredPct >= 90 ? 'green' : (deliveredPct >= 80 ? 'gold' : 'red'));
+    $('kpis').innerHTML =
+      kpi(pct(deliveredPct), 'Delivered', num(s.delivered) + ' of ' + num(s.sent), tone) +
+      kpi(money(s.cost), 'Spent', num(s.segments) + ' segments to ' + num(s.people) + ' people') +
+      kpi(money(s.wasted), 'Paid for nothing', num(s.failed) + ' undelivered or failed', s.wasted > 0 ? 'red' : null) +
+      kpi(num(s.unregistered), 'Rejected: unregistered', 'sent from a number with no A2P campaign', s.unregistered > 0 ? 'red' : 'green') +
+      kpi(num(s.geo_blocked), 'Blocked by country', 'SMS not enabled for that region') +
+      kpi(num(s.to_unsubscribed), 'Sent to opt-outs', 'blocked, but still queued by the sender');
+
+    const m = d.mirror || {}, ls = d.last_sync || {};
+    $('freshness').innerHTML = `${num(m.messages)} messages mirrored · ${esc(fmtWhen(m.oldest))} → ${esc(fmtWhen(m.newest))}`
+      + (ls.finished_at ? ` · last sync ${esc(fmtWhen(ls.finished_at))}` : '');
+
+    let chips = '';
+    const worst = (d.numbers || []).filter(n => n.delivered_pct < 85).sort((a, b) => a.delivered_pct - b.delivered_pct)[0];
+    if (worst) chips += `<span class="chip warn">Number …${esc(worst.number)} delivers only ${pct(worst.delivered_pct)} — ${money(worst.wasted)} wasted</span>`;
+    if (s.sent && s.segments > s.sent) chips += `<span class="chip">Average message <b>${(Math.round(100 * s.segments / s.sent) / 100)}</b> <span>segments — anything over 1 costs double</span></span>`;
+    $('chips').innerHTML = chips;
+
+    const rows = (d.numbers || []).map(n => `<tr${n.delivered_pct < 85 ? ' class="small-ad"' : ''}><td>…${esc(n.number)}${n.service ? ' <span class="pill on">service</span>' : ' <span class="pill">direct</span>'}</td><td>${num(n.sent)}</td><td><span style="color:${n.delivered_pct >= 90 ? 'var(--green)' : (n.delivered_pct >= 80 ? 'var(--gold)' : 'var(--red)')};font-weight:800">${pct(n.delivered_pct)}</span></td><td>${num(n.unregistered)}</td><td>${num(n.geo_blocked)}</td><td>${num(n.unsubscribed)}</td><td>${num(n.segments)}</td><td>${money(n.cost)}</td><td>${money(n.wasted)}</td></tr>`).join('');
+    $('tblNumbers').innerHTML = `<table class="tbl"><thead><tr><th>Number</th><th>Sent</th><th>Delivered</th><th>Unregistered</th><th>Geo blocked</th><th>Opt-outs</th><th>Segments</th><th>Cost</th><th>Wasted</th></tr></thead><tbody>${rows || '<tr><td colspan="9" class="muted">No messages in this window.</td></tr>'}</tbody></table>`;
+
+    const erows = (d.errors || []).map(e => `<tr${e.bad ? '' : ' class="muted"'}><td>${e.code}</td><td>${num(e.count)}</td><td>${money(e.cost)}</td><td class="txt">${esc(e.what)}</td><td class="txt">${esc(e.fix)}</td></tr>`).join('');
+    $('tblErrors').innerHTML = `<table class="tbl"><thead><tr><th>Code</th><th>Messages</th><th>Cost</th><th class="txt">What it means</th><th class="txt">What to do</th></tr></thead><tbody>${erows || '<tr><td colspan="5" class="muted">No failures — unlikely, check the sync.</td></tr>'}</tbody></table>`;
+
+    const daily = d.daily || [];
+    if (chartRef) chartRef.destroy();
+    const grid = cssv('--border'), mutedC = cssv('--text-muted');
+    Chart.defaults.color = mutedC;
+    chartRef = new Chart($('chDaily'), {
+      type: 'line',
+      data: { labels: daily.map(x => x.day), datasets: [{ data: daily.map(x => x.delivered_pct), borderColor: cssv('--green'), backgroundColor: 'rgba(52,211,153,0.12)', fill: true, pointRadius: 0, borderWidth: 2, tension: 0.3 }] },
+      options: { maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: (i) => i.parsed.y + '% delivered' } } },
+        scales: { x: { grid: { display: false }, ticks: { color: mutedC, maxTicksLimit: 12 } },
+                  y: { grid: { color: grid }, ticks: { color: mutedC, callback: (v) => v + '%' }, suggestedMin: 0, suggestedMax: 100 } } }
+    });
+  }
+
+  async function load() {
+    $('kpis').innerHTML = '<div class="kpi"><div class="n muted">…</div><div class="l">Loading</div></div>';
+    try { render(await authedFetch('?api=health&days=' + $('daysSel').value)); }
+    catch (e) { $('kpis').innerHTML = `<div class="kpi"><div class="n muted">—</div><div class="l">${esc(e.message)}</div></div>`; }
+  }
+
+  $('daysSel').addEventListener('change', load);
+  $('refreshBtn').addEventListener('click', load);
+  $('signOutBtn').addEventListener('click', async () => { try { await supa.auth.signOut(); } catch (_) {} location.href = 'index.html'; });
+  $('navDropdownBtn').addEventListener('click', (e) => { e.stopPropagation(); const m = $('navDropMenu'); m.style.display = m.style.display === 'block' ? 'none' : 'block'; });
+  document.addEventListener('click', () => { const m = $('navDropMenu'); if (m) m.style.display = 'none'; });
+
+  (async function init() {
+    const { data: { session } } = await supa.auth.getSession();
+    if (session?.user) {
+      const em = session.user.email || ''; $('userEmail').textContent = em; $('userAvatar').textContent = (em[0] || 'U').toUpperCase(); window.__RIDLEY_USER = session.user;
+    }
+    load();
+  })();
+</script>
+<script src="access-guard.js"></script>
+<script src="theme.js"></script>
+<script src="changelog.js"></script>
+<script src="notifications.js"></script>
+<script src="messages-widget.js"></script>
+<script src="nav-menu.js"></script>
+</body>
+</html>

@@ -57,16 +57,15 @@
     .ra-sheetbar .grow{ flex:1 1 200px; min-width:0; font-size:12px; line-height:16px; color:var(--ink-faint); }
     .ra-input{ height:32px; padding:0 10px; border-radius:var(--radius-sm); border:1px solid var(--line-strong); background:var(--surface); color:var(--ink); font:500 13px/1 var(--font-sans); min-width:0; width:220px; max-width:100%; }
     @media (pointer:coarse){ .ra-input{ height:44px; } }
-    /* the webinar column is frozen; the other columns scroll BEHIND it and snap to whole columns,
-       so nothing is ever half-cut against its edge */
+    /* the webinar column is frozen; the other columns scroll BEHIND it and settle on whole columns
+       (script below), so nothing is ever half-cut against its edge */
     .ra-sheet{ --firstw:250px; overflow:auto; max-height:calc(100vh - 230px); min-height:240px; border:1px solid var(--line); border-radius:var(--radius-md); background:var(--surface);
-               scroll-snap-type:x mandatory; scroll-padding-left:var(--firstw); overscroll-behavior-x:contain; }
-    .ra-sheet thead tr.c th:not(.first){ scroll-snap-align:start; }
+               overscroll-behavior-x:contain; }
     .ra-sheet table{ border-collapse:separate; border-spacing:0; font-size:12.5px; line-height:16px; font-variant-numeric:tabular-nums; }
     .ra-sheet th, .ra-sheet td{ padding:7px 10px; text-align:right; white-space:nowrap; border-bottom:1px solid var(--line); background:var(--surface); }
     .ra-sheet thead th{ position:sticky; z-index:2; color:var(--ink-muted); font:600 11px/14px var(--font-sans); vertical-align:bottom; }
-    .ra-sheet thead tr.g th{ top:0; height:30px; text-transform:uppercase; letter-spacing:0.08em; font-size:10px; color:var(--ink-faint); text-align:left; border-bottom:0; background:var(--surface-sunken); }
-    .ra-sheet thead tr.c th{ top:30px; white-space:normal; min-width:84px; max-width:112px; cursor:pointer; user-select:none; border-bottom:1px solid var(--line-strong); }
+    .ra-sheet thead tr.g th{ top:0; height:30px; box-sizing:border-box; padding-top:0; padding-bottom:0; line-height:30px; text-transform:uppercase; letter-spacing:0.08em; font-size:10px; color:var(--ink-faint); text-align:left; border-bottom:0; background:var(--surface-sunken); }
+    .ra-sheet thead tr.c th{ top:var(--ctop, 30px); white-space:normal; min-width:84px; max-width:112px; cursor:pointer; user-select:none; border-bottom:1px solid var(--line-strong); }
     .ra-sheet thead tr.c th:hover{ color:var(--ink); }
     .ra-sheet thead tr.c th[aria-sort="descending"]::after{ content:" ▼"; font-size:9px; color:var(--brand-text); }
     .ra-sheet thead tr.c th[aria-sort="ascending"]::after{ content:" ▲"; font-size:9px; color:var(--brand-text); }
@@ -76,15 +75,18 @@
     .ra-sheet .gs{ border-left:1px solid var(--line); }
     .ra-sheet tbody tr{ cursor:pointer; }
     .ra-sheet tbody tr:hover td{ background:var(--surface-hover); }
-    .ra-sheet tbody tr.sel td{ background:var(--brand-tint); }
+    /* every cell that can sit under or over another is OPAQUE — a tint is layered over the surface, never see-through */
+    .ra-sheet tbody tr.sel td{ background:linear-gradient(var(--brand-tint), var(--brand-tint)), var(--surface); }
+    .ra-sheet tbody tr.sel:hover td{ background:linear-gradient(var(--brand-tint), var(--brand-tint)), var(--surface-hover); }
     .ra-sheet tbody td.first b{ display:block; font-weight:600; color:var(--ink); }
     .ra-sheet tbody td.first span{ display:block; font-size:11px; color:var(--ink-faint); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     @media (max-width:600px){ .ra-sheet{ --firstw:150px; max-height:calc(100vh - 170px); } .ra-sheet tbody td.first b{ font-size:12px; } .ra-sheet thead tr.c th{ min-width:76px; } }
     .ra-sheet td.best{ font-weight:700; color:var(--ink); }
     .ra-sheet td.neg{ color:var(--negative); }
     .ra-sheet td.na{ color:var(--ink-faint); }
-    .ra-sheet tfoot td{ position:sticky; bottom:0; z-index:1; background:var(--surface-sunken); font-weight:600; border-top:1px solid var(--line-strong); border-bottom:0; }
-    .ra-sheet tfoot td.first{ z-index:2; }
+    /* the average row is pinned at the TOP, under the column names (a bottom-pinned row collides with overlay scrollbars) */
+    .ra-sheet thead tr.a td{ position:sticky; top:var(--avgtop, 76px); z-index:2; background:var(--surface-sunken); color:var(--ink); font-weight:600; border-bottom:1px solid var(--line-strong); }
+    .ra-sheet thead tr.a td.first{ z-index:3; color:var(--ink-muted); }
   </style>
 </head>
 <body class="ra-app">
@@ -345,7 +347,7 @@
     ['cpr', 'Cost per registration', cm, 'down', 'Getting people in'],
     ['attended', 'Showed up', num, 'up', 'The webinar'],
     ['showup', 'Show-up %', pct, 'up', 'The webinar', 'Share of registered who joined the live room'],
-    ['avgmin', 'Avg minutes watched', (v) => v == null ? '—' : v, 'up', 'The webinar'],
+    ['avgmin', 'Avg minutes watched', (v) => v == null ? '—' : (Math.round(v * 10) / 10).toFixed(1), 'up', 'The webinar'],
     ['peak', 'Most in the room', num, 'up', 'The webinar', 'Most people in the room at the same time'],
     ['held', 'Room held %', pct, 'up', 'The webinar', 'Average room size as a share of the peak'],
     ['saw', 'Saw the offer', num, 'up', 'The webinar', 'Stayed 90 minutes or more'],
@@ -436,7 +438,7 @@
     const gstart = new Set(); let i = 0; groups.forEach(g => { gstart.add(i); i += g.n; });
     const sortAttr = (key) => sheetSort.key === key ? ` aria-sort="${sheetSort.dir > 0 ? 'ascending' : 'descending'}"` : '';
     const head = `<thead><tr class="g"><th class="first"></th>${groups.map((g, gi) => `<th colspan="${g.n}" class="${gi ? 'gs' : ''}">${esc(g.g)}</th>`).join('')}</tr>` +
-      `<tr class="c"><th class="first" data-k="date"${sortAttr('date')}>Webinar</th>${SHEET_COLS.map((c, ci) => `<th data-k="${c[0]}"${sortAttr(c[0])} class="${gstart.has(ci) && ci ? 'gs' : ''}"${c[5] ? ` title="${esc(c[5])}"` : ''}>${esc(c[1])}</th>`).join('')}</tr></thead>`;
+      `<tr class="c"><th class="first" data-k="date"${sortAttr('date')}>Webinar</th>${SHEET_COLS.map((c, ci) => `<th data-k="${c[0]}"${sortAttr(c[0])} class="${gstart.has(ci) && ci ? 'gs' : ''}"${c[5] ? ` title="${esc(c[5])}"` : ''}>${esc(c[1])}</th>`).join('')}</tr>`;
     const sel = selectedWebinar();
     const body = rows.map(r => `<tr data-id="${esc(r.id)}"${r.id === sel ? ' class="sel"' : ''}><td class="first"><b>${esc(fmtLong(r.f.date))}</b><span>${esc(r.name)}</span></td>${SHEET_COLS.map((c, ci) => {
       const v = r.f[c[0]]; const cls = [];
@@ -446,9 +448,42 @@
       return `<td class="${cls.join(' ')}">${v == null ? '—' : c[2](v)}</td>`;
     }).join('')}</tr>`).join('');
     const avg = (key) => { const vals = rows.map(r => r.f[key]).filter(v => v != null && isFinite(v)); return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null; };
-    const foot = `<tfoot><tr><td class="first">Average of ${num(rows.length)}</td>${SHEET_COLS.map((c, ci) => { const v = avg(c[0]); const f = c[2]; const shown = v == null ? '—' : (f === num || f === money || f === signed ? f(Math.round(v)) : f(Math.round(v * 10) / 10)); return `<td class="${gstart.has(ci) && ci ? 'gs' : ''}">${shown}</td>`; }).join('')}</tr></tfoot>`;
-    $('sheetBox').innerHTML = rows.length ? `<table>${head}<tbody>${body}</tbody>${foot}</table>` : '<div class="ra-empty"><b>No webinar matches</b><span>Try part of the name or a month, like “Sep”.</span></div>';
+    const avgRow = `<tr class="a"><td class="first">Average of ${num(rows.length)}</td>${SHEET_COLS.map((c, ci) => { const v = avg(c[0]); const f = c[2]; const shown = v == null ? '—' : (f === num || f === money || f === signed ? f(Math.round(v)) : f(Math.round(v * 10) / 10)); return `<td class="${gstart.has(ci) && ci ? 'gs' : ''}">${shown}</td>`; }).join('')}</tr>`;
+    $('sheetBox').innerHTML = rows.length ? `<table>${head}${avgRow}</thead><tbody>${body}</tbody></table>` : '<div class="ra-empty"><b>No webinar matches</b><span>Try part of the name or a month, like “Sep”.</span></div>';
+    pinSheetRows();
   }
+  function pinSheetRows() {
+    const box = $('sheetBox'), c = box.querySelector('thead tr.c');
+    const g = box.querySelector('thead tr.g');
+    if (c) {
+      const gh = g ? g.getBoundingClientRect().height : 30;
+      box.style.setProperty('--ctop', gh + 'px');
+      box.style.setProperty('--avgtop', (gh + c.getBoundingClientRect().height) + 'px');
+    }
+  }
+  window.addEventListener('resize', () => { if (!$('sheetView').hidden) pinSheetRows(); });
+  // When sideways scrolling stops, settle on a whole column so nothing is half-cut against the
+  // frozen webinar column. Done in script: CSS scroll-snap on sticky header cells snaps to the
+  // wrong spots (Chrome) or not at all (Safari).
+  (function () {
+    const box = $('sheetBox'); let lastX = 0, t = null;
+    function settle() {
+      const first = box.querySelector('thead tr.c th.first'); if (!first) return;
+      const edge = first.getBoundingClientRect().right, x = box.scrollLeft, max = box.scrollWidth - box.clientWidth;
+      if (x <= 0 || x >= max - 1) return;
+      let best = null;
+      // scroll position at which each column would start exactly at the frozen edge
+      box.querySelectorAll('thead tr.c th:not(.first)').forEach(th => { const target = x + (th.getBoundingClientRect().left - edge); if (best == null || Math.abs(target - x) < Math.abs(best - x)) best = target; });
+      if (best == null || Math.abs(best - x) <= 1) return;
+      const to = Math.max(0, Math.min(max, Math.round(best)));
+      const calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      box.scrollTo({ left: to, behavior: calm ? 'auto' : 'smooth' });
+      // some browsers skip smooth scrolling (background tabs, low-power) — make sure it lands
+      setTimeout(() => { if (Math.abs(box.scrollLeft - to) > 1) box.scrollLeft = to; }, 400);
+    }
+    let settling = false;
+    box.addEventListener('scroll', () => { if (box.scrollLeft === lastX) return; lastX = box.scrollLeft; clearTimeout(t); t = setTimeout(() => { if (settling) { settling = false; return; } settling = true; settle(); setTimeout(() => { settling = false; }, 600); }, 180); }, { passive: true });
+  })();
   $('sheetBox').addEventListener('click', (e) => {
     const th = e.target.closest('thead tr.c th');
     if (th) { const k = th.dataset.k; sheetSort = { key: k, dir: sheetSort.key === k ? -sheetSort.dir : -1 }; drawSheet(); return; }

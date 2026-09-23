@@ -13,6 +13,12 @@ the structural map lives in the knowledge graph (`/graphify`). Format:
 
 ---
 
+## 2026-09-23 — Webinars sheet: no see-through cells, average row on top, script column-settle (v637)
+**What:** Selected row tint is layered over the opaque surface (`linear-gradient(tint,tint), var(--surface)`) — a translucent tint on a sticky cell lets scrolled content show through. Average row moved from a bottom-sticky tfoot to a third sticky thead row (`tr.a`, top = measured group + column-name row heights via `--ctop`/`--avgtop`); group row has an exact 30px border-box height so the sticky header rows meet with no gap. CSS scroll-snap removed (on sticky header cells Chrome snapped to wrong offsets, Safari ignored it); a debounced scroll handler settles on the nearest column edge, measured from the frozen column's real right edge, smooth with an instant fallback after 400ms.
+**Why:** User screenshot (Safari, light): numbers visible through the highlighted frozen cell, and a row peeking under the bottom-pinned average row behind Safari's overlay scrollbar.
+**Rule for all sticky tables:** every sticky cell must be opaque; never pin a row to the bottom of a scroll box.
+**Touched:** webinars.html, version.txt v637, changelog.js v637.
+
 ## 2026-09-23 — Webinars sheet: frozen first column never collides (v636)
 **What:** Sheet's first column has a fixed width (`--firstw`, 250px / 150px on phones) with an edge shadow; horizontal scroll uses `scroll-snap-type:x mandatory` + `scroll-padding-left:var(--firstw)` with `scroll-snap-align:start` on each column header, so the first visible data column always starts exactly at the frozen edge.
 **Why:** User saw scrolled columns half-cut against the frozen webinar column, reading as a collision.

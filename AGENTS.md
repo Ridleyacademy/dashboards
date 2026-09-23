@@ -323,6 +323,7 @@ The dashboards' identity lives in the design-system artifact **"Ridley Academy"*
 - Rules: monochrome until it matters (red = the one primary action + money outcomes; vermilion `negative` for bad numbers, never brand red; gold once per view). Deltas: arrow = direction, colour = good/bad for the business (costs going down are green). Nothing may overlap — stages/steps/badges are sibling grid/flex cells, never absolutely positioned. Check every page at 1200/768/390px in both themes.
 - Say "Sales", never "Bought". Plain labels + a "What the numbers mean" glossary.
 - Only webinars.html uses it so far; the shared `.topbar` (mobile.css) is unchanged until all pages move over.
+- webinars.html has two views: **One webinar** (the step-by-step journey) and **All webinars sheet** (one row per webinar, every stat a column). The sheet reads `public.webinar_sheet` via `webinar-analytics?api=sheet`, filled in the background by cron job 40 (`?api=sheet-refresh`, X-Dispatch-Secret). Never compute the sheet live — it is ~2s SQL + AXL calls per webinar.
 
 ## Button icons / emoji (the user cares about this — do not use random emoji)
 

@@ -52,6 +52,33 @@
     .ra-table .num-bad{ color:var(--negative); font-weight:700; }
     .ra-table .muted-row td{ color:var(--ink-faint); }
     .ra-skel.block{ height:14px; }
+    /* ---- Sheet view: every webinar, every figure ---- */
+    .ra-sheetbar{ display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-2) var(--space-3); }
+    .ra-sheetbar .grow{ flex:1 1 200px; min-width:0; font-size:12px; line-height:16px; color:var(--ink-faint); }
+    .ra-input{ height:32px; padding:0 10px; border-radius:var(--radius-sm); border:1px solid var(--line-strong); background:var(--surface); color:var(--ink); font:500 13px/1 var(--font-sans); min-width:0; width:220px; max-width:100%; }
+    @media (pointer:coarse){ .ra-input{ height:44px; } }
+    .ra-sheet{ overflow:auto; max-height:calc(100vh - 230px); min-height:240px; border:1px solid var(--line); border-radius:var(--radius-md); background:var(--surface); }
+    .ra-sheet table{ border-collapse:separate; border-spacing:0; font-size:12.5px; line-height:16px; font-variant-numeric:tabular-nums; }
+    .ra-sheet th, .ra-sheet td{ padding:7px 10px; text-align:right; white-space:nowrap; border-bottom:1px solid var(--line); background:var(--surface); }
+    .ra-sheet thead th{ position:sticky; z-index:2; color:var(--ink-muted); font:600 11px/14px var(--font-sans); vertical-align:bottom; }
+    .ra-sheet thead tr.g th{ top:0; height:30px; text-transform:uppercase; letter-spacing:0.08em; font-size:10px; color:var(--ink-faint); text-align:left; border-bottom:0; background:var(--surface-sunken); }
+    .ra-sheet thead tr.c th{ top:30px; white-space:normal; min-width:84px; max-width:112px; cursor:pointer; user-select:none; border-bottom:1px solid var(--line-strong); }
+    .ra-sheet thead tr.c th:hover{ color:var(--ink); }
+    .ra-sheet thead tr.c th[aria-sort="descending"]::after{ content:" ▼"; font-size:9px; color:var(--brand-text); }
+    .ra-sheet thead tr.c th[aria-sort="ascending"]::after{ content:" ▲"; font-size:9px; color:var(--brand-text); }
+    .ra-sheet .first{ position:sticky; left:0; z-index:1; text-align:left; border-right:1px solid var(--line-strong); min-width:220px; max-width:260px; white-space:normal; }
+    .ra-sheet thead .first{ z-index:3; }
+    .ra-sheet .gs{ border-left:1px solid var(--line); }
+    .ra-sheet tbody tr{ cursor:pointer; }
+    .ra-sheet tbody tr:hover td{ background:var(--surface-hover); }
+    .ra-sheet tbody tr.sel td{ background:var(--brand-tint); }
+    .ra-sheet tbody td.first b{ display:block; font-weight:600; color:var(--ink); }
+    .ra-sheet tbody td.first span{ display:block; font-size:11px; color:var(--ink-faint); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:236px; }
+    .ra-sheet td.best{ font-weight:700; color:var(--ink); }
+    .ra-sheet td.neg{ color:var(--negative); }
+    .ra-sheet td.na{ color:var(--ink-faint); }
+    .ra-sheet tfoot td{ position:sticky; bottom:0; z-index:1; background:var(--surface-sunken); font-weight:600; border-top:1px solid var(--line-strong); border-bottom:0; }
+    .ra-sheet tfoot td.first{ z-index:2; }
   </style>
 </head>
 <body class="ra-app">
@@ -73,11 +100,15 @@
         <div class="meta"><span id="webinarWhen"></span><span id="cmpWith"></span><span id="statusPill"></span></div>
       </div>
       <div class="ra-toolbar">
+        <div class="ra-seg" role="group" aria-label="View">
+          <button id="viewStory" aria-pressed="true" title="One webinar, step by step">▤ One webinar</button><button id="viewSheet" aria-pressed="false" title="Every webinar in one table, like a spreadsheet">⊞ All webinars sheet</button>
+        </div>
         <select class="ra-select" id="webinarSel" aria-label="Webinar"><option value="">Loading webinars…</option></select>
         <button class="ra-btn primary" id="syncBtn" title="Pull attendance from AXL"><span class="g">⇉</span> Sync attendance</button>
       </div>
     </div>
 
+    <div id="storyView" style="display:contents">
     <section class="ra-section ra-simple" id="journeySec" aria-labelledby="journeyTitle">
       <div class="ra-sectionhead">
         <div><h2 id="journeyTitle">From ad to profit</h2><p>Follow each row step by step. The number on each arrow is the share of people who made it to the next step. Switch to Detailed for the breakdowns.</p></div>
@@ -128,6 +159,17 @@
       <div class="ra-panel-body"><div class="ra-tablewrap" id="tblAttendance"></div></div>
     </details>
 
+    </div>
+
+    <section class="ra-section" id="sheetView" hidden aria-label="All webinars sheet">
+      <div class="ra-sheetbar">
+        <input class="ra-input" id="sheetSearch" type="search" placeholder="Find a webinar or month…" aria-label="Find a webinar">
+        <span class="grow" id="sheetNote">Loading…</span>
+        <button class="ra-btn" id="sheetCsv"><span class="g">⇩</span> Download for Google Sheets</button>
+      </div>
+      <div class="ra-sheet" id="sheetBox"></div>
+    </section>
+
     <details class="ra-glossary">
       <summary>What the numbers mean</summary>
       <dl>
@@ -167,6 +209,7 @@
   const signed = (v) => (v < 0 ? '−' : '') + money(Math.abs(v));
   const fmtDay = (d) => { const x = new Date(d + 'T00:00:00Z'); return isNaN(x) ? d : x.toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' }); };
   const fmtWhen = (iso) => { if (!iso) return ''; const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' }) + ' ET'; };
+  const fmtLong = (iso) => { if (!iso) return '—'; const d = new Date(iso); return isNaN(d) ? '—' : d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' }); };
   const fmtEnd = (iso) => { if (!iso) return '—'; const d = new Date(iso); return isNaN(d) ? '—' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' }); };
   const mins = (v) => (v == null ? '—' : (v < 90 ? Math.round(v) + ' min' : (Math.round(v / 6) / 10) + ' h'));
   const rate = (n, den) => (den ? Math.round(1000 * n / den) / 10 : null);
@@ -242,6 +285,187 @@
     p.addEventListener('toggle', () => { openState[k] = p.open; store.set('webinars-open', openState); if (p.open) Object.values(charts).forEach(c => c.resize()); });
   });
 
+  // ================= the sheet: every webinar, every figure =================
+  // Rows come pre-computed from webinar_sheet (?api=sheet); every column is derived with
+  // the same formulas the journey uses, so the two views always agree.
+  function sheetFigures(d) {
+    // 0 visitors / 0 texts means "not tracked yet" (older webinars), not a real zero
+    if (!Number(d.visitors)) d = Object.assign({}, d, { visitors: null, visitors_to_reg_pct: null });
+    if (d.sms && !Number(d.sms.messages)) d = Object.assign({}, d, { sms: null });
+    const s = d.stats || {}, sl = d.sales || {}, m = d.meta || {}, pk = d.peak || {}, sms = d.sms || {}, crm = d.crm || null, cc = crm && crm.calls;
+    const hasAds = !!(m.connected && m.linked), spend = hasAds ? Number(m.spend || 0) : null;
+    const salesN = d.sales ? Number(sl.sales_count || 0) : null;
+    const netRev = d.sales && sl.net_revenue != null ? Number(sl.net_revenue) : null;
+    const smsCost = d.sms && sms.cost != null ? Number(sms.cost) : null;
+    const costBase = (hasAds ? spend : 0) + (smsCost || 0);
+    const per = (den) => (hasAds && den ? spend / den : null);
+    const imps = hasAds ? Number(m.impressions || 0) : 0;
+    return {
+      date: d.ended_at, spend, imps: hasAds ? imps : null, clicks: hasAds ? m.clicks : null, ctr: hasAds ? m.ctr : null,
+      cpm: hasAds && imps ? 1000 * spend / imps : null, cpc: hasAds ? m.cpc : null,
+      visitors: d.visitors, v2r: d.visitors_to_reg_pct, registered: s.registered, fromAds: hasAds ? m.paid_regs : null, cpr: per(s.registered),
+      attended: s.attendees, showup: s.show_up_pct, avgmin: s.avg_minutes, peak: pk.peak, held: pk.avg_of_peak_pct,
+      saw: s.saw_offer, sawpct: s.saw_offer_pct, cpa: per(s.attendees), cpo: per(s.saw_offer),
+      sales: salesN, o2s: s.saw_offer && salesN != null ? rate(salesN, s.saw_offer) : null, a2s: s.attendees && salesN != null ? rate(salesN, s.attendees) : null,
+      live: d.sales ? sl.live_sales : null, rep: d.sales ? sl.phone_sales : null, full: d.sales ? sl.fullpay_count : null, plan: d.sales ? sl.plan_count : null,
+      fromAtt: d.sales ? sl.attended_count : null, fromNon: d.sales ? sl.week_count : null, cps: per(salesN), traced: hasAds ? m.attributed_sales : null,
+      revenue: s.revenue, liveRev: d.sales ? sl.live_revenue : null, repRev: d.sales ? sl.phone_revenue : null,
+      roas: hasAds && spend > 0 ? s.revenue / spend : null,
+      fees: d.sales ? (sl.total_deductions != null ? Number(sl.total_deductions) : (netRev != null ? s.revenue - netRev : null)) : null,
+      net: netRev, smsCost, cost: (hasAds || smsCost != null) ? costBase : null,
+      profit: netRev != null && (hasAds || smsCost != null) ? netRev - costBase : null,
+      roi: netRev != null && costBase > 0 ? 100 * (netRev - costBase) / costBase : null,
+      leads: crm ? crm.total : null, leadsPct: crm && s.saw_offer ? rate(crm.total, s.saw_offer) : null,
+      cart: crm ? (crm.cart_abandonment || {}).total : null, survey: crm ? (crm.survey || {}).total : null,
+      hot: crm ? (crm.hot_leads_chat || {}).total : null, chat: crm ? (crm.leads_chat || {}).total : null, leadSales: crm ? crm.bought : null,
+      speed: cc ? cc.lead_median_min : null, within1h: cc && cc.lead_called ? rate(cc.lead_within_1h, cc.lead_called) : null,
+      leadsCalled: cc && cc.lead_total ? rate(cc.lead_called, cc.lead_total) : null, offerCalled: cc && cc.offer_total ? rate(cc.offer_called, cc.offer_total) : null,
+      texts: d.sms ? sms.messages : null, textFail: d.sms && sms.messages ? rate(sms.failed || 0, sms.messages) : null,
+    };
+  }
+  const cm = (v) => costMoney(v);
+  // [key, label, format, better ('up' | 'down' | null), group, hover text]
+  const SHEET_COLS = [
+    ['spend', 'Ad spend', money, null, 'Getting people in', 'Meta ad spend for this webinar'],
+    ['imps', 'Ad views', num, 'up', 'Getting people in', 'Times an ad was shown (impressions)'],
+    ['clicks', 'Clicks', num, 'up', 'Getting people in'],
+    ['ctr', 'Clicked %', pct, 'up', 'Getting people in', 'Share of ad views that were clicked (CTR)'],
+    ['cpm', 'Per 1,000 views', cm, 'down', 'Getting people in', 'Cost per 1,000 ad views (CPM)'],
+    ['cpc', 'Per click', cm, 'down', 'Getting people in', 'Cost per click (CPC)'],
+    ['visitors', 'Page visitors', num, 'up', 'Getting people in', 'Different people on the register page'],
+    ['v2r', 'Visitors who signed up', pct, 'up', 'Getting people in'],
+    ['registered', 'Registered', num, 'up', 'Getting people in'],
+    ['fromAds', 'Registered from ads', num, 'up', 'Getting people in'],
+    ['cpr', 'Cost per registration', cm, 'down', 'Getting people in'],
+    ['attended', 'Showed up', num, 'up', 'The webinar'],
+    ['showup', 'Show-up %', pct, 'up', 'The webinar', 'Share of registered who joined the live room'],
+    ['avgmin', 'Avg minutes watched', (v) => v == null ? '—' : v, 'up', 'The webinar'],
+    ['peak', 'Most in the room', num, 'up', 'The webinar', 'Most people in the room at the same time'],
+    ['held', 'Room held %', pct, 'up', 'The webinar', 'Average room size as a share of the peak'],
+    ['saw', 'Saw the offer', num, 'up', 'The webinar', 'Stayed 90 minutes or more'],
+    ['sawpct', 'Stayed for the offer %', pct, 'up', 'The webinar', 'Share of attendees who stayed 90+ minutes'],
+    ['cpa', 'Cost per attendee', cm, 'down', 'The webinar'],
+    ['cpo', 'Cost per offer view', cm, 'down', 'The webinar'],
+    ['sales', 'Sales', num, 'up', 'Sales'],
+    ['o2s', 'Offer viewers who bought %', pct, 'up', 'Sales', 'Sales ÷ people who saw the offer'],
+    ['a2s', 'Attendees who bought %', pct, 'up', 'Sales', 'Sales ÷ people who showed up'],
+    ['live', 'Live sales', num, 'up', 'Sales', 'Sale made during the webinar, nobody closed it'],
+    ['rep', 'Rep sales', num, 'up', 'Sales', 'Closed by a sales rep'],
+    ['full', 'Paid in full', num, 'up', 'Sales'],
+    ['plan', 'Payment plan', num, 'up', 'Sales'],
+    ['fromAtt', 'Sales from attendees', num, 'up', 'Sales'],
+    ['fromNon', 'Sales from non-attendees', num, 'up', 'Sales', 'Registered but didn’t show'],
+    ['cps', 'Cost per sale', cm, 'down', 'Sales'],
+    ['traced', 'Sales traced to an ad', num, 'up', 'Sales'],
+    ['revenue', 'Revenue', money, 'up', 'The money'],
+    ['liveRev', 'Live revenue', money, 'up', 'The money'],
+    ['repRev', 'Rep revenue', money, 'up', 'The money'],
+    ['roas', '$ back per $1 on ads', (v) => v == null ? '—' : '$' + v.toFixed(2), 'up', 'The money', 'Revenue ÷ ad spend (ROAS)'],
+    ['fees', 'Fees & commissions', money, 'down', 'The money'],
+    ['net', 'Revenue after fees', money, 'up', 'The money'],
+    ['smsCost', 'Text cost', money, 'down', 'The money'],
+    ['cost', 'Total cost', money, null, 'The money', 'Ads + texts'],
+    ['profit', 'Profit', signed, 'up', 'The money'],
+    ['roi', 'Return on cost', (v) => v == null ? '—' : Math.round(v) + '%', 'up', 'The money', 'Profit ÷ total cost (ROI)'],
+    ['leads', 'Leads to reps', num, 'up', 'Leads', 'Leads handed to the sales team'],
+    ['leadsPct', 'Leads % of offer viewers', pct, 'up', 'Leads'],
+    ['cart', 'Abandoned checkout', num, null, 'Leads'],
+    ['survey', 'Filled in survey', num, null, 'Leads'],
+    ['hot', 'Hot leads from chat', num, null, 'Leads'],
+    ['chat', 'Other chat leads', num, null, 'Leads'],
+    ['leadSales', 'Leads that became sales', num, 'up', 'Leads'],
+    ['speed', 'Time to first call', mins, 'down', 'Follow-up', 'Typical (median) time from hand-over to the first call'],
+    ['within1h', 'Called within 1 hour %', pct, 'up', 'Follow-up'],
+    ['leadsCalled', 'Leads called %', pct, 'up', 'Follow-up'],
+    ['offerCalled', 'Offer viewers called %', pct, 'up', 'Follow-up'],
+    ['texts', 'Texts sent', num, null, 'Texts'],
+    ['textFail', 'Texts failed %', pct, 'down', 'Texts'],
+  ];
+  let sheetRows = null, sheetSort = { key: 'date', dir: -1 }, sheetLoading = null;
+  function sheetView(on) {
+    $('storyView').style.display = on ? 'none' : 'contents';
+    $('sheetView').hidden = !on;
+    $('viewStory').setAttribute('aria-pressed', String(!on)); $('viewSheet').setAttribute('aria-pressed', String(on));
+    $('webinarSel').style.display = on ? 'none' : ''; $('syncBtn').style.display = (on || $('syncBtn').dataset.noperm) ? 'none' : ''; document.querySelector('.ra-pagehead .meta').style.display = on ? 'none' : '';
+    store.set('webinars-view', on ? 'sheet' : 'story');
+    if (on && !sheetRows) loadSheet();
+  }
+  async function loadSheet() {
+    if (sheetLoading) return sheetLoading;
+    $('sheetBox').innerHTML = '<div style="padding:16px;display:flex;flex-direction:column;gap:10px">' + Array.from({ length: 8 }, () => '<span class="ra-skel block"></span>').join('') + '</div>';
+    sheetLoading = (async () => {
+      try {
+        const j = await authedFetch('?api=sheet');
+        sheetRows = (j.rows || []).map(r => ({ id: r.webinar_id, name: r.name || (r.data && r.data.name) || r.webinar_id, f: sheetFigures(r.data || {}) }));
+        const pend = Number(j.pending || 0);
+        $('sheetNote').innerHTML = `<b>${num(sheetRows.length)}</b> webinars with 20+ people in the room · click a column to sort, a row to open it` +
+          (pend ? ` · <b>${pend}</b> still being calculated — they fill in by themselves, check back in a while` : '');
+        drawSheet();
+      } catch (e) { $('sheetBox').innerHTML = callout('negative', '⚠', 'Couldn’t load the sheet: ' + esc(e.message)); }
+      finally { sheetLoading = null; }
+    })();
+    return sheetLoading;
+  }
+  function drawSheet() {
+    if (!sheetRows) return;
+    const q = ($('sheetSearch').value || '').trim().toLowerCase();
+    const rows = sheetRows.filter(r => !q || r.name.toLowerCase().includes(q) || fmtLong(r.f.date).toLowerCase().includes(q));
+    const k = sheetSort.key, dir = sheetSort.dir;
+    rows.sort((a, b) => {
+      const va = k === 'date' ? Date.parse(a.f.date) : a.f[k];
+      const vb = k === 'date' ? Date.parse(b.f.date) : b.f[k];
+      if (va == null && vb == null) return 0; if (va == null) return 1; if (vb == null) return -1;
+      return (typeof va === 'string' ? va.localeCompare(vb) : va - vb) * dir;
+    });
+    // best value per column (among the rows shown) — bold, so the eye finds the record
+    const best = {};
+    SHEET_COLS.forEach(([key, , , better]) => {
+      if (!better) return;
+      const vals = rows.map(r => r.f[key]).filter(v => v != null && isFinite(v));
+      if (vals.length < 2) return;
+      const b = better === 'up' ? Math.max(...vals) : Math.min(...vals);
+      if (vals.filter(v => v === b).length === 1) best[key] = b; // a single record, not a tie
+    });
+    const groups = []; SHEET_COLS.forEach((c) => { const g = c[4]; if (!groups.length || groups[groups.length - 1].g !== g) groups.push({ g, n: 1 }); else groups[groups.length - 1].n++; });
+    const gstart = new Set(); let i = 0; groups.forEach(g => { gstart.add(i); i += g.n; });
+    const sortAttr = (key) => sheetSort.key === key ? ` aria-sort="${sheetSort.dir > 0 ? 'ascending' : 'descending'}"` : '';
+    const head = `<thead><tr class="g"><th class="first"></th>${groups.map((g, gi) => `<th colspan="${g.n}" class="${gi ? 'gs' : ''}">${esc(g.g)}</th>`).join('')}</tr>` +
+      `<tr class="c"><th class="first" data-k="date"${sortAttr('date')}>Webinar</th>${SHEET_COLS.map((c, ci) => `<th data-k="${c[0]}"${sortAttr(c[0])} class="${gstart.has(ci) && ci ? 'gs' : ''}"${c[5] ? ` title="${esc(c[5])}"` : ''}>${esc(c[1])}</th>`).join('')}</tr></thead>`;
+    const sel = selectedWebinar();
+    const body = rows.map(r => `<tr data-id="${esc(r.id)}"${r.id === sel ? ' class="sel"' : ''}><td class="first"><b>${esc(fmtLong(r.f.date))}</b><span>${esc(r.name)}</span></td>${SHEET_COLS.map((c, ci) => {
+      const v = r.f[c[0]]; const cls = [];
+      if (gstart.has(ci) && ci) cls.push('gs');
+      if (v == null) cls.push('na'); else if (best[c[0]] != null && v === best[c[0]]) cls.push('best');
+      if ((c[0] === 'profit' || c[0] === 'roi') && v != null && v < 0) cls.push('neg');
+      return `<td class="${cls.join(' ')}">${v == null ? '—' : c[2](v)}</td>`;
+    }).join('')}</tr>`).join('');
+    const avg = (key) => { const vals = rows.map(r => r.f[key]).filter(v => v != null && isFinite(v)); return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null; };
+    const foot = `<tfoot><tr><td class="first">Average of ${num(rows.length)}</td>${SHEET_COLS.map((c, ci) => { const v = avg(c[0]); const f = c[2]; const shown = v == null ? '—' : (f === num || f === money || f === signed ? f(Math.round(v)) : f(Math.round(v * 10) / 10)); return `<td class="${gstart.has(ci) && ci ? 'gs' : ''}">${shown}</td>`; }).join('')}</tr></tfoot>`;
+    $('sheetBox').innerHTML = rows.length ? `<table>${head}<tbody>${body}</tbody>${foot}</table>` : '<div class="ra-empty"><b>No webinar matches</b><span>Try part of the name or a month, like “Sep”.</span></div>';
+  }
+  $('sheetBox').addEventListener('click', (e) => {
+    const th = e.target.closest('thead tr.c th');
+    if (th) { const k = th.dataset.k; sheetSort = { key: k, dir: sheetSort.key === k ? -sheetSort.dir : -1 }; drawSheet(); return; }
+    const tr = e.target.closest('tbody tr');
+    if (tr && tr.dataset.id) {
+      const sel = $('webinarSel');
+      if ([...sel.options].some(o => o.value === tr.dataset.id)) { sel.value = tr.dataset.id; sheetView(false); load(); window.scrollTo(0, 0); }
+    }
+  });
+  $('sheetSearch').addEventListener('input', drawSheet);
+  $('sheetCsv').addEventListener('click', () => {
+    if (!sheetRows) return;
+    const cell = (v) => { const t = String(v == null ? '' : v); return /[",\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
+    const raw = (key, v) => v == null ? '' : (key === 'date' ? new Date(v).toISOString().slice(0, 10) : (typeof v === 'number' ? Math.round(v * 100) / 100 : v));
+    const lines = [['Date', 'Webinar'].concat(SHEET_COLS.map(c => c[1])).map(cell).join(',')].concat(
+      sheetRows.map(r => [cell(raw('date', r.f.date)), cell(r.name)].concat(SHEET_COLS.map(c => cell(raw(c[0], r.f[c[0]])))).join(',')));
+    const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'ridley-webinars-' + new Date().toISOString().slice(0, 10) + '.csv';
+    document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  });
+  $('viewStory').addEventListener('click', () => sheetView(false));
+  $('viewSheet').addEventListener('click', () => sheetView(true));
+
   const WKEY = 'webinars-selected';
   function selectedWebinar() { return $('webinarSel').value || localStorage.getItem(WKEY) || ''; }
   let webinarWhen = null;
@@ -297,6 +521,10 @@
 
   function renderJourney(f) {
     lastFunnel = f;
+    // 0 visitors / 0 texts means "not tracked yet" (older webinars), not a real zero
+    if (!Number(f.visitors)) f = Object.assign({}, f, { visitors: null, visitors_to_reg_pct: null });
+    if (f.sms && !Number(f.sms.messages)) f = Object.assign({}, f, { sms: null });
+    if (f.prev) { const P0 = f.prev; f = Object.assign({}, f, { prev: Object.assign({}, P0, { visitors: Number(P0.visitors) ? P0.visitors : null, sms: P0.sms && Number(P0.sms.messages) ? P0.sms : null }) }); }
     const S = lastSummary || {};
     const s = f.stats, sl = f.sales, m = f.meta || {}, pk = f.peak || {};
     const hasAds = !!(m.connected && m.linked);
@@ -609,7 +837,7 @@
     } catch (e) { $('journey').innerHTML = callout('negative', '⚠', esc(e.message)); }
   }
 
-  $('refreshBtn').addEventListener('click', () => { attendancePromise = null; load(); loadAttendance(); });
+  $('refreshBtn').addEventListener('click', () => { attendancePromise = null; load(); loadAttendance(); if (!$('sheetView').hidden) { sheetRows = null; loadSheet(); } });
   $('webinarSel').addEventListener('change', () => load());
   $('syncBtn').addEventListener('click', async () => {
     const b = $('syncBtn'); b.setAttribute('aria-disabled', 'true'); b.disabled = true; b.innerHTML = '<span class="g">⇉</span> Syncing…';
@@ -625,10 +853,11 @@
       const em = session.user.email || ''; $('userEmail').textContent = em; $('userAvatar').textContent = (em[0] || 'U').toUpperCase(); window.__RIDLEY_USER = session.user;
       const eff = window.RidleyPerms.effective(session.user);
       const canSync = eff.is_admin || window.RidleyPerms.hasGranular('webinars.view', session.user) || (eff.permissions || []).includes('marketing');
-      if (!canSync) $('syncBtn').style.display = 'none';
+      if (!canSync) { $('syncBtn').dataset.noperm = '1'; $('syncBtn').style.display = 'none'; }
     }
     load();
     loadAttendance();
+    if (store.get('webinars-view', 'story') === 'sheet') sheetView(true);
   })();
 </script>
 <script src="access-guard.js"></script>

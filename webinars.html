@@ -57,7 +57,11 @@
     .ra-sheetbar .grow{ flex:1 1 200px; min-width:0; font-size:12px; line-height:16px; color:var(--ink-faint); }
     .ra-input{ height:32px; padding:0 10px; border-radius:var(--radius-sm); border:1px solid var(--line-strong); background:var(--surface); color:var(--ink); font:500 13px/1 var(--font-sans); min-width:0; width:220px; max-width:100%; }
     @media (pointer:coarse){ .ra-input{ height:44px; } }
-    .ra-sheet{ overflow:auto; max-height:calc(100vh - 230px); min-height:240px; border:1px solid var(--line); border-radius:var(--radius-md); background:var(--surface); }
+    /* the webinar column is frozen; the other columns scroll BEHIND it and snap to whole columns,
+       so nothing is ever half-cut against its edge */
+    .ra-sheet{ --firstw:250px; overflow:auto; max-height:calc(100vh - 230px); min-height:240px; border:1px solid var(--line); border-radius:var(--radius-md); background:var(--surface);
+               scroll-snap-type:x mandatory; scroll-padding-left:var(--firstw); overscroll-behavior-x:contain; }
+    .ra-sheet thead tr.c th:not(.first){ scroll-snap-align:start; }
     .ra-sheet table{ border-collapse:separate; border-spacing:0; font-size:12.5px; line-height:16px; font-variant-numeric:tabular-nums; }
     .ra-sheet th, .ra-sheet td{ padding:7px 10px; text-align:right; white-space:nowrap; border-bottom:1px solid var(--line); background:var(--surface); }
     .ra-sheet thead th{ position:sticky; z-index:2; color:var(--ink-muted); font:600 11px/14px var(--font-sans); vertical-align:bottom; }
@@ -66,14 +70,16 @@
     .ra-sheet thead tr.c th:hover{ color:var(--ink); }
     .ra-sheet thead tr.c th[aria-sort="descending"]::after{ content:" ▼"; font-size:9px; color:var(--brand-text); }
     .ra-sheet thead tr.c th[aria-sort="ascending"]::after{ content:" ▲"; font-size:9px; color:var(--brand-text); }
-    .ra-sheet .first{ position:sticky; left:0; z-index:1; text-align:left; border-right:1px solid var(--line-strong); min-width:220px; max-width:260px; white-space:normal; }
+    .ra-sheet .first{ position:sticky; left:0; z-index:1; text-align:left; box-sizing:border-box; width:var(--firstw); min-width:var(--firstw); max-width:var(--firstw); white-space:normal;
+                      border-right:1px solid var(--line-strong); box-shadow:8px 0 10px -8px rgba(0,0,0,0.45); }
     .ra-sheet thead .first{ z-index:3; }
     .ra-sheet .gs{ border-left:1px solid var(--line); }
     .ra-sheet tbody tr{ cursor:pointer; }
     .ra-sheet tbody tr:hover td{ background:var(--surface-hover); }
     .ra-sheet tbody tr.sel td{ background:var(--brand-tint); }
     .ra-sheet tbody td.first b{ display:block; font-weight:600; color:var(--ink); }
-    .ra-sheet tbody td.first span{ display:block; font-size:11px; color:var(--ink-faint); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:236px; }
+    .ra-sheet tbody td.first span{ display:block; font-size:11px; color:var(--ink-faint); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    @media (max-width:600px){ .ra-sheet{ --firstw:150px; max-height:calc(100vh - 170px); } .ra-sheet tbody td.first b{ font-size:12px; } .ra-sheet thead tr.c th{ min-width:76px; } }
     .ra-sheet td.best{ font-weight:700; color:var(--ink); }
     .ra-sheet td.neg{ color:var(--negative); }
     .ra-sheet td.na{ color:var(--ink-faint); }

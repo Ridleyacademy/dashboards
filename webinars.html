@@ -6,7 +6,7 @@
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=303">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Webinar Registrations</title>
+  <title>Webinars</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <script src="permissions.js"></script>
@@ -15,29 +15,23 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Ridleyacademy">
   <link rel="apple-touch-icon" href="apple-touch-icon.png?v=303">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@700;900&display=swap">
   <link rel="stylesheet" href="mobile.css">
+  <link rel="stylesheet" href="ridley-ui.css?v=633">
   <style>
-    :root{
-      --bg:#080a14; --surface:#0f1120; --surface2:#141728; --surface3:#191e30;
-      --border:#1f2438; --border-light:#272d45;
-      --text:#eaecf8; --text-muted:#7880a8; --text-dim:#3e4668;
-      --blue:#6b9eff; --blue-bg:rgba(107,158,255,0.12);
-      --green:#34d399; --green-bg:rgba(52,211,153,0.12);
-      --gold:#fbbf24; --gold-bg:rgba(251,191,36,0.12);
-      --red:#f87171; --red-bg:rgba(248,113,113,0.12);
-      --purple:#a78bfa;
-    }
-    body.light{ --bg:#f3f4fb; --surface:#fff; --surface2:#f6f7fc; --surface3:#eef0f8; --border:#e2e5f0; --border-light:#d3d7e6; --text:#1a1d2e; --text-muted:#5a6180; --text-dim:#9aa1bd; }
+    /* The shared topbar still reads the old variable names — map them onto the Ridley tokens. */
+    body{ --bg:var(--paper); --surface2:var(--surface-sunken); --surface3:var(--surface-hover); --border:var(--line); --border-light:var(--line);
+          --text:var(--ink); --text-muted:var(--ink-muted); --text-dim:var(--ink-faint); --blue:var(--brand-text); --blue-bg:var(--brand-tint);
+          margin:0; font-family:var(--font-sans); font-size:14px; }
     *{ box-sizing:border-box; }
-    body{ margin:0; background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:14px; }
-    a{ color:var(--blue); }
-    .topbar{ display:flex; align-items:center; gap:10px; padding:10px 18px; background:linear-gradient(180deg,rgba(15,17,32,0.96),rgba(8,10,20,0.92)); border-bottom:1px solid var(--border); position:sticky; top:0; z-index:100; backdrop-filter:blur(14px); }
-    body.light .topbar{ background:linear-gradient(180deg,#fff,#f6f7fc); }
+    .topbar{ display:flex; align-items:center; gap:10px; padding:10px 18px; border-bottom:1px solid var(--line); position:sticky; top:0; z-index:100; }
     .topbar-logo{ width:26px; height:26px; border-radius:8px; display:flex; align-items:center; justify-content:center; }
     .topbar-brand{ font-weight:800; letter-spacing:0.01em; }
     .topbar-spacer{ flex:1; }
     .tbtn{ background:var(--surface2); border:1px solid var(--border); color:var(--text); border-radius:9px; padding:7px 12px; font-size:0.82rem; cursor:pointer; display:inline-flex; align-items:center; gap:6px; }
-    .tbtn:hover{ border-color:var(--border-light); }
+    .tbtn:hover{ border-color:var(--line-strong); }
     .nav-dropdown{ position:relative; }
     .nav-dropdown-menu{ display:none; position:absolute; top:100%; right:0; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:6px; margin-top:6px; min-width:210px; z-index:200; max-height:70vh; overflow:auto; }
     .nav-menu-link{ display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:8px; color:var(--text); text-decoration:none; font-size:0.85rem; }
@@ -46,130 +40,24 @@
     .user-pill{ display:flex; align-items:center; gap:8px; background:var(--surface2); border:1px solid var(--border); border-radius:999px; padding:4px 10px 4px 4px; }
     .user-pill-av{ width:26px; height:26px; border-radius:999px; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:0.8rem; }
     .user-pill-email{ font-size:0.78rem; color:var(--text-muted); max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-
-    .wrap{ max-width:1180px; margin:0 auto; padding:18px; }
-    .toolbar{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:6px 2px 14px; }
-    .toolbar select{ background:var(--surface2); border:1px solid var(--border); color:var(--text); border-radius:9px; padding:7px 10px; font-size:0.85rem; max-width:100%; }
-    .toolbar .when{ font-size:0.78rem; color:var(--text-muted); }
-    .sec-title{ font-size:1.05rem; font-weight:800; margin:24px 2px 12px; display:flex; align-items:center; gap:8px; }
-    .sec-title .ic{ color:var(--text-muted); }
-    .kpis{ display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; }
-    .kpi{ background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:14px 16px; }
-    .kpi .n{ font-size:1.5rem; font-weight:800; }
-    .kpi .l{ font-size:0.72rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; margin-top:3px; }
-    .kpi .sub{ font-size:0.72rem; color:var(--text-dim); margin-top:4px; }
-    .kpi.accent-red .n{ color:var(--red); } .kpi.accent-green .n{ color:var(--green); }
-    .kpi.accent-blue .n{ color:var(--blue); } .kpi.accent-gold .n{ color:var(--gold); }
-    .kpi.accent-purple .n{ color:var(--purple); }
-    .funnel{ display:flex; align-items:stretch; flex-wrap:wrap; gap:6px 0; }
-    .fstage{ position:relative; flex:1 1 140px; min-width:132px; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:14px 15px 12px; overflow:hidden; display:flex; flex-direction:column; }
-    .fstage .top{ margin-bottom:10px; }
-    .farrow.lead .a{ font-size:1.1rem; }
-    @media(min-width:900px){
-      .funnel{ flex-wrap:nowrap; }
-      .fstage{ flex:0 0 calc((100% - 4 * 52px) / 4); min-width:0; }
-      .farrow{ flex:0 0 52px; min-width:0; padding:0; }
-      .fstage .n{ font-size:1.35rem; }
-    }
-    @media(max-width:899px){
-      #attKpis .funnel{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-      #attKpis .funnel .farrow{ display:none; }
-      #attKpis .funnel .fstage{ min-width:0; }
-    }
-    table.tbl th.txt, table.tbl td.txt{ text-align:left; }
-    table.tbl td.clip{ max-width:100px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    #tblAds table.tbl td:first-child{ min-width:140px; }
-    #tblAds table.tbl th, #tblAds table.tbl td, #tblCamps table.tbl th, #tblCamps table.tbl td{ padding:6px 5px; }
-    #tblAds table.tbl thead th, #tblCamps table.tbl thead th{ font-size:0.64rem; letter-spacing:0.02em; }
-    #tblCamps, #tblAds{ scrollbar-color:var(--border-light) transparent; }
-    #tblCamps::-webkit-scrollbar, #tblAds::-webkit-scrollbar{ height:8px; }
-    #tblCamps::-webkit-scrollbar-track, #tblAds::-webkit-scrollbar-track{ background:transparent; }
-    #tblCamps::-webkit-scrollbar-thumb, #tblAds::-webkit-scrollbar-thumb{ background:var(--border-light); border-radius:8px; }
+    /* page-only bits */
+    .ra-page{ padding-top:var(--space-5); }
+    .ra-pagehead .meta{ display:flex; flex-wrap:wrap; gap:4px 8px; align-items:center; }
+    .tgt{ font-size:12px; line-height:16px; color:var(--ink-faint); font-weight:400; margin-top:3px; white-space:normal; max-width:420px; }
     .small-ad{ display:none; }
-    .skel{ background:linear-gradient(90deg, var(--surface3) 0%, var(--border-light) 50%, var(--surface3) 100%); background-size:200% 100%; }
-    .skel-block{ display:block; }
-    .fstage .skel{ display:block; }
-    .skel-fill{ display:none; }
-    .curve-card.loading .skel-fill{ display:block; }
-    .curve-card.loading .curve-wrap{ display:none; }
     #tblAds.show-all .small-ad{ display:table-row; }
-    .show-more{ background:none; border:0; color:var(--blue); cursor:pointer; font-size:0.78rem; padding:8px 0 0; }
-    .cmp-row td{ background:var(--surface2); font-weight:800; }
-    .adset-row td:first-child{ padding-left:22px; }
-    .tgt{ font-size:0.7rem; color:var(--text-muted); font-weight:400; margin-top:3px; white-space:normal; line-height:1.45; }
-    .pill{ display:inline-block; font-size:0.62rem; font-weight:800; letter-spacing:0.04em; padding:1px 7px; border-radius:999px; border:1px solid var(--border-light); color:var(--text-muted); vertical-align:middle; }
-    .pill.on{ color:var(--green); border-color:rgba(52,211,153,0.4); }
-    .frow-label{ font-size:0.64rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.08em; font-weight:800; margin:4px 2px 6px; }
-    .funnel + .frow-label{ margin-top:14px; }
-    .fstage .cmp{ font-size:0.67rem; color:var(--text-dim); margin-top:5px; white-space:nowrap; }
-    .fstage .cmp b{ color:var(--text-muted); font-weight:700; }
-    .fstage .cmp .up{ color:var(--green); font-weight:800; }
-    .fstage .cmp .dn{ color:var(--red); font-weight:800; }
-    .fstage .cost .cmp{ margin-top:3px; }
-    .fstage .brk{ margin-top:7px; padding-top:6px; border-top:1px dashed var(--border-light); display:flex; flex-direction:column; gap:3px; }
-    .fstage .brk .r{ display:flex; align-items:baseline; flex-wrap:wrap; gap:3px 5px; font-size:0.67rem; }
-    .fstage .brk .k{ color:var(--text-muted); font-weight:700; text-transform:uppercase; letter-spacing:0.04em; min-width:30px; }
-    .fstage .brk .v{ font-weight:800; color:var(--text); }
-    .fstage .brk .m{ margin-left:auto; font-weight:800; color:var(--text-muted); }
-    .fstage .brk .d{ font-weight:800; font-size:0.62rem; }
-    .fstage .brk .d.m2{ min-width:44px; text-align:right; }
-    .chip .pt{ font-weight:800; margin-left:4px; }
-    .chip .pt.up{ color:var(--green); }
-    .chip .pt.dn{ color:var(--red); }
-    .chip.lead{ border-color:rgba(107,158,255,0.35); }
-    .fstage .brk .up{ color:var(--green); }
-    .fstage .brk .dn{ color:var(--red); }
-    .tbl .sp{ display:block; font-size:0.62rem; font-weight:700; color:var(--text-muted); margin-top:2px; white-space:nowrap; }
-    .tbl .sp .lv{ color:var(--blue); }
-    .tbl .sp .rg{ color:var(--text-dim); }
-    .fstage .cost{ margin-top:auto; padding-top:8px; border-top:1px dashed var(--border-light); display:flex; flex-direction:column; gap:1px; }
-    .fstage .cost .k{ font-size:0.6rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em; font-weight:700; }
-    .fstage .cost .v{ font-size:0.95rem; font-weight:800; color:var(--text); white-space:nowrap; }
-    .fstage .cost.good .v{ color:var(--green); } .fstage .cost.bad .v{ color:var(--red); }
-    .fstage::before{ content:''; position:absolute; inset:0 auto 0 0; width:3px; background:var(--stage,var(--border-light)); }
-    .fstage .n{ font-size:1.45rem; font-weight:800; white-space:nowrap; letter-spacing:-0.01em; }
-    .fstage .l{ font-size:0.66rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em; margin-top:4px; font-weight:700; }
-    .fstage .sub{ font-size:0.7rem; color:var(--text-dim); margin-top:3px; }
-    .fstage.c-blue{ --stage:var(--blue); } .fstage.c-blue .n{ color:var(--blue); }
-    .fstage.c-gold{ --stage:var(--gold); } .fstage.c-gold .n{ color:var(--gold); }
-    .fstage.c-green{ --stage:var(--green); } .fstage.c-green .n{ color:var(--green); }
-    .fstage.c-purple{ --stage:var(--purple); background:linear-gradient(135deg, rgba(167,139,250,0.10), var(--surface) 55%); }
-    .fstage.c-purple .n{ color:var(--purple); }
-    .fstage.c-red{ --stage:var(--red); } .fstage.c-red .n{ color:var(--red); }
-    .farrow{ display:flex; flex-direction:column; align-items:center; justify-content:center; padding:0 5px; min-width:56px; gap:4px; }
-    .farrow .a{ color:var(--text-dim); font-size:1rem; line-height:1; }
-    .farrow .pd{ font-size:0.62rem; font-weight:800; white-space:nowrap; color:var(--text-muted); }
-    .farrow .pd.up{ color:var(--green); }
-    .farrow .pd.dn{ color:var(--red); }
-    .farrow .p{ font-size:0.72rem; font-weight:800; color:var(--text); background:var(--surface2); border:1px solid var(--border); border-radius:999px; padding:2px 8px; }
-    .curve-card{ margin-top:12px; }
-    .curve-wrap{ position:relative; height:150px; }
-    .chips{ display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
-    .chip{ background:var(--surface2); border:1px solid var(--border); border-radius:999px; padding:6px 13px; font-size:0.78rem; color:var(--text-muted); display:inline-flex; gap:6px; align-items:baseline; }
-    .chip b{ font-weight:800; color:var(--text); font-size:0.86rem; }
-    .chip.dim{ border-style:dashed; color:var(--text-dim); }
-    .chip.dim b{ color:var(--text-dim); font-weight:700; }
-    .chip.warn{ border-color:rgba(248,113,113,0.45); color:var(--red); background:var(--red-bg); }
-    .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:14px; }
-    @media(max-width:820px){ .grid2{ grid-template-columns:1fr; } }
-    .card{ background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:14px 16px; }
-    .card h4{ margin:0 0 10px; font-size:0.82rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; font-weight:700; }
-    .chart-wrap{ position:relative; height:240px; }
-    table.tbl{ width:100%; border-collapse:collapse; font-size:0.82rem; }
-    table.tbl th, table.tbl td{ padding:7px 10px; text-align:right; white-space:nowrap; border-bottom:1px solid var(--border); }
-    table.tbl th:first-child, table.tbl td:first-child{ text-align:left; white-space:normal; }
-    table.tbl thead th{ color:var(--text-muted); font-weight:700; font-size:0.7rem; text-transform:uppercase; letter-spacing:0.04em; }
-    .muted{ color:var(--text-muted); }
-    .empty{ padding:26px; text-align:center; color:var(--text-muted); }
-    .note{ margin-top:14px; padding:10px 12px; border-radius:10px; background:var(--gold-bg); border:1px solid rgba(251,191,36,0.3); font-size:0.8rem; }
-    .note.ok{ background:var(--green-bg); border-color:rgba(52,211,153,0.3); }
-    .note.bad{ background:var(--red-bg); border-color:rgba(248,113,113,0.3); }
+    .ra-table tr.group td{ background:var(--surface-sunken); font-weight:700; }
+    .ra-table tr.child td:first-child{ padding-left:16px; }
+    .ra-table .num-good{ color:var(--positive); font-weight:700; }
+    .ra-table .num-bad{ color:var(--negative); font-weight:700; }
+    .ra-table .muted-row td{ color:var(--ink-faint); }
+    .ra-skel.block{ height:14px; }
   </style>
 </head>
-<body>
+<body class="ra-app">
   <header class="topbar">
     <div class="topbar-logo"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#06231a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div>
-    <div class="topbar-brand">Webinar Registrations</div>
+    <div class="topbar-brand">Webinars</div>
     <div class="topbar-spacer"></div>
     <button class="tbtn" id="refreshBtn" title="Refresh"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> Refresh</button>
     <button class="tbtn" id="themeBtn" style="font-size:1rem;" title="Toggle theme">◐</button>
@@ -178,38 +66,89 @@
     <button class="tbtn" id="signOutBtn"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg> Sign Out</button>
   </header>
 
-  <div class="wrap" id="wrap">
-    <div class="toolbar">
-      <select id="webinarSel" title="Webinar"><option value="">Loading webinars…</option></select>
-      <span class="when" id="webinarWhen"></span>
-      <span class="topbar-spacer"></span>
-      <button class="tbtn" id="syncBtn" title="Pull attendance from AXL">⇉ Sync attendance</button>
-    </div>
-    <div id="loading"></div>
-    <div id="content" style="display:none">
-      <div class="sec-title"><span class="ic">▤</span> Registrations</div>
-      <div class="kpis" id="kpis"></div>
-      <div class="sec-title" style="margin-top:16px"><span class="ic">◔</span> Funnel — <span id="attTitle">this webinar</span></div>
-      <div id="attKpis"></div>
-      <div class="card curve-card" id="liveCard" style="display:none"><h4>Live viewers during the webinar</h4><div class="skel-fill"><span class="skel skel-block" style="height:150px"></span></div><div class="curve-wrap"><canvas id="chLive"></canvas></div></div>
-      <div class="card curve-card" id="campCard" style="display:none"><h4>Campaigns &amp; ad sets</h4><div id="tblCamps" style="overflow-x:auto"></div></div>
-      <div class="card curve-card" id="adsCard" style="display:none"><h4>Ads that fed this webinar</h4><div id="tblAds" style="overflow-x:auto"></div><div class="muted" id="adsNote" style="font-size:0.72rem;margin-top:8px"></div></div>
-      <div class="grid2">
-        <div class="card"><h4>Registrations per day</h4><div class="chart-wrap"><canvas id="chDays"></canvas></div></div>
-        <div class="card"><h4>By source (utm_source)</h4><div class="chart-wrap"><canvas id="chSources"></canvas></div></div>
+  <main class="ra ra-page" id="wrap">
+    <div class="ra-pagehead">
+      <div>
+        <h1>Webinars</h1>
+        <div class="meta"><span id="webinarWhen"></span><span id="cmpWith"></span><span id="statusPill"></span></div>
       </div>
-      <div class="grid2">
-        <div class="card"><h4>Source breakdown</h4><div id="tblSources"></div></div>
-        <div class="card"><h4>By medium (utm_medium)</h4><div id="tblMediums"></div></div>
+      <div class="ra-toolbar">
+        <select class="ra-select" id="webinarSel" aria-label="Webinar"><option value="">Loading webinars…</option></select>
+        <button class="ra-btn primary" id="syncBtn" title="Pull attendance from AXL"><span class="g">⇉</span> Sync attendance</button>
       </div>
-      <div class="note" id="syncNote"></div>
-
-      <div class="card" style="margin-top:14px"><h4>All webinars — attendance &amp; sales</h4><div id="tblAttendance" style="overflow-x:auto"></div></div>
-      <div class="muted" style="font-size:0.72rem;margin:10px 2px 0">Attendance is collected automatically 45 min after each webinar ends (webinar-pixel-sync → webinar_attendees). “Saw offer” = stayed 90 minutes or more. Buyers = sales from the Sales Log (rebills, refunds and chargebacks excluded), and only from people linked to this webinar: someone who attended counts for up to 30 days afterwards (so follow-up and phone-closed deals land here); someone who registered but did not show counts until the next webinar starts; anyone with no registration counts only if they bought during the event itself, which catches buyers checking out with a different email.</div>
-
-      <div class="muted" style="font-size:0.72rem;margin:16px 2px">Generated <span id="genAt">—</span> · registrations come from the AXL page scenario (ridleyacademy.net/register) via the axl-webinar-link function; source tags are reported by the thank-you page. No personal data is stored or shown here.</div>
     </div>
-  </div>
+
+    <section class="ra-section ra-simple" id="journeySec" aria-labelledby="journeyTitle">
+      <div class="ra-sectionhead">
+        <div><h2 id="journeyTitle">From ad to profit</h2><p>Follow each row step by step. The number on each arrow is the share of people who made it to the next step. Switch to Detailed for the breakdowns.</p></div>
+        <div class="ra-seg" role="group" aria-label="How much detail">
+          <button id="detSimple" aria-pressed="true">Simple</button><button id="detFull" aria-pressed="false">Detailed</button>
+        </div>
+      </div>
+      <div id="journey" class="ra-journey"></div>
+      <div id="health" style="display:flex;flex-direction:column;gap:8px"></div>
+    </section>
+
+    <details class="ra-panel" id="pLive" data-key="live" open>
+      <summary><span class="t">The live room</span><span class="s" id="sumLive">People in the room, minute by minute</span></summary>
+      <div class="ra-panel-body">
+        <div class="ra-legend"><span><i></i>People in the room</span><span><i style="background:var(--gold);width:2px;border-radius:0;height:12px"></i>Offer starts · minute 90</span></div>
+        <div class="ra-chart short"><canvas id="chLive"></canvas></div>
+      </div>
+    </details>
+
+    <details class="ra-panel" id="pLeads" data-key="leads">
+      <summary><span class="t">Leads for the sales team</span><span class="s" id="sumLeads">—</span></summary>
+      <div class="ra-panel-body"><div class="ra-grid" id="leadsBody"></div></div>
+    </details>
+
+    <details class="ra-panel" id="pRegs" data-key="regs">
+      <summary><span class="t">Where registrations came from</span><span class="s" id="sumRegs">—</span></summary>
+      <div class="ra-panel-body">
+        <div class="ra-grid">
+          <div class="ra-card"><div class="ra-card-head"><h3>Sign-ups per day</h3></div><div class="ra-chart"><canvas id="chDays"></canvas></div></div>
+          <div class="ra-card"><div class="ra-card-head"><h3>By type of traffic</h3><span class="aside">utm_medium</span></div><div id="tblMediums"></div></div>
+        </div>
+        <div class="ra-card"><div class="ra-card-head"><h3>By source</h3><span class="aside">utm_source</span></div><div class="ra-tablewrap" id="tblSources"></div></div>
+        <div id="syncNote"></div>
+      </div>
+    </details>
+
+    <details class="ra-panel" id="pAds" data-key="ads">
+      <summary><span class="t">Ads</span><span class="s" id="sumAds">—</span></summary>
+      <div class="ra-panel-body">
+        <div class="ra-chips" id="adChips"></div>
+        <div class="ra-card" id="campCard"><div class="ra-card-head"><h3>Campaigns &amp; ad sets</h3><span class="aside">who each ad set targets is under its name</span></div><div class="ra-tablewrap" id="tblCamps"></div></div>
+        <div class="ra-card" id="adsCard"><div class="ra-card-head"><h3>Each ad</h3></div><div class="ra-tablewrap" id="tblAds"></div><p class="ra-foot" id="adsNote" style="margin:10px 0 0"></p></div>
+      </div>
+    </details>
+
+    <details class="ra-panel" id="pAll" data-key="all">
+      <summary><span class="t">All webinars</span><span class="s" id="sumAll">—</span></summary>
+      <div class="ra-panel-body"><div class="ra-tablewrap" id="tblAttendance"></div></div>
+    </details>
+
+    <details class="ra-glossary">
+      <summary>What the numbers mean</summary>
+      <dl>
+        <dt>Registered</dt><dd>Signed up on ridleyacademy.net/register for this webinar.</dd>
+        <dt>Showed up</dt><dd>Joined the live room at least once.</dd>
+        <dt>Saw the offer</dt><dd>Stayed 90 minutes or more — the offer is presented around minute 90.</dd>
+        <dt>Sales</dt><dd>Sales in the Sales Log from people linked to this webinar. People who attended count for 30 days afterwards (so follow-up and phone-closed deals land here); people who registered but didn’t show count until the next webinar starts; anyone with no registration counts only if the sale happened during the live event. Rebills, refunds and chargebacks are left out.</dd>
+        <dt>Live / Rep</dt><dd>Live = the sale happened during the webinar with nobody closing it. Rep = a sales rep is credited (Affiliate column, their declaration, or a call of 3+ minutes).</dd>
+        <dt>Paid in full / Payment plan</dt><dd>How the customer paid, from the Sales Log status.</dd>
+        <dt>Revenue</dt><dd>What customers paid, before anything is taken off.</dd>
+        <dt>Revenue after fees</dt><dd>Revenue minus rep commission (10%), rep manager commission (5%), card processor fees and the buy-now-pay-later cost (20%).</dd>
+        <dt>Profit</dt><dd>Revenue after fees minus ad spend and text-message cost.</dd>
+        <dt>$ back per $1</dt><dd>Revenue ÷ ad spend (ROAS). Above $1 means the ads paid for themselves.</dd>
+        <dt>Return on cost</dt><dd>Profit ÷ everything the webinar cost (ROI). 100% means every $1 spent came back with $1 on top.</dd>
+        <dt>Time to first call</dt><dd>How long until a rep first called. For leads handed to reps the clock starts at the hand-over; for other offer viewers it starts when the webinar ends.</dd>
+        <dt>Arrows ▲ ▼</dt><dd>Every number is compared with the previous webinar. Green means better for us, orange means worse — so a cost going down is green.</dd>
+      </dl>
+    </details>
+
+    <p class="ra-foot">Attendance and sales update automatically about 45 minutes after each webinar ends. Registrations come from the AXL page scenario (ridleyacademy.net/register); source tags are reported by the thank-you page. No personal data is stored or shown here. Generated <span id="genAt">—</span>.</p>
+  </main>
 
 <script>
   const SUPABASE_URL = 'https://pojqljrhhtnigyrtzdzz.supabase.co';
@@ -220,17 +159,93 @@
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const cssv = (n) => getComputedStyle(document.body).getPropertyValue(n).trim() || '#888';
-  const pct = (v) => v == null ? '—' : (Math.round(v * 10) / 10) + '%';
+  const pct = (v) => v == null ? '—' : (Math.abs(v) < 1 && v != 0 ? (Math.round(v * 100) / 100) : (Math.round(v * 10) / 10)) + '%';
+  const num = (v) => v == null ? '—' : Number(v).toLocaleString();
+  const money = (v) => v == null ? '—' : '$' + Number(v).toLocaleString(undefined, { maximumFractionDigits: 0 });
+  const money1 = (v) => { if (v == null) return '—'; const n = Math.round(Number(v)); return Math.abs(n) >= 1000 ? '$' + (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : '$' + n; };
+  const costMoney = (v) => '$' + Number(v).toLocaleString(undefined, { minimumFractionDigits: v < 100 ? 2 : 0, maximumFractionDigits: v < 100 ? 2 : 0 });
+  const signed = (v) => (v < 0 ? '−' : '') + money(Math.abs(v));
   const fmtDay = (d) => { const x = new Date(d + 'T00:00:00Z'); return isNaN(x) ? d : x.toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' }); };
-  const fmtWhen = (iso) => { if (!iso) return ''; const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' }) + ' ET'; };
+  const fmtWhen = (iso) => { if (!iso) return ''; const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' }) + ' ET'; };
+  const fmtEnd = (iso) => { if (!iso) return '—'; const d = new Date(iso); return isNaN(d) ? '—' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' }); };
+  const mins = (v) => (v == null ? '—' : (v < 90 ? Math.round(v) + ' min' : (Math.round(v / 6) / 10) + ' h'));
+  const rate = (n, den) => (den ? Math.round(1000 * n / den) / 10 : null);
+  const pct2 = (a, b) => (b ? Math.round(10000 * a / b) / 100 : null);
 
-  let charts = [];
-  let webinarWhen = null;
-  let attendancePromise = null;
-  function chart(id, cfg) { const c = charts.find(x => x.id === id); if (c) c.ch.destroy(); const ch = new Chart($(id), cfg); charts.push({ id, ch }); }
-  function kpi(n, l, sub, accent) { return `<div class="kpi${accent ? ' accent-' + accent : ''}"><div class="n">${n}</div><div class="l">${esc(l)}</div>${sub ? `<div class="sub">${esc(sub)}</div>` : ''}</div>`; }
+  // ---- change vs the last webinar. Arrow = direction; colour = good or bad for us.
+  // dir: 'up' higher is better (default) · 'down' lower is better (costs) · 'flat' neither (ad spend)
+  function dPct(cur, prevVal, dir) {
+    if (cur == null || prevVal == null || !Number(prevVal)) return '';
+    const d = Math.round(1000 * (Number(cur) - Number(prevVal)) / Math.abs(Number(prevVal))) / 10;
+    if (!d) return '<span class="ra-delta same">0%</span>';
+    return `<span class="ra-delta ${d > 0 ? 'up' : 'down'} ${tone(d, dir)}">${Math.abs(d)}%</span>`;
+  }
+  function dPts(p, pp, dir) {
+    if (p == null || pp == null) return '';
+    const d = Math.round(10 * (Number(p) - Number(pp))) / 10;
+    if (!d) return '<span class="ra-delta same">0 pts</span>';
+    return `<span class="ra-delta ${d > 0 ? 'up' : 'down'} ${tone(d, dir)}">${Math.abs(d)} pt${Math.abs(d) === 1 ? '' : 's'}</span>`;
+  }
+  function tone(d, dir) { if (dir === 'flat') return 'flat'; return (dir === 'down' ? d < 0 : d > 0) ? 'good' : 'bad'; }
+
+  // ---- building blocks from the design system (Funnel component)
+  const stage = (o) => `<div class="ra-fstage ${o.cls || ''}" role="listitem"><div class="l">${esc(o.l)}</div><div class="n">${o.n}</div>${o.help ? `<div class="help">${o.help}</div>` : ''}${o.vs || ''}${o.bar || ''}${o.brk || ''}${o.cost || ''}</div>`;
+  const step = (r, what, delta, opts) => `<div class="ra-fstep${opts && opts.lead ? ' lead' : ''}" aria-hidden="true"><span class="arr h">${opts && opts.lead ? '↳' : '→'}</span><span class="arr v">↓</span><span class="rate${opts && opts.minus ? ' minus' : ''}">${r == null ? '' : r}</span><span class="what">${what}</span>${delta || ''}</div>`;
+  const brk = (rows) => { const r = rows.filter(Boolean); return r.length ? '<div class="ra-brk">' + r.map(x => `<div class="r" title="${esc(x.t || '')}"><span class="k">${esc(x.k)}</span><span class="v">${x.v}</span>${x.d || '<span class="ra-delta"></span>'}</div>`).join('') + '</div>' : ''; };
+  const costBox = (rows) => { const r = rows.filter(Boolean); return r.length ? '<div class="cost">' + r.map(x => `<div class="row"><span>${esc(x.k)}</span><b class="${x.tone || ''}">${x.v}</b></div>${x.d ? `<div class="row"><span></span>${x.d}</div>` : ''}`).join('') + '</div>' : ''; };
+  const fbar = (kept, lost) => `<div class="ra-fbar" aria-hidden="true"><i class="kept" style="width:${Math.max(0, Math.min(100, kept))}%"></i><i class="lost" style="width:${Math.max(0, Math.min(100 - kept, lost))}%"></i></div>`;
+  const chapter = (n, title, sub, row) => `<div class="ra-chapter-body"><div class="ra-chapter"><span class="num">${n}</span><div><h3>${title}</h3><p>${sub}</p></div></div>${row}</div>`;
+  const callout = (kind, glyph, html) => `<div class="ra-callout ${kind}"><span class="g">${glyph}</span><div>${html}</div></div>`;
+  const chipH = (b, rest, cls) => `<span class="ra-chip${cls ? ' ' + cls : ''}"><b>${b}</b> ${rest || ''}</span>`;
+  const tbl = (head, rows, opts) => `<table class="ra-table${opts && opts.stack ? ' stack' : ''}"><thead><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows}</tbody>${opts && opts.foot ? `<tfoot>${opts.foot}</tfoot>` : ''}</table>`;
+
+  // ---- charts (re-drawn when the theme changes, since colours come from the tokens)
+  let charts = {};
+  let lastSummary = null, lastCurve = null;
+  function chart(id, cfg) { if (charts[id]) charts[id].destroy(); charts[id] = new Chart($(id), cfg); }
+  function chartDefaults() {
+    Chart.defaults.font.family = 'Inter, -apple-system, sans-serif'; Chart.defaults.font.size = 12;
+    Chart.defaults.color = cssv('--ink-faint'); Chart.defaults.plugins.legend.display = false;
+    Object.assign(Chart.defaults.plugins.tooltip, { backgroundColor: cssv('--surface'), titleColor: cssv('--ink'), bodyColor: cssv('--ink-muted'), borderColor: cssv('--line'), borderWidth: 1, cornerRadius: 5, padding: 10 });
+  }
+  const yAxis = () => ({ beginAtZero: true, grid: { color: cssv('--viz-grid') }, border: { display: false }, ticks: { precision: 0 } });
+  const xAxis = (extra) => Object.assign({ grid: { display: false }, border: { display: false } }, extra || {});
+  function drawDays(d) {
+    chartDefaults();
+    chart('chDays', { type: 'bar', data: { labels: d.days.map(x => fmtDay(x.day)), datasets: [{ label: 'Registrations', data: d.days.map(x => x.regs), backgroundColor: cssv('--viz-1'), borderRadius: 3, barPercentage: 0.7 }] },
+      options: { maintainAspectRatio: false, scales: { x: xAxis(), y: yAxis() } } });
+  }
+  function drawLive(curve) {
+    chartDefaults();
+    const offerAt = curve.findIndex(p => Number(p.m) >= 90);
+    const offer = { id: 'offer', afterDatasetsDraw(c) { if (offerAt < 0) return; const x = c.scales.x.getPixelForValue(offerAt), a = c.chartArea, g = c.ctx; g.save(); g.strokeStyle = cssv('--gold'); g.lineWidth = 2; g.beginPath(); g.moveTo(x, a.top); g.lineTo(x, a.bottom); g.stroke(); g.restore(); } };
+    chart('chLive', { type: 'line', data: { labels: curve.map(p => p.m), datasets: [{ data: curve.map(p => p.c), fill: true, borderColor: cssv('--viz-1'), backgroundColor: cssv('--viz-grid'), pointRadius: 0, borderWidth: 1.5, tension: 0.3 }] },
+      options: { maintainAspectRatio: false, plugins: { tooltip: { callbacks: { title: (i) => 'minute ' + i[0].label, label: (i) => i.raw + ' people in the room' } } },
+        scales: { x: xAxis({ ticks: { maxTicksLimit: 8, callback: function (v) { return this.getLabelForValue(v) + ' min'; } } }), y: yAxis() } }, plugins: [offer] });
+  }
+  new MutationObserver(() => { if (lastSummary) drawDays(lastSummary); if (lastCurve) drawLive(lastCurve); }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+
+  // ---- remembered view choices (per viewer)
+  const store = { get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (_) { return d; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (_) {} } };
+  function setDetail(full) {
+    $('journeySec').classList.toggle('ra-simple', !full);
+    $('detSimple').setAttribute('aria-pressed', String(!full)); $('detFull').setAttribute('aria-pressed', String(full));
+    store.set('webinars-detail', full);
+  }
+  $('detSimple').addEventListener('click', () => setDetail(false));
+  $('detFull').addEventListener('click', () => setDetail(true));
+  setDetail(!!store.get('webinars-detail', false));
+  const openState = store.get('webinars-open', {});
+  document.querySelectorAll('.ra-panel').forEach(p => {
+    const k = p.dataset.key;
+    if (k in openState) p.open = !!openState[k];
+    p.addEventListener('toggle', () => { openState[k] = p.open; store.set('webinars-open', openState); if (p.open) Object.values(charts).forEach(c => c.resize()); });
+  });
+
   const WKEY = 'webinars-selected';
   function selectedWebinar() { return $('webinarSel').value || localStorage.getItem(WKEY) || ''; }
+  let webinarWhen = null;
+  let attendancePromise = null;
 
   async function authedFetch(path, opts) {
     const { data: { session } } = await supa.auth.getSession();
@@ -241,71 +256,295 @@
     return j;
   }
 
+  // ================= summary: registrations, sources, sync =================
   function render(d) {
-    const grid = cssv('--border'), muted = cssv('--text-muted');
-    Chart.defaults.color = muted; Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
-    Chart.defaults.plugins.legend.labels.boxWidth = 12;
-
+    lastSummary = d;
     webinarWhen = d.webinar || null;
     $('webinarWhen').textContent = d.webinar && d.webinar.scheduledAt ? fmtWhen(d.webinar.scheduledAt) : '';
-    $('kpis').innerHTML =
-      kpi(d.total, 'Registrations', d.today ? d.today + ' today' : '', 'blue') +
-      kpi(pct(d.via_link_pct), 'Came via personal link', d.via_reported ? d.via_reported + ' with source data' : 'no source data yet', 'purple');
+    drawDays(d);
 
-    chart('chDays', { type: 'bar', data: { labels: d.days.map(x => fmtDay(x.day)), datasets: [{ label: 'Registrations', data: d.days.map(x => x.regs), backgroundColor: cssv('--blue') }] },
-      options: { maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false } }, y: { grid: { color: grid }, ticks: { precision: 0 }, beginAtZero: true } } } });
-    const top = d.sources.slice(0, 12);
-    chart('chSources', { type: 'bar', data: { labels: top.map(s => s.source), datasets: [{ label: 'Registrations', data: top.map(s => s.regs), backgroundColor: cssv('--purple') }] },
-      options: { indexAxis: 'y', maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { color: grid }, ticks: { precision: 0 }, beginAtZero: true }, y: { grid: { display: false } } } } });
+    $('tblMediums').innerHTML = d.mediums.length ? '<div class="ra-bars">' + d.mediums.map(m => {
+      const share = rate(m.regs, d.total || 1);
+      return `<div class="row"><span class="name">${esc(m.medium)}</span><span class="val">${num(m.regs)}<small>${pct(share)}</small></span><span class="track"><i style="width:${share || 0}%"></i></span></div>`;
+    }).join('') + '</div>' : '<div class="ra-empty"><b>No registrations yet</b><span>They appear here as people sign up at ridleyacademy.net/register.</span></div>';
 
-    $('tblSources').innerHTML = d.sources.length ? `<table class="tbl"><thead><tr><th>Source</th><th>Regs</th><th>Share</th><th>Attended</th><th>Show-up</th></tr></thead><tbody>${
-      d.sources.map(s => `<tr><td>${esc(s.source)}</td><td>${s.regs}</td><td>${pct(100 * s.regs / (d.total || 1))}</td><td>${s.synced ? s.attended : '—'}</td><td>${s.synced ? pct(s.show_up_pct) : '—'}</td></tr>`).join('')
-    }</tbody></table>` : '<div class="empty">No registrations yet.</div>';
-    $('tblMediums').innerHTML = d.mediums.length ? `<table class="tbl"><thead><tr><th>Medium</th><th>Regs</th><th>Share</th></tr></thead><tbody>${
-      d.mediums.map(m => `<tr><td>${esc(m.medium)}</td><td>${m.regs}</td><td>${pct(100 * m.regs / (d.total || 1))}</td></tr>`).join('')
-    }</tbody></table>` : '<div class="empty">No registrations yet.</div>';
+    $('tblSources').innerHTML = d.sources.length ? tbl(['Source', 'Registered', 'Share', 'Showed up', 'Show-up rate'],
+      d.sources.map(s => { const share = rate(s.regs, d.total || 1); return `<tr><td>${esc(s.source)}</td><td data-label="Registered">${num(s.regs)}</td><td data-label="Share">${pct(share)}<span class="ra-meter"><i style="width:${share || 0}%"></i></span></td><td data-label="Showed up"${s.synced ? '' : ' class="dim"'}>${s.synced ? num(s.attended) : '—'}</td><td data-label="Show-up rate"${s.synced ? '' : ' class="dim"'}>${s.synced ? pct(s.show_up_pct) : '—'}</td></tr>`; }).join(''), { stack: true })
+      : '<div class="ra-empty"><b>No registrations yet</b></div>';
+
+    const topSrc = d.sources[0];
+    $('sumRegs').innerHTML = `<b>${num(d.total)}</b> registered${d.today ? ` · <b>${num(d.today)}</b> today` : ''}${topSrc ? ` · most from <b>${esc(topSrc.source)}</b> (${pct(rate(topSrc.regs, d.total || 1))})` : ''}`;
 
     const n = $('syncNote');
-    if (d.sync) { n.className = 'note ' + (d.sync.ok ? 'ok' : 'bad'); n.textContent = d.sync.message; n.style.display = ''; }
-    else if (!d.synced) { n.className = 'note'; n.textContent = 'Attendance & Sales updates automatically ~45 min after the webinar ends. “Sync attendance” is optional — it only fills the per-source Attended / Show-up columns in the Source breakdown.'; n.style.display = ''; }
-    else n.style.display = 'none';
+    if (d.sync) n.innerHTML = callout(d.sync.ok ? 'positive' : 'negative', d.sync.ok ? '✓' : '⚠', esc(d.sync.message));
+    else if (!d.synced) n.innerHTML = callout('', '▤', 'The <b>Showed up</b> columns in By source fill in after <b>Sync attendance</b>. Everything else updates by itself about 45 minutes after the webinar ends.');
+    else n.innerHTML = '';
+    if (d.sync) { $('pRegs').open = true; }
 
     $('genAt').textContent = new Date(d.generated_at).toLocaleString();
-    $('loading').style.display = 'none'; $('content').style.display = '';
+    // the journey shows "today" on Registered — refresh it if the funnel is already on screen
+    if (lastFunnel) renderJourney(lastFunnel);
   }
 
-  const money = (v) => v == null ? '—' : '$' + Number(v).toLocaleString(undefined, { maximumFractionDigits: 0 });
-  // compact money for tight spots: $9.9k
-  const money1 = (v) => { if (v == null) return '—'; const n = Math.round(Number(v)); return Math.abs(n) >= 1000 ? '$' + (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : '$' + n; };
-  const fmtEnd = (iso) => { if (!iso) return '—'; const d = new Date(iso); return isNaN(d) ? '—' : d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'America/New_York' }); };
+  // ================= the journey (was: the funnel board) =================
+  let lastFunnel = null;
+  function skelJourney() {
+    const card = '<div class="ra-fstage"><span class="ra-skel" style="height:11px;width:50%"></span><span class="ra-skel" style="height:28px;width:70%;margin-top:6px"></span><span class="ra-skel" style="height:11px;width:85%;margin-top:6px"></span><span class="ra-skel" style="height:8px;width:100%;margin-top:14px"></span></div>';
+    const arrow = '<div class="ra-fstep"><span class="arr h">→</span><span class="arr v">↓</span></div>';
+    const row = (k) => '<div class="ra-funnel">' + Array.from({ length: k }, () => card).join(arrow) + '</div>';
+    return chapter(1, 'Getting people in', 'From the ads to the registration page.', row(4)) + chapter(2, 'The webinar', 'Who showed up, who stayed for the offer, and the sales.', row(3)) + chapter(3, 'The money', 'What came in, what came off, what was left.', row(3));
+  }
 
-  function skelTable(rows, cols) {
-    const row = `<div class="skel-table-row" style="grid-template-columns:2fr repeat(${cols - 1}, 1fr)">${Array.from({ length: cols }, () => '<span class="skel"></span>').join('')}</div>`;
-    return Array.from({ length: rows }, () => row).join('');
+  function renderJourney(f) {
+    lastFunnel = f;
+    const S = lastSummary || {};
+    const s = f.stats, sl = f.sales, m = f.meta || {}, pk = f.peak || {};
+    const hasAds = !!(m.connected && m.linked);
+    const spend = hasAds ? Number(m.spend || 0) : null;
+    const salesN = sl ? Number(sl.sales_count || 0) : 0;
+    const netRev = sl && sl.net_revenue != null ? Number(sl.net_revenue) : null;
+    const sms = f.sms || null, smsCost = sms && sms.cost != null ? Number(sms.cost) : null;
+    const costBase = (hasAds ? spend : 0) + (smsCost || 0);
+    const profit = s && (hasAds || smsCost != null) && netRev != null ? netRev - costBase : null;
+    const roi = s && costBase > 0 && netRev != null ? Math.round(100 * (netRev - costBase) / costBase) : null;
+    const roas = s && hasAds && spend > 0 ? Math.round(100 * s.revenue / spend) / 100 : null;
+
+    // the previous webinar, derived with the very same formulas so the changes are like-for-like
+    const P = f.prev || null, ps = P && P.stats, psl = P && P.sales, pm = (P && P.meta) || {};
+    const pLabel = P ? fmtEnd(P.ended_at) : '';
+    const pHasAds = !!(pm.connected && pm.linked);
+    const pSpend = pHasAds ? Number(pm.spend || 0) : null;
+    const pSalesN = psl ? Number(psl.sales_count || 0) : null;
+    const pNetRev = psl && psl.net_revenue != null ? Number(psl.net_revenue) : null;
+    const pSms = P && P.sms, pSmsCost = pSms && pSms.cost != null ? Number(pSms.cost) : null;
+    const pCostBase = (pHasAds ? pSpend : 0) + (pSmsCost || 0);
+    const pProfit = pNetRev != null && pCostBase > 0 ? pNetRev - pCostBase : null;
+    const pRoi = pCostBase > 0 && pNetRev != null ? Math.round(100 * (pNetRev - pCostBase) / pCostBase) : null;
+    const pRoas = pHasAds && pSpend > 0 && ps ? Math.round(100 * ps.revenue / pSpend) / 100 : null;
+    $('cmpWith').innerHTML = P ? '· compared with the ' + esc(pLabel) + ' webinar' : '';
+
+    const vs = (cur, prevVal, fmt, dir) => (!P || prevVal == null || cur == null) ? '' : `<div class="vs">${esc(pLabel)}: <b>${(fmt || num)(prevVal)}</b> ${dPct(cur, prevVal, dir)}</div>`;
+    const costOf = (k, den, pDen) => {
+      if (!hasAds || !den) return null;
+      const pv = (pHasAds && pDen) ? pSpend / pDen : null;
+      return { k, v: costMoney(spend / den), d: pv == null ? '' : dPct(spend / den, pv, 'down') };
+    };
+    const registered = s ? s.registered : (S.total != null ? S.total : 0);
+    const imps = hasAds ? Number(m.impressions || 0) : 0;
+
+    // ---- 1 · Getting people in
+    const r1 = [];
+    if (hasAds) r1.push(stage({ l: 'Ad spend', n: money(spend), help: `Meta · ${num(m.ads_count)} ads ran`, vs: vs(spend, pHasAds ? pSpend : null, money, 'flat') }));
+    if (hasAds && imps) {
+      r1.push(step('', 'paid for views'));
+      r1.push(stage({ l: 'Saw an ad', n: num(imps), help: `times an ad was shown · ${num(m.clicks)} clicks${m.ctr == null ? '' : ' · ' + m.ctr + '% clicked'}`, vs: vs(imps, pHasAds ? pm.impressions : null),
+        cost: costBox([{ k: 'Cost per 1,000 views', v: costMoney(1000 * spend / imps), d: dPct(1000 * spend / imps, pm.cpm, 'down') }]) }));
+      const toNext = f.visitors != null ? pct2(f.visitors, imps) : pct2(registered, imps);
+      const pToNext = pHasAds && pm.impressions ? (P.visitors != null ? pct2(P.visitors, pm.impressions) : (ps ? pct2(ps.registered, pm.impressions) : null)) : null;
+      r1.push(step(pct(toNext), f.visitors != null ? 'visited the page' : 'signed up', dPts(toNext, pToNext)));
+    } else if (hasAds) r1.push(step('', 'paid for views'));
+    if (f.visitors != null) {
+      r1.push(stage({ l: 'Visited the page', n: num(f.visitors), help: 'different people on the register page', vs: vs(f.visitors, P && P.visitors), cost: costBox([costOf('Cost per visitor', f.visitors, P && P.visitors)]) }));
+      r1.push(step(pct(f.visitors_to_reg_pct), 'signed up', dPts(f.visitors_to_reg_pct, P && P.visitors && ps ? pct2(ps.registered, P.visitors) : null)));
+    }
+    r1.push(stage({ cls: 's1', l: 'Registered', n: num(registered),
+      help: 'signed up for this webinar' + (hasAds && m.paid_regs != null ? ` · ${num(m.paid_regs)} from ads` : '') + (S.today ? ` · ${num(S.today)} today` : ''),
+      vs: vs(registered, ps && ps.registered), cost: costBox([costOf('Cost per registration', registered, ps && ps.registered)]) }));
+    let html = chapter(1, 'Getting people in', 'From the ads to the registration page.', `<div class="ra-funnel" role="list" aria-label="Getting people in">${r1.join('')}</div>`);
+
+    const startsAt = webinarWhen && (webinarWhen.startedAt || webinarWhen.scheduledAt);
+    const upcoming = s && s.attendees === 0 && startsAt && Date.parse(startsAt) > Date.now() - 3 * 3600e3;
+    const health = [];
+
+    if (!s || upcoming) {
+      health.push(callout('', '▤', upcoming
+        ? `This webinar hasn’t run yet — <b>${esc(fmtWhen(startsAt))}</b>. Rows 2 and 3 (who showed up, sales and profit) appear about 45 minutes after it ends.`
+        : 'No attendance for this webinar yet. It appears by itself about 45 minutes after the webinar ends.'));
+      $('statusPill').innerHTML = upcoming ? '<span class="ra-pill brand">Upcoming</span>' : '<span class="ra-pill caution">Waiting for attendance</span>';
+    } else {
+      $('statusPill').innerHTML = '<span class="ra-pill positive">Attendance in</span>';
+      const convAtt = s.attendees ? rate(salesN, s.attendees) : null;
+      const convOffer = s.saw_offer ? rate(salesN, s.saw_offer) : null;
+      const reg = s.registered || 1;
+      // ---- 2 · The webinar
+      const roomBrk = pk.peak == null ? '' : brk([
+        { k: 'Most in the room at once', v: num(pk.peak), d: dPct(pk.peak, P && P.peak && P.peak.peak), t: 'Most people in the room at the same time' },
+        pk.avg_of_peak_pct == null ? null : { k: 'Room held', v: pct(pk.avg_of_peak_pct), d: dPct(pk.avg_of_peak_pct, P && P.peak && P.peak.avg_of_peak_pct), t: 'Average room size as a share of the peak — how well people stayed' }]);
+      const salesBrk = !sl ? '' : brk([
+        { k: 'Live — sale during the webinar', v: num(sl.live_sales), d: dPct(sl.live_sales, psl && psl.live_sales), t: 'Sale made during the webinar — nobody closed it · ' + money(sl.live_revenue) },
+        { k: 'Rep — closed by a sales rep', v: num(sl.phone_sales), d: dPct(sl.phone_sales, psl && psl.phone_sales), t: 'Closed by a rep · ' + money(sl.phone_revenue) + ' · found by: ' + (sl.rep_by_affiliate || 0) + ' Affiliate column, ' + (sl.rep_by_declaration || 0) + ' declaration, ' + (sl.rep_by_call || 0) + ' call of 3+ min' },
+        { k: 'Paid in full', v: num(sl.fullpay_count), d: dPct(sl.fullpay_count, psl && psl.fullpay_count), t: 'Paid in full · ' + money(sl.fullpay_revenue) },
+        { k: 'Payment plan', v: num(sl.plan_count), d: dPct(sl.plan_count, psl && psl.plan_count), t: 'Payment plan · ' + money(sl.plan_revenue) },
+        sl.attended_count == null ? null : { k: 'From people who attended', v: num(sl.attended_count), d: '', t: 'Sales from attendees (counted up to 30 days after) · ' + money(sl.attended_revenue) },
+        sl.week_count ? { k: 'From people who didn’t attend', v: num(sl.week_count), d: '', t: 'Registered but did not show — counted until the next webinar starts · ' + money(sl.week_revenue) } : null]);
+      const r2 = [
+        step(pct(s.show_up_pct), 'of registered showed up', dPts(s.show_up_pct, ps && ps.show_up_pct), { lead: true }),
+        stage({ cls: 's2', l: 'Showed up', n: num(s.attendees), help: 'joined the live room' + (s.avg_minutes == null ? '' : ` · watched ${s.avg_minutes} min on average`), vs: vs(s.attendees, ps && ps.attendees),
+          bar: fbar(100 * s.attendees / reg, 100 * (reg - s.attendees) / reg) + `<div class="lostline">−${num(Math.max(0, reg - s.attendees))} didn’t show up</div>`, brk: roomBrk,
+          cost: costBox([costOf('Cost per attendee', s.attendees, ps && ps.attendees)]) }),
+        step(pct(s.saw_offer_pct), 'stayed for the offer', dPts(s.saw_offer_pct, ps && ps.saw_offer_pct)),
+        stage({ cls: 's3', l: 'Saw the offer', n: num(s.saw_offer), help: 'stayed 90 minutes or more — long enough to see the offer', vs: vs(s.saw_offer, ps && ps.saw_offer),
+          bar: fbar(100 * s.saw_offer / reg, 100 * (s.attendees - s.saw_offer) / reg) + `<div class="lostline">−${num(Math.max(0, s.attendees - s.saw_offer))} left before the offer</div>`,
+          cost: costBox([costOf('Cost per offer view', s.saw_offer, ps && ps.saw_offer)]) }),
+        step(pct(convOffer), 'became sales', dPts(convOffer, ps && ps.saw_offer && pSalesN != null ? rate(pSalesN, ps.saw_offer) : null)),
+        stage({ cls: 's4', l: 'Sales', n: num(salesN), help: convAtt == null ? '' : `${pct(convAtt)} of everyone who showed up`, vs: vs(salesN, pSalesN),
+          bar: fbar(100 * salesN / reg, 100 * Math.max(0, s.saw_offer - salesN) / reg) + (s.saw_offer > salesN ? `<div class="lostline">−${num(s.saw_offer - salesN)} saw the offer, no sale</div>` : ''),
+          brk: salesBrk, cost: costBox([costOf('Cost per sale', salesN, pSalesN)]) })];
+      html += chapter(2, 'The webinar', 'Who showed up, who stayed for the offer, and the sales.', `<div class="ra-funnel" role="list" aria-label="The webinar">${r2.join('')}</div>`);
+
+      // ---- 3 · The money
+      const split = (k) => !sl ? null : [
+        { k: 'Live', v: money1(sl.live_revenue), d: dPct(sl.live_revenue, psl && psl.live_revenue), t: 'Sales made during the webinar' },
+        { k: 'Rep', v: money1(sl.phone_revenue), d: dPct(sl.phone_revenue, psl && psl.phone_revenue), t: 'Closed by a rep' },
+        { k: 'Paid in full', v: money1(sl.fullpay_revenue), d: dPct(sl.fullpay_revenue, psl && psl.fullpay_revenue), t: 'Paid in full' },
+        { k: 'Payment plan', v: money1(sl.plan_revenue), d: dPct(sl.plan_revenue, psl && psl.plan_revenue), t: 'Payment plan' }];
+      const r3 = [stage({ cls: 'outcome', l: 'Revenue', n: money(s.revenue), help: 'what customers paid, before anything is taken off', vs: vs(s.revenue, ps && ps.revenue, money),
+        brk: brk(split() || []), cost: costBox([roas != null ? { k: 'Every $1 on ads brought back', v: '$' + roas.toFixed(2), tone: roas >= 1 ? 'good' : 'bad', d: dPct(roas, pRoas) } : null]) })];
+      if (netRev != null) {
+        const off = sl.total_deductions != null ? Number(sl.total_deductions) : Number(s.revenue) - netRev;
+        r3.push(step('−' + money(off), 'fees &amp; commissions', '', { minus: true }));
+        r3.push(stage({ l: 'Revenue after fees', n: money(netRev), help: 'revenue minus commissions and payment fees', vs: vs(netRev, pNetRev, money),
+          brk: sl.processor_fees == null ? '' : brk([
+            { k: 'Rep commission 10%', v: money1(sl.rep_commission), d: dPct(sl.rep_commission, psl && psl.rep_commission, 'down'), t: 'Rep commission — 10% of the ' + money(sl.phone_revenue) + ' they closed' },
+            { k: 'Manager commission 5%', v: money1(sl.manager_commission), d: dPct(sl.manager_commission, psl && psl.manager_commission, 'down'), t: 'Rep manager commission — 5% of the ' + money(sl.phone_revenue) + ' the reps closed' },
+            { k: 'Payment processor fees', v: money1(sl.processor_fees), d: dPct(sl.processor_fees, psl && psl.processor_fees, 'down'), t: 'Taken off by the card processor' },
+            { k: 'Buy now, pay later 20%', v: money1(sl.bnpl_fee || 0), d: dPct(sl.bnpl_fee || 0, psl && psl.bnpl_fee, 'down'), t: '20% of the ' + money(sl.bnpl_revenue) + ' on ' + (sl.bnpl_count || 0) + ' sale' + (Number(sl.bnpl_count) === 1 ? '' : 's') },
+            { k: 'Total taken off', v: money1(sl.total_deductions), d: dPct(sl.total_deductions, psl && psl.total_deductions, 'down'), t: 'Everything taken off the revenue' }]) }));
+      }
+      if (profit != null) {
+        r3.push(step('−' + money(costBase), hasAds && smsCost ? 'ads &amp; texts' : (hasAds ? 'ads' : 'texts'), '', { minus: true }));
+        r3.push(stage({ cls: profit < 0 ? 'loss' : 'outcome', l: 'Profit', n: signed(profit), help: 'what’s left after everything this webinar cost', vs: vs(profit, pProfit, signed),
+          brk: brk([hasAds ? { k: 'Meta ads', v: money1(spend), d: dPct(spend, pHasAds ? pSpend : null, 'flat'), t: 'Meta ad spend for this webinar' } : null,
+            smsCost ? { k: 'Text messages', v: money1(smsCost), d: dPct(smsCost, pSmsCost, 'down'), t: 'Twilio cost of the messages sent to this webinar’s registrants' } : null,
+            { k: 'Total cost', v: money1(costBase), d: dPct(costBase, pCostBase || null, 'flat'), t: 'Everything spent to run this webinar' }]),
+          cost: costBox([roi != null ? { k: 'Return on cost', v: roi + '%', tone: roi >= 0 ? 'good' : 'bad', d: dPts(roi, pRoi) } : null]) }));
+      }
+      html += chapter(3, 'The money', 'What came in, what came off, what was left.', `<div class="ra-funnel" role="list" aria-label="The money">${r3.join('')}</div>`);
+
+      // things that need a person's attention
+      if (sl && sl.rep_no_call) health.push(callout('caution', '⚠', `<b>${sl.rep_no_call} rep sale${sl.rep_no_call > 1 ? 's have' : ' has'} no call logged.</b> A rep is credited but the Calls Log has no call to that customer in the 30 days before the sale — the call went out on another line, or the credit is wrong.`));
+    }
+    if (sms && sms.messages) {
+      const failPct = rate(sms.failed || 0, sms.messages);
+      const line = `<b>${num(sms.messages)}</b> texts sent to registrants · ${num(sms.failed || 0)} failed (${pct(failPct)}) · ${money(sms.undelivered_cost)} of the failed ones billed anyway`;
+      health.push(failPct >= 10 ? callout('caution', '⚠', line) : `<div class="ra-chips ra-detail">${chipH(num(sms.messages), `texts sent · ${num(sms.failed || 0)} failed (${pct(failPct)}) · promo ${money(sms.promo_cost)} · reminders ${money(sms.reminder_cost)} · during ${money(sms.during_cost)} · after ${money(sms.followup_cost)}`)}</div>`);
+    }
+    if (m.connected && m.sync_error) health.push(callout('negative', '⚠', `<b>Meta ad data stopped updating on ${esc(fmtEnd(m.sync_error.at))}.</b> Ad numbers only go up to ${esc(m.data_through ? fmtEnd(m.data_through + 'T12:00:00Z') : '—')}. ${esc((m.sync_error.message || '').slice(0, 90))}`));
+    else if (m.connected && m.stale) health.push(callout('caution', '⚠', `Ad numbers only go up to ${esc(m.data_through ? fmtEnd(m.data_through + 'T12:00:00Z') : '—')} — the latest day from Meta isn’t in yet.`));
+
+    $('journey').innerHTML = html;
+    $('health').innerHTML = health.join('');
+    renderLeads(f, s, P, ps);
+    renderLive(f, pk);
+    renderAds(f, s, sl, m, hasAds, spend, salesN);
   }
-  function skelFunnel() {
-    const card = () => `<div class="fstage"><div class="top"><span class="skel" style="width:58%;height:22px"></span><span class="skel" style="width:72%;height:10px;margin-top:9px"></span><span class="skel" style="width:46%;height:9px;margin-top:6px"></span></div><div class="cost"><span class="skel" style="width:52%;height:9px"></span><span class="skel" style="width:34%;height:14px;margin-top:5px"></span></div></div>`;
-    const arrow = () => '<div class="farrow"><div class="a">\u2192</div></div>';
-    const lead = () => '<div class="farrow lead"><div class="a"></div></div>';
-    const row = (label, n) => `<div class="frow-label">${label}</div><div class="funnel">${lead()}${Array.from({ length: n }, card).join(arrow())}</div>`;
-    return row('Traffic', 4) + row('Webinar', 3) + row('Money', 3) +
-      `<div class="chips">${[140, 120, 160].map(w => `<span class="chip"><span class="skel" style="width:${w}px;height:12px"></span></span>`).join('')}</div>`;
+
+  // ================= leads for the sales team =================
+  function renderLeads(f, s, P, ps) {
+    const crm = f.crm, pcrm = P && P.crm;
+    if (!crm || !s) { $('pLeads').style.display = 'none'; return; }
+    $('pLeads').style.display = '';
+    const kinds = [['Abandoned the checkout', 'cart_abandonment'], ['Filled in the survey', 'survey'], ['Hot leads from chat', 'hot_leads_chat'], ['Other leads from chat', 'leads_chat']];
+    const maxShare = Math.max(1, ...kinds.map(([, k]) => rate((crm[k] || {}).total || 0, s.saw_offer) || 0));
+    const handed = '<div class="ra-card"><div class="ra-card-head"><h3>Who we handed to reps</h3><span class="aside">share of the ' + num(s.saw_offer) + ' who saw the offer</span></div><div class="ra-bars">' + kinds.map(([label, k]) => {
+      const c = crm[k] || { total: 0, worked: 0, bought: 0 }, pc = (pcrm && pcrm[k]) || null;
+      const cur = rate(c.total, s.saw_offer), was = (pc && ps) ? rate(pc.total, ps.saw_offer) : null;
+      return `<div class="row" title="${esc(`${label}: ${c.total} handed to the sales team · ${c.worked} already worked · ${c.bought} became sales`)}"><span class="name">${label}</span><span class="val">${num(c.total)}<small>${pct(cur)}</small></span><span class="track"><i style="width:${100 * (cur || 0) / maxShare}%"></i></span><span class="note">${c.bought ? `<span>${c.bought} became sale${c.bought > 1 ? 's' : ''}</span>` : ''}${was != null ? `<span>${dPts(cur, was)} vs last</span>` : ''}</span></div>`;
+    }).join('') + `</div><div class="ra-brk" style="display:flex"><div class="r"><span class="k"><b>All leads handed to reps</b></span><span class="v">${num(crm.total)} · ${pct(rate(crm.total, s.saw_offer))}${crm.bought ? ' · ' + crm.bought + ' became sales' : ''}</span></div></div></div>`;
+
+    const cc = crm.calls, pcc = pcrm && pcrm.calls;
+    let follow = '';
+    if (cc) {
+      const speed = (label, med, pMed, within, called, note) => med == null ? '' : `<div class="row" title="${esc(note)}"><span class="name">${label}</span><span class="val">${mins(med)}<small>typical</small></span><span class="track"><i style="width:${called ? rate(within, called) : 0}%"></i></span><span class="note"><span>${pct(called ? rate(within, called) : 0)} called within 1 hour</span>${pMed != null ? `<span>${dPct(med, pMed, 'down')} vs last</span>` : ''}</span></div>`;
+      const calls = (label, called, total, reached, pCalled, pTotal, note) => { const cur = rate(called, total), was = pcc ? rate(pCalled, pTotal) : null; return `<div class="row" title="${esc(note)}"><span class="name">${label}</span><span class="val">${num(called)} of ${num(total)}<small>${pct(cur)}</small></span><span class="track"><i style="width:${cur || 0}%"></i></span><span class="note"><span>${num(reached)} answered for a minute or more</span>${was != null ? `<span>${dPts(cur, was)} vs last</span>` : ''}</span></div>`; };
+      follow = '<div class="ra-card"><div class="ra-card-head"><h3>How fast reps followed up</h3></div><div class="ra-bars">' +
+        speed('Time to first call — leads handed to reps', cc.lead_median_min, pcc && pcc.lead_median_min, cc.lead_within_1h, cc.lead_called, 'Clock starts when the lead is handed over (its tag), not when the webinar ends' + (cc.lead_untimed ? ' · ' + cc.lead_untimed + ' leads have no hand-over time yet and are left out' : '')) +
+        speed('Time to first call — saw the offer, not handed over', cc.offer_median_min, pcc && pcc.offer_median_min, cc.offer_within_1h, cc.offer_called, 'Offer viewers never handed over — clock starts at the end of the webinar') +
+        calls('Leads called', cc.lead_called, cc.lead_total, cc.lead_reached, pcc && pcc.lead_called, pcc && pcc.lead_total, 'Leads handed to the sales team' + (cc.lead_no_phone ? ' · ' + cc.lead_no_phone + ' more had no phone number' : '')) +
+        calls('Offer viewers called', cc.offer_called, cc.offer_total, cc.offer_reached, pcc && pcc.offer_called, pcc && pcc.offer_total, 'Sat through the offer and was NOT handed to a rep, so nobody is counted twice' + (cc.offer_no_phone ? ' · ' + cc.offer_no_phone + ' more had no phone number' : '')) +
+        '</div></div>';
+    }
+    $('leadsBody').innerHTML = handed + follow;
+    $('sumLeads').innerHTML = `<b>${num(crm.total)}</b> leads handed to reps${crm.bought ? ` · <b>${num(crm.bought)}</b> became sales` : ''}${cc && cc.lead_median_min != null ? ` · first call typically <b>${mins(cc.lead_median_min)}</b>` : ''}`;
   }
-  function skelPage() {
-    const tile = '<div class="kpi"><span class="skel skel-kpi skel-block"></span><span class="skel skel-sub skel-block"></span></div>';
-    return `<div class="sec-title"><span class="ic">\u25a4</span> Registrations</div><div class="kpis">${tile}${tile}</div>
-      <div class="sec-title" style="margin-top:16px"><span class="ic">\u25d4</span> Funnel</div>${skelFunnel()}
-      <div class="grid2"><div class="card"><span class="skel skel-bar skel-block"></span></div><div class="card"><span class="skel skel-bar skel-block"></span></div></div>`;
+
+  // ================= live room =================
+  function renderLive(f, pk) {
+    const curve = Array.isArray(f.curve) ? f.curve : [];
+    if (curve.length > 2) {
+      $('pLive').style.display = '';
+      lastCurve = curve; drawLive(curve);
+      $('sumLive').innerHTML = pk.peak == null ? 'People in the room, minute by minute' : `Up to <b>${num(pk.peak)}</b> people at once${pk.avg_of_peak_pct == null ? '' : ` · the room held <b>${pct(pk.avg_of_peak_pct)}</b> on average`}`;
+    } else { $('pLive').style.display = 'none'; lastCurve = null; }
   }
-  function showFunnelLoading() {
-    $('attKpis').innerHTML = skelFunnel();
-    $('liveCard').style.display = ''; $('liveCard').classList.add('loading');
-    $('campCard').style.display = ''; $('tblCamps').innerHTML = skelTable(4, 8);
-    $('adsCard').style.display = ''; $('tblAds').innerHTML = skelTable(6, 8); $('adsNote').textContent = '';
+
+  // ================= ads =================
+  function renderAds(f, s, sl, m, hasAds, spend, salesN) {
+    const chips = [];
+    if (hasAds) {
+      if (m.cpc != null) chips.push(chipH(costMoney(m.cpc), 'per click'));
+      chips.push(chipH(`${num(m.attributed_sales)} of ${num(sl && sl.buyers ? sl.buyers : salesN)}`, `sales traced to an ad · ${money(m.attributed_revenue)} of ${money(s && s.revenue)}`));
+    }
+    if (m.connected && !m.sync_error && !m.stale) chips.push(chipH('Up to date', 'ad data through ' + esc(m.data_through ? fmtEnd(m.data_through + 'T12:00:00Z') : '—')));
+    if (!m.connected) chips.push(chipH('Meta Ads', 'not connected', 'muted'));
+    else if (!m.linked) chips.push(chipH('No Meta ads linked', '— a registrant’s utm_content must match a Meta ad name', 'muted'));
+    chips.push(chipH('Google Ads', 'not connected', 'muted'));
+    $('adChips').innerHTML = chips.join('');
+
+    const ads = Array.isArray(f.ads) ? f.ads : [];
+    const pos = (v) => { const n = Math.round(Number(v) || 0); if (n === 0) return '$0'; return `<span class="${n < 0 ? 'num-bad' : 'num-good'}">${(n < 0 ? '−$' : '+$') + Math.abs(n).toLocaleString()}</span>`; };
+    const back = (r) => r == null ? '—' : `<span class="${r >= 1 ? 'num-good' : 'num-bad'}">$${Number(r).toFixed(2)}</span>`;
+    const kMoney = (v) => { const n = Math.round(Number(v) || 0); return n >= 1000 ? '$' + (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : '$' + n; };
+    const splitN = (x) => (Number(x.sales) ? `<span class="sub">${Number(x.live_sales) || 0} live / ${Number(x.rep_sales) || 0} rep</span>` : '');
+    const splitM = (x) => (Number(x.revenue) ? `<span class="sub">${kMoney(x.live_revenue)} / ${kMoney(x.rep_revenue)}</span>` : '');
+    if (hasAds && ads.length) {
+      $('adsCard').style.display = '';
+      const isSmall = (a) => a.paid && a.spend < 5 && a.regs === 0;
+      const smallCount = ads.filter(isSmall).length;
+      const rows = ads.map(a => `<tr class="${a.paid ? '' : 'muted-row'}${isSmall(a) ? ' small-ad' : ''}"><td>${esc(a.ad)}${a.paid ? '' : ' <span class="sub">organic / not matched to an ad</span>'}${a.adset ? `<span class="sub">${esc(a.adset)}${a.paid && a.campaign ? ' · ' + esc(a.campaign) : ''}</span>` : ''}</td><td>${a.paid ? money(a.spend) : '—'}</td><td>${a.paid ? num(a.clicks) : '—'}</td><td>${a.ctr == null ? '—' : a.ctr + '%'}</td><td>${num(a.regs)}</td><td>${a.cost_per_reg == null ? '—' : money(a.cost_per_reg)}</td><td>${num(a.attended)}</td><td>${num(a.saw_offer)}</td><td>${num(a.sales)}${splitN(a)}</td><td>${a.revenue ? money(a.revenue) : '—'}${splitM(a)}</td><td>${a.paid ? pos(a.revenue - a.spend) : '—'}</td><td>${back(a.roas)}</td></tr>`).join('');
+      const totRoas = spend > 0 ? Math.round(100 * m.attributed_revenue / spend) / 100 : null;
+      $('tblAds').innerHTML = tbl(['Ad', 'Spend', 'Clicks', 'Clicked', 'Registered', 'Per registration', 'Showed up', 'Saw offer', 'Sales<span class="sub">live / rep</span>', 'Revenue<span class="sub">live / rep</span>', 'Profit', '$ back per $1'], rows,
+        { foot: `<tr><td>All ads</td><td>${money(spend)}</td><td>${num(m.clicks)}</td><td>${m.ctr == null ? '—' : m.ctr + '%'}</td><td>${num(m.paid_regs)}</td><td>${m.paid_regs ? money(spend / m.paid_regs) : '—'}</td><td>${num(m.paid_attended)}</td><td>${num(m.paid_saw_offer)}</td><td>${num(m.attributed_sales)}${splitN({ sales: m.attributed_sales, live_sales: m.attributed_live_sales, rep_sales: m.attributed_rep_sales })}</td><td>${money(m.attributed_revenue)}${splitM({ revenue: m.attributed_revenue, live_revenue: m.attributed_live_revenue, rep_revenue: m.attributed_rep_revenue })}</td><td>${pos(m.attributed_revenue - spend)}</td><td>${back(totRoas)}</td></tr>` }) +
+        (smallCount ? `<button class="ra-btn ghost sm" id="moreAds" style="margin-top:8px">Show ${smallCount} more ads (under $5 spend, no registrations)</button>` : '');
+      const more = $('moreAds');
+      if (more) more.addEventListener('click', () => { const t = $('tblAds'); t.classList.toggle('show-all'); more.textContent = t.classList.contains('show-all') ? 'Hide small ads' : `Show ${smallCount} more ads (under $5 spend, no registrations)`; });
+
+      const camps = Array.isArray(f.campaigns) ? f.campaigns : [];
+      if (camps.length) {
+        $('campCard').style.display = '';
+        const status = (st) => st ? (st === 'ACTIVE' ? ' <span class="ra-pill positive">active</span>' : ` <span class="ra-pill plain">${esc(st.toLowerCase())}</span>`) : '';
+        const budget = (x) => x.daily_budget ? money(x.daily_budget) + '/day' : (x.lifetime_budget ? money(x.lifetime_budget) + ' total' : '—');
+        const who = (t) => {
+          if (!t) return '';
+          const parts = [];
+          if (t.locations && t.locations.length) parts.push(t.locations.join(', '));
+          if (t.ages) parts.push('ages ' + t.ages);
+          if (t.gender) parts.push(t.gender);
+          if (t.audiences && t.audiences.length) parts.push('Audience: ' + t.audiences.join(', '));
+          if (t.interests && t.interests.length) parts.push('Interests: ' + t.interests.slice(0, 6).join(', ') + (t.interests.length > 6 ? ' +' + (t.interests.length - 6) : ''));
+          if (!(t.audiences && t.audiences.length) && !(t.interests && t.interests.length)) parts.push(t.advantage_audience ? 'Advantage+ audience' : 'Broad (no audience or interests)');
+          if (t.excluded && t.excluded.length) parts.push('Excluding: ' + t.excluded.join(', '));
+          return `<div class="tgt">${esc(parts.join(' · '))}</div>`;
+        };
+        const cells = (x) => `<td>${money(x.spend)}</td><td>${num(x.impressions)}</td><td>${x.ctr == null ? '—' : x.ctr + '%'}</td><td>${x.cpm == null ? '—' : money(x.cpm)}</td><td>${num(x.regs)}</td><td>${x.cost_per_reg == null ? '—' : money(x.cost_per_reg)}</td><td>${num(x.attended)}</td><td>${num(x.saw_offer)}</td><td>${num(x.sales)}${splitN(x)}</td><td>${x.cost_per_sale == null ? '—' : money(x.cost_per_sale)}</td><td>${money(x.revenue)}${splitM(x)}</td><td>${pos(x.revenue - x.spend)}</td><td>${back(x.roas)}</td>`;
+        const body = camps.map(c => `<tr class="group"><td>${esc(c.name)}${status(c.status)}</td><td>${budget(c)}</td>${cells(c)}</tr>` +
+          (c.adsets || []).map(a => `<tr class="child"><td style="min-width:220px"><b>${esc(a.name)}</b>${status(a.status)}${who(a.targeting)}</td><td>${budget(a)}</td>${cells(a)}</tr>`).join('')).join('');
+        $('tblCamps').innerHTML = tbl(['Campaign / ad set', 'Budget', 'Spend', 'Ad views', 'Clicked', 'Per 1,000 views', 'Registered', 'Per registration', 'Showed up', 'Saw offer', 'Sales<span class="sub">live / rep</span>', 'Per sale', 'Revenue<span class="sub">live / rep</span>', 'Profit', '$ back per $1'], body);
+      } else { $('campCard').style.display = 'none'; }
+      const untraced = salesN - Number(m.attributed_sales || 0);
+      $('adsNote').textContent = (m.campaigns && m.campaigns.length ? 'Campaign: ' + m.campaigns.join(', ') + '. ' : '') +
+        'An ad is linked when a registrant’s utm_content equals its Meta ad name and utm_term equals its ad set name; spend counts from the first registration to the end of the webinar. Sales per ad match the customer’s email to the registrant' +
+        (untraced > 0 ? ' — ' + untraced + ' of ' + salesN + ' sales couldn’t be traced to an ad (a different email, or non-ad traffic).' : '.');
+      $('sumAds').innerHTML = `<b>${money(spend)}</b> spent${m.attributed_revenue != null && spend > 0 ? ` · every $1 brought back <b>$${(m.attributed_revenue / spend).toFixed(2)}</b> in traced sales` : ''} · <b>${num(m.attributed_sales)} of ${num(sl && sl.buyers ? sl.buyers : salesN)}</b> sales traced to an ad`;
+    } else {
+      $('adsCard').style.display = 'none'; $('campCard').style.display = 'none';
+      $('sumAds').innerHTML = !m.connected ? 'Meta Ads isn’t connected' : 'No Meta ads are linked to this webinar';
+    }
   }
-  function hideFunnelExtras() {
-    $('liveCard').style.display = 'none'; $('liveCard').classList.remove('loading');
-    $('campCard').style.display = 'none'; $('adsCard').style.display = 'none';
+
+  function showJourneyLoading() {
+    $('journey').innerHTML = skelJourney(); $('health').innerHTML = '';
+    $('statusPill').innerHTML = '';
   }
 
   function loadAttendanceData() {
@@ -318,313 +557,33 @@
     const w = selectedWebinar();
     if (!w) return;
     const seq = ++funnelSeq;
-    showFunnelLoading();
+    showJourneyLoading();
     try {
       const f = await authedFetch('?api=funnel&w=' + encodeURIComponent(w));
       if (seq !== funnelSeq) return; // a newer webinar was selected meanwhile
-      $('liveCard').classList.remove('loading');
-      const s = f.stats, sl = f.sales, m = f.meta || {}, pk = f.peak || {};
-      if (!s) {
-        $('attKpis').innerHTML = '<div class="fstage"><div class="n muted">\u2014</div><div class="l">No attendance yet</div><div class="sub">appears automatically ~45 min after this webinar ends</div></div>';
-        hideFunnelExtras();
-        return;
-      }
-      const hasAds = !!(m.connected && m.linked);
-      const spend = hasAds ? Number(m.spend || 0) : null;
-      const salesN = sl ? Number(sl.sales_count || 0) : 0;
-      const netRev = sl && sl.net_revenue != null ? Number(sl.net_revenue) : null;
-      const per = (num, den) => (den ? money(num / den) : '\u2014');
-      const sms = f.sms || null, smsCost = sms && sms.cost != null ? Number(sms.cost) : null;
-      const costBase = (hasAds ? spend : 0) + (smsCost || 0);
-      const profit = (hasAds || smsCost != null) && netRev != null ? netRev - costBase : null;
-      const roi = costBase > 0 && netRev != null ? Math.round(100 * (netRev - costBase) / costBase) : null;
-      const roas = hasAds && spend > 0 ? Math.round(100 * s.revenue / spend) / 100 : null;
-
-      // the previous webinar, derived with the very same formulas so the deltas are like-for-like
-      const P = f.prev || null, ps = P && P.stats, psl = P && P.sales, pm = (P && P.meta) || {};
-      const pLabel = P ? fmtEnd(P.ended_at) : '';
-      const pHasAds = !!(pm.connected && pm.linked);
-      const pSpend = pHasAds ? Number(pm.spend || 0) : null;
-      const pSalesN = psl ? Number(psl.sales_count || 0) : null;
-      const pNetRev = psl && psl.net_revenue != null ? Number(psl.net_revenue) : null;
-      const pSms = P && P.sms, pSmsCost = pSms && pSms.cost != null ? Number(pSms.cost) : null;
-      const pCostBase = (pHasAds ? pSpend : 0) + (pSmsCost || 0);
-      const pProfit = pNetRev != null && pCostBase > 0 ? pNetRev - pCostBase : null;
-      const pRoi = pCostBase > 0 && pNetRev != null ? Math.round(100 * (pNetRev - pCostBase) / pCostBase) : null;
-      const pRoas = pHasAds && pSpend > 0 && ps ? Math.round(100 * ps.revenue / pSpend) / 100 : null;
-      const stage = (n, l, sub, c, cost, cmp, brk) => `<div class="fstage${c ? ' c-' + c : ''}"><div class="top"><div class="n">${n}</div><div class="l">${esc(l)}</div>${sub ? `<div class="sub">${esc(sub)}</div>` : ''}${cmp || ''}${brk || ''}</div>${cost ? `<div class="cost${cost.tone ? ' ' + cost.tone : ''}"><span class="k">${esc(cost.k)}</span><span class="v">${cost.v}</span>${cost.cmp || ''}</div>` : ''}</div>`;
-      // "vs last webinar": that webinar's value plus the change.
-      // dir: 'up' = higher is better (default), 'down' = lower is better (costs),
-      //      'flat' = neither (ad spend \u2014 spending more is only good if it earns more)
-      const delta = (cur, prevVal, dir) => {
-        if (!Number(prevVal)) return '';
-        const d = Math.round(1000 * (Number(cur) - Number(prevVal)) / Math.abs(Number(prevVal))) / 10;
-        if (!d) return ' <span>0%</span>';
-        const cls = dir === 'flat' ? '' : ((dir === 'down' ? d < 0 : d > 0) ? 'up' : 'dn');
-        return ` <span class="${cls}">${d > 0 ? '\u25b2' : '\u25bc'}${Math.abs(d)}%</span>`;
-      };
-      const vsLast = (cur, prevVal, fmt, dir) => {
-        if (!P || prevVal == null || cur == null) return '';
-        const shown = (fmt || ((v) => Number(v).toLocaleString()))(prevVal);
-        return `<div class="cmp">vs ${esc(pLabel)} <b>${shown}</b>${delta(cur, prevVal, dir)}</div>`;
-      };
-      const signed = (v) => (v < 0 ? '\u2212' : '') + money(Math.abs(v));
-      const brkD = (cur, prevVal, dir) => {
-        if (!P || prevVal == null || cur == null || !Number(prevVal)) return '';
-        const pc = Math.round(1000 * (Number(cur) - Number(prevVal)) / Math.abs(Number(prevVal))) / 10;
-        const good = dir === 'down' ? pc < 0 : pc > 0;
-        return `<span class="d ${pc === 0 ? '' : (good ? 'up' : 'dn')}">${pc > 0 ? '\u25b2' : (pc < 0 ? '\u25bc' : '')}${Math.abs(pc)}%</span>`;
-      };
-      // one breakdown line: the value and how it moved vs the last webinar
-      const brkRow = (k, cur, prevVal, fmt, title, dir) => `<div class="r" title="${esc(title)}"><span class="k">${esc(k)}</span><span class="v">${(fmt || ((v) => Number(v).toLocaleString()))(cur)}</span>${brkD(cur, prevVal, dir)}</div>`;
-      // live / rep / cash / PP, as counts in the Sales stage and as money in the Revenue stage
-      const salesSplit = (fmt, k) => !sl ? null : '<div class="brk">' +
-        brkRow('live', sl['live_' + k], psl && psl['live_' + k], fmt, 'Bought straight off the webinar \u2014 nobody closed them \u00b7 ' + sl.live_sales + ' \u00b7 ' + money(sl.live_revenue)) +
-        brkRow('rep', sl['phone_' + k], psl && psl['phone_' + k], fmt, 'Closed by a rep \u00b7 ' + sl.phone_sales + ' \u00b7 ' + money(sl.phone_revenue) + ' \u00b7 found by: ' + (sl.rep_by_affiliate || 0) + ' Affiliate column, ' + (sl.rep_by_declaration || 0) + ' declaration, ' + (sl.rep_by_call || 0) + ' call of 3+ min') +
-        brkRow('cash', sl[k === 'sales' ? 'fullpay_count' : 'fullpay_revenue'], psl && psl[k === 'sales' ? 'fullpay_count' : 'fullpay_revenue'], fmt, 'Paid in full \u00b7 ' + sl.fullpay_count + ' \u00b7 ' + money(sl.fullpay_revenue)) +
-        brkRow('pp', sl[k === 'sales' ? 'plan_count' : 'plan_revenue'], psl && psl[k === 'sales' ? 'plan_count' : 'plan_revenue'], fmt, 'Payment plan \u00b7 ' + sl.plan_count + ' \u00b7 ' + money(sl.plan_revenue)) +
-      '</div>';
-      const costMoney = (v) => '$' + Number(v).toLocaleString(undefined, { minimumFractionDigits: v < 100 ? 2 : 0, maximumFractionDigits: v < 100 ? 2 : 0 });
-      const costOf = (k, den, pDen) => {
-        if (!hasAds || !den) return null;
-        const pv = (pHasAds && pDen) ? pSpend / pDen : null;
-        return { k, v: costMoney(spend / den), cmp: vsLast(spend / den, pv, costMoney, 'down') };
-      };
-      const ptsDelta = (p, pp) => {
-        if (!P || p == null || pp == null) return '';
-        const d = Math.round(10 * (Number(p) - Number(pp))) / 10;
-        return `<div class="pd ${d > 0 ? 'up' : (d < 0 ? 'dn' : '')}" title="last webinar: ${pct(pp)}">${d > 0 ? '\u25b2' : (d < 0 ? '\u25bc' : '')}${Math.abs(d)} pt</div>`;
-      };
-      const arrow = (p, pp) => `<div class="farrow"><div class="a">\u2192</div><div class="p">${p == null ? '' : pct(p)}</div>${ptsDelta(p, pp)}</div>`;
-      const chip = (l, v, extra) => `<span class="chip">${esc(l)} <b>${v}</b>${extra ? ' <span>' + esc(extra) + '</span>' : ''}</span>`;
-      const dimChip = (t) => `<span class="chip dim">${esc(t)}</span>`;
-
-      const roomBrk = pk.peak == null ? null : '<div class="brk">' +
-        brkRow('peak', pk.peak, P && P.peak && P.peak.peak, null, 'Most people in the room at once') +
-        (pk.avg_of_peak_pct == null ? '' : brkRow('held', pk.avg_of_peak_pct, P && P.peak && P.peak.avg_of_peak_pct, pct, 'Average room size as a share of the peak \u2014 how well the room held')) +
-        '</div>';
-      // everything that comes off the gross, itemised
-      const netBrk = !sl || sl.processor_fees == null ? null : '<div class="brk">' +
-        brkRow('rep 10%', sl.rep_commission, psl && psl.rep_commission, money1, 'Rep commission \u2014 10% of the ' + money(sl.phone_revenue) + ' they closed', 'down') +
-        brkRow('mgr 5%', sl.manager_commission, psl && psl.manager_commission, money1, 'Rep manager commission \u2014 5% of the ' + money(sl.phone_revenue) + ' the reps closed', 'down') +
-        brkRow('fees', sl.processor_fees, psl && psl.processor_fees, money1, 'Payment processor fees taken off the gross', 'down') +
-        brkRow('bnpl 20%', sl.bnpl_fee || 0, psl && psl.bnpl_fee, money1, 'Buy now, pay later cost \u2014 20% of the ' + money(sl.bnpl_revenue) + ' on ' + (sl.bnpl_count || 0) + ' sale' + (Number(sl.bnpl_count) === 1 ? '' : 's'), 'down') +
-        brkRow('total', sl.total_deductions, psl && psl.total_deductions, money1, 'Everything taken off the gross revenue', 'down') +
-        '</div>';
-
-      const convAtt = s.attendees ? Math.round(1000 * salesN / s.attendees) / 10 : null;
-      const convOffer = s.saw_offer ? Math.round(1000 * salesN / s.saw_offer) / 10 : null;
-
-      const imps = hasAds ? Number(m.impressions || 0) : 0;
-      const pct2 = (a, b) => (b ? Math.round(10000 * a / b) / 100 : null);
-      const lead = (p, pp) => `<div class="farrow lead"><div class="a">${p === undefined ? '' : '\u21b3'}</div>${p == null ? '' : `<div class="p">${pct(p)}</div>` + ptsDelta(p, pp)}</div>`;
-
-      const trafficRow = lead(undefined) +
-        (hasAds ? stage(money(spend), 'Ad spend', 'Meta \u00b7 ' + m.ads_count + ' ads', 'red', null, vsLast(spend, pHasAds ? pSpend : null, money, 'flat')) + arrow(null) : '') +
-        (hasAds && imps ? stage(imps.toLocaleString(), 'Impressions', Number(m.clicks).toLocaleString() + ' clicks' + (m.ctr == null ? '' : ' \u00b7 ' + m.ctr + '% CTR'), null,
-          { k: 'Cost / 1K impressions', v: costMoney(1000 * spend / imps), cmp: vsLast(1000 * spend / imps, pm.cpm, costMoney, 'down') },
-          vsLast(imps, pHasAds ? pm.impressions : null)) +
-          arrow(f.visitors != null ? pct2(f.visitors, imps) : pct2(s.registered, imps),
-                pHasAds && pm.impressions ? (P.visitors != null ? pct2(P.visitors, pm.impressions) : (ps ? pct2(ps.registered, pm.impressions) : null)) : null) : '') +
-        (f.visitors != null ? stage(Number(f.visitors).toLocaleString(), 'Page visitors', 'unique \u00b7 register page', null, costOf('Cost / visitor', f.visitors, P && P.visitors), vsLast(f.visitors, P && P.visitors)) + arrow(f.visitors_to_reg_pct, P && P.visitors && ps ? pct2(ps.registered, P.visitors) : null) : '') +
-        stage(s.registered, 'Registrations', hasAds ? m.paid_regs + ' from ads' : '', null, costOf('Cost / registration', s.registered, ps && ps.registered), vsLast(s.registered, ps && ps.registered));
-
-      const webinarRow = lead(s.show_up_pct, ps && ps.show_up_pct) +
-        stage(s.attendees, 'Attended', 'avg ' + (s.avg_minutes == null ? '\u2014' : s.avg_minutes) + ' min watched', 'blue', costOf('Cost / attendee', s.attendees, ps && ps.attendees), vsLast(s.attendees, ps && ps.attendees), roomBrk) +
-        arrow(s.saw_offer_pct, ps && ps.saw_offer_pct) +
-        stage(s.saw_offer, 'Saw offer (90m+)', 'stayed 90 min or more', 'gold', costOf('Cost / offer view', s.saw_offer, ps && ps.saw_offer), vsLast(s.saw_offer, ps && ps.saw_offer)) +
-        arrow(convOffer, ps && ps.saw_offer && pSalesN != null ? Math.round(1000 * pSalesN / ps.saw_offer) / 10 : null) +
-        stage(salesN, 'Sales', convAtt == null ? '' : convAtt + '% of attendees', 'green', costOf('Cost / sale', salesN, pSalesN), vsLast(salesN, pSalesN),
-          salesSplit(null, 'sales'));
-
-      const moneyRow = lead(null) +
-        stage(money(s.revenue), 'Revenue', 'gross', 'purple', roas != null ? { k: 'Return on ad spend', v: roas + '\u00d7', tone: roas >= 1 ? 'good' : 'bad', cmp: vsLast(roas, pRoas, (v) => v + '\u00d7') } : null, vsLast(s.revenue, ps && ps.revenue, money), salesSplit(money1, 'revenue')) +
-        (netRev != null ? arrow(null) + stage(money(netRev), 'Net revenue', 'after everything below', 'green', null, vsLast(netRev, pNetRev, money), netBrk) : '') +
-        (profit != null ? arrow(null) + stage(signed(profit), 'Profit', 'what is left after what it cost', profit < 0 ? 'red' : 'green',
-          { k: 'ROI', v: roi + '%', tone: roi >= 0 ? 'good' : 'bad', cmp: vsLast(roi, pRoi, (v) => v + '%') },
-          vsLast(profit, pProfit, signed),
-          '<div class="brk">' +
-            (hasAds ? brkRow('ads', spend, pHasAds ? pSpend : null, money1, 'Meta ad spend for this webinar', 'flat') : '') +
-            (smsCost ? brkRow('sms', smsCost, pSmsCost, money1, 'Twilio cost of the messages sent to this webinar\u2019s registrants', 'down') : '') +
-            brkRow('total', costBase, pCostBase || null, money1, 'Everything spent to run this webinar', 'flat') +
-          '</div>') : '');
-
-      const crm = f.crm, pcrm = P && P.crm;
-      let leadChips = '';
-      if (crm) {
-        const rate = (n, den) => (den ? Math.round(1000 * n / den) / 10 : null);
-        // counted by TAG, so a lead a rep has already picked up still counts as handed over
-        const qChip = (label, k) => {
-          const c = crm[k] || { total: 0, worked: 0, bought: 0 };
-          const pc = (pcrm && pcrm[k]) || null;
-          const cur = rate(c.total, s.saw_offer), was = (pc && ps) ? rate(pc.total, ps.saw_offer) : null;
-          let d = '';
-          if (cur != null && was != null) {
-            const pt = Math.round(10 * (cur - was)) / 10;
-            d = ` <span class="pt ${pt > 0 ? 'up' : (pt < 0 ? 'dn' : '')}">${pt > 0 ? '\u25b2' : (pt < 0 ? '\u25bc' : '')}${Math.abs(pt)} pt</span>`;
-          }
-          const title = `${label}: ${c.total} handed to the sales team \u00b7 ${c.worked} already worked \u00b7 ${c.bought} bought`
-            + (was == null ? '' : ` \u00b7 last webinar ${was}% of offer views`);
-          return `<span class="chip lead" title="${esc(title)}">${esc(label)} <b>${c.total}</b> <span>${cur == null ? '\u2014' : cur + '% of offer views'}${c.bought ? ' \u00b7 ' + c.bought + ' bought' : ''}</span>${d}</span>`;
-        };
-        leadChips = qChip('Cart abandonment', 'cart_abandonment') +
-          qChip('Survey', 'survey') +
-          qChip('Hot leads from chat', 'hot_leads_chat') +
-          qChip('Leads from chat', 'leads_chat') +
-          `<span class="chip lead" title="Every lead handed to the sales team for this webinar \u00b7 ${crm.worked} already worked \u00b7 ${crm.bought} bought">All leads to reps <b>${crm.total}</b> <span>${s.saw_offer ? Math.round(1000 * crm.total / s.saw_offer) / 10 + '% of offer views' : '\u2014'}${crm.bought ? ' \u00b7 ' + crm.bought + ' bought' : ''}</span></span>`;
-        const cc = crm.calls, pcc = pcrm && pcrm.calls;
-        if (cc) {
-          const rateOf = (n, den) => (den ? Math.round(1000 * n / den) / 10 : null);
-          const callChip = (label, called, total, reached, pCalled, pTotal, note) => {
-            const cur = rateOf(called, total), was = pcc ? rateOf(pCalled, pTotal) : null;
-            let d = '';
-            if (cur != null && was != null) {
-              const pt = Math.round(10 * (cur - was)) / 10;
-              d = ` <span class="pt ${pt > 0 ? 'up' : (pt < 0 ? 'dn' : '')}">${pt > 0 ? '\u25b2' : (pt < 0 ? '\u25bc' : '')}${Math.abs(pt)} pt</span>`;
-            }
-            const title = `${note} \u00b7 ${called} of ${total} with a phone number were called, ${reached} connected for a minute or more`
-              + (was == null ? '' : ` \u00b7 last webinar ${was}%`);
-            return `<span class="chip lead" title="${esc(title)}">${esc(label)} <b>${called} of ${total}</b> <span>${cur == null ? '\u2014' : cur + '%'} \u00b7 ${reached} reached</span>${d}</span>`;
-          };
-          // speed to lead: the clock starts when the webinar ends
-          const mins = (v) => (v == null ? '\u2014' : (v < 90 ? Math.round(v) + ' min' : (Math.round(v / 6) / 10) + ' h'));
-          const speedChip = (label, med, pMed, within, called, note) => {
-            if (med == null) return '';
-            let d = '';
-            if (pMed != null && Number(pMed)) {
-              const pc = Math.round(1000 * (med - pMed) / Math.abs(pMed)) / 10;
-              if (pc) d = ` <span class="pt ${pc < 0 ? 'up' : 'dn'}">${pc > 0 ? '\u25b2' : '\u25bc'}${Math.abs(pc)}%</span>`;
-            }
-            const title = `${note} \u00b7 median ${mins(med)} to the first call \u00b7 ${within} of the ${called} called got one within the hour`
-              + (pMed == null ? '' : ` \u00b7 last webinar ${mins(pMed)}`);
-            return `<span class="chip lead" title="${esc(title)}">${esc(label)} <b>${mins(med)}</b> <span>${called ? Math.round(1000 * within / called) / 10 : 0}% within 1h</span>${d}</span>`;
-          };
-          leadChips += speedChip('Speed to lead', cc.lead_median_min, pcc && pcc.lead_median_min, cc.lead_within_1h, cc.lead_called,
-              'Clock starts when the lead is handed over (its tag), not when the webinar ends'
-                + (cc.lead_untimed ? ' \u00b7 ' + cc.lead_untimed + ' leads have no hand-over time yet and are left out' : ''))
-            + speedChip('Speed \u00b7 saw offer', cc.offer_median_min, pcc && pcc.offer_median_min, cc.offer_within_1h, cc.offer_called,
-              'Offer-viewers who were never handed over \u2014 clock starts at the end of the webinar, since there is no hand-over');
-          leadChips += callChip('Leads called', cc.lead_called, cc.lead_total, cc.lead_reached,
-              pcc && pcc.lead_called, pcc && pcc.lead_total,
-              'Leads handed to the sales team' + (cc.lead_no_phone ? ' \u00b7 ' + cc.lead_no_phone + ' more had no phone number' : ''))
-            + callChip('Saw offer called', cc.offer_called, cc.offer_total, cc.offer_reached,
-              pcc && pcc.offer_called, pcc && pcc.offer_total,
-              'Sat through the offer and was NOT handed to a rep, so nobody is counted twice'
-                + (cc.offer_no_phone ? ' \u00b7 ' + cc.offer_no_phone + ' more had no phone number' : ''));
-        }
-      }
-
-      let chips = '';
-      if (sms && sms.messages) {
-        const failPct = Math.round(1000 * (sms.failed || 0) / sms.messages) / 10;
-        chips += `<span class="chip${failPct >= 10 ? ' warn' : ''}" title="Messages sent to this webinar\u2019s registrants \u00b7 promo ${money(sms.promo_cost)} \u00b7 reminders ${money(sms.reminder_cost)} \u00b7 during ${money(sms.during_cost)} \u00b7 after ${money(sms.followup_cost)}">SMS <b>${Number(sms.messages).toLocaleString()}</b> <span>sent \u00b7 ${Number(sms.failed || 0).toLocaleString()} failed (${failPct}%) \u00b7 ${money(sms.undelivered_cost)} of it billed</span></span>`;
-      }
-      // live / rep / cash / PP are in the Sales and Revenue stages now \u2014 only the audit gap is left here
-      if (sl && sl.rep_no_call) chips += `<span class="chip warn" title="A rep is credited but the Calls Log has no call to that person in the 30 days before the sale \u2014 either the call went out on another line or the credit is wrong">${sl.rep_no_call} rep sale${sl.rep_no_call > 1 ? 's' : ''} with no call logged</span>`;
-      if (sl && sl.attended_count != null && (sl.attended_count || sl.week_count)) {
-        chips += chip('Sales from attendees', sl.attended_count, '\u00b7 ' + money(sl.attended_revenue));
-        if (sl.week_count) chips += chip('Sales from non-attendees', sl.week_count, '\u00b7 ' + money(sl.week_revenue));
-      }
-      if (hasAds) {
-        if (m.cpc != null) chips += chip('Cost per click', money(m.cpc));
-        chips += chip('Buyers traced to an ad', m.attributed_sales + ' of ' + (sl && sl.buyers ? sl.buyers : salesN), '\u00b7 ' + money(m.attributed_revenue) + ' of ' + money(s.revenue));
-      }
-      if (m.connected) {
-        const through = m.data_through ? fmtEnd(m.data_through + 'T12:00:00Z') : '\u2014';
-        if (m.sync_error) chips += `<span class="chip warn">Meta sync failing since ${esc(fmtEnd(m.sync_error.at))} \u2014 ad data stops at ${esc(through)} <b>${esc((m.sync_error.message || '').slice(0, 70))}</b></span>`;
-        else if (m.stale) chips += `<span class="chip warn">Ad data only through ${esc(through)}</span>`;
-        else chips += chip('Ad data', 'live', '\u00b7 through ' + through);
-      }
-      if (!m.connected) chips += dimChip('Meta Ads not connected \u2014 spend \u00b7 cost/reg \u00b7 click rate \u00b7 ROAS \u00b7 ROI');
-      else if (!m.linked) chips += dimChip('No Meta ads linked \u2014 registrant utm_content must match a Meta ad name');
-      chips += dimChip('Google Ads not connected');
-
-      const startsAt = webinarWhen && (webinarWhen.startedAt || webinarWhen.scheduledAt);
-      const upcoming = s.attendees === 0 && startsAt && Date.parse(startsAt) > Date.now() - 3 * 3600e3;
-      $('attKpis').innerHTML = upcoming
-        ? `<div class="frow-label">Traffic so far</div><div class="funnel">${trafficRow}</div>
-           <div class="chips"><span class="chip">Webinar hasn\u2019t run yet <b>${esc(fmtWhen(startsAt))}</b></span>
-           <span class="chip dim">Attendance, sales and ROI appear ~45 min after it ends</span>${chips}</div>`
-        : `<div class="frow-label">Traffic</div><div class="funnel">${trafficRow}</div><div class="frow-label">Webinar</div><div class="funnel">${webinarRow}</div><div class="frow-label">Money</div><div class="funnel">${moneyRow}</div>`
-          + (leadChips ? `<div class="frow-label">Lead quality \u2014 share of the ${s.saw_offer} people who sat through the offer</div><div class="chips">${leadChips}</div>` : '')
-          + `<div class="chips">${chips}</div>`;
-
-      const curve = Array.isArray(f.curve) ? f.curve : [];
-      if (curve.length > 2) {
-        $('liveCard').style.display = '';
-        const grid = cssv('--border'), mutedC = cssv('--text-muted'), blue = cssv('--blue');
-        chart('chLive', { type: 'line',
-          data: { labels: curve.map(p => p.m), datasets: [{ data: curve.map(p => p.c), fill: true, borderColor: blue, backgroundColor: 'rgba(107,158,255,0.12)', pointRadius: 0, borderWidth: 2, tension: 0.35 }] },
-          options: { maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { title: (i) => i[0].label + ' min in' } } },
-            scales: { x: { grid: { display: false }, ticks: { color: mutedC, maxTicksLimit: 10, callback: function (v) { return this.getLabelForValue(v) + 'm'; } } },
-                      y: { grid: { color: grid }, ticks: { color: mutedC, precision: 0 }, beginAtZero: true } } } });
-      } else { $('liveCard').style.display = 'none'; }
-
-      const ads = Array.isArray(f.ads) ? f.ads : [];
-      if (hasAds && ads.length) {
-        $('adsCard').style.display = '';
-        const r2 = (v) => v == null ? '\u2014' : v;
-        const roasCell = (a) => a.roas == null ? '\u2014' : `<span style="color:${a.roas >= 1 ? 'var(--green)' : 'var(--red)'};font-weight:700">${a.roas}\u00d7</span>`;
-        const signed = (v) => { const n = Math.round(Number(v) || 0); if (n === 0) return '$0'; const txt = (n < 0 ? '\u2212$' : '+$') + Math.abs(n).toLocaleString(); return `<span style="color:${n < 0 ? 'var(--red)' : 'var(--green)'};font-weight:700">${txt}</span>`; };
-        // every sales/revenue figure splits into LIVE (buyer was in the room) and REG (registered, never showed)
-        const kMoney = (v) => { const n = Math.round(Number(v) || 0); return n >= 1000 ? '$' + (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : '$' + n; };
-        const splitN = (x) => (Number(x.sales) ? `<span class="sp"><span class="lv">${Number(x.live_sales) || 0}</span> / <span class="rg">${Number(x.rep_sales) || 0}</span></span>` : '');
-        const splitM = (x) => (Number(x.revenue) ? `<span class="sp"><span class="lv">${kMoney(x.live_revenue)}</span> / <span class="rg">${kMoney(x.rep_revenue)}</span></span>` : '');
-        const isSmall = (a) => a.paid && a.spend < 5 && a.regs === 0;
-        const smallCount = ads.filter(isSmall).length;
-        const rows = ads.map(a => `<tr class="${a.paid ? '' : 'muted'}${isSmall(a) ? ' small-ad' : ''}"><td>${esc(a.ad)}${a.paid ? '' : ' <span class="muted">(organic / unmatched)</span>'}</td><td class="muted txt clip" title="${esc(a.adset || '')}">${esc(a.adset || '\u2014')}</td><td class="muted txt clip" title="${a.paid ? esc(a.campaign || '') : ''}">${a.paid ? esc(a.campaign || '\u2014') : '\u2014'}</td><td>${a.paid ? money(a.spend) : '\u2014'}</td><td>${a.paid ? Number(a.clicks).toLocaleString() : '\u2014'}</td><td>${a.ctr == null ? '\u2014' : a.ctr + '%'}</td><td>${a.regs}</td><td>${a.cost_per_reg == null ? '\u2014' : money(a.cost_per_reg)}</td><td>${a.attended}</td><td>${a.saw_offer}</td><td>${a.sales}${splitN(a)}</td><td>${a.paid ? money(a.revenue) : (a.revenue ? money(a.revenue) : '\u2014')}${splitM(a)}</td><td>${a.paid ? signed(a.revenue - a.spend) : '\u2014'}</td><td>${roasCell(a)}</td></tr>`).join('');
-        const totRoas = spend > 0 ? Math.round(100 * m.attributed_revenue / spend) / 100 : null;
-        $('tblAds').innerHTML = `<table class="tbl"><thead><tr><th>Ad</th><th class="txt">Ad set</th><th class="txt">Campaign</th><th>Spend</th><th>Clicks</th><th>CTR</th><th>Regs</th><th>Cost/reg</th><th>Attended</th><th>Saw offer</th><th>Sales<br><span class="sp">live / rep</span></th><th>Revenue<br><span class="sp">live / rep</span></th><th>Profit</th><th>ROAS</th></tr></thead><tbody>${rows}</tbody>
-          <tfoot><tr style="font-weight:800"><td>All ads</td><td></td><td></td><td>${money(spend)}</td><td>${Number(m.clicks).toLocaleString()}</td><td>${r2(m.ctr)}${m.ctr == null ? '' : '%'}</td><td>${m.paid_regs}</td><td>${per(spend, m.paid_regs)}</td><td>${m.paid_attended}</td><td>${m.paid_saw_offer}</td><td>${m.attributed_sales}${splitN({ sales: m.attributed_sales, live_sales: m.attributed_live_sales, rep_sales: m.attributed_rep_sales })}</td><td>${money(m.attributed_revenue)}${splitM({ revenue: m.attributed_revenue, live_revenue: m.attributed_live_revenue, rep_revenue: m.attributed_rep_revenue })}</td><td>${signed(m.attributed_revenue - spend)}</td><td>${totRoas == null ? '\u2014' : totRoas + '\u00d7'}</td></tr></tfoot></table>` +
-          (smallCount ? `<button class="show-more" onclick="const t=document.getElementById('tblAds');t.classList.toggle('show-all');this.textContent=t.classList.contains('show-all')?'Hide small ads':'Show ${smallCount} more ads (under $5 spend, no registrations)'">Show ${smallCount} more ads (under $5 spend, no registrations)</button>` : '');
-
-        const camps = Array.isArray(f.campaigns) ? f.campaigns : [];
-        if (camps.length) {
-          $('campCard').style.display = '';
-          const status = (st) => st ? `<span class="pill${st === 'ACTIVE' ? ' on' : ''}">${esc(st.toLowerCase())}</span>` : '';
-          const budget = (x) => x.daily_budget ? money(x.daily_budget) + '/day' : (x.lifetime_budget ? money(x.lifetime_budget) + ' total' : '\u2014');
-          const who = (t) => {
-            if (!t) return '';
-            const parts = [];
-            if (t.locations && t.locations.length) parts.push(t.locations.join(', '));
-            if (t.ages) parts.push('ages ' + t.ages);
-            if (t.gender) parts.push(t.gender);
-            if (t.audiences && t.audiences.length) parts.push('Audience: ' + t.audiences.join(', '));
-            if (t.interests && t.interests.length) parts.push('Interests: ' + t.interests.slice(0, 6).join(', ') + (t.interests.length > 6 ? ' +' + (t.interests.length - 6) : ''));
-            if (!(t.audiences && t.audiences.length) && !(t.interests && t.interests.length)) parts.push(t.advantage_audience ? 'Advantage+ audience' : 'Broad (no audience or interests)');
-            if (t.excluded && t.excluded.length) parts.push('Excluding: ' + t.excluded.join(', '));
-            return `<div class="tgt">${esc(parts.join(' \u00b7 '))}</div>`;
-          };
-          const cells = (x) => `<td>${money(x.spend)}</td><td>${Number(x.impressions).toLocaleString()}</td><td>${x.ctr == null ? '\u2014' : x.ctr + '%'}</td><td>${x.cpm == null ? '\u2014' : money(x.cpm)}</td><td>${x.regs}</td><td>${x.cost_per_reg == null ? '\u2014' : money(x.cost_per_reg)}</td><td>${x.attended}</td><td>${x.saw_offer}</td><td>${x.sales}${splitN(x)}</td><td>${x.cost_per_sale == null ? '\u2014' : money(x.cost_per_sale)}</td><td>${money(x.revenue)}${splitM(x)}</td><td>${signed(x.revenue - x.spend)}</td><td>${roasCell(x)}</td>`;
-          const body = camps.map(c =>
-            `<tr class="cmp-row"><td>${esc(c.name)} ${status(c.status)}</td><td>${budget(c)}</td>${cells(c)}</tr>` +
-            (c.adsets || []).map(a => `<tr class="adset-row"><td style="min-width:200px"><b>${esc(a.name)}</b> ${status(a.status)}${who(a.targeting)}</td><td>${budget(a)}</td>${cells(a)}</tr>`).join('')
-          ).join('');
-          $('tblCamps').innerHTML = `<table class="tbl"><thead><tr><th>Campaign / ad set \u00b7 who it targets</th><th>Budget</th><th>Spend</th><th>Impr.</th><th>CTR</th><th>CPM</th><th>Regs</th><th>Cost/reg</th><th>Attended</th><th>Saw offer</th><th>Sales<br><span class="sp">live / rep</span></th><th>Cost/sale</th><th>Revenue<br><span class="sp">live / rep</span></th><th>Profit</th><th>ROAS</th></tr></thead><tbody>${body}</tbody></table>`;
-        } else { $('campCard').style.display = 'none'; }
-        const untraced = salesN - Number(m.attributed_sales || 0);
-        $('adsNote').textContent = (m.campaigns && m.campaigns.length ? 'Campaign: ' + m.campaigns.join(', ') + '. ' : '') +
-          'An ad is linked when a registrant\u2019s utm_content equals its Meta ad name and utm_term equals its ad set name; spend counts from the first registration to the webinar end. Sales per ad match the buyer\u2019s email to the registrant' +
-          (untraced > 0 ? ' \u2014 ' + untraced + ' of ' + salesN + ' sales could not be traced to an ad (bought with a different email, or came from non-ad traffic).' : '.');
-      } else { $('adsCard').style.display = 'none'; $('campCard').style.display = 'none'; }
+      renderJourney(f);
     } catch (e) {
       if (seq !== funnelSeq) return;
-      $('attKpis').innerHTML = `<div class="fstage"><div class="n" style="color:var(--red);font-size:0.9rem">${esc(e.message)}</div><div class="l">Funnel</div></div>`;
-      hideFunnelExtras();
+      $('journey').innerHTML = callout('negative', '⚠', 'Couldn’t load the funnel: ' + esc(e.message) + '. Try Refresh.');
     }
   }
 
-
   async function loadAttendance() {
-    $('tblAttendance').innerHTML = skelTable(6, 11);
+    $('tblAttendance').innerHTML = '<div style="display:flex;flex-direction:column;gap:10px">' + Array.from({ length: 5 }, () => '<span class="ra-skel block"></span>').join('') + '</div>';
     try {
       const d = await loadAttendanceData();
       const rows = (d.webinars || []).filter(w => w.attendees > 0);
-      $('tblAttendance').innerHTML = rows.length ? `<table class="tbl"><thead><tr><th>Webinar</th><th>Ended</th><th>Registered</th><th>Attendees</th><th>Saw offer (90m+)</th><th>%</th><th>Avg min</th><th>Buyers</th><th>% of attendees</th><th>% of saw-offer</th><th>Revenue</th></tr></thead><tbody>${
-        rows.map(w => `<tr><td>${esc(w.name)}</td><td class="muted">${fmtEnd(w.ended_at)}</td><td class="muted">${w.registered}</td><td>${w.attendees}</td><td>${w.saw_offer}</td><td>${pct(w.saw_offer_pct)}</td><td class="muted">${w.avg_minutes == null ? '—' : w.avg_minutes}</td><td>${w.buyers}</td><td>${pct(w.buyers_pct_attendees)}</td><td>${pct(w.buyers_pct_saw_offer)}</td><td>${money(w.revenue)}</td></tr>`).join('')
-      }</tbody></table>` : '<div class="empty">No attendance collected yet — it appears automatically ~45 min after a webinar ends.</div>';
+      const cols = ['Ended', 'Registered', 'Showed up', 'Saw offer', '% who saw offer', 'Avg minutes', 'Sales', '% of attendees', '% of offer viewers', 'Revenue'];
+      $('tblAttendance').innerHTML = rows.length ? tbl(['Webinar'].concat(cols), rows.map(w => {
+        const vals = [fmtEnd(w.ended_at), num(w.registered), num(w.attendees), num(w.saw_offer), pct(w.saw_offer_pct), w.avg_minutes == null ? '—' : w.avg_minutes, num(w.buyers), pct(w.buyers_pct_attendees), pct(w.buyers_pct_saw_offer), money(w.revenue)];
+        return `<tr><td>${esc(w.name)}</td>${vals.map((v, i) => `<td data-label="${cols[i]}">${v}</td>`).join('')}</tr>`;
+      }).join(''), { stack: true }) : '<div class="ra-empty"><b>No attendance collected yet</b><span>It appears by itself about 45 minutes after a webinar ends.</span></div>';
+      if (rows.length) {
+        const best = rows.reduce((a, b) => (Number(b.revenue) > Number(a.revenue) ? b : a));
+        $('sumAll').innerHTML = `<b>${rows.length}</b> webinars with attendance · best revenue: <b>${esc(fmtEnd(best.ended_at))}</b> (${money(best.revenue)})`;
+      } else $('sumAll').textContent = 'No attendance collected yet';
     } catch (e) {
-      $('tblAttendance').innerHTML = `<div class="empty" style="color:var(--red)">${esc(e.message)}</div>`;
+      $('tblAttendance').innerHTML = callout('negative', '⚠', esc(e.message));
     }
   }
 
@@ -632,25 +591,30 @@
     const j = await authedFetch('?api=webinars');
     const sel = $('webinarSel');
     const remembered = localStorage.getItem(WKEY);
-    sel.innerHTML = j.webinars.map(w => `<option value="${esc(w.id)}">${esc(w.name)}${w.regs ? ' · ' + w.regs + ' regs' : ''}</option>`).join('');
+    sel.innerHTML = j.webinars.map(w => `<option value="${esc(w.id)}">${esc(w.name)}${w.regs ? ' · ' + num(w.regs) + ' registered' : ''}</option>`).join('');
     const pick = j.webinars.some(w => w.id === remembered) ? remembered : (j.default || (j.webinars[0] && j.webinars[0].id));
     if (pick) sel.value = pick;
   }
 
   async function load(extraQuery, opts) {
-    $('loading').style.display = ''; $('loading').innerHTML = skelPage(); $('content').style.display = 'none';
+    showJourneyLoading();
     try {
       if (!$('webinarSel').options.length || !$('webinarSel').value) await loadWebinars();
       const w = selectedWebinar();
       localStorage.setItem(WKEY, w);
+      lastFunnel = null;
+      const funnel = loadFunnel();
       render(await authedFetch('?api=' + (extraQuery || 'summary') + '&w=' + encodeURIComponent(w), opts));
-      loadFunnel();
-    } catch (e) { $('loading').innerHTML = `<div class="empty" style="color:var(--red)">${esc(e.message)}</div>`; }
+      await funnel;
+    } catch (e) { $('journey').innerHTML = callout('negative', '⚠', esc(e.message)); }
   }
 
-  $('refreshBtn').addEventListener('click', () => { load(); loadAttendance(); });
+  $('refreshBtn').addEventListener('click', () => { attendancePromise = null; load(); loadAttendance(); });
   $('webinarSel').addEventListener('change', () => load());
-  $('syncBtn').addEventListener('click', async () => { $('syncBtn').disabled = true; try { await load('sync', { method: 'POST' }); } finally { $('syncBtn').disabled = false; } });
+  $('syncBtn').addEventListener('click', async () => {
+    const b = $('syncBtn'); b.setAttribute('aria-disabled', 'true'); b.disabled = true; b.innerHTML = '<span class="g">⇉</span> Syncing…';
+    try { await load('sync', { method: 'POST' }); } finally { b.disabled = false; b.removeAttribute('aria-disabled'); b.innerHTML = '<span class="g">⇉</span> Sync attendance'; }
+  });
   $('signOutBtn').addEventListener('click', async () => { try { await supa.auth.signOut(); } catch (_) {} location.href = 'index.html'; });
   $('navDropdownBtn').addEventListener('click', (e) => { e.stopPropagation(); const m = $('navDropMenu'); m.style.display = m.style.display === 'block' ? 'none' : 'block'; });
   document.addEventListener('click', () => { const m = $('navDropMenu'); if (m) m.style.display = 'none'; });

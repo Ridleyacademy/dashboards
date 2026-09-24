@@ -65,6 +65,8 @@ function raDelta(cur, prev, invert, unit) {
 // Design-token colour, read at draw time so charts follow Paper / Stage.
 const tok = (name) => getComputedStyle(document.body).getPropertyValue(name).trim();
 const periodWord = () => activePeriod === 'weekly' ? 'week' : 'month';
+// Charts use the design system's font (Montserrat).
+if (window.Chart) Chart.defaults.font.family = tok('--font-sans') || 'Montserrat, sans-serif';
 
 // ── State machine ───────────────────────────────────────────────────
 function setState(s) { document.body.dataset.state = s; }
@@ -632,7 +634,7 @@ function makeMiniChart(canvas, points, metric, big = false) {
       if (!meta?.data?.length) return;
       const c = chart.ctx;
       c.save();
-      c.font = `600 ${Math.round(10 * fs)}px Inter, -apple-system, BlinkMacSystemFont, sans-serif`;
+      c.font = `600 ${Math.round(10 * fs)}px ${tok('--font-sans') || 'Montserrat, sans-serif'}`;
       c.textAlign = 'center';
       c.textBaseline = 'bottom';
       c.fillStyle   = tok('--ink-muted');

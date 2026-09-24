@@ -17,9 +17,9 @@
   <link rel="apple-touch-icon" href="apple-touch-icon.png?v=303">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@700;900&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap">
   <link rel="stylesheet" href="mobile.css">
-  <link rel="stylesheet" href="ridley-ui.css?v=648">
+  <link rel="stylesheet" href="ridley-ui.css?v=649">
   <style>
     /* The shared topbar still reads the old variable names — map them onto the Ridley tokens. */
     body{ --bg:var(--paper); --surface2:var(--surface-sunken); --surface3:var(--surface-hover); --border:var(--line); --border-light:var(--line);
@@ -256,7 +256,7 @@
   let lastSummary = null, lastCurve = null;
   function chart(id, cfg) { if (charts[id]) charts[id].destroy(); charts[id] = new Chart($(id), cfg); }
   function chartDefaults() {
-    Chart.defaults.font.family = 'Inter, -apple-system, sans-serif'; Chart.defaults.font.size = 12;
+    Chart.defaults.font.family = getComputedStyle(document.body).getPropertyValue('--font-sans').trim() || 'Montserrat, sans-serif'; Chart.defaults.font.size = 12;
     Chart.defaults.color = cssv('--ink-faint'); Chart.defaults.plugins.legend.display = false;
     Object.assign(Chart.defaults.plugins.tooltip, { backgroundColor: cssv('--surface'), titleColor: cssv('--ink'), bodyColor: cssv('--ink-muted'), borderColor: cssv('--line'), borderWidth: 1, cornerRadius: 5, padding: 10 });
   }

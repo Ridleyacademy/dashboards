@@ -13,6 +13,11 @@ the structural map lives in the knowledge graph (`/graphify`). Format:
 
 ---
 
+## 2026-09-24 — Montserrat everywhere (v649)
+**What:** design-system type families `display` and `sans` → Montserrat (skill tokens.json, bundle.css @import, brand-book/SKILL/patterns docs, design-system artifact). ridley-ui.css regenerated (`?v=649`); webinars.html + weekly-stats.html load `Montserrat:wght@400;500;600;700;800;900` instead of Inter + Playfair; Chart.js font now read from `--font-sans` (webinars inline script, weekly-stats.js incl. the point-label canvas font); weekly-stats.js `?v=649`.
+**Why:** Owner compared Playfair+Inter / Montserrat titles / Montserrat everywhere on a mockup and chose Montserrat everywhere.
+**Touched:** ridley-ui.css, webinars.html, weekly-stats.html, weekly-stats.js, version.txt v649, changelog.js v649; skill design files; artifact tokens.json.
+
 ## 2026-09-24 — Paper (light) text is pure black (v648)
 **What:** Paper tokens `ink`, `ink-muted`, `ink-faint` and `viz-1` (default chart line) → #000000. Skill tokens.json + artifact tokens.json, ridley-ui.css regenerated, `?v=648` on webinars.html and weekly-stats.html.
 **Why:** Owner: "in light mode actually black, not near, otherwise they are hard to see". Together with v647: text is pure white on Stage and pure black on Paper — hierarchy only from size, weight and case.

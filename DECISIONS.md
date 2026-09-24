@@ -13,6 +13,11 @@ the structural map lives in the knowledge graph (`/graphify`). Format:
 
 ---
 
+## 2026-09-24 — New webinars missing from the list: PostgREST 1,000-row cap (v639, webinar-analytics v52)
+**What:** `?api=webinars` built its list by reading `webinar_registrations` rows (`.limit(50000)`), but PostgREST caps a response at 1,000 rows, so with 2,483 rows only the oldest webinars were listed and the Sep 27 webinar (288 regs) never appeared. Now counted in SQL via new `webinar_registration_counts()` (security definer, revoked from anon/authenticated). `?api=summary` pages the registration rows 1,000 at a time (Sep 20 had 1,135). `default` is now the next upcoming webinar (still counts until 3h after start), else the latest — no longer the hard-coded Sep 6 id. Page: opens on a newly announced default once (`webinars-default-seen`), then remembers the viewer's choice.
+**Why:** User: "we started a new webinar for the 27th and it is not showing up automatically." Same trap as the board `log` endpoints (see memory: PostgREST 1000-row cap).
+**Touched:** migration `webinar_registration_counts`, edge fn webinar-analytics v52, webinars.html, version.txt v639, changelog.js v639.
+
 ## 2026-09-24 — "Talked to" = a call of 3+ minutes (v638)
 **What:** `webinar_call_coverage()` now counts `lead_reached` / `offer_reached` when the longest call to that person is >= 180 s (was >= 60 s). "Calls Log"."Duration" is in seconds. Page label "answered for a minute or more" → "talked for 3+ minutes"; glossary entry "Talked to" added.
 **Why:** User rule — a real conversation is 3 minutes or more; 1-minute calls were counting voicemails and quick hang-ups. Sep 20 leads reached 34 → 12 (of 51 called).

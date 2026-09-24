@@ -862,7 +862,13 @@
     const sel = $('webinarSel');
     const remembered = localStorage.getItem(WKEY);
     sel.innerHTML = j.webinars.map(w => `<option value="${esc(w.id)}">${esc(w.name)}${w.regs ? ' · ' + num(w.regs) + ' registered' : ''}</option>`).join('');
-    const pick = j.webinars.some(w => w.id === remembered) ? remembered : (j.default || (j.webinars[0] && j.webinars[0].id));
+    // a newly scheduled webinar opens by itself the first time it shows up; after that the
+    // viewer's own choice is remembered as before
+    const NKEY = 'webinars-default-seen';
+    let seen = null; try { seen = localStorage.getItem(NKEY); } catch (_) {}
+    const fresh = j.default && j.default !== seen;
+    if (j.default) { try { localStorage.setItem(NKEY, j.default); } catch (_) {} }
+    const pick = fresh ? j.default : (j.webinars.some(w => w.id === remembered) ? remembered : (j.default || (j.webinars[0] && j.webinars[0].id)));
     if (pick) sel.value = pick;
   }
 

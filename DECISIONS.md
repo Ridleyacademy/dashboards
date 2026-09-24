@@ -13,6 +13,11 @@ the structural map lives in the knowledge graph (`/graphify`). Format:
 
 ---
 
+## 2026-09-24 — "Talked to" = a call of 3+ minutes (v638)
+**What:** `webinar_call_coverage()` now counts `lead_reached` / `offer_reached` when the longest call to that person is >= 180 s (was >= 60 s). "Calls Log"."Duration" is in seconds. Page label "answered for a minute or more" → "talked for 3+ minutes"; glossary entry "Talked to" added.
+**Why:** User rule — a real conversation is 3 minutes or more; 1-minute calls were counting voicemails and quick hang-ups. Sep 20 leads reached 34 → 12 (of 51 called).
+**Touched:** migration `webinar_call_coverage_reached_3min`, webinars.html, version.txt v638, changelog.js v638. The edge fn caches CRM figures for up to 15 min, so the live page catches up within that.
+
 ## 2026-09-23 — Webinars sheet: no see-through cells, average row on top, script column-settle (v637)
 **What:** Selected row tint is layered over the opaque surface (`linear-gradient(tint,tint), var(--surface)`) — a translucent tint on a sticky cell lets scrolled content show through. Average row moved from a bottom-sticky tfoot to a third sticky thead row (`tr.a`, top = measured group + column-name row heights via `--ctop`/`--avgtop`); group row has an exact 30px border-box height so the sticky header rows meet with no gap. CSS scroll-snap removed (on sticky header cells Chrome snapped to wrong offsets, Safari ignored it); a debounced scroll handler settles on the nearest column edge, measured from the frozen column's real right edge, smooth with an instant fallback after 400ms.
 **Why:** User screenshot (Safari, light): numbers visible through the highlighted frozen cell, and a row peeking under the bottom-pinned average row behind Safari's overlay scrollbar.

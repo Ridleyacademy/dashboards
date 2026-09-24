@@ -192,6 +192,7 @@
         <dt>Profit</dt><dd>Revenue after fees minus ad spend and text-message cost.</dd>
         <dt>$ back per $1</dt><dd>Revenue ÷ ad spend (ROAS). Above $1 means the ads paid for themselves.</dd>
         <dt>Return on cost</dt><dd>Profit ÷ everything the webinar cost (ROI). 100% means every $1 spent came back with $1 on top.</dd>
+        <dt>Talked to</dt><dd>A rep spoke with the person for 3 minutes or more on one call. Shorter calls (voicemail, no answer, a quick hang-up) count as called, not talked to.</dd>
         <dt>Time to first call</dt><dd>How long until a rep first called. For leads handed to reps the clock starts at the hand-over; for other offer viewers it starts when the webinar ends.</dd>
         <dt>Arrows ▲ ▼</dt><dd>Every number is compared with the previous webinar. Green means better for us, orange means worse — so a cost going down is green.</dd>
       </dl>
@@ -725,7 +726,7 @@
     let follow = '';
     if (cc) {
       const speed = (label, med, pMed, within, called, note) => med == null ? '' : `<div class="row" title="${esc(note)}"><span class="name">${label}</span><span class="val">${mins(med)}<small>typical</small></span><span class="track"><i style="width:${called ? rate(within, called) : 0}%"></i></span><span class="note"><span>${pct(called ? rate(within, called) : 0)} called within 1 hour</span>${pMed != null ? `<span>${dPct(med, pMed, 'down')} vs last</span>` : ''}</span></div>`;
-      const calls = (label, called, total, reached, pCalled, pTotal, note) => { const cur = rate(called, total), was = pcc ? rate(pCalled, pTotal) : null; return `<div class="row" title="${esc(note)}"><span class="name">${label}</span><span class="val">${num(called)} of ${num(total)}<small>${pct(cur)}</small></span><span class="track"><i style="width:${cur || 0}%"></i></span><span class="note"><span>${num(reached)} answered for a minute or more</span>${was != null ? `<span>${dPts(cur, was)} vs last</span>` : ''}</span></div>`; };
+      const calls = (label, called, total, reached, pCalled, pTotal, note) => { const cur = rate(called, total), was = pcc ? rate(pCalled, pTotal) : null; return `<div class="row" title="${esc(note)}"><span class="name">${label}</span><span class="val">${num(called)} of ${num(total)}<small>${pct(cur)}</small></span><span class="track"><i style="width:${cur || 0}%"></i></span><span class="note"><span>${num(reached)} talked for 3+ minutes</span>${was != null ? `<span>${dPts(cur, was)} vs last</span>` : ''}</span></div>`; };
       follow = '<div class="ra-card"><div class="ra-card-head"><h3>How fast reps followed up</h3></div><div class="ra-bars">' +
         speed('Time to first call — leads handed to reps', cc.lead_median_min, pcc && pcc.lead_median_min, cc.lead_within_1h, cc.lead_called, 'Clock starts when the lead is handed over (its tag), not when the webinar ends' + (cc.lead_untimed ? ' · ' + cc.lead_untimed + ' leads have no hand-over time yet and are left out' : '')) +
         speed('Time to first call — everyone who saw the offer', cc.offer_median_min, pcc && pcc.offer_median_min, cc.offer_within_1h, cc.offer_called, 'Everyone who stayed 90 min or more — clock starts when the webinar ended. Overlaps the leads above on purpose, they are two views of the same room') +

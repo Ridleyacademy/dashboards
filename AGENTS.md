@@ -325,6 +325,7 @@ The dashboards' identity lives in the design-system artifact **"Ridley Academy"*
 - Only webinars.html uses it so far; the shared `.topbar` (mobile.css) is unchanged until all pages move over.
 - webinars.html has two views: **One webinar** (the step-by-step journey) and **All webinars sheet** (one row per webinar, every stat a column). The sheet reads `public.webinar_sheet` via `webinar-analytics?api=sheet`, filled in the background by cron job 40 (`?api=sheet-refresh`, X-Dispatch-Secret). Never compute the sheet live — it is ~2s SQL + AXL calls per webinar.
 - "Saw the offer" = stayed at least the webinar's **offer minute** (`webinar_settings.offer_minute`, default 90, edited with ✎ Change on the page). Never hard-code 90 in SQL again — use `webinar_offer_minute(webinar_id)`.
+- Where registrants came from (utm) before a webinar: read from AXL `webinar-user` by webinar-analytics (summary + cron job 40). Don't trust the thank-you page report for sources — it misses most people. After the webinar the roster (`webinar_source_stats`) is the source.
 
 ## Button icons / emoji (the user cares about this — do not use random emoji)
 

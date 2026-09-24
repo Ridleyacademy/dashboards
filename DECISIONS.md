@@ -13,6 +13,12 @@ the structural map lives in the knowledge graph (`/graphify`). Format:
 
 ---
 
+## 2026-09-24 — Pre-webinar traffic sources come from AXL, not the thank-you page (webinar-analytics v54–v55)
+**What:** Before a webinar has a roster, `?api=summary` (throttled 10 min) and the 15-min cron (job 40, `syncUpcomingSources`) now read every registrant's utm tags from AXL `webinar-user` (fields `uTMSource…uTMTerm` — the selector spells uTM*, the response returns utm*; same request as webinar-pixel-sync, no `role` param) and upsert them into `webinar_registrations` (also adds AXL registrants our webhook missed). Errors are logged, no longer swallowed.
+**Why:** Sep 27 showed "(none) 77% / paid 23%"; AXL actually had 278/292 (95%) paid Facebook. The thank-you page's source report (`axl-webinar-link` action=report) reached us for 70–80% of sign-ups Sep 9–13 but only ~25% since Sep 16: (a) many visitors never send it, (b) reports arriving before the AXL scenario webhook are silently ignored (`webinar_links` row not there yet). Registrations do NOT pass through our system first — the /register form is AXL's own (landing_submissions saw 1 webinar sign-up since Sep 14) — so AXL is the first and best record. After Sep 27: 279 paid / 15 none.
+**Open:** the thank-you report race in axl-webinar-link is now harmless for sources but still drops `via_link`; fix only if that stat is needed again.
+**Touched:** edge fn webinar-analytics v54, v55.
+
 ## 2026-09-24 — Offer minute per webinar (v640, webinar-analytics v53)
 **What:** New `public.webinar_settings` (webinar_id pk, offer_minute 1–600, updated_by, updated_at; RLS on, no policies) + `webinar_offer_minute(id)` (default 90). The hard-coded `minutes >= 90` in `webinar_attendance_stats()`, `webinar_ad_stats()` and `webinar_call_coverage()` was swapped for the per-webinar value (migration edited each function's own definition text, so nothing else changed). webinar-analytics v53: `GET/POST ?api=settings&w=` (edit gate = admin / webinars.view / marketing, same as Sync), `offer_minute` in the funnel response and in sheet rows; saving drops that webinar's sheet row and its CRM cache so everything recomputes. Page: "✎ Change" on the Saw the offer step, live-room offer line + legend follow the setting, new sheet column "Offer starts (minute)", wording no longer says 90.
 **Why:** User: the offer can start before minute 90, so it must be adjustable per webinar. Check: Sep 20 at minute 75 → 206 saw the offer (185 at 90).

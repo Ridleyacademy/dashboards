@@ -13,6 +13,11 @@ the structural map lives in the knowledge graph (`/graphify`). Format:
 
 ---
 
+## 2026-09-24 — Stage ink-faint pure white (v651)
+**What:** Stage `ink-faint` #F2F2F2 → #FFFFFF (skill + artifact tokens, ridley-ui.css `?v=651` on webinars/weekly-stats). weekly-stats.js also sets `Chart.defaults.color` from `--ink-faint` (script `?v=651`).
+**Why:** Owner screenshot: chart dates, y-axis numbers and sub-lines read as "cream" next to the pure-white values, even after a hard refresh. All Stage text is now #FFFFFF.
+**Touched:** ridley-ui.css, webinars.html, weekly-stats.html, weekly-stats.js, version.txt v651, changelog.js v651; skill tokens.json; artifact tokens.json.
+
 ## 2026-09-24 — Weekly Stats: tight, round y-axes (v650)
 **What:** `makeMiniChart` y-axis: explicit `min`/`max`/`stepSize` computed per chart from the points it draws (so it follows the date range, Current week and Weekly/Monthly). Step = smallest of 1/2/2.5/5 × 10ⁿ that covers the data in ≤5 gaps (≤6 on the drill-down chart); max = next step above the highest value, min = step below the lowest (0 when all ≥0 and the low is within 35% of the high); pct capped 0–100; whole-number series never get fractional steps. Removed the 12% padding + `suggestedMax`/`maxTicksLimit` combo that let Chart.js jump to e.g. 1,500 for a max of 1,010. `$` ticks show one decimal in k ($12.5k). Chart top padding 16px so the top point's label fits above it. Script `?v=650`.
 **Why:** Owner: "Active Masterclass Students has the top at 1500 but the highest value is 973 — it should be the closest round number of the scale, like closest 25K or closest 100", and it must adapt automatically to the data on screen.

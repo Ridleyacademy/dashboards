@@ -66,7 +66,7 @@ function raDelta(cur, prev, invert, unit) {
 const tok = (name) => getComputedStyle(document.body).getPropertyValue(name).trim();
 const periodWord = () => activePeriod === 'weekly' ? 'week' : 'month';
 // Charts use the design system's font (Montserrat).
-if (window.Chart) Chart.defaults.font.family = tok('--font-sans') || 'Montserrat, sans-serif';
+if (window.Chart) { Chart.defaults.font.family = tok('--font-sans') || 'Montserrat, sans-serif'; Chart.defaults.color = tok('--ink-faint'); }
 
 // ── State machine ───────────────────────────────────────────────────
 function setState(s) { document.body.dataset.state = s; }

@@ -13,6 +13,11 @@ the structural map lives in the knowledge graph (`/graphify`). Format:
 
 ---
 
+## 2026-09-24 — Paper (light) secondary text near-black (v646)
+**What:** Paper tokens `ink-muted` #5E574F → #2E2A26, `ink-faint` #6F675E → #3D3833 (skill tokens.json + design-system artifact), ridley-ui.css regenerated, `?v=646` on webinars.html and weekly-stats.html. With v645 the two themes now both put secondary text close to the primary ink; hierarchy comes from size/weight/uppercase, not grey.
+**Why:** Owner: "in light mode the secondary text needs to be black so easier to read".
+**Touched:** ridley-ui.css, webinars.html, weekly-stats.html, version.txt v646, changelog.js v646; skill tokens.json; artifact project/tokens.json.
+
 ## 2026-09-24 — Stage (dark) secondary text brightened (v645)
 **What:** design-system tokens, Stage only: `ink-muted` #A69E93 → #DAD4CB, `ink-faint` #8A8279 → #BCB4A9 (skill `design/tokens.json`), ridley-ui.css regenerated with `scripts/build_ridley_ui.py`, `?v=645` on webinars.html and weekly-stats.html. Paper (light) unchanged.
 **Why:** Owner: dark mode is "kinda hard to see, the text is not white everywhere like it should be" — every label, sub-line, tab, tick and chart value used the two grey tokens.

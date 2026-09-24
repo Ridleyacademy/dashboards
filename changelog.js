@@ -16,6 +16,7 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+  { version: 646, date: '2026-09-24', title: 'Light mode: easier to read', items: ['In light mode the labels, \u201cvs last week\u201d lines, tabs, chart dates and chart values were a soft grey. They are now near-black, on Weekly Stats and Webinars.'] },
   { version: 645, date: '2026-09-24', title: 'Dark mode: easier to read', items: ['In dark mode the labels, \u201cvs last week\u201d lines, tabs, chart dates and chart values were a dim grey. They are now much closer to white, on Weekly Stats and Webinars.'] },
   { version: 644, date: '2026-09-24', title: 'Weekly Stats: every week shows on the charts again', items: ['Each chart shows all 13 week dates again, like before. They sit flat when there is room and tilt on smaller screens.', 'Each card says how many weeks it covers again (\u201c13 weeks\u201d).'] },
   { version: 643, date: '2026-09-24', title: 'Weekly Stats: \u25b6 Present for the Staff Meeting', items: ['New \u201c\u25b6 Present\u201d button next to Edit. It opens one big chart at a time, full screen, in the order of the tab you are on (for example Staff Meeting).', 'Move with the \u2190 \u2192 keys, Space, the Previous / Next buttons, or swipe on a phone. Every week\u2019s value is printed on the chart. Esc or Close takes you back to the page.', 'It only opens when you click it \u2014 the normal page is unchanged.'] },

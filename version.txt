@@ -96,3 +96,4 @@
 2026-09-24T20:10:00Z-v647-white-dark-text
 2026-09-24T20:25:00Z-v648-black-light-text
 2026-09-24T20:45:00Z-v649-montserrat
+2026-09-24T21:05:00Z-v650-tight-chart-scales

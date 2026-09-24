@@ -16,6 +16,7 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+  { version: 650, date: '2026-09-24', title: 'Weekly Stats: charts fit their numbers', items: ['Each chart now tops out at the nearest round number just above its highest week (for example 1,010 \u2192 1,100 instead of 1,500, $112,000 \u2192 $125,000), with gridlines on round steps like every 100, 1,000 or $25k.', 'It works itself out for every chart from the numbers on screen, and changes when you pick another date range, turn on Current week or switch to Monthly.'] },
   { version: 649, date: '2026-09-24', title: 'New font: Montserrat', items: ['Weekly Stats and Webinars now use one font, Montserrat, for everything \u2014 titles, big numbers, labels, tables and the charts.'] },
   { version: 648, date: '2026-09-24', title: 'Light mode: black text and black chart lines', items: ['In light mode all text is now true black, and the chart lines are black too, so everything is easy to see. On Weekly Stats and Webinars.'] },
   { version: 647, date: '2026-09-24', title: 'Dark mode: white text and white chart lines', items: ['In dark mode all text is now white (it was a warm beige), and the chart lines are white too, like the original page. On Weekly Stats and Webinars.'] },

@@ -13,6 +13,11 @@ the structural map lives in the knowledge graph (`/graphify`). Format:
 
 ---
 
+## 2026-09-24 — Weekly Stats: tight, round y-axes (v650)
+**What:** `makeMiniChart` y-axis: explicit `min`/`max`/`stepSize` computed per chart from the points it draws (so it follows the date range, Current week and Weekly/Monthly). Step = smallest of 1/2/2.5/5 × 10ⁿ that covers the data in ≤5 gaps (≤6 on the drill-down chart); max = next step above the highest value, min = step below the lowest (0 when all ≥0 and the low is within 35% of the high); pct capped 0–100; whole-number series never get fractional steps. Removed the 12% padding + `suggestedMax`/`maxTicksLimit` combo that let Chart.js jump to e.g. 1,500 for a max of 1,010. `$` ticks show one decimal in k ($12.5k). Chart top padding 16px so the top point's label fits above it. Script `?v=650`.
+**Why:** Owner: "Active Masterclass Students has the top at 1500 but the highest value is 973 — it should be the closest round number of the scale, like closest 25K or closest 100", and it must adapt automatically to the data on screen.
+**Touched:** weekly-stats.js, weekly-stats.html, version.txt v650, changelog.js v650.
+
 ## 2026-09-24 — Montserrat everywhere (v649)
 **What:** design-system type families `display` and `sans` → Montserrat (skill tokens.json, bundle.css @import, brand-book/SKILL/patterns docs, design-system artifact). ridley-ui.css regenerated (`?v=649`); webinars.html + weekly-stats.html load `Montserrat:wght@400;500;600;700;800;900` instead of Inter + Playfair; Chart.js font now read from `--font-sans` (webinars inline script, weekly-stats.js incl. the point-label canvas font); weekly-stats.js `?v=649`.
 **Why:** Owner compared Playfair+Inter / Montserrat titles / Montserrat everywhere on a mockup and chose Montserrat everywhere.

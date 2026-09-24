@@ -596,26 +596,33 @@ function makeMiniChart(canvas, points, metric, big = false) {
   // gridlines land on. Sharing one stepSize between bounds and ticks
   // guarantees evenly-spaced horizontal lines (e.g. 0 / 5 / 10 / 15 / 20)
   // instead of Chart.js's auto-spacing which can drift on tight ranges.
+  // Y axis: gridlines on round steps (1, 2, 2.5, 5 × 10ⁿ — e.g. every 25k or
+  // every 100) and the top/bottom on the round step just past the data, so
+  // the highest week sits near the top instead of under a big empty band
+  // (973 → axis to 1,000, not 1,500; $112,000 → $125,000).
   const yScale = (function () {
     const nums = (points || []).map(p => Number(p.value)).filter(n => Number.isFinite(n));
     if (!nums.length) return null;
-    const lo = Math.min(...nums), hi = Math.max(...nums);
-    if (lo === hi) {
-      const pad = Math.max(1, Math.abs(lo) * 0.12);
-      const step = Math.max(1, Math.pow(10, Math.floor(Math.log10(pad))));
-      return {
-        min: Math.floor((lo - pad) / step) * step,
-        max: Math.ceil ((hi + pad) / step) * step,
-        stepSize: step,
-      };
+    let lo = Math.min(...nums), hi = Math.max(...nums);
+    // start at 0 when the data is all positive and 0 is not far below it
+    if (lo >= 0 && lo <= hi * 0.35) lo = 0;
+    // the smallest round step that covers the data in at most 5 gridline gaps (6 on the big chart)
+    const maxGaps = big ? 6 : 5;
+    let span = hi - lo;
+    if (span <= 0) span = Math.abs(hi) || 1;          // flat line: give it a band
+    const wholeOnly = metric.unit !== 'pct' && nums.every(n => Number.isInteger(n));
+    let p10 = Math.pow(10, Math.floor(Math.log10(span / maxGaps)) - 1);
+    let step = null, yMin = 0, yMax = 0;
+    for (let guard = 0; guard < 8 && step == null; guard++, p10 *= 10) {
+      for (const m of [1, 2, 2.5, 5]) {
+        const st = +(m * p10).toPrecision(6);
+        if (wholeOnly && st < 1) continue;
+        const a = +(Math.floor(lo / st + 1e-9) * st).toPrecision(10), b = +(Math.ceil(hi / st - 1e-9) * st).toPrecision(10);
+        if ((b - a) / st <= maxGaps + 1e-9) { step = st; yMin = a; yMax = b; break; }
+      }
     }
-    const span = hi - lo;
-    // Step ≈ 1/4 of the span, rounded to a power of 10.
-    // span 8 → step 1; span 50 → 10; span 12 000 → 1 000.
-    const step = Math.max(1, Math.pow(10, Math.floor(Math.log10(span / 4))));
-    const pad = span * 0.12;
-    let yMin = Math.floor((lo - pad) / step) * step;
-    let yMax = Math.ceil ((hi + pad) / step) * step;
+    if (step == null) { step = span; yMin = lo; yMax = hi; }
+    if (yMax === yMin) yMax = yMin + step;
     if (lo >= 0 && yMin < 0) yMin = 0;
     if (metric.unit === 'pct') { yMax = Math.min(100, yMax); yMin = Math.max(0, yMin); }
     return { min: yMin, max: yMax, stepSize: step };
@@ -740,7 +747,7 @@ function makeMiniChart(canvas, points, metric, big = false) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      layout: { padding: { top: present ? 18 : 6, right: present ? 12 : 6, bottom: 2, left: 2 } },
+      layout: { padding: { top: present ? 22 : 16, right: present ? 12 : 6, bottom: 2, left: 2 } },
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { display: false },
@@ -793,18 +800,18 @@ function makeMiniChart(canvas, points, metric, big = false) {
             padding: 6,
             // A few calm gridlines; Chart.js picks round values inside the
             // nice bounds computed above.
-            maxTicksLimit: big ? 6 : 4,
+            stepSize: yScale?.stepSize,
             callback: (v) => {
               // Round every tick label to a clean integer (or 1 decimal for
               // pct) — defensive, in case Chart.js emits a fractional tick.
-              if (isUsd) return '$' + (Math.abs(v) >= 1000 ? (v/1000).toFixed(0) + 'k' : Math.round(v));
+              if (isUsd) return '$' + (Math.abs(v) >= 1000 ? (+(v / 1000).toFixed(1)) + 'k' : Math.round(v));
               if (isPct) return (Math.round(v * 10) / 10) + '%';
-              return Math.round(v);
+              return (+(+v).toFixed(1)).toLocaleString();
             },
           },
           grid: { color: tok('--viz-grid'), drawTicks: false },
           border: { display: false },
-          ...(yScale ? { suggestedMin: yScale.min, suggestedMax: yScale.max } : { beginAtZero: true }),
+          ...(yScale ? { min: yScale.min, max: yScale.max } : { beginAtZero: true }),
           // Lower-is-better metrics are no longer drawn upside down — the line
           // colour already shows which way is good.
         },

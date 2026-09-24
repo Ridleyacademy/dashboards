@@ -1353,6 +1353,15 @@ const canX = isPrivileged || permsV2.includes('students.add_win');
 
 All authenticated edge fns verify the bearer token by calling `supabaseUser.auth.getUser()` against a client created with the caller's `Authorization` header (anon key). The resolved `user.app_metadata` is the source of truth for `is_admin` / `permissions_v2` — never the raw JWT payload. **`admin-api.ts` in particular** was a security fix: it parses the JWT only for the `actor` label, but gates on the verified `getUser()` result (`verifiedUser`); without a verified user it returns 403.
 
+### Database function privileges (security, 2026-09-24)
+
+`public` SECURITY DEFINER functions are **locked by default**: only `service_role` can EXECUTE them. `anon` has none, and `authenticated` has exactly 8, the ones the frontend calls with `supa.rpc()` or that RLS policies use: `log_activity_event`, `my_pinned_students`, `toggle_student_pin`, `bulk_update_students_field`, `list_session_groups`, `list_zoom_hosts`, `touch_user_presence`, `is_chat_member`.
+
+- **Default privileges changed:** new functions created by `postgres` get NO execute for PUBLIC/anon/authenticated, only `service_role`. A **new** RPC called straight from the browser (`supa.rpc(...)`) or used inside an RLS policy needs an explicit `grant execute on function ... to authenticated;` in its migration, or it fails with `permission denied for function`. Edge fns (service role), triggers and pg_cron (postgres) need nothing.
+- Never grant EXECUTE to `anon` on a SECURITY DEFINER function: the anon key is public in the frontend.
+- `bulk_update_students_field` checks permissions itself (v3): admin, legacy `coach`/`ms_ic`/`delivery_ic`, or `permissions_v2` `coach.edit` (the coach.html gate), read fresh from `auth.users`. Otherwise it raises 42501.
+- Also: the 15 flagged functions have `search_path = public, extensions, pg_temp` pinned; RLS on `pmc_buyer_candidates` + `zz_*` leftovers; `roster_digits` is revoked from anon/authenticated. Remaining advisor items on purpose: `pg_net` in public (moving it breaks cron/webhooks), the 8 authenticated functions above, and INFO "RLS on, no policy" (service-role-only tables).
+
 ### Audit log / sessions / presence
 
 - **`activity_log`** (actor_id, actor_email, action, target_type, target_id, details jsonb, ts) — every mutating action across these functions inserts a row (best-effort, swallowed on failure). Diffs are computed with `diffObj` and embedded in `details` (before/after, added/removed lists). Readable via admin-api `?api=activity` (admin or `audit.view`), with filters: action, actor, target, from/to dates, free-text `q`; capped at 500 rows.

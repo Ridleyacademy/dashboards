@@ -90,3 +90,4 @@
 2026-09-24T18:00:00Z-v641-weekly-stats-new-look
 2026-09-24T18:30:00Z-v642-weekly-stats-two-columns
 2026-09-24T19:00:00Z-v643-weekly-stats-present
+2026-09-24T19:15:00Z-v644-weekly-stats-all-weeks

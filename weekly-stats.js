@@ -546,7 +546,7 @@ function renderChartGrid(visible) {
         </div>
         <div class="chart-card-wrap"><canvas id="c-${cssId(m.key)}"></canvas></div>
         <div class="chart-card-foot">
-          <span>${m.source === 'derived' ? 'Automatic' : 'Typed in'}${m.invert_chart ? ' · lower is better' : ''}</span>
+          <span>${pts.length} ${activePeriod === 'weekly' ? 'weeks' : 'months'} · ${m.source === 'derived' ? 'Automatic' : 'Typed in'}${m.invert_chart ? ' · lower is better' : ''}</span>
           <span class="sp"></span>
           ${owners.map(a => `<span class="ws-av" title="${escapeHtml(a.name)}">${escapeHtml(assigneeInitials(a.name))}</span>`).join('')}
         </div>
@@ -769,9 +769,9 @@ function makeMiniChart(canvas, points, metric, big = false) {
           ticks: {
             color: INK_FAINT,
             font: { size: Math.round(10 * fs) },
-            autoSkip: true,                           // skip labels that would collide
-            autoSkipPadding: 6,
-            maxRotation: 0,
+            autoSkip: false,                          // show EVERY week
+            maxRotation: 50,                          // tilt only when they don't fit flat
+            minRotation: 0,
             padding: 4,
             // Compact M/D
             callback: function (val) {

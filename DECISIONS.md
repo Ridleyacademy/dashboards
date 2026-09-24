@@ -13,6 +13,11 @@ the structural map lives in the knowledge graph (`/graphify`). Format:
 
 ---
 
+## 2026-09-24 — Weekly Stats: all 13 week labels back (v644)
+**What:** chart x-axis `autoSkip:false` with `maxRotation:50, minRotation:0` (flat when they fit, tilted when not); card footer shows "13 weeks · Automatic" again. Script tag `?v=644`.
+**Why:** Owner: "still need to show 13 weeks" — v641 let Chart.js skip colliding date labels, so narrower cards lost weeks. Every week's label must always show (as on the original page).
+**Touched:** weekly-stats.js, weekly-stats.html, version.txt v644, changelog.js v644.
+
 ## 2026-09-24 — Weekly Stats: presentation mode (v643)
 **What:** "▶ Present" button (toolbar, before ✎ Edit) opens `#presentMode`, a full-screen overlay (also requests browser full screen, optional) showing one metric at a time from the current tab + Assigned-to filter, in sort order: title, big value, Ridley delta vs the period before, progress bar, and a large chart (`makeMiniChart(..., 'present')` = 1.5× text, values printed on every point). ← → / Space / PageUp/Down / Home / End / Previous-Next buttons / swipe; Esc, ✕ Close or leaving browser full screen closes it. `renderAll()` stores the visible list (`_presentList`) and redraws the open slide on theme change. Script tag bumped to `?v=643`.
 **Why:** Owner picked "presentation mode" from the UI/UX suggestions, but only as something you click into — the normal page must stay as it is.

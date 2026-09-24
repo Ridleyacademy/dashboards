@@ -11,46 +11,32 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="permissions.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@700;900&display=swap">
+<link rel="stylesheet" href="ridley-ui.css?v=633">
 <style>
-  /* The full design system is duplicated from income.html so the dashboard
-     looks like a sibling, not a stranger. If anything here gets touched,
-     also update income.html / meta-ads.html for visual parity. */
-  :root {
-    --bg: #080a14;
-    --surface: #0f1120; --surface2: #141728; --surface3: #191e30;
-    --border: #1f2438; --border-light: #272d45;
-    --text: #eaecf8; --text-muted: #7880a8; --text-dim: #3e4668;
-    --blue: #6b9eff; --blue-glow: rgba(107,158,255,0.3); --blue-bg: rgba(107,158,255,0.1);
-    --green: #34d399; --green-glow: rgba(52,211,153,0.3); --green-bg: rgba(52,211,153,0.1);
-    --pink: #f472b6; --pink-glow: rgba(244,114,182,0.3); --pink-bg: rgba(244,114,182,0.1);
-    --purple: #a78bfa; --purple-bg: rgba(167,139,250,0.1);
-    --gold: #fbbf24; --gold-bg: rgba(251,191,36,0.1);
-    --red: #f87171; --cyan: #22d3ee;
-  }
-  body.light {
-    --bg: #f0f2fa; --surface: #ffffff; --surface2: #f5f6fc; --surface3: #eceef8;
-    --border: #dde1f2; --border-light: #ccd1e8;
-    --text: #0f1220; --text-muted: #525b82; --text-dim: #9099be;
-    --blue-glow: rgba(107,158,255,0.15); --green-glow: rgba(52,211,153,0.15); --pink-glow: rgba(244,114,182,0.15);
-    --blue-bg: rgba(107,158,255,0.1); --green-bg: rgba(52,211,153,0.1); --pink-bg: rgba(244,114,182,0.1);
-  }
+  /* Weekly Stats on the Ridley Academy design system (ridley-ui.css, loaded above).
+     The topbar, login and access screens below are the page's own (shared look,
+     unchanged); their old variable names are mapped onto the Ridley tokens so they
+     follow Paper / Stage with the rest of the page. */
+  body{ --bg:var(--paper); --surface2:var(--surface-sunken); --surface3:var(--surface-hover); --border:var(--line); --border-light:var(--line-strong);
+        --text:var(--ink); --text-muted:var(--ink-muted); --text-dim:var(--ink-faint);
+        --blue:var(--brand-text); --blue-bg:var(--brand-tint); --blue-glow:transparent;
+        --green:var(--positive); --green-bg:var(--positive-tint); --green-glow:transparent;
+        --red:var(--negative); --gold-bg:var(--caution-tint); --purple:var(--ink-muted); --purple-bg:var(--surface-sunken);
+        --pink:var(--brand-text); --cyan:var(--brand-text); }
   body.light .topbar { background: rgba(255,255,255,0.9); }
+  /* Wrong-way parts of the chart lines: a clear red, as on the original page (asked for by the owner, Sep 24). */
+  body{ --ws-chart-down:#E5383B; }
+  body.light{ --ws-chart-down:#D92B2B; }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+    font-family: var(--font-sans);
     background: var(--bg); color: var(--text); min-height: 100vh;
     -webkit-font-smoothing: antialiased; overflow-x: hidden;
   }
-  body::before {
-    content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
-    background:
-      radial-gradient(ellipse at 15% 15%, rgba(107,158,255,0.07) 0%, transparent 55%),
-      radial-gradient(ellipse at 85% 85%, rgba(167,139,250,0.05) 0%, transparent 55%),
-      radial-gradient(ellipse at 80% 10%, rgba(244,114,182,0.05) 0%, transparent 50%);
-    animation: ambientShift 18s ease-in-out infinite;
-  }
-  @keyframes ambientShift { 0%,100%{opacity:1} 50%{opacity:0.6} }
 
   /* State machine — copied from income.html exactly */
   .full-center { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; position: relative; z-index: 1; }
@@ -90,7 +76,7 @@
   body[data-state="dashboard"] #denied { display: none; }
   body[data-state="dashboard"] #app { display: block; }
 
-  /* Topbar */
+  /* Topbar (shared look — unchanged) */
   .topbar {
     display: flex; align-items: center; gap: 10px; padding: 12px 32px;
     background: rgba(8,10,20,0.85); backdrop-filter: blur(20px);
@@ -108,10 +94,6 @@
   .tbtn { border: none; border-radius: 8px; padding: 6px 12px; font-size: 0.74rem; font-weight: 600; cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 5px; font-family: inherit; }
   .tbtn-ghost { background: var(--surface2); color: var(--text-muted); border: 1px solid var(--border); }
   .tbtn-ghost:hover { color: var(--text); border-color: var(--border-light); }
-  .tbtn-primary { background: linear-gradient(135deg,#6b9eff,#4a7de0); color: #fff; box-shadow: 0 2px 10px rgba(107,158,255,0.3); }
-  .tbtn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(107,158,255,0.4); }
-  .tbtn-success { background: linear-gradient(135deg,#34d399,#10b981); color: #08231a; box-shadow: 0 2px 10px rgba(52,211,153,0.3); font-weight: 800; }
-  .tbtn-success:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(52,211,153,0.4); }
 
   .daterange-wrap { position: relative; }
   .daterange-btn { display: inline-flex; align-items: center; gap: 6px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 6px 11px; font-size: 0.74rem; color: var(--text-muted); cursor: pointer; transition: all 0.15s; white-space: nowrap; font-weight: 600; font-family: inherit; }
@@ -151,148 +133,119 @@
   .user-pill { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 4px 14px 4px 4px; cursor: default; }
   .user-pill-av { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; background: linear-gradient(135deg, #fbbf24, #34d399); color: #fff; font-size: 0.62rem; font-weight: 800; display: flex; align-items: center; justify-content: center; }
   .user-pill-email { font-size: 0.73rem; color: var(--text-muted); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* wrap below 900px: at tablet width the buttons used to run past the edge and cut off Sign Out */
+  @media(max-width:900px) { .topbar { flex-wrap: wrap; } }
+  @media(max-width:700px) { .topbar { padding: 10px 16px; gap: 6px; flex-wrap: wrap; } }
 
-  /* Page */
+  /* ---------- Page (Ridley) ---------- */
   #app { position: relative; z-index: 1; }
-  .main { max-width: 1280px; margin: 0 auto; padding: 36px 32px 100px; animation: fadeUp 0.5s ease both; }
-  @keyframes fadeUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
-  @media(max-width:700px) { .main { padding: 24px 16px 80px; } .topbar { padding: 10px 16px; gap: 6px; flex-wrap: wrap; } }
+  [hidden] { display: none !important; }
+  .ra-page { padding-top: var(--space-5); gap: var(--space-6); }
+  .ws-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
+  .ws-bar .grow { flex: 1 1 auto; }
+  .ra-seg.wrap { flex-wrap: wrap; }
+  /* the tabs are toggled with .active by the page script */
+  .ra-seg button.active { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-card); }
+  .ra-btn[aria-pressed="true"] { border-color: var(--ink); }
 
-  /* Controls row */
-  .controls-row { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; flex-wrap: wrap; }
-  .pill-tabs { display: inline-flex; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 3px; gap: 2px; }
-  .pill-tab { border: none; background: transparent; color: var(--text-muted); border-radius: 7px; padding: 7px 14px; font-size: 0.78rem; font-weight: 600; cursor: pointer; transition: all 0.15s; white-space: nowrap; font-family: inherit; }
-  .pill-tab:hover { color: var(--text); }
-  .pill-tab.active { background: var(--surface3); color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,0.3); }
+  /* Edit menu (Quick add · Import CSV · Add manual graph · Reorder) */
+  .ws-menu { position: relative; }
+  .ws-menu-pop { position: absolute; right: 0; top: calc(100% + 6px); z-index: 60; min-width: 220px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow-pop); padding: 6px; display: flex; flex-direction: column; }
+  .ws-menu-pop button { display: flex; gap: 10px; align-items: baseline; text-align: left; border: 0; background: transparent; color: var(--ink); padding: 9px 10px; border-radius: var(--radius-sm); font: 500 13px/18px var(--font-sans); cursor: pointer; }
+  .ws-menu-pop button:hover { background: var(--surface-hover); }
+  .ws-menu-pop .g { width: 16px; color: var(--ink-muted); flex: 0 0 auto; }
+  @media (pointer:coarse){ .ws-menu-pop button { min-height: 44px; } }
 
-  /* Section header */
-  .sec-label { display: flex; align-items: center; gap: 12px; margin: 28px 0 16px; }
-  .sec-label-text { font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-dim); white-space: nowrap; }
-  .sec-label-line { flex: 1; height: 1px; background: var(--border); }
+  /* Highlights = the 4 headline numbers of the tab */
+  #kpiGrid { grid-template-columns: repeat(4, minmax(0,1fr)); }
+  @media (max-width:900px){ #kpiGrid { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+  @media (max-width:600px){ #kpiGrid .ra-stat { padding: var(--space-3); } #kpiGrid .ra-stat .n { font-size: 22px; line-height: 26px; } #kpiGrid .sub .vsw { display: none; } }
+  #kpiGrid .ra-stat.skel { min-height: 96px; }
 
-  /* KPI strip (top — 4 most important metrics in the active division) */
-  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
-  @media(max-width:900px) { .kpi-grid { grid-template-columns: repeat(2,1fr); } }
-  @media(max-width:480px) { .kpi-grid { grid-template-columns: 1fr; } }
-  .kpi-card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 20px 22px 18px; position: relative; overflow: hidden; transition: transform 0.22s, box-shadow 0.22s, border-color 0.22s; }
-  .kpi-card::before { content:''; position:absolute; inset:0; opacity:0; transition:opacity 0.3s; background: radial-gradient(ellipse at top right, var(--c-glow,rgba(107,158,255,0.14)), transparent 65%); pointer-events:none; }
-  .kpi-card:hover { transform: translateY(-3px); border-color: var(--c-color,var(--blue)); }
-  .kpi-card:hover::before { opacity:1; }
-  .kpi-label { font-size: 0.66rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-dim); margin-bottom: 10px; }
-  .kpi-value { font-size: 1.6rem; font-weight: 900; letter-spacing: -0.04em; line-height: 1; color: var(--c-color, var(--text)); }
-  .kpi-delta { font-size: 0.74rem; font-weight: 700; margin-top: 8px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 4px; }
-  .kpi-delta.up   { color: var(--green); }
-  .kpi-delta.down { color: var(--red); }
-  .kpi-delta.flat { color: var(--text-dim); }
+  /* One chart per stat */
+  .chart-grid { display: grid; gap: var(--space-3); grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); }
+  .chart-card { display: flex; flex-direction: column; gap: 6px; min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow-card); padding: var(--space-4) var(--space-4) var(--space-3); cursor: pointer; }
+  .chart-card:hover { border-color: var(--line-strong); }
+  .chart-card-head { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
+  .chart-card-title { flex: 1 1 auto; min-width: 0; font: 600 13px/18px var(--font-sans); overflow-wrap: anywhere; }
+  .chart-card-now { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+  .chart-card-value { font: 700 24px/28px var(--font-display); font-variant-numeric: lining-nums tabular-nums; white-space: nowrap; }
+  .chart-card-vs { font-size: 12px; line-height: 16px; color: var(--ink-faint); }
+  .chart-card-wrap { position: relative; height: 170px; }
+  .chart-card-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; font-size: 11px; line-height: 14px; color: var(--ink-faint); }
+  .chart-card-foot .sp { flex: 1 1 auto; }
+  .ws-av { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: var(--radius-pill); background: var(--surface-sunken); color: var(--ink-muted); font: 600 10px/1 var(--font-sans); }
+  .chart-card.skel { height: 262px; cursor: default; }
+  .ws-empty { grid-column: 1 / -1; }
 
-  /* Chart grid (one card per metric) */
-  .chart-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; }
-  @media(max-width:900px) { .chart-grid { grid-template-columns: 1fr; } }
-
-  /* Skeleton placeholders shown while the series API is in flight. A subtle
-     shimmer scans across the card so the user sees something animated
-     instead of blank space. */
-  .skel-card {
-    background: linear-gradient(90deg,
-      var(--surface) 0%,
-      var(--surface2) 50%,
-      var(--surface) 100%);
-    background-size: 200% 100%;
-    animation: skelShimmer 1.4s ease-in-out infinite;
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    min-height: 92px;
-    position: relative;
-    overflow: hidden;
-  }
-  .skel-card::after {
-    content: '';
-    position: absolute; inset: 0;
-    background:
-      radial-gradient(circle at 30% 35%, rgba(255,255,255,0.05) 0%, transparent 60%),
-      radial-gradient(circle at 80% 65%, rgba(255,255,255,0.03) 0%, transparent 50%);
-    pointer-events: none;
-  }
-  @keyframes skelShimmer {
-    0%   { background-position: 200% 0; }
-    100% { background-position: -200% 0; }
-  }
-
-  /* Reorder mode — applied to body when active. Cards get a grab cursor +
-     a visible drag handle on hover; clicking the chart no longer opens the
-     drilldown (pointer-events disabled on chart canvases). */
+  /* Reorder mode: a drag handle appears in each card's head row */
+  .reorder-handle { display: none; flex: 0 0 auto; width: 28px; height: 28px; border-radius: var(--radius-sm); background: var(--surface-sunken); color: var(--ink-muted); align-items: center; justify-content: center; font-size: 14px; font-weight: 700; }
+  body.reordering .reorder-handle { display: inline-flex; }
   body.reordering .chart-card { cursor: grab; user-select: none; }
-  body.reordering .chart-card:hover { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold), 0 12px 24px rgba(0,0,0,0.3); }
+  body.reordering .chart-card:hover { border-color: var(--gold); }
   body.reordering .chart-card.dragging { opacity: 0.4; cursor: grabbing; }
-  body.reordering .chart-card.drop-target { box-shadow: 0 0 0 2px var(--gold) inset, 0 12px 24px rgba(251,191,36,0.25); transform: scale(1.01); }
+  body.reordering .chart-card.drop-target { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold) inset; }
   body.reordering .chart-card canvas { pointer-events: none; }
-  .reorder-handle {
-    position: absolute; top: 12px; right: 12px; width: 28px; height: 28px;
-    border-radius: 6px; background: rgba(251,191,36,0.15); color: var(--gold);
-    display: none; align-items: center; justify-content: center; font-size: 1rem;
-    font-weight: 800; pointer-events: none; z-index: 5;
-  }
-  body.reordering .reorder-handle { display: flex; }
-  .chart-card {
-    background: var(--surface); border: 1px solid var(--border); border-radius: 18px;
-    padding: 18px 20px 16px; transition: transform 0.18s, border-color 0.18s; cursor: pointer;
-    position: relative;
-  }
-  .chart-card:hover { transform: translateY(-2px); border-color: var(--border-light); }
-  .chart-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
-  .chart-card-title { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); flex: 1; }
-  .chart-card-source { font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; padding: 2px 7px; border-radius: 999px; }
-  .src-derived { background: var(--green-bg); color: var(--green); }
-  .src-manual  { background: var(--blue-bg);  color: var(--blue);  }
-  .chart-card-now { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
-  .chart-card-value { font-size: 1.4rem; font-weight: 900; letter-spacing: -0.03em; color: var(--text); }
-  .chart-card-delta { font-size: 0.72rem; font-weight: 700; color: var(--text-muted); }
-  .chart-card-delta.up   { color: var(--green); }
-  .chart-card-delta.down { color: var(--red); }
-  .chart-card-wrap { position: relative; height: 160px; }
-  .chart-card-foot { font-size: 0.66rem; color: var(--text-dim); margin-top: 8px; }
+  #reorderBar { flex-wrap: wrap; align-items: center; }
+  #reorderBar .txt { flex: 1 1 240px; min-width: 0; }
 
-  /* Modal */
-  .modal-overlay { display: none; position: fixed; inset: 0; z-index: 1000; background: rgba(8,9,18,0.78); backdrop-filter: blur(8px); align-items: center; justify-content: center; padding: 20px; }
+  /* Pop-ups (drill-down, quick add, import, add manual graph) */
+  .modal-overlay { display: none; position: fixed; inset: 0; z-index: 1000; background: rgba(10,9,8,0.6); align-items: flex-start; justify-content: center; padding: 24px 16px; overflow: auto; }
   .modal-overlay.open { display: flex; }
-  .modal-card { background: var(--surface); border: 1px solid var(--border); border-radius: 22px; padding: 28px 30px 24px; max-width: 760px; width: 100%; max-height: 88vh; overflow: auto; box-shadow: 0 32px 80px rgba(0,0,0,0.6); }
-  .modal-title { font-size: 1.05rem; font-weight: 900; letter-spacing: -0.02em; margin-bottom: 4px; }
-  .modal-sub { font-size: 0.78rem; color: var(--text-muted); margin-bottom: 20px; }
-  .modal-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
-  .modal-row > .field { flex: 1; min-width: 160px; }
-  .field-label { display: block; font-size: 0.66rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); margin-bottom: 6px; }
-  .field-input, .field-select, .field-textarea { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 9px; padding: 9px 11px; color: var(--text); font-size: 0.84rem; outline: none; transition: border-color 0.15s; font-family: inherit; }
-  .field-input:focus, .field-select:focus, .field-textarea:focus { border-color: var(--blue); }
-  .field-textarea { min-height: 70px; resize: vertical; }
-  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; flex-wrap: wrap; }
-  .btn-ghost { background: var(--surface2); border: 1px solid var(--border); color: var(--text-muted); border-radius: 9px; padding: 9px 16px; font-weight: 700; font-size: 0.8rem; cursor: pointer; font-family: inherit; }
-  .btn-ghost:hover { color: var(--text); border-color: var(--border-light); }
-  .btn-danger { background: rgba(248,113,113,0.12); border: 1px solid rgba(248,113,113,0.4); color: var(--red); border-radius: 9px; padding: 9px 16px; font-weight: 700; font-size: 0.8rem; cursor: pointer; font-family: inherit; }
+  .modal-card { background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow-pop); padding: var(--space-5); max-width: 760px; width: 100%; min-width: 0; font-family: var(--font-sans); font-size: 14px; line-height: 20px; display: flex; flex-direction: column; gap: var(--space-4); }
+  .modal-card.narrow { max-width: 520px; }
+  .modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
+  .modal-head > div:first-child { flex: 1 1 260px; min-width: 0; }
+  .modal-title { font: 700 22px/28px var(--font-display); }
+  .modal-sub { margin-top: 4px; font-size: 12px; line-height: 16px; color: var(--ink-faint); }
+  .modal-sub code { font-size: 12px; background: var(--surface-sunken); padding: 0 4px; border-radius: 3px; }
+  .modal-row { display: flex; gap: var(--space-3); flex-wrap: wrap; }
+  .modal-row > .field { flex: 1 1 180px; min-width: 0; }
+  .field-label, .ws-lab { display: block; margin-bottom: 4px; font: 600 11px/14px var(--font-sans); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-muted); }
+  .field-input, .field-select, .field-textarea, .ws-input { width: 100%; height: 36px; padding: 0 10px; background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--radius-sm); color: var(--ink); font: 500 13px/1 var(--font-sans); outline: none; }
+  .field-textarea { height: auto; min-height: 70px; padding: 8px 10px; line-height: 18px; resize: vertical; }
+  .field-select { appearance: auto; }
+  body:not(.light) .field-input[type="date"] { color-scheme: dark; }
+  .modal-actions { display: flex; gap: var(--space-2); justify-content: flex-end; flex-wrap: wrap; }
+  .ws-form { display: grid; gap: var(--space-3); background: var(--surface-sunken); border-radius: var(--radius-md); padding: var(--space-4); }
+  .ws-check { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; line-height: 18px; cursor: pointer; }
+  .ws-check input { margin-top: 2px; }
+  .ws-checks { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; }
+  .ws-checks label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
+  .ws-hint { font-size: 12px; line-height: 16px; color: var(--ink-faint); margin-top: 4px; }
+  .ws-msg { font-size: 12px; line-height: 16px; color: var(--ink-faint); min-height: 1em; }
+  .ws-err { font-size: 12px; line-height: 16px; color: var(--negative); min-height: 1em; }
+  #drillChartWrap { position: relative; height: 260px; }
 
-  /* Editable rows table inside the drill-down */
-  .raw-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin-top: 12px; }
-  .raw-table th { padding: 8px 10px; text-align: left; font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); border-bottom: 1px solid var(--border); background: var(--surface2); }
-  .raw-table td { padding: 7px 10px; border-bottom: 1px solid var(--border); color: var(--text-muted); }
-  .raw-table tr:last-child td { border-bottom: none; }
-  .raw-table .td-num { text-align: right; font-variant-numeric: tabular-nums; color: var(--text); }
-  .raw-table .row-edit { background: transparent; border: 1px solid var(--border); border-radius: 6px; padding: 4px 7px; font-size: 0.75rem; color: var(--text); font-family: inherit; font-variant-numeric: tabular-nums; width: 110px; text-align: right; }
-  .raw-table .row-edit:focus { border-color: var(--blue); outline: none; }
+  /* Week-by-week values table (drill-down) and the CSV import preview */
+  .raw-table { width: 100%; border-collapse: collapse; font-size: 13px; line-height: 18px; font-variant-numeric: tabular-nums; }
+  .raw-table th { font: 600 11px/14px var(--font-sans); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-muted); text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line-strong); white-space: nowrap; }
+  .raw-table td { padding: 7px 10px; border-bottom: 1px solid var(--line); color: var(--ink); }
+  .raw-table .td-num { text-align: right; }
+  .raw-table .row-edit { width: 120px; height: 30px; padding: 0 8px; text-align: right; background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--radius-sm); color: var(--ink); font: 500 13px/1 var(--font-sans); font-variant-numeric: tabular-nums; }
+  body:not(.light) .raw-table .row-edit[type="date"] { color-scheme: dark; }
+  .raw-table tr.add-row td { background: var(--surface-sunken); }
+  .raw-table .acts { text-align: right; white-space: nowrap; }
+  .ws-tablebox { max-height: 360px; overflow: auto; }
+  .ws-tablelabel { font: 600 11px/14px var(--font-sans); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-muted); margin-bottom: 6px; }
+  .ws-tablelabel span { text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--ink-faint); }
+  @media (max-width:600px){
+    .raw-table .row-edit { width: 96px; }
+    .raw-table th, .raw-table td { padding: 7px 6px; }
+  }
 
-  /* Import wizard */
-  .import-drop { border: 2px dashed var(--border); border-radius: 16px; padding: 30px; text-align: center; color: var(--text-muted); font-size: 0.84rem; transition: border-color 0.2s, background 0.2s; }
-  .import-drop.over { border-color: var(--blue); background: var(--blue-bg); }
-  .import-area { width: 100%; min-height: 220px; background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 12px; color: var(--text); font-size: 0.78rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; resize: vertical; }
-  .import-step-label { font-size: 0.64rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-dim); margin-bottom: 6px; }
+  /* Import */
+  .import-area { width: 100%; min-height: 200px; background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--radius-sm); padding: 10px; color: var(--ink); font: 12px/18px ui-monospace, SFMono-Regular, Menlo, monospace; resize: vertical; }
+  .import-step-label { font: 600 11px/14px var(--font-sans); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-muted); margin-bottom: 6px; }
+  .ws-row { display: flex; gap: var(--space-2) var(--space-3); flex-wrap: wrap; align-items: center; }
+  .ws-row input[type="file"] { font-size: 12px; color: var(--ink-muted); max-width: 100%; }
 
-  /* Inline error / banner */
-  .inline-error { color: var(--red); font-size: 0.82rem; padding: 12px; text-align: center; }
-  .banner { padding: 10px 14px; border-radius: 10px; font-size: 0.8rem; margin-bottom: 16px; }
-  .banner-info  { background: var(--blue-bg);  color: var(--blue);  }
-  .banner-warn  { background: rgba(251,191,36,0.1); color: var(--gold); }
-  .banner-error { background: rgba(248,113,113,0.1); color: var(--red); }
+  /* Messages: errors / notices as callouts */
+  .inline-error { color: var(--negative); font-size: 13px; padding: 12px; text-align: center; }
+  #banners:empty { display: none; }
 </style>
 </head>
-<body data-state="loading">
+<body class="ra-app" data-state="loading">
 
 <!-- Boot -->
 <div id="boot" class="full-center">
@@ -407,242 +360,260 @@
     </button>
   </header>
 
-  <div class="main">
+  <main class="ra ra-page">
+
+    <div class="ra-pagehead">
+      <div>
+        <h1>Weekly Stats</h1>
+        <div class="meta" id="pageMeta">Staff Meeting numbers, week by week</div>
+      </div>
+      <div class="ra-toolbar">
+        <div class="ra-seg" id="periodTabs" role="group" aria-label="Period">
+          <button class="pill-tab active" data-period="weekly">Weekly</button><button class="pill-tab" data-period="monthly">Monthly</button>
+        </div>
+        <button class="ra-btn" id="currentWeekBtn" title="Show or hide the current, still-in-progress period in the big numbers and charts">Current week: Off</button>
+        <div class="ws-menu" id="editMenu">
+          <button class="ra-btn" id="editMenuBtn" aria-haspopup="true" aria-expanded="false" title="Add values, import, add a graph or reorder"><span class="g">✎</span> Edit ▾</button>
+          <div class="ws-menu-pop" id="editMenuPop" hidden>
+            <button id="addEntryBtn" title="Log a single metric value (quick correction)"><span class="g">＋</span>Quick add</button>
+            <button id="importBtn" title="Bulk import a CSV backlog"><span class="g">⇧</span>Import CSV</button>
+            <button id="createMetricBtn" title="Add a new manual metric to track"><span class="g">＋</span>Add manual graph</button>
+            <button id="reorderBtn" title="Drag-and-drop to reorder the metric cards (saved for everyone)"><span class="g">⇅</span>Reorder</button>
+          </div>
+        </div>
+        <a href="weekly-stats-entry.html" class="ra-btn primary" id="entryLinkBtn" title="Fill in this period's numbers"><span class="g">✎</span> Enter stats</a>
+      </div>
+    </div>
 
     <!-- Banner row (errors / warnings) -->
     <div id="banners"></div>
 
-    <!-- Controls row: period + division + actions -->
-    <div class="controls-row">
-      <div class="pill-tabs" id="periodTabs">
-        <button class="pill-tab active" data-period="weekly">Weekly</button>
-        <button class="pill-tab" data-period="monthly">Monthly</button>
-      </div>
-      <div class="pill-tabs" id="divisionTabs">
+    <div class="ws-bar">
+      <div class="ra-seg wrap" id="divisionTabs" role="group" aria-label="Division">
         <button class="pill-tab active" data-div="all">All</button>
-        <button class="pill-tab" data-div="staff_meeting" title="Curated set of cross-division metrics shown at the weekly Staff Meeting"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>Staff Meeting</button>
+        <button class="pill-tab" data-div="staff_meeting" title="Curated set of cross-division metrics shown at the weekly Staff Meeting">Staff Meeting</button>
         <button class="pill-tab" data-div="D2">D2 · Phone Sales</button>
-        <button class="pill-tab" data-div="D3">D3 · Recurring & Refunds</button>
+        <button class="pill-tab" data-div="D3">D3 · Recurring &amp; Refunds</button>
         <button class="pill-tab" data-div="D4">D4 · Mentorship</button>
         <button class="pill-tab" data-div="D5">D4B · Masterclass</button>
       </div>
-      <label id="assigneeFilterWrap" style="display:none;align-items:center;gap:6px;font-size:0.78rem;color:var(--text-dim);">
-        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-        <select id="assigneeFilter" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:0.78rem;cursor:pointer;max-width:220px;">
+      <span class="grow"></span>
+      <label id="assigneeFilterWrap" style="display:none;">
+        <select class="ra-select" id="assigneeFilter" aria-label="Assigned to">
           <option value="all">All people</option>
         </select>
       </label>
-      <div style="flex:1;"></div>
-      <a href="weekly-stats-entry.html" class="tbtn tbtn-success" id="entryLinkBtn" title="Fill in this period's numbers" style="text-decoration:none;padding:8px 14px;font-size:0.78rem;">📝 Enter stats</a>
-      <button class="tbtn tbtn-ghost" id="addEntryBtn" title="Log a single metric value (quick correction)" style="padding:8px 14px;font-size:0.78rem;">+ Quick add</button>
-      <button class="tbtn tbtn-ghost" id="importBtn" title="Bulk import a CSV backlog" style="padding:8px 14px;font-size:0.78rem;">⬆ Import CSV</button>
-      <button class="tbtn tbtn-ghost" id="createMetricBtn" title="Add a new manual metric to track" style="padding:8px 14px;font-size:0.78rem;">+ Add manual graph</button>
-      <button class="tbtn tbtn-ghost" id="reorderBtn" title="Drag-and-drop to reorder the metric cards (saved for everyone)" style="padding:8px 14px;font-size:0.78rem;">↕ Reorder</button>
-      <button class="tbtn tbtn-ghost" id="currentWeekBtn" title="Show or hide the current, still-in-progress period in the big numbers and charts" style="padding:8px 14px;font-size:0.78rem;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>Current week: Off</button>
     </div>
 
-    <!-- KPI strip -->
-    <div class="sec-label"><span class="sec-label-text">Highlights</span><div class="sec-label-line"></div></div>
-    <div class="kpi-grid" id="kpiGrid"></div>
+    <!-- Highlights: the 4 headline numbers of the tab -->
+    <div class="ra-stats" id="kpiGrid"></div>
 
     <!-- Reorder mode banner — only visible when reorder mode is on -->
-    <div id="reorderBar" style="display:none;align-items:center;gap:10px;padding:10px 14px;margin:14px 0;background:linear-gradient(135deg,rgba(251,191,36,0.10),rgba(167,139,250,0.08));border:1px solid rgba(251,191,36,0.35);border-radius:10px;">
-      <span style="font-size:1rem;">↕</span>
-      <div style="flex:1;font-size:0.84rem;font-weight:600;color:var(--text);">
-        Reorder mode — drag any card by its handle. Changes save for everyone when you hit Save.
-      </div>
-      <button class="tbtn tbtn-ghost" id="reorderCancelBtn" style="padding:6px 14px;font-size:0.78rem;">Cancel</button>
-      <button class="tbtn tbtn-success" id="reorderSaveBtn" style="padding:6px 14px;font-size:0.78rem;">✓ Save order</button>
+    <div id="reorderBar" class="ra-callout" style="display:none;">
+      <span class="g">⇅</span>
+      <span class="txt"><b>Reorder mode</b> — drag any card. The new order is saved for everyone when you press Save order.</span>
+      <button class="ra-btn sm ghost" id="reorderCancelBtn">Cancel</button>
+      <button class="ra-btn sm primary" id="reorderSaveBtn">✓ Save order</button>
     </div>
 
-    <!-- Chart grid -->
-    <div class="sec-label"><span class="sec-label-text">Metrics</span><div class="sec-label-line"></div></div>
+    <!-- One chart per stat -->
     <div class="chart-grid" id="chartGrid"></div>
 
-  </div>
+    <details class="ra-glossary">
+      <summary>What the numbers mean</summary>
+      <dl>
+        <dt>Week</dt><dd>Thursday to Wednesday, named by the Wednesday it ends on. Months start on the 1st. The period still running is hidden unless Current week is on, so a half-finished week doesn't look like a drop.</dd>
+        <dt>Arrow and colour</dt><dd>▲▼ show which way the number moved since the period before. Green is good for the business, orange is bad. For “lower is better” stats (refunds, resigns, reply time) a drop is green. Percentages change in points (pts).</dd>
+        <dt>The line</dt><dd>Each point is one week (or month). The line turns red where it moved the wrong way. A dashed line is a stat typed in by hand; a solid line is counted automatically.</dd>
+        <dt>Automatic and typed in</dt><dd>Automatic stats are counted from the CRM, the Sales Log and the boards. Typed stats are entered on Enter stats. A value typed for an automatic stat replaces the automatic count for that week.</dd>
+        <dt>GI</dt><dd>Gross income — money from sales before refunds and fees.</dd>
+        <dt>Staff Meeting</dt><dd>The set of stats read out at the weekly Staff Meeting.</dd>
+      </dl>
+    </details>
+
+  </main>
 </div>
 
 <!-- Drill-down modal -->
 <div class="modal-overlay" id="drillModal">
-  <div class="modal-card">
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:4px;">
-      <div style="flex:1;min-width:0;">
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="drillTitle">
+    <div class="modal-head">
+      <div>
         <div class="modal-title" id="drillTitle">Metric</div>
         <div class="modal-sub" id="drillSub"></div>
       </div>
-      <button id="drillEditBtn" title="Rename or invert this metric"
-        style="background:rgba(167,139,250,0.10);border:1px solid rgba(167,139,250,0.35);color:#a78bfa;border-radius:8px;padding:6px 12px;font-size:0.78rem;font-weight:700;cursor:pointer;white-space:nowrap;display:none;">
-        ✎ Edit metric
-      </button>
-    </div>
-
-    <!-- Inline edit form — hidden until ✎ Edit is clicked -->
-    <div id="drillEditForm" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px;margin:8px 0 14px;">
-      <div style="display:grid;grid-template-columns:1fr;gap:10px;">
-        <div>
-          <label style="font-size:0.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:4px;">Label</label>
-          <input id="drillEditLabel" type="text" maxlength="120"
-            style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:0.88rem;outline:none;">
-        </div>
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.84rem;user-select:none;">
-          <input id="drillEditInvert" type="checkbox" style="width:16px;height:16px;cursor:pointer;">
-          <span><strong>Lower is better</strong> — flip Y-axis so higher values appear lower in the chart (useful for refunds, resigns, disputes lost, etc.)</span>
-        </label>
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.84rem;user-select:none;">
-          <input id="drillEditPointLabels" type="checkbox" style="width:16px;height:16px;cursor:pointer;">
-          <span><strong>Show value at each point</strong> — print the numeric value above every data point on the line (like the Data Studio version).</span>
-        </label>
-        <div>
-          <label style="font-size:0.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:4px;">Also show in these tabs</label>
-          <div id="drillEditTabs" style="display:flex;flex-wrap:wrap;gap:8px;font-size:0.82rem;">
-            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" data-tab="D2"> D2 · Phone Sales</label>
-            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" data-tab="D3"> D3 · Recurring</label>
-            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" data-tab="D4"> D4 · Mentorship</label>
-            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" data-tab="D5"> D4B · Masterclass</label>
-            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" data-tab="monthly"> Monthly</label>
-            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" id="drillEditStaff"> <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> Staff Meeting</label>
-          </div>
-          <div style="font-size:0.7rem;color:var(--text-dim);margin-top:4px;">The metric's <em>home</em> tab (where you enter data) stays the same — these are additional places it'll appear.</div>
-        </div>
-        <div>
-          <label style="font-size:0.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:4px;">Assigned to</label>
-          <div id="drillEditAssignees" style="display:flex;flex-wrap:wrap;gap:8px;font-size:0.82rem;max-height:140px;overflow:auto;"></div>
-          <div style="font-size:0.7rem;color:var(--text-dim);margin-top:4px;">Tag the people responsible for this stat. Use the <strong>Assigned to</strong> filter at the top to view one person's stats. The value itself is shared.</div>
-        </div>
-        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px;">
-          <button class="btn-ghost" id="drillEditCancel" style="padding:7px 14px;font-size:0.78rem;">Cancel</button>
-          <button class="btn-primary" id="drillEditSave" style="padding:7px 14px;font-size:0.78rem;">Save</button>
-        </div>
-        <div id="drillEditMsg" style="font-size:0.78rem;color:var(--text-dim);min-height:1em;"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="ra-btn" id="drillEditBtn" title="Rename or change this metric" style="display:none;"><span class="g">✎</span> Edit metric</button>
+        <button class="ra-btn ghost" id="drillClose">Close</button>
       </div>
     </div>
 
-    <div style="height:260px;position:relative;"><canvas id="drillChart"></canvas></div>
-    <div id="drillTableWrap" style="margin-top:18px;"></div>
-    <div class="modal-actions">
-      <button class="btn-ghost" id="drillClose">Close</button>
+    <!-- Inline edit form — hidden until ✎ Edit is clicked -->
+    <div id="drillEditForm" class="ws-form" style="display:none;">
+      <div>
+        <label class="ws-lab" for="drillEditLabel">Label</label>
+        <input id="drillEditLabel" class="ws-input" type="text" maxlength="120">
+      </div>
+      <label class="ws-check">
+        <input id="drillEditInvert" type="checkbox">
+        <span><strong>Lower is better</strong> — a drop shows green and a rise orange (refunds, resigns, disputes lost, reply time).</span>
+      </label>
+      <label class="ws-check">
+        <input id="drillEditPointLabels" type="checkbox">
+        <span><strong>Show value at each point</strong> — print the number above every week on the chart.</span>
+      </label>
+      <div>
+        <span class="ws-lab">Also show in these tabs</span>
+        <div id="drillEditTabs" class="ws-checks">
+          <label><input type="checkbox" data-tab="D2"> D2 · Phone Sales</label>
+          <label><input type="checkbox" data-tab="D3"> D3 · Recurring</label>
+          <label><input type="checkbox" data-tab="D4"> D4 · Mentorship</label>
+          <label><input type="checkbox" data-tab="D5"> D4B · Masterclass</label>
+          <label><input type="checkbox" data-tab="monthly"> Monthly</label>
+          <label><input type="checkbox" id="drillEditStaff"> Staff Meeting</label>
+        </div>
+        <div class="ws-hint">The metric's <em>home</em> tab (where you enter data) stays the same — these are additional places it'll appear.</div>
+      </div>
+      <div>
+        <span class="ws-lab">Assigned to</span>
+        <div id="drillEditAssignees" class="ws-checks" style="max-height:140px;overflow:auto;"></div>
+        <div class="ws-hint">Tag the people responsible for this stat. Use the <strong>Assigned to</strong> filter at the top to view one person's stats. The value itself is shared.</div>
+      </div>
+      <div class="modal-actions">
+        <button class="ra-btn ghost" id="drillEditCancel">Cancel</button>
+        <button class="ra-btn primary" id="drillEditSave">Save</button>
+      </div>
+      <div id="drillEditMsg" class="ws-msg"></div>
     </div>
+
+    <div id="drillChartWrap"><canvas id="drillChart"></canvas></div>
+    <div id="drillTableWrap"></div>
   </div>
 </div>
 
 <!-- Add entry modal -->
 <div class="modal-overlay" id="addModal">
-  <div class="modal-card" style="max-width:520px;">
-    <div class="modal-title">Log a metric value</div>
-    <div class="modal-sub">Only manual metrics can be edited — derived metrics auto-compute from existing data.</div>
+  <div class="modal-card narrow" role="dialog" aria-modal="true" aria-labelledby="addTitle">
+    <div>
+      <div class="modal-title" id="addTitle">Log a metric value</div>
+      <div class="modal-sub">Only manual metrics can be edited — derived metrics auto-compute from existing data.</div>
+    </div>
     <div class="modal-row">
       <div class="field">
-        <label class="field-label">Metric</label>
+        <label class="field-label" for="addMetric">Metric</label>
         <select class="field-select" id="addMetric"></select>
       </div>
     </div>
     <div class="modal-row">
       <div class="field">
-        <label class="field-label">Period type</label>
+        <label class="field-label" for="addPeriodType">Period type</label>
         <select class="field-select" id="addPeriodType">
           <option value="weekly">Weekly</option>
           <option value="monthly">Monthly</option>
         </select>
       </div>
       <div class="field">
-        <label class="field-label">Week ending (Wed) · or 1st of month</label>
+        <label class="field-label" for="addPeriodStart">Week ending (Wed) · or 1st of month</label>
         <input type="date" class="field-input" id="addPeriodStart">
       </div>
     </div>
     <div class="modal-row">
       <div class="field">
-        <label class="field-label">Value</label>
+        <label class="field-label" for="addValue">Value</label>
         <input type="number" step="0.01" class="field-input" id="addValue">
       </div>
     </div>
     <div class="modal-row">
       <div class="field">
-        <label class="field-label">Notes (optional)</label>
+        <label class="field-label" for="addNotes">Notes (optional)</label>
         <textarea class="field-textarea" id="addNotes"></textarea>
       </div>
     </div>
-    <div id="addError" style="color:var(--red);font-size:0.78rem;min-height:1em;"></div>
+    <div id="addError" class="ws-err"></div>
     <div class="modal-actions">
-      <button class="btn-ghost" id="addCancel">Cancel</button>
-      <button class="tbtn tbtn-success" id="addSave" style="padding:9px 18px;">Save</button>
+      <button class="ra-btn ghost" id="addCancel">Cancel</button>
+      <button class="ra-btn primary" id="addSave">Save</button>
     </div>
   </div>
 </div>
 
 <!-- Import modal -->
 <div class="modal-overlay" id="importModal">
-  <div class="modal-card">
-    <div class="modal-title">Import backlog</div>
-    <div class="modal-sub">Paste CSV/TSV from the Google Sheet (Export → Download → CSV), or drop a file. Three columns required: <code>metric_key</code>, <code>period_start</code> (YYYY-MM-DD), <code>value_num</code>. Optional: <code>period_type</code> (default weekly), <code>notes</code>.</div>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="importTitle">
+    <div>
+      <div class="modal-title" id="importTitle">Import backlog</div>
+      <div class="modal-sub">Paste CSV/TSV from the Google Sheet (Export → Download → CSV), or drop a file. Three columns required: <code>metric_key</code>, <code>period_start</code> (YYYY-MM-DD), <code>value_num</code>. Optional: <code>period_type</code> (default weekly), <code>notes</code>.</div>
+    </div>
 
-    <div class="import-step-label">1 · Paste or drop CSV</div>
-    <textarea class="import-area" id="importText" placeholder="metric_key,period_type,period_start,value_num
+    <div>
+      <div class="import-step-label">1 · Paste or drop CSV</div>
+      <textarea class="import-area" id="importText" placeholder="metric_key,period_type,period_start,value_num
 refunds_salvaged_amount,weekly,2026-04-22,18230
 disputes_won,weekly,2026-04-22,2
 ..."></textarea>
-
-    <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;align-items:center;">
-      <button class="btn-ghost" id="importParse">Preview rows ↓</button>
-      <input type="file" id="importFile" accept=".csv,.tsv,.txt" style="font-size:0.78rem;color:var(--text-muted);">
-      <span style="font-size:0.7rem;color:var(--text-dim);">Or drag a file onto the box above</span>
     </div>
 
-    <div id="importPreview" style="margin-top:18px;"></div>
+    <div class="ws-row">
+      <button class="ra-btn" id="importParse">Preview rows ↓</button>
+      <input type="file" id="importFile" accept=".csv,.tsv,.txt">
+      <span class="ws-hint" style="margin:0;">Or drag a file onto the box above</span>
+    </div>
+
+    <div id="importPreview"></div>
 
     <div class="modal-actions">
-      <button class="btn-ghost" id="importCancel">Cancel</button>
-      <button class="tbtn tbtn-primary" id="importConfirm" style="padding:9px 18px;" disabled>Import (0 rows)</button>
+      <button class="ra-btn ghost" id="importCancel">Cancel</button>
+      <button class="ra-btn primary" id="importConfirm" disabled>Import (0 rows)</button>
     </div>
   </div>
 </div>
 
 <!-- Create-metric modal (admin / weekly_stats.edit only) -->
 <div class="modal-overlay" id="createMetricModal">
-  <div class="modal-card">
-    <div class="modal-title">Add manual graph</div>
-    <div class="modal-sub" style="margin-bottom:14px;">Create a new metric you'll fill in manually each week. After it's created you can enter values from the Enter Stats sheet or the metric's drilldown.</div>
-    <div style="display:grid;grid-template-columns:1fr;gap:12px;">
-      <div>
-        <label style="font-size:0.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:4px;">Name</label>
-        <input id="cmLabel" type="text" maxlength="120" placeholder="e.g. Coaching no-shows"
-          style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:0.92rem;outline:none;">
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-        <div>
-          <label style="font-size:0.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:4px;">Home tab</label>
-          <select id="cmDivision" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:0.88rem;outline:none;">
-            <option value="D2">D2 · Phone Sales</option>
-            <option value="D3">D3 · Recurring &amp; Refunds</option>
-            <option value="D4" selected>D4 · Mentorship</option>
-            <option value="D5">D4B · Masterclass</option>
-            <option value="monthly">Monthly</option>
-          </select>
-        </div>
-        <div>
-          <label style="font-size:0.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:4px;">Unit</label>
-          <select id="cmUnit" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:0.88rem;outline:none;">
-            <option value="count" selected>Count</option>
-            <option value="usd">Dollars ($)</option>
-            <option value="pct">Percentage (%)</option>
-          </select>
-        </div>
-      </div>
-      <div>
-        <label style="font-size:0.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:4px;">Also show in</label>
-        <div id="cmTabs" style="display:flex;flex-wrap:wrap;gap:8px;font-size:0.82rem;">
-          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" data-tab="D2"> D2</label>
-          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" data-tab="D3"> D3</label>
-          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" data-tab="D4"> D4</label>
-          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" data-tab="D5"> D5</label>
-          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" data-tab="monthly"> Monthly</label>
-          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" id="cmStaff"> <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> Staff Meeting</label>
-        </div>
-      </div>
-      <div id="cmMsg" style="font-size:0.78rem;color:var(--text-dim);min-height:1em;"></div>
+  <div class="modal-card narrow" role="dialog" aria-modal="true" aria-labelledby="cmTitle">
+    <div>
+      <div class="modal-title" id="cmTitle">Add manual graph</div>
+      <div class="modal-sub">Create a new metric you'll fill in manually each week. After it's created you can enter values from the Enter Stats sheet or the metric's drilldown.</div>
     </div>
+    <div>
+      <label class="ws-lab" for="cmLabel">Name</label>
+      <input id="cmLabel" class="ws-input" type="text" maxlength="120" placeholder="e.g. Coaching no-shows">
+    </div>
+    <div class="modal-row">
+      <div class="field">
+        <label class="ws-lab" for="cmDivision">Home tab</label>
+        <select id="cmDivision" class="field-select">
+          <option value="D2">D2 · Phone Sales</option>
+          <option value="D3">D3 · Recurring &amp; Refunds</option>
+          <option value="D4" selected>D4 · Mentorship</option>
+          <option value="D5">D4B · Masterclass</option>
+          <option value="monthly">Monthly</option>
+        </select>
+      </div>
+      <div class="field">
+        <label class="ws-lab" for="cmUnit">Unit</label>
+        <select id="cmUnit" class="field-select">
+          <option value="count" selected>Count</option>
+          <option value="usd">Dollars ($)</option>
+          <option value="pct">Percentage (%)</option>
+        </select>
+      </div>
+    </div>
+    <div>
+      <span class="ws-lab">Also show in</span>
+      <div id="cmTabs" class="ws-checks">
+        <label><input type="checkbox" data-tab="D2"> D2</label>
+        <label><input type="checkbox" data-tab="D3"> D3</label>
+        <label><input type="checkbox" data-tab="D4"> D4</label>
+        <label><input type="checkbox" data-tab="D5"> D4B</label>
+        <label><input type="checkbox" data-tab="monthly"> Monthly</label>
+        <label><input type="checkbox" id="cmStaff"> Staff Meeting</label>
+      </div>
+    </div>
+    <div id="cmMsg" class="ws-msg"></div>
     <div class="modal-actions">
-      <button class="btn-ghost" id="cmCancel">Cancel</button>
-      <button class="btn-primary" id="cmSave">Create</button>
+      <button class="ra-btn ghost" id="cmCancel">Cancel</button>
+      <button class="ra-btn primary" id="cmSave">Create</button>
     </div>
   </div>
 </div>

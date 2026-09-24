@@ -43,24 +43,28 @@ const fmtCount = (v) => v == null ? '—' : Number(v).toLocaleString();
 // raw percent (so 47.5 means 47.5%, not 0.475 — keeps manual entry sane).
 const fmtPctVal = (v) => v == null ? '—' : Number(v).toFixed(1) + '%';
 const fmtVal   = (v, unit) => unit === 'usd' ? fmtMoney(v) : (unit === 'pct' ? fmtPctVal(v) : fmtCount(v));
-const fmtPct   = (cur, prev, invert = false) => {
-  // For inverted (lower-is-better) metrics, a drop is an improvement, so the
-  // displayed % is sign-flipped: e.g. raw -83% reads as +83%.
-  if (prev == null || prev === 0) return cur > 0 ? (invert ? '-∞' : '+∞') : '0%';
-  let pct = ((cur - prev) / Math.abs(prev)) * 100;
-  if (invert) pct = -pct;
-  return (pct >= 0 ? '+' : '') + pct.toFixed(0) + '%';
-};
-
-// Arrow + color class + signed % for a delta, accounting for lower-is-better
-// (inverted) metrics where a decrease is good (green ▲) and an increase is
-// bad (red ▼). `flatCls` lets callers pick the zero-change class ('' vs 'flat').
-function deltaParts(current, previous, invert, flatCls = 'flat') {
-  const dir = invert ? (previous - current) : (current - previous); // >0 = good
-  const cls = dir > 0 ? 'up' : dir < 0 ? 'down' : flatCls;
-  const arrow = dir > 0 ? '▲' : dir < 0 ? '▼' : '–';
-  return { cls, arrow, pct: fmtPct(current, previous, invert) };
+// Change vs the period before, as a Ridley delta: the arrow shows which way the
+// number moved, the colour shows whether that is good for the business (for
+// lower-is-better metrics a drop is green). Rates change in points.
+function raDelta(cur, prev, invert, unit) {
+  if (cur == null || prev == null) return '<span class="ra-delta flat">—</span>';
+  cur = Number(cur); prev = Number(prev);
+  if (unit === 'pct') {
+    const d = Math.round((cur - prev) * 10) / 10;
+    if (!d) return '<span class="ra-delta same">0 pts</span>';
+    return `<span class="ra-delta ${d > 0 ? 'up' : 'down'} ${(invert ? d < 0 : d > 0) ? 'good' : 'bad'}">${Math.abs(d).toFixed(1)} pts</span>`;
+  }
+  if (!prev) {
+    if (!cur) return '<span class="ra-delta same">0%</span>';
+    return `<span class="ra-delta ${cur > 0 ? 'up' : 'down'} ${(invert ? cur < 0 : cur > 0) ? 'good' : 'bad'}">new</span>`;
+  }
+  const d = Math.round(100 * (cur - prev) / Math.abs(prev));
+  if (!d) return '<span class="ra-delta same">0%</span>';
+  return `<span class="ra-delta ${d > 0 ? 'up' : 'down'} ${(invert ? d < 0 : d > 0) ? 'good' : 'bad'}">${Math.abs(d)}%</span>`;
 }
+// Design-token colour, read at draw time so charts follow Paper / Stage.
+const tok = (name) => getComputedStyle(document.body).getPropertyValue(name).trim();
+const periodWord = () => activePeriod === 'weekly' ? 'week' : 'month';
 
 // ── State machine ───────────────────────────────────────────────────
 function setState(s) { document.body.dataset.state = s; }
@@ -271,12 +275,12 @@ function renderSkeleton() {
   const grid = document.getElementById('chartGrid');
   if (kpi) {
     kpi.innerHTML = Array.from({ length: 4 }).map(() =>
-      `<div class="kpi-card skel-card" aria-hidden="true"></div>`
+      `<div class="ra-stat skel" aria-hidden="true"><span class="ra-skel" style="height:12px;width:60%"></span><span class="ra-skel" style="height:28px;width:45%"></span></div>`
     ).join('');
   }
   if (grid) {
     grid.innerHTML = Array.from({ length: count }).map(() =>
-      `<div class="chart-card skel-card" aria-hidden="true" style="height:236px;"></div>`
+      `<div class="chart-card skel" aria-hidden="true"><span class="ra-skel" style="height:14px;width:55%"></span><span class="ra-skel" style="height:26px;width:35%"></span><span class="ra-skel" style="flex:1 1 auto;"></span></div>`
     ).join('');
   }
 }
@@ -291,7 +295,8 @@ function spin(on) {
 function setBanner(msg, kind) {
   const el = document.getElementById('banners');
   if (!msg) { el.innerHTML = ''; return; }
-  el.innerHTML = `<div class="banner banner-${kind || 'info'}">${escapeHtml(msg)}</div>`;
+  const tone = kind === 'error' ? 'negative' : kind === 'warn' ? 'caution' : '';
+  el.innerHTML = `<div class="ra-callout ${tone}"><span class="g">${tone ? '⚠' : '▤'}</span><span>${escapeHtml(msg)}</span></div>`;
 }
 
 function escapeHtml(s) {
@@ -388,12 +393,12 @@ function updateCurrentPeriodBtn() {
   const b = document.getElementById('currentWeekBtn');
   if (!b) return;
   const unit = activePeriod === 'monthly' ? 'month' : 'week';
-  const svgAttrs = 'xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;"';
-  const eyeOn  = `<svg ${svgAttrs}><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
-  const eyeOff = `<svg ${svgAttrs}><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
-  b.innerHTML = (_showCurrentPeriod ? eyeOn : eyeOff) + 'Current ' + unit + ': ' + (_showCurrentPeriod ? 'On' : 'Off');
-  if (_showCurrentPeriod) { b.style.borderColor = 'var(--gold)'; b.style.color = 'var(--gold)'; }
-  else { b.style.borderColor = ''; b.style.color = ''; }
+  b.textContent = 'Current ' + unit + ': ' + (_showCurrentPeriod ? 'On' : 'Off');
+  b.setAttribute('aria-pressed', String(_showCurrentPeriod));
+  const meta = document.getElementById('pageMeta');
+  if (meta) meta.textContent = _showCurrentPeriod
+    ? `Includes the ${unit} still running · each number vs the ${unit} before`
+    : `Finished ${unit}s only · each number vs the ${unit} before`;
 }
 
 function _enterReorderMode() {
@@ -496,20 +501,17 @@ function renderKpiStrip(visible) {
   const grid = document.getElementById('kpiGrid');
   const picks = pickHighlights(visible);
   if (!picks.length) {
-    grid.innerHTML = `<div style="grid-column:1/-1;color:var(--text-dim);font-size:0.84rem;padding:24px;text-align:center;">No metrics for this view.</div>`;
+    grid.innerHTML = `<div class="ra-stat ra-empty" style="grid-column:1/-1;">No metrics for this view.</div>`;
     return;
   }
-  const colors = ['var(--green)','var(--blue)','var(--purple)','var(--gold)'];
-  const glows  = ['var(--green-glow)','var(--blue-glow)','rgba(167,139,250,0.3)','rgba(251,191,36,0.3)'];
-  grid.innerHTML = picks.map((m, i) => {
+  grid.innerHTML = picks.map(m => {
     const pts = displayPoints(seriesByMetric.get(m.key) || []);
     const { current, previous } = lastTwoValues(pts);
-    const { cls, arrow, pct } = deltaParts(current, previous, !!m.invert_chart, 'flat');
     return `
-      <div class="kpi-card" style="--c-color:${colors[i]};--c-glow:${glows[i]};">
-        <div class="kpi-label">${escapeHtml(m.label)}</div>
-        <div class="kpi-value">${fmtVal(current, m.unit)}</div>
-        <div class="kpi-delta ${cls}">${arrow} ${pct} <span style="color:var(--text-dim);font-weight:600;margin-left:4px;">vs prior ${activePeriod === 'weekly' ? 'week' : 'month'}</span></div>
+      <div class="ra-stat">
+        <span class="l">${escapeHtml(m.label)}</span>
+        <span class="n">${fmtVal(current, m.unit)}</span>
+        <span class="sub">${raDelta(current, previous, !!m.invert_chart, m.unit)}<span class="vsw">vs ${fmtVal(previous, m.unit)} the ${periodWord()} before</span></span>
       </div>`;
   }).join('');
 }
@@ -521,29 +523,31 @@ function renderChartGrid(visible) {
   chartInstances.clear();
 
   if (!visible.length) {
-    grid.innerHTML = `<div style="grid-column:1/-1;color:var(--text-dim);font-size:0.84rem;padding:36px;text-align:center;">No metrics in this view yet.</div>`;
+    grid.innerHTML = `<div class="ra-card ra-empty ws-empty"><b>No metrics in this view yet.</b><span>Pick another tab, or clear the Assigned to filter.</span></div>`;
     return;
   }
 
   grid.innerHTML = visible.map(m => {
     const pts = displayPoints(seriesByMetric.get(m.key) || []);
     const { current, previous } = lastTwoValues(pts);
-    const { cls, arrow } = deltaParts(current, previous, !!m.invert_chart, '');
-    const pct = fmtPct(current, previous, !!m.invert_chart);
+    const owners = (Array.isArray(m.assigned_user_ids) ? m.assigned_user_ids : []).map(id => assigneeById[id]).filter(Boolean);
     return `
-      <div class="chart-card" data-key="${escapeHtml(m.key)}" style="position:relative;">
-        <div class="reorder-handle" title="Drag to move">⋮⋮</div>
+      <div class="chart-card" data-key="${escapeHtml(m.key)}">
         <div class="chart-card-head">
           <div class="chart-card-title">${escapeHtml(m.label)}</div>
-          <div class="chart-card-source ${m.source === 'derived' ? 'src-derived' : 'src-manual'}">${m.source}</div>
+          <div class="reorder-handle" title="Drag to move">⋮⋮</div>
         </div>
         <div class="chart-card-now">
           <span class="chart-card-value">${fmtVal(current, m.unit)}</span>
-          <span class="chart-card-delta ${cls}">${arrow} ${pct}</span>
+          ${raDelta(current, previous, !!m.invert_chart, m.unit)}
+          <span class="chart-card-vs">vs ${fmtVal(previous, m.unit)}</span>
         </div>
         <div class="chart-card-wrap"><canvas id="c-${cssId(m.key)}"></canvas></div>
-        <div class="chart-card-foot">${pts.length} ${activePeriod === 'weekly' ? 'weeks' : 'months'} · ${m.division === 'D5' ? 'D4B' : m.division} · click to expand</div>
-        ${(Array.isArray(m.assigned_user_ids) && m.assigned_user_ids.length) ? `<div class="chart-card-assignees" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;">${m.assigned_user_ids.map(id => { const a = assigneeById[id]; if (!a) return ''; return `<span title="${escapeHtml(a.name)}" style="display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 5px;border-radius:10px;background:var(--surface2);border:1px solid var(--border);font-size:0.6rem;font-weight:700;color:var(--text-muted);">${escapeHtml(assigneeInitials(a.name))}</span>`; }).join('')}</div>` : ''}
+        <div class="chart-card-foot">
+          <span>${m.source === 'derived' ? 'Automatic' : 'Typed in'}${m.invert_chart ? ' · lower is better' : ''}</span>
+          <span class="sp"></span>
+          ${owners.map(a => `<span class="ws-av" title="${escapeHtml(a.name)}">${escapeHtml(assigneeInitials(a.name))}</span>`).join('')}
+        </div>
       </div>`;
   }).join('');
 
@@ -568,21 +572,16 @@ function renderChartGrid(visible) {
 
 function cssId(s) { return String(s).replace(/[^a-zA-Z0-9_-]/g, '_'); }
 
-function makeMiniChart(canvas, points, metric) {
+function makeMiniChart(canvas, points, metric, big = false) {
   const ctx = canvas.getContext('2d');
   const isUsd = metric.unit === 'usd';
   const isPct = metric.unit === 'pct';
-  // Per-segment trend colouring — soft cream for up, coral for down. The
-  // line carries the trend story; the FILL beneath stays neutral (a faint
-  // slate wash) so a down-then-up series doesn't read as "all bad" just
-  // because the overall delta was negative.
-  // Clean two-tone line: theme-aware "up" colour (white on dark, near-
-  // black on light), red on every down segment regardless of theme. No
-  // outline, no fill, no point clutter — the line itself does all the
-  // work. Theme is determined the same way the page does it.
-  const isLight = document.body.classList.contains('light');
-  const UP   = isLight ? '#0f172a' : '#ffffff';        // slate-900 / white
-  const DOWN = '#ef4444';                              // red-500 down
+  // Two-tone line: graphite (--viz-1) where the number moved the right way,
+  // clear red (--ws-chart-down, page token) where it moved the wrong way — for
+  // lower-is-better metrics a rise is the wrong way. No fill.
+  const UP   = tok('--viz-1');
+  const DOWN = tok('--ws-chart-down') || tok('--viz-2');
+  const INK_FAINT = tok('--ink-faint');
 
   const seriesData = points.map(p => p.value);
   // Pre-compute a "nice" Y-axis: rounded min/max + a stepSize that all
@@ -627,11 +626,11 @@ function makeMiniChart(canvas, points, metric) {
       if (!meta?.data?.length) return;
       const c = chart.ctx;
       c.save();
-      c.font = '600 10px -apple-system, BlinkMacSystemFont, "Inter", sans-serif';
+      c.font = '600 10px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
       c.textAlign = 'center';
       c.textBaseline = 'bottom';
-      c.fillStyle   = isLight ? '#0f172a' : '#e5e7eb';
-      c.strokeStyle = isLight ? 'rgba(255,255,255,0.85)' : 'rgba(15,18,32,0.85)';
+      c.fillStyle   = tok('--ink-muted');
+      c.strokeStyle = tok('--surface');
       c.lineWidth = 3;
       const area = chart.chartArea;
       // Track every rectangle we've already drawn so we can skip any new
@@ -717,10 +716,13 @@ function makeMiniChart(canvas, points, metric) {
               return isBad ? DOWN : UP;
             },
           },
-          pointRadius: 0,                              // no clutter — hover reveals
+          // only the latest point is marked (the big chart marks every week)
+          pointRadius: (c) => (big || c.dataIndex === seriesData.length - 1) ? 3 : 0,
+          pointBackgroundColor: UP,
+          pointBorderWidth: 0,
           pointHoverRadius: 4,
           pointHoverBackgroundColor: UP,
-          pointHoverBorderColor: isLight ? '#ffffff' : '#0f1220',
+          pointHoverBorderColor: tok('--surface'),
           pointHoverBorderWidth: 2,
           spanGaps: true,
           borderDash: metric.source === 'manual' ? [4, 3] : [],
@@ -735,12 +737,13 @@ function makeMiniChart(canvas, points, metric) {
       plugins: {
         legend: { display: false },
         tooltip: {
-          backgroundColor: 'rgba(15,18,32,0.95)',
-          borderColor: 'rgba(255,255,255,0.08)',
+          backgroundColor: tok('--surface'),
+          borderColor: tok('--line'),
           borderWidth: 1,
           padding: 8,
-          titleColor: '#e5e7eb',
-          bodyColor: '#cbd5e1',
+          cornerRadius: 5,
+          titleColor: tok('--ink'),
+          bodyColor: tok('--ink'),
           titleFont: { size: 11, weight: '600' },
           bodyFont: { size: 11 },
           displayColors: false,
@@ -758,13 +761,13 @@ function makeMiniChart(canvas, points, metric) {
       scales: {
         x: {
           ticks: {
-            color: '#8a93b8',
-            font: { size: 9, weight: '500' },
-            autoSkip: false,                          // show EVERY week
-            maxRotation: 50,
-            minRotation: 50,
+            color: INK_FAINT,
+            font: { size: 10 },
+            autoSkip: true,                           // skip labels that would collide
+            autoSkipPadding: 6,
+            maxRotation: 0,
             padding: 4,
-            // Compact M/D so 13+ weekly labels fit when rotated 50deg.
+            // Compact M/D
             callback: function (val) {
               const raw = this.getLabelForValue(val);
               const d = new Date(raw);
@@ -772,17 +775,17 @@ function makeMiniChart(canvas, points, metric) {
               return (d.getUTCMonth() + 1) + '/' + d.getUTCDate();
             },
           },
-          grid: { display: false, drawTicks: true, tickColor: 'rgba(255,255,255,0.12)', tickLength: 4 },
-          border: { color: 'rgba(255,255,255,0.08)' },
+          grid: { display: false },
+          border: { display: false },
         },
         y: {
           ticks: {
-            color: '#8a93b8',
+            color: INK_FAINT,
             font: { size: 10 },
             padding: 6,
-            // Force ticks to land exactly on multiples of the niceStep so
-            // every horizontal gridline sits at an even interval.
-            stepSize: yScale?.stepSize,
+            // A few calm gridlines; Chart.js picks round values inside the
+            // nice bounds computed above.
+            maxTicksLimit: big ? 6 : 4,
             callback: (v) => {
               // Round every tick label to a clean integer (or 1 decimal for
               // pct) — defensive, in case Chart.js emits a fractional tick.
@@ -791,13 +794,11 @@ function makeMiniChart(canvas, points, metric) {
               return Math.round(v);
             },
           },
-          grid: { color: 'rgba(255,255,255,0.04)', drawTicks: false },
+          grid: { color: tok('--viz-grid'), drawTicks: false },
           border: { display: false },
-          ...(yScale ? { min: yScale.min, max: yScale.max } : { beginAtZero: true }),
-          // "Lower is better" metrics flip the axis so a rising chart still
-          // reads as good. Combined with our existing red-down / white-up
-          // segment colour, a refund spike now draws DOWNWARD-and-red.
-          reverse: !!metric.invert_chart,
+          ...(yScale ? { suggestedMin: yScale.min, suggestedMax: yScale.max } : { beginAtZero: true }),
+          // Lower-is-better metrics are no longer drawn upside down — the line
+          // colour already shows which way is good.
         },
       },
     },
@@ -810,7 +811,7 @@ function openDrilldown(metricKey) {
   if (!m) return;
   const pts = seriesByMetric.get(metricKey) || [];
   document.getElementById('drillTitle').textContent = m.label;
-  document.getElementById('drillSub').textContent = `${m.division} · ${m.source === 'derived' ? 'auto-computed from existing data' : 'manually entered / imported'} · ${pts.length} data points${m.invert_chart ? ' · lower-is-better (Y-axis inverted)' : ''}`;
+  document.getElementById('drillSub').textContent = `${m.division === 'D5' ? 'D4B' : m.division} · ${m.source === 'derived' ? 'counted automatically' : 'typed in / imported'} · ${pts.length} ${activePeriod === 'weekly' ? 'weeks' : 'months'}${m.invert_chart ? ' · lower is better' : ''}`;
 
   // Edit-metric button + form: only visible for users who can edit.
   const editBtn = document.getElementById('drillEditBtn');
@@ -841,8 +842,8 @@ function openDrilldown(metricKey) {
   if (assignWrap) {
     const assigned = new Set(Array.isArray(m.assigned_user_ids) ? m.assigned_user_ids : []);
     assignWrap.innerHTML = assignees.length
-      ? assignees.map(a => `<label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" data-uid="${escapeHtml(a.id)}" ${assigned.has(a.id) ? 'checked' : ''}> ${escapeHtml(a.name)}</label>`).join('')
-      : '<span style="color:var(--text-dim);">No assignable users found.</span>';
+      ? assignees.map(a => `<label><input type="checkbox" data-uid="${escapeHtml(a.id)}" ${assigned.has(a.id) ? 'checked' : ''}> ${escapeHtml(a.name)}</label>`).join('')
+      : '<span class="ws-hint">No assignable users found.</span>';
   }
   document.getElementById('drillEditMsg').textContent = '';
 
@@ -851,7 +852,7 @@ function openDrilldown(metricKey) {
   // table below still lists every row so the current period stays editable.
   if (drillChartInst) { try { drillChartInst.destroy(); } catch (_) {} drillChartInst = null; }
   const canvas = document.getElementById('drillChart');
-  drillChartInst = makeMiniChart(canvas, displayPoints(pts), m);
+  drillChartInst = makeMiniChart(canvas, displayPoints(pts), m, true);
 
   // Raw rows table — editable for manual metrics, "Add new" row on top.
   const wrap = document.getElementById('drillTableWrap');
@@ -872,15 +873,15 @@ function openDrilldown(metricKey) {
   })();
   const showActions = canMutate;  // both manual + derived: we allow override via bulk-import
   wrap.innerHTML = `
-    <div style="font-size:0.7rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">Raw values${m.source === 'derived' ? ' · derived metric — your entries OVERRIDE the auto-computed value for that period' : ''}</div>
-    <table class="raw-table">
+    <div class="ws-tablelabel">Every ${periodWord()}${m.source === 'derived' ? ' <span>· a value you enter replaces the automatic count for that period</span>' : ''}</div>
+    <div class="ws-tablebox"><table class="raw-table">
       <thead><tr><th>${headerLabel}</th><th style="text-align:right;">Value</th>${showActions ? '<th style="text-align:right;">Actions</th>' : ''}</tr></thead>
       <tbody>
         ${canMutate ? `
-          <tr id="addRow" style="background:var(--surface2);">
-            <td><input type="date" id="addRowDate" class="row-edit" style="width:140px;text-align:left;" value="${defaultNewDate}"></td>
-            <td class="td-num"><input type="number" step="0.01" id="addRowValue" class="row-edit" placeholder="${m.unit === 'usd' ? '$' : ''}new value"></td>
-            <td style="text-align:right;"><button class="row-save-btn" id="addRowSave" style="background:rgba(52,211,153,0.18);border:1px solid rgba(52,211,153,0.4);color:var(--green);border-radius:6px;padding:4px 12px;font-size:0.72rem;font-weight:800;cursor:pointer;font-family:inherit;">+ Add</button></td>
+          <tr id="addRow" class="add-row">
+            <td><input type="date" id="addRowDate" class="row-edit" style="width:150px;text-align:left;" value="${defaultNewDate}" aria-label="Period"></td>
+            <td class="td-num"><input type="number" step="0.01" id="addRowValue" class="row-edit" placeholder="${m.unit === 'usd' ? '$' : ''}new value" aria-label="New value"></td>
+            <td class="acts"><button class="ra-btn sm" id="addRowSave">＋ Add</button></td>
           </tr>
         ` : ''}
         ${rows.map(p => `
@@ -891,11 +892,11 @@ function openDrilldown(metricKey) {
                 ? `<input type="number" step="0.01" class="row-edit" value="${p.value ?? ''}" data-orig="${p.value ?? ''}">`
                 : fmtVal(p.value, m.unit)
             }</td>
-            ${showActions ? `<td style="text-align:right;"><button class="btn-ghost row-save" style="padding:4px 10px;font-size:0.72rem;">Save</button> <button class="btn-danger row-del" style="padding:4px 10px;font-size:0.72rem;">×</button></td>` : ''}
+            ${showActions ? `<td class="acts"><button class="ra-btn sm ghost row-save">Save</button> <button class="ra-btn sm ghost row-del" title="Delete this value">×</button></td>` : ''}
           </tr>
         `).join('')}
       </tbody>
-    </table>
+    </table></div>
   `;
 
   // Wire "Add new" row.
@@ -994,7 +995,7 @@ document.getElementById('drillClose').addEventListener('click', closeDrillModal)
 document.getElementById('drillEditBtn')?.addEventListener('click', () => {
   const form = document.getElementById('drillEditForm');
   const open = form.style.display === 'none' || !form.style.display;
-  form.style.display = open ? 'block' : 'none';
+  form.style.display = open ? 'grid' : 'none';
   if (open) document.getElementById('drillEditLabel').focus();
 });
 document.getElementById('drillEditCancel')?.addEventListener('click', () => {
@@ -1079,6 +1080,7 @@ document.getElementById('drillEditSave')?.addEventListener('click', async () => 
 });
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
+  closeEditMenu();
   const open = document.querySelector('.modal-overlay.open');
   if (!open) return;
   if (open.id === 'drillModal') closeDrillModal();
@@ -1166,7 +1168,7 @@ const savedTheme = localStorage.getItem('theme') || 'dark';
 if (savedTheme === 'light') document.body.classList.add('light');
 function syncThemeBtn() {
   const btn = document.getElementById('themeBtn');
-  if (btn) btn.textContent = document.body.classList.contains('light') ? '🌙' : '☀️';
+  if (btn) { btn.textContent = '◐'; btn.title = document.body.classList.contains('light') ? 'Light theme — switch to dark' : 'Dark theme — switch to light'; }
 }
 syncThemeBtn();
 document.getElementById('themeBtn').addEventListener('click', () => {
@@ -1219,7 +1221,31 @@ function applyEditCapabilityToButtons() {
   impBtn.style.display = capabilities.can_import ? '' : 'none';
   if (reBtn) reBtn.style.display = capabilities.can_edit ? '' : 'none';
   if (cmBtn) cmBtn.style.display = capabilities.can_edit ? '' : 'none';
+  syncEditMenu();
 }
+// The Edit menu holds Quick add / Import CSV / Add manual graph / Reorder.
+// Hide the whole menu when the viewer may use none of them.
+function syncEditMenu() {
+  const menu = document.getElementById('editMenu');
+  if (!menu) return;
+  const any = Array.from(menu.querySelectorAll('#editMenuPop button')).some(b => b.style.display !== 'none');
+  menu.style.display = any ? '' : 'none';
+}
+function closeEditMenu() {
+  const pop = document.getElementById('editMenuPop');
+  if (pop) pop.hidden = true;
+  document.getElementById('editMenuBtn')?.setAttribute('aria-expanded', 'false');
+}
+document.getElementById('editMenuBtn')?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  const pop = document.getElementById('editMenuPop');
+  const open = pop.hidden;
+  pop.hidden = !open;
+  e.currentTarget.setAttribute('aria-expanded', String(open));
+});
+// Any choice in the menu closes it (each button keeps its own handler).
+document.getElementById('editMenuPop')?.addEventListener('click', () => closeEditMenu());
+document.addEventListener('click', (e) => { const m = document.getElementById('editMenu'); if (m && !m.contains(e.target)) closeEditMenu(); });
 document.getElementById('addEntryBtn').addEventListener('click', () => {
   // Default to the Wednesday that closes the current Thu→Wed week for
   // weekly, or the 1st of the month for monthly.
@@ -1400,7 +1426,7 @@ document.getElementById('importParse').addEventListener('click', () => {
   parsedImportRows = valid;
 
   const tbl = (rows, status) => rows.length ? `
-    <div style="font-size:0.7rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.08em;margin:14px 0 6px;">${status} (${rows.length})</div>
+    <div class="ws-tablelabel" style="margin-top:14px;">${status} (${rows.length})</div>
     <table class="raw-table">
       <thead><tr><th>Metric</th><th>Period</th><th style="text-align:right;">Value</th>${status.startsWith('Skipped') ? '<th>Reason</th>' : ''}</tr></thead>
       <tbody>${rows.slice(0, 50).map(r => `
@@ -1438,7 +1464,7 @@ document.getElementById('importConfirm').addEventListener('click', async () => {
       upserted += j.upserted || 0;
       skipped  += j.skipped  || 0;
     }
-    document.getElementById('importPreview').innerHTML = `<div class="banner banner-info">✓ Imported ${upserted} row${upserted === 1 ? '' : 's'} (${skipped} skipped)</div>`;
+    document.getElementById('importPreview').innerHTML = `<div class="ra-callout positive"><span class="g">✓</span><span>Imported ${upserted} row${upserted === 1 ? '' : 's'} (${skipped} skipped)</span></div>`;
     btn.textContent = 'Done';
     await loadData(true);
     setTimeout(() => document.getElementById('importModal').classList.remove('open'), 1200);

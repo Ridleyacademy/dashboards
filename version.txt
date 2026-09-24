@@ -87,3 +87,4 @@
 2026-09-24T09:00:00Z-v638-talked-to-3min
 2026-09-24T15:00:00Z-v639-new-webinars-appear
 2026-09-24T16:00:00Z-v640-offer-minute-per-webinar
+2026-09-24T18:00:00Z-v641-weekly-stats-new-look

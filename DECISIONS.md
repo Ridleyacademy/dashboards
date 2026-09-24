@@ -13,6 +13,11 @@ the structural map lives in the knowledge graph (`/graphify`). Format:
 
 ---
 
+## 2026-09-24 — Bolder text: Montserrat 500 body / 600 small lines, no thinning smoothing (v652)
+**What:** design-system bundle.css: `body.ra-app{font-weight:500; -webkit-font-smoothing:auto}` and 600 for the small secondary lines (stat sub-lines, page meta, help/vs lines, captions, glossary, chips, legend, seg/select/buttons). weekly-stats: dropped its own `-webkit-font-smoothing: antialiased`, card vs/foot lines 600, chart ticks 11px/600, point labels 700. webinars: `Chart.defaults.font.weight = '600'`. ridley-ui.css `?v=652`, weekly-stats.js `?v=652`.
+**Why:** Owner: even at #000/#FFF the text "is not really black / not really white — maybe they are too thin". Montserrat 400 at 10–12px plus macOS antialiased smoothing renders hairline strokes that read as grey (and cream on the warm Stage ground).
+**Touched:** ridley-ui.css, webinars.html, weekly-stats.html, weekly-stats.js, version.txt v652, changelog.js v652; skill bundle.css; artifact bundle.css.
+
 ## 2026-09-24 — Stage ink-faint pure white (v651)
 **What:** Stage `ink-faint` #F2F2F2 → #FFFFFF (skill + artifact tokens, ridley-ui.css `?v=651` on webinars/weekly-stats). weekly-stats.js also sets `Chart.defaults.color` from `--ink-faint` (script `?v=651`).
 **Why:** Owner screenshot: chart dates, y-axis numbers and sub-lines read as "cream" next to the pure-white values, even after a hard refresh. All Stage text is now #FFFFFF.

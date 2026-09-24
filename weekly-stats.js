@@ -641,7 +641,7 @@ function makeMiniChart(canvas, points, metric, big = false) {
       if (!meta?.data?.length) return;
       const c = chart.ctx;
       c.save();
-      c.font = `600 ${Math.round(10 * fs)}px ${tok('--font-sans') || 'Montserrat, sans-serif'}`;
+      c.font = `700 ${Math.round(10 * fs)}px ${tok('--font-sans') || 'Montserrat, sans-serif'}`;
       c.textAlign = 'center';
       c.textBaseline = 'bottom';
       c.fillStyle   = tok('--ink-muted');
@@ -777,7 +777,7 @@ function makeMiniChart(canvas, points, metric, big = false) {
         x: {
           ticks: {
             color: INK_FAINT,
-            font: { size: Math.round(10 * fs) },
+            font: { size: Math.round(11 * fs), weight: '600' },
             autoSkip: false,                          // show EVERY week
             maxRotation: 50,                          // tilt only when they don't fit flat
             minRotation: 0,
@@ -796,7 +796,7 @@ function makeMiniChart(canvas, points, metric, big = false) {
         y: {
           ticks: {
             color: INK_FAINT,
-            font: { size: Math.round(10 * fs) },
+            font: { size: Math.round(11 * fs), weight: '600' },
             padding: 6,
             // A few calm gridlines; Chart.js picks round values inside the
             // nice bounds computed above.

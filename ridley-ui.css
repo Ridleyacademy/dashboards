@@ -354,3 +354,12 @@ body.ra-app{ background:var(--paper); color:var(--ink); }
   .ra-tablewrap{ margin:0 calc(var(--space-4) * -1); padding:0 var(--space-4); }
   .ra-pagehead h1{ font-size:26px; line-height:30px; }
 }
+
+/* ---------- Text weight (Montserrat) ----------
+   Montserrat's regular weight is thin at 11–13px: black text read as grey on Paper and
+   white text as grey/cream on Stage. Body text is 500 and the small secondary lines 600,
+   and macOS's thinning "antialiased" smoothing is switched off (owner, v652). */
+body.ra-app{ font-weight:500; -webkit-font-smoothing:auto; -moz-osx-font-smoothing:auto; }
+.ra-stat .sub, .ra-pagehead .meta, .ra-fstage .help, .ra-fstage .vs, .ra-card-head .aside, .ra-section > h2 small,
+.ra-sectionhead p, .ra-chapter p, .ra-bars .note, .ra-foot, .ra-glossary dd, .ra-table .sub, .ra-legend, .ra-chip{ font-weight:600; }
+.ra-seg button, .ra-select, .ra-btn{ font-weight:600; }

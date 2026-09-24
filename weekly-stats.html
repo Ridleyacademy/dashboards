@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap">
-<link rel="stylesheet" href="ridley-ui.css?v=651">
+<link rel="stylesheet" href="ridley-ui.css?v=652">
 <style>
   /* Weekly Stats on the Ridley Academy design system (ridley-ui.css, loaded above).
      The topbar, login and access screens below are the page's own (shared look,
@@ -35,7 +35,7 @@
   body {
     font-family: var(--font-sans);
     background: var(--bg); color: var(--text); min-height: 100vh;
-    -webkit-font-smoothing: antialiased; overflow-x: hidden;
+    font-weight: 500; overflow-x: hidden;
   }
 
   /* State machine — copied from income.html exactly */
@@ -172,9 +172,9 @@
   .chart-card-title { flex: 1 1 auto; min-width: 0; font: 600 13px/18px var(--font-sans); overflow-wrap: anywhere; }
   .chart-card-now { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
   .chart-card-value { font: 700 24px/28px var(--font-display); font-variant-numeric: lining-nums tabular-nums; white-space: nowrap; }
-  .chart-card-vs { font-size: 12px; line-height: 16px; color: var(--ink-faint); }
+  .chart-card-vs { font-size: 12px; line-height: 16px; font-weight: 600; color: var(--ink-faint); }
   .chart-card-wrap { position: relative; height: 200px; }
-  .chart-card-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; font-size: 11px; line-height: 14px; color: var(--ink-faint); }
+  .chart-card-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; font-size: 11px; line-height: 14px; font-weight: 600; color: var(--ink-faint); }
   .chart-card-foot .sp { flex: 1 1 auto; }
   .ws-av { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: var(--radius-pill); background: var(--surface-sunken); color: var(--ink-muted); font: 600 10px/1 var(--font-sans); }
   .chart-card.skel { height: 292px; cursor: default; }
@@ -668,7 +668,7 @@ disputes_won,weekly,2026-04-22,2
   </div>
 </div>
 
-<script src="weekly-stats.js?v=651"></script>
+<script src="weekly-stats.js?v=652"></script>
 <script src="nav-menu.js"></script>
 <script src="access-guard.js"></script>
 </body>

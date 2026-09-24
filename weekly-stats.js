@@ -330,6 +330,8 @@ function renderAll() {
   updateCurrentPeriodBtn();
   renderKpiStrip(visible);
   renderChartGrid(visible);
+  _presentList = visible;
+  if (_present.open) presentShow(_present.i);
 }
 
 function pickHighlights(visible) {
@@ -574,6 +576,10 @@ function cssId(s) { return String(s).replace(/[^a-zA-Z0-9_-]/g, '_'); }
 
 function makeMiniChart(canvas, points, metric, big = false) {
   const ctx = canvas.getContext('2d');
+  // big: the drill-down chart; 'present': presentation mode (bigger text,
+  // value printed on every week so the room can read it).
+  const present = big === 'present';
+  const fs = present ? 1.5 : 1;
   const isUsd = metric.unit === 'usd';
   const isPct = metric.unit === 'pct';
   // Two-tone line: graphite (--viz-1) where the number moved the right way,
@@ -620,13 +626,13 @@ function makeMiniChart(canvas, points, metric, big = false) {
   const pointLabelsPlugin = {
     id: 'pointLabels_' + metric.key,
     afterDatasetDraw(chart, args) {
-      if (!metric.show_point_labels) return;
+      if (!metric.show_point_labels && !present) return;
       if (args.index !== 0) return;
       const meta = chart.getDatasetMeta(0);
       if (!meta?.data?.length) return;
       const c = chart.ctx;
       c.save();
-      c.font = '600 10px Inter, -apple-system, BlinkMacSystemFont, sans-serif';
+      c.font = `600 ${Math.round(10 * fs)}px Inter, -apple-system, BlinkMacSystemFont, sans-serif`;
       c.textAlign = 'center';
       c.textBaseline = 'bottom';
       c.fillStyle   = tok('--ink-muted');
@@ -655,7 +661,7 @@ function makeMiniChart(canvas, points, metric, big = false) {
         if (raw == null || !Number.isFinite(Number(raw))) continue;
         const txt = fmtVal(raw, metric.unit);
         const w = c.measureText(txt).width;
-        const h = 12;
+        const h = Math.round(12 * fs);
         // Clamp the label horizontally so it can't bleed out of the card
         // even when a point sits at the very edge of the chart area.
         const padX = 2;
@@ -732,7 +738,7 @@ function makeMiniChart(canvas, points, metric, big = false) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      layout: { padding: { top: 6, right: 6, bottom: 2, left: 2 } },
+      layout: { padding: { top: present ? 18 : 6, right: present ? 12 : 6, bottom: 2, left: 2 } },
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { display: false },
@@ -762,7 +768,7 @@ function makeMiniChart(canvas, points, metric, big = false) {
         x: {
           ticks: {
             color: INK_FAINT,
-            font: { size: 10 },
+            font: { size: Math.round(10 * fs) },
             autoSkip: true,                           // skip labels that would collide
             autoSkipPadding: 6,
             maxRotation: 0,
@@ -781,7 +787,7 @@ function makeMiniChart(canvas, points, metric, big = false) {
         y: {
           ticks: {
             color: INK_FAINT,
-            font: { size: 10 },
+            font: { size: Math.round(10 * fs) },
             padding: 6,
             // A few calm gridlines; Chart.js picks round values inside the
             // nice bounds computed above.
@@ -1079,6 +1085,7 @@ document.getElementById('drillEditSave')?.addEventListener('click', async () => 
   });
 });
 document.addEventListener('keydown', (e) => {
+  if (_present.open) { presentKey(e); return; }
   if (e.key !== 'Escape') return;
   closeEditMenu();
   const open = document.querySelector('.modal-overlay.open');
@@ -1086,6 +1093,75 @@ document.addEventListener('keydown', (e) => {
   if (open.id === 'drillModal') closeDrillModal();
   else open.classList.remove('open');
 });
+
+// ── Presentation mode (Staff Meeting) ───────────────────────────────
+// Opened only from the "▶ Present" button: one big chart at a time, in the
+// order of the current tab and filter. ← → / Space / buttons / swipe move,
+// Esc or Close returns to the page. Nothing is saved.
+let _presentList = [];
+const _present = { open: false, i: 0, chart: null };
+function presentTabName() {
+  const b = document.querySelector('#divisionTabs .pill-tab.active');
+  return b ? b.textContent.trim() : '';
+}
+function presentOpen() {
+  if (!_presentList.length) return;
+  _present.open = true; _present.i = 0;
+  const el = document.getElementById('presentMode');
+  el.hidden = false;
+  document.body.style.overflow = 'hidden';
+  presentShow(0);
+  try { el.requestFullscreen?.().catch(() => {}); } catch (_) {}
+  document.getElementById('presentNext')?.focus();
+}
+function presentClose() {
+  _present.open = false;
+  if (_present.chart) { try { _present.chart.destroy(); } catch (_) {} _present.chart = null; }
+  document.getElementById('presentMode').hidden = true;
+  document.body.style.overflow = '';
+  try { if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); } catch (_) {}
+}
+function presentShow(i) {
+  const n = _presentList.length;
+  if (!n) { presentClose(); return; }
+  i = Math.max(0, Math.min(n - 1, i));
+  _present.i = i;
+  const m = _presentList[i];
+  const pts = displayPoints(seriesByMetric.get(m.key) || []);
+  const { current, previous } = lastTwoValues(pts);
+  document.getElementById('presentCount').textContent = `${i + 1} / ${n}`;
+  document.getElementById('presentTab').textContent = `${presentTabName()} · ${activePeriod === 'weekly' ? 'Weekly' : 'Monthly'}`;
+  document.getElementById('presentTitle').textContent = m.label;
+  document.getElementById('presentNow').innerHTML =
+    `<span class="pn">${fmtVal(current, m.unit)}</span>${raDelta(current, previous, !!m.invert_chart, m.unit)}<span class="pv">vs ${fmtVal(previous, m.unit)} the ${periodWord()} before</span>`;
+  document.getElementById('presentBar').style.width = `${Math.round(100 * (i + 1) / n)}%`;
+  document.getElementById('presentPrev').disabled = i === 0;
+  document.getElementById('presentNext').disabled = i === n - 1;
+  if (_present.chart) { try { _present.chart.destroy(); } catch (_) {} }
+  _present.chart = makeMiniChart(document.getElementById('presentChart'), pts, m, 'present');
+}
+function presentKey(e) {
+  if (e.key === 'Escape') { e.preventDefault(); presentClose(); }
+  else if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); presentShow(_present.i + 1); }
+  else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); presentShow(_present.i - 1); }
+  else if (e.key === 'Home') { e.preventDefault(); presentShow(0); }
+  else if (e.key === 'End') { e.preventDefault(); presentShow(_presentList.length - 1); }
+}
+document.getElementById('presentBtn')?.addEventListener('click', presentOpen);
+document.getElementById('presentClose')?.addEventListener('click', presentClose);
+document.getElementById('presentPrev')?.addEventListener('click', () => presentShow(_present.i - 1));
+document.getElementById('presentNext')?.addEventListener('click', () => presentShow(_present.i + 1));
+// leaving browser full screen (Esc in Safari/Chrome) also leaves presentation mode
+document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && _present.open) presentClose(); });
+(function () {
+  const el = document.getElementById('presentMode'); if (!el) return;
+  let x0 = null;
+  el.addEventListener('touchstart', (e) => { x0 = e.touches[0].clientX; }, { passive: true });
+  el.addEventListener('touchend', (e) => {
+    if (x0 == null) return; const dx = e.changedTouches[0].clientX - x0; x0 = null;
+    if (Math.abs(dx) > 50) presentShow(_present.i + (dx < 0 ? 1 : -1));
+  }, { passive: true });
+})();
 
 // ── Period / division tabs ──────────────────────────────────────────
 document.getElementById('assigneeFilter')?.addEventListener('change', e => {

@@ -13,6 +13,11 @@ the structural map lives in the knowledge graph (`/graphify`). Format:
 
 ---
 
+## 2026-09-24 — Weekly Stats: presentation mode (v643)
+**What:** "▶ Present" button (toolbar, before ✎ Edit) opens `#presentMode`, a full-screen overlay (also requests browser full screen, optional) showing one metric at a time from the current tab + Assigned-to filter, in sort order: title, big value, Ridley delta vs the period before, progress bar, and a large chart (`makeMiniChart(..., 'present')` = 1.5× text, values printed on every point). ← → / Space / PageUp/Down / Home / End / Previous-Next buttons / swipe; Esc, ✕ Close or leaving browser full screen closes it. `renderAll()` stores the visible list (`_presentList`) and redraws the open slide on theme change. Script tag bumped to `?v=643`.
+**Why:** Owner picked "presentation mode" from the UI/UX suggestions, but only as something you click into — the normal page must stay as it is.
+**Touched:** weekly-stats.html, weekly-stats.js, version.txt v643, changelog.js v643.
+
 ## 2026-09-24 — Weekly Stats: 2 charts per row + cache-busted script (v642)
 **What:** `.chart-grid` is a fixed 2-column grid (1 column under 700px), chart height 200px. `weekly-stats.js` is now loaded as `weekly-stats.js?v=642`.
 **Why:** Owner asked for 2 charts per row. After v641 the owner's Safari (even after a hard refresh) ran the new HTML with the OLD weekly-stats.js from cache (GitHub Pages sends max-age=600 and the service worker keeps a copy) — the highlight tiles rendered unstyled, cards still showed "derived", rotated dates and the emoji theme button. **Rule: when a page's HTML and JS change together, bump a `?v=` on the page's own script tag** (ridley-ui.css already does this).

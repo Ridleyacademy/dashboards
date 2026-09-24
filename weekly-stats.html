@@ -242,6 +242,34 @@
   .ws-row { display: flex; gap: var(--space-2) var(--space-3); flex-wrap: wrap; align-items: center; }
   .ws-row input[type="file"] { font-size: 12px; color: var(--ink-muted); max-width: 100%; }
 
+  /* Presentation mode (▶ Present): one chart at a time, full screen */
+  .ws-present { position: fixed; inset: 0; z-index: 2000; background: var(--paper); color: var(--ink); font-family: var(--font-sans);
+                display: flex; flex-direction: column; gap: var(--space-4); padding: max(20px, env(safe-area-inset-top, 0px)) 40px max(20px, env(safe-area-inset-bottom, 0px)); }
+  .ws-present-top { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+  .ws-present-meta { font-size: 13px; line-height: 18px; color: var(--ink-faint); min-width: 0; }
+  .ws-present-meta b { color: var(--ink); font-weight: 700; font-variant-numeric: tabular-nums; margin-right: 6px; }
+  .ws-present-track { height: 4px; border-radius: var(--radius-xs); background: var(--surface-sunken); overflow: hidden; display: flex; }
+  .ws-present-track i { display: block; background: var(--ink-muted); transition: width .2s; }
+  .ws-present-head { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .ws-present-head h2 { font: 700 34px/40px var(--font-display); overflow-wrap: anywhere; text-wrap: balance; }
+  .ws-present-now { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
+  .ws-present-now .pn { font: 700 60px/64px var(--font-display); font-variant-numeric: lining-nums tabular-nums; white-space: nowrap; }
+  .ws-present-now .ra-delta { font-size: 18px; line-height: 24px; }
+  .ws-present-now .ra-delta::before { font-size: 13px; }
+  .ws-present-now .pv { font-size: 16px; line-height: 22px; color: var(--ink-faint); }
+  .ws-present-chart { flex: 1 1 auto; min-height: 200px; position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); padding: var(--space-4); }
+  .ws-present-nav { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+  .ws-present-hint { font-size: 12px; color: var(--ink-faint); text-align: center; min-width: 0; }
+  @media (max-width:700px) {
+    .ws-present { padding-left: 16px; padding-right: 16px; gap: var(--space-3); }
+    .ws-present-head h2 { font-size: 22px; line-height: 28px; }
+    .ws-present-now .pn { font-size: 40px; line-height: 44px; }
+    .ws-present-now .ra-delta { font-size: 14px; }
+    .ws-present-now .pv { font-size: 13px; }
+    .ws-present-chart { padding: var(--space-2); }
+    .ws-present-hint { display: none; }
+  }
+
   /* Messages: errors / notices as callouts */
   .inline-error { color: var(--negative); font-size: 13px; padding: 12px; text-align: center; }
   #banners:empty { display: none; }
@@ -374,6 +402,7 @@
           <button class="pill-tab active" data-period="weekly">Weekly</button><button class="pill-tab" data-period="monthly">Monthly</button>
         </div>
         <button class="ra-btn" id="currentWeekBtn" title="Show or hide the current, still-in-progress period in the big numbers and charts">Current week: Off</button>
+        <button class="ra-btn" id="presentBtn" title="Show one chart at a time, full screen — for the Staff Meeting"><span class="g">▶</span> Present</button>
         <div class="ws-menu" id="editMenu">
           <button class="ra-btn" id="editMenuBtn" aria-haspopup="true" aria-expanded="false" title="Add values, import, add a graph or reorder"><span class="g">✎</span> Edit ▾</button>
           <div class="ws-menu-pop" id="editMenuPop" hidden>
@@ -434,6 +463,25 @@
     </details>
 
   </main>
+</div>
+
+<!-- Presentation mode: opened only from the ▶ Present button -->
+<div class="ws-present" id="presentMode" hidden role="dialog" aria-modal="true" aria-labelledby="presentTitle">
+  <div class="ws-present-top">
+    <span class="ws-present-meta"><b id="presentCount">1 / 1</b> <span id="presentTab"></span></span>
+    <button class="ra-btn ghost" id="presentClose" title="Close (Esc)">✕ Close</button>
+  </div>
+  <div class="ws-present-track" aria-hidden="true"><i id="presentBar"></i></div>
+  <div class="ws-present-head">
+    <h2 id="presentTitle"></h2>
+    <div class="ws-present-now" id="presentNow"></div>
+  </div>
+  <div class="ws-present-chart"><canvas id="presentChart"></canvas></div>
+  <div class="ws-present-nav">
+    <button class="ra-btn" id="presentPrev">← Previous</button>
+    <span class="ws-present-hint">← → or Space to move · Esc to close</span>
+    <button class="ra-btn primary" id="presentNext">Next →</button>
+  </div>
 </div>
 
 <!-- Drill-down modal -->
@@ -620,7 +668,7 @@ disputes_won,weekly,2026-04-22,2
   </div>
 </div>
 
-<script src="weekly-stats.js?v=642"></script>
+<script src="weekly-stats.js?v=643"></script>
 <script src="nav-menu.js"></script>
 <script src="access-guard.js"></script>
 </body>

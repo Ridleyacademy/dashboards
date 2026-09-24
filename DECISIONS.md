@@ -13,6 +13,11 @@ the structural map lives in the knowledge graph (`/graphify`). Format:
 
 ---
 
+## 2026-09-24 — Stage (dark) secondary text brightened (v645)
+**What:** design-system tokens, Stage only: `ink-muted` #A69E93 → #DAD4CB, `ink-faint` #8A8279 → #BCB4A9 (skill `design/tokens.json`), ridley-ui.css regenerated with `scripts/build_ridley_ui.py`, `?v=645` on webinars.html and weekly-stats.html. Paper (light) unchanged.
+**Why:** Owner: dark mode is "kinda hard to see, the text is not white everywhere like it should be" — every label, sub-line, tab, tick and chart value used the two grey tokens.
+**Touched:** ridley-ui.css, webinars.html, weekly-stats.html, version.txt v645, changelog.js v645; skill tokens.json.
+
 ## 2026-09-24 — Weekly Stats: all 13 week labels back (v644)
 **What:** chart x-axis `autoSkip:false` with `maxRotation:50, minRotation:0` (flat when they fit, tilted when not); card footer shows "13 weeks · Automatic" again. Script tag `?v=644`.
 **Why:** Owner: "still need to show 13 weeks" — v641 let Chart.js skip colliding date labels, so narrower cards lost weeks. Every week's label must always show (as on the original page).

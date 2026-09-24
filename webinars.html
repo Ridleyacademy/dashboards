@@ -131,7 +131,7 @@
     <details class="ra-panel" id="pLive" data-key="live" open>
       <summary><span class="t">The live room</span><span class="s" id="sumLive">People in the room, minute by minute</span></summary>
       <div class="ra-panel-body">
-        <div class="ra-legend"><span><i></i>People in the room</span><span><i style="background:var(--gold);width:2px;border-radius:0;height:12px"></i>Offer starts · minute 90</span></div>
+        <div class="ra-legend"><span><i></i>People in the room</span><span><i style="background:var(--gold);width:2px;border-radius:0;height:12px"></i><span id="offerLegend">Offer starts · minute 90</span></span></div>
         <div class="ra-chart short"><canvas id="chLive"></canvas></div>
       </div>
     </details>
@@ -183,7 +183,7 @@
       <dl>
         <dt>Registered</dt><dd>Signed up on ridleyacademy.net/register for this webinar.</dd>
         <dt>Showed up</dt><dd>Joined the live room at least once.</dd>
-        <dt>Saw the offer</dt><dd>Stayed 90 minutes or more — the offer is presented around minute 90.</dd>
+        <dt>Saw the offer</dt><dd>Stayed until the offer starts. That is minute 90 unless it was changed for that webinar — use “✎ Change” on the Saw the offer step when the offer started earlier or later.</dd>
         <dt>Sales</dt><dd>Sales in the Sales Log from people linked to this webinar. People who attended count for 30 days afterwards (so follow-up and phone-closed deals land here); people who registered but didn’t show count until the next webinar starts; anyone with no registration counts only if the sale happened during the live event. Rebills, refunds and chargebacks are left out.</dd>
         <dt>Live / Rep</dt><dd>Live = the sale happened during the webinar with nobody closing it. Rep = a sales rep is credited (Affiliate column, their declaration, or a call of 3+ minutes).</dd>
         <dt>Paid in full / Payment plan</dt><dd>How the customer paid, from the Sales Log status.</dd>
@@ -269,7 +269,7 @@
   }
   function drawLive(curve) {
     chartDefaults();
-    const offerAt = curve.findIndex(p => Number(p.m) >= 90);
+    const offerAt = curve.findIndex(p => Number(p.m) >= offerMin);
     const offer = { id: 'offer', afterDatasetsDraw(c) { if (offerAt < 0) return; const x = c.scales.x.getPixelForValue(offerAt), a = c.chartArea, g = c.ctx; g.save(); g.strokeStyle = cssv('--gold'); g.lineWidth = 2; g.beginPath(); g.moveTo(x, a.top); g.lineTo(x, a.bottom); g.stroke(); g.restore(); } };
     chart('chLive', { type: 'line', data: { labels: curve.map(p => p.m), datasets: [{ data: curve.map(p => p.c), fill: true, borderColor: cssv('--viz-1'), backgroundColor: cssv('--viz-grid'), pointRadius: 0, borderWidth: 1.5, tension: 0.3 }] },
       options: { maintainAspectRatio: false, plugins: { tooltip: { callbacks: { title: (i) => 'minute ' + i[0].label, label: (i) => i.raw + ' people in the room' } } },
@@ -313,6 +313,7 @@
       date: d.ended_at, spend, imps: hasAds ? imps : null, clicks: hasAds ? m.clicks : null, ctr: hasAds ? m.ctr : null,
       cpm: hasAds && imps ? 1000 * spend / imps : null, cpc: hasAds ? m.cpc : null,
       visitors: d.visitors, v2r: d.visitors_to_reg_pct, registered: s.registered, fromAds: hasAds ? m.paid_regs : null, cpr: per(s.registered),
+      offerMin: d.offer_minute != null ? Number(d.offer_minute) : 90,
       attended: s.attendees, showup: s.show_up_pct, avgmin: s.avg_minutes, peak: pk.peak, held: pk.avg_of_peak_pct,
       saw: s.saw_offer, sawpct: s.saw_offer_pct, cpa: per(s.attendees), cpo: per(s.saw_offer),
       sales: salesN, o2s: s.saw_offer && salesN != null ? rate(salesN, s.saw_offer) : null, a2s: s.attendees && salesN != null ? rate(salesN, s.attendees) : null,
@@ -351,8 +352,9 @@
     ['avgmin', 'Avg minutes watched', (v) => v == null ? '—' : (Math.round(v * 10) / 10).toFixed(1), 'up', 'The webinar'],
     ['peak', 'Most in the room', num, 'up', 'The webinar', 'Most people in the room at the same time'],
     ['held', 'Room held %', pct, 'up', 'The webinar', 'Average room size as a share of the peak'],
-    ['saw', 'Saw the offer', num, 'up', 'The webinar', 'Stayed 90 minutes or more'],
-    ['sawpct', 'Stayed for the offer %', pct, 'up', 'The webinar', 'Share of attendees who stayed 90+ minutes'],
+    ['offerMin', 'Offer starts (minute)', num, null, 'The webinar', 'Minute the offer started in that webinar (90 unless changed)'],
+    ['saw', 'Saw the offer', num, 'up', 'The webinar', 'Stayed until the offer started'],
+    ['sawpct', 'Stayed for the offer %', pct, 'up', 'The webinar', 'Share of attendees who stayed until the offer'],
     ['cpa', 'Cost per attendee', cm, 'down', 'The webinar'],
     ['cpo', 'Cost per offer view', cm, 'down', 'The webinar'],
     ['sales', 'Sales', num, 'up', 'Sales'],
@@ -554,6 +556,7 @@
 
   // ================= the journey (was: the funnel board) =================
   let lastFunnel = null;
+  let offerMin = 90; // minute the offer starts in the selected webinar (webinar_settings; 90 by default)
   function skelJourney() {
     const card = '<div class="ra-fstage"><span class="ra-skel" style="height:11px;width:50%"></span><span class="ra-skel" style="height:28px;width:70%;margin-top:6px"></span><span class="ra-skel" style="height:11px;width:85%;margin-top:6px"></span><span class="ra-skel" style="height:8px;width:100%;margin-top:14px"></span></div>';
     const arrow = '<div class="ra-fstep"><span class="arr h">→</span><span class="arr v">↓</span></div>';
@@ -563,6 +566,8 @@
 
   function renderJourney(f) {
     lastFunnel = f;
+    offerMin = f.offer_minute != null ? Number(f.offer_minute) : 90;
+    $('offerLegend').textContent = 'Offer starts · minute ' + num(offerMin);
     // 0 visitors / 0 texts means "not tracked yet" (older webinars), not a real zero
     if (!Number(f.visitors)) f = Object.assign({}, f, { visitors: null, visitors_to_reg_pct: null });
     if (f.sms && !Number(f.sms.messages)) f = Object.assign({}, f, { sms: null });
@@ -653,7 +658,7 @@
           bar: fbar(100 * s.attendees / reg, 100 * (reg - s.attendees) / reg) + `<div class="lostline">−${num(Math.max(0, reg - s.attendees))} didn’t show up</div>`, brk: roomBrk,
           cost: costBox([costOf('Cost per attendee', s.attendees, ps && ps.attendees)]) }),
         step(pct(s.saw_offer_pct), 'stayed for the offer', dPts(s.saw_offer_pct, ps && ps.saw_offer_pct)),
-        stage({ cls: 's3', l: 'Saw the offer', n: num(s.saw_offer), help: 'stayed 90 minutes or more — long enough to see the offer', vs: vs(s.saw_offer, ps && ps.saw_offer),
+        stage({ cls: 's3', l: 'Saw the offer', n: num(s.saw_offer), help: `stayed until the offer started (minute ${num(offerMin)})` + (window.__canEditWebinar ? ` <button class="ra-btn ghost sm" data-act="offer-edit" title="Set the minute the offer started in this webinar">✎ Change</button><span class="offer-form" hidden><input class="ra-input" id="offerMinIn" type="number" min="1" max="600" step="1" value="${esc(offerMin)}" aria-label="Offer starts at minute" style="width:84px;height:28px"> <button class="ra-btn primary sm" data-act="offer-save">Save</button> <button class="ra-btn ghost sm" data-act="offer-cancel">Cancel</button></span>` : ''), vs: vs(s.saw_offer, ps && ps.saw_offer),
           bar: fbar(100 * s.saw_offer / reg, 100 * (s.attendees - s.saw_offer) / reg) + `<div class="lostline">−${num(Math.max(0, s.attendees - s.saw_offer))} left before the offer</div>`,
           cost: costBox([costOf('Cost per offer view', s.saw_offer, ps && ps.saw_offer)]) }),
         step(pct(convOffer), 'became sales', dPts(convOffer, ps && ps.saw_offer && pSalesN != null ? rate(pSalesN, ps.saw_offer) : null)),
@@ -729,9 +734,9 @@
       const calls = (label, called, total, reached, pCalled, pTotal, note) => { const cur = rate(called, total), was = pcc ? rate(pCalled, pTotal) : null; return `<div class="row" title="${esc(note)}"><span class="name">${label}</span><span class="val">${num(called)} of ${num(total)}<small>${pct(cur)}</small></span><span class="track"><i style="width:${cur || 0}%"></i></span><span class="note"><span>${num(reached)} talked for 3+ minutes</span>${was != null ? `<span>${dPts(cur, was)} vs last</span>` : ''}</span></div>`; };
       follow = '<div class="ra-card"><div class="ra-card-head"><h3>How fast reps followed up</h3></div><div class="ra-bars">' +
         speed('Time to first call — leads handed to reps', cc.lead_median_min, pcc && pcc.lead_median_min, cc.lead_within_1h, cc.lead_called, 'Clock starts when the lead is handed over (its tag), not when the webinar ends' + (cc.lead_untimed ? ' · ' + cc.lead_untimed + ' leads have no hand-over time yet and are left out' : '')) +
-        speed('Time to first call — everyone who saw the offer', cc.offer_median_min, pcc && pcc.offer_median_min, cc.offer_within_1h, cc.offer_called, 'Everyone who stayed 90 min or more — clock starts when the webinar ended. Overlaps the leads above on purpose, they are two views of the same room') +
+        speed('Time to first call — everyone who saw the offer', cc.offer_median_min, pcc && pcc.offer_median_min, cc.offer_within_1h, cc.offer_called, 'Everyone who stayed until the offer — clock starts when the webinar ended. Overlaps the leads above on purpose, they are two views of the same room') +
         calls('Leads called', cc.lead_called, cc.lead_total, cc.lead_reached, pcc && pcc.lead_called, pcc && pcc.lead_total, 'Leads handed to the sales team' + (cc.lead_no_phone ? ' · ' + cc.lead_no_phone + ' more had no phone number' : '')) +
-        calls('Offer viewers called', cc.offer_called, cc.offer_total, cc.offer_reached, pcc && pcc.offer_called, pcc && pcc.offer_total, 'Everyone who stayed 90 min or more. This overlaps the leads above on purpose — do not add the two together' + (cc.offer_no_phone ? ' · ' + cc.offer_no_phone + ' more had no phone number' : '')) +
+        calls('Offer viewers called', cc.offer_called, cc.offer_total, cc.offer_reached, pcc && pcc.offer_called, pcc && pcc.offer_total, 'Everyone who stayed until the offer. This overlaps the leads above on purpose — do not add the two together' + (cc.offer_no_phone ? ' · ' + cc.offer_no_phone + ' more had no phone number' : '')) +
         '</div></div>';
     }
     $('leadsBody').innerHTML = handed + follow;
@@ -885,6 +890,25 @@
     } catch (e) { $('journey').innerHTML = callout('negative', '⚠', esc(e.message)); }
   }
 
+  // ✎ Change on the Saw the offer step: set the minute the offer started in this webinar
+  $('journey').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-act]'); if (!b) return;
+    const help = b.closest('.help'); const form = help && help.querySelector('.offer-form'); const edit = help && help.querySelector('[data-act="offer-edit"]');
+    if (b.dataset.act === 'offer-edit') { form.hidden = false; edit.hidden = true; const i = $('offerMinIn'); i.focus(); i.select(); return; }
+    if (b.dataset.act === 'offer-cancel') { form.hidden = true; edit.hidden = false; return; }
+    if (b.dataset.act === 'offer-save') {
+      const v = Number($('offerMinIn').value);
+      if (!(v > 0 && v <= 600)) { $('offerMinIn').focus(); return; }
+      b.disabled = true; b.textContent = 'Saving…';
+      try {
+        await authedFetch('?api=settings&w=' + encodeURIComponent(selectedWebinar()), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ offer_minute: v }) });
+        sheetRows = null; attendancePromise = null;
+        await load(); loadAttendance();
+      } catch (err) { b.disabled = false; b.textContent = 'Save'; alertBox('Couldn’t save the offer minute: ' + err.message); }
+    }
+  });
+  $('journey').addEventListener('keydown', (e) => { if (e.target.id === 'offerMinIn' && e.key === 'Enter') { const s = e.target.closest('.help').querySelector('[data-act="offer-save"]'); if (s) s.click(); } });
+  function alertBox(msg) { $('health').insertAdjacentHTML('afterbegin', callout('negative', '⚠', esc(msg))); }
   $('refreshBtn').addEventListener('click', () => { attendancePromise = null; load(); loadAttendance(); if (!$('sheetView').hidden) { sheetRows = null; loadSheet(); } });
   $('webinarSel').addEventListener('change', () => load());
   $('syncBtn').addEventListener('click', async () => {
@@ -902,6 +926,7 @@
       const eff = window.RidleyPerms.effective(session.user);
       const canSync = eff.is_admin || window.RidleyPerms.hasGranular('webinars.view', session.user) || (eff.permissions || []).includes('marketing');
       if (!canSync) { $('syncBtn').dataset.noperm = '1'; $('syncBtn').style.display = 'none'; }
+      window.__canEditWebinar = !!canSync;
     }
     load();
     loadAttendance();

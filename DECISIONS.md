@@ -13,6 +13,11 @@ the structural map lives in the knowledge graph (`/graphify`). Format:
 
 ---
 
+## 2026-09-24 — Offer minute per webinar (v640, webinar-analytics v53)
+**What:** New `public.webinar_settings` (webinar_id pk, offer_minute 1–600, updated_by, updated_at; RLS on, no policies) + `webinar_offer_minute(id)` (default 90). The hard-coded `minutes >= 90` in `webinar_attendance_stats()`, `webinar_ad_stats()` and `webinar_call_coverage()` was swapped for the per-webinar value (migration edited each function's own definition text, so nothing else changed). webinar-analytics v53: `GET/POST ?api=settings&w=` (edit gate = admin / webinars.view / marketing, same as Sync), `offer_minute` in the funnel response and in sheet rows; saving drops that webinar's sheet row and its CRM cache so everything recomputes. Page: "✎ Change" on the Saw the offer step, live-room offer line + legend follow the setting, new sheet column "Offer starts (minute)", wording no longer says 90.
+**Why:** User: the offer can start before minute 90, so it must be adjustable per webinar. Check: Sep 20 at minute 75 → 206 saw the offer (185 at 90).
+**Touched:** migration `webinar_offer_minute_setting`, edge fn webinar-analytics v53, webinars.html, version.txt v640, changelog.js v640.
+
 ## 2026-09-24 — New webinars missing from the list: PostgREST 1,000-row cap (v639, webinar-analytics v52)
 **What:** `?api=webinars` built its list by reading `webinar_registrations` rows (`.limit(50000)`), but PostgREST caps a response at 1,000 rows, so with 2,483 rows only the oldest webinars were listed and the Sep 27 webinar (288 regs) never appeared. Now counted in SQL via new `webinar_registration_counts()` (security definer, revoked from anon/authenticated). `?api=summary` pages the registration rows 1,000 at a time (Sep 20 had 1,135). `default` is now the next upcoming webinar (still counts until 3h after start), else the latest — no longer the hard-coded Sep 6 id. Page: opens on a newly announced default once (`webinars-default-seen`), then remembers the viewer's choice.
 **Why:** User: "we started a new webinar for the 27th and it is not showing up automatically." Same trap as the board `log` endpoints (see memory: PostgREST 1000-row cap).

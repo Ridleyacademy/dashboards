@@ -16,6 +16,7 @@
   // Omit `roles` (or pass an empty array) to show to everyone.
   // `adminOnly: true` is shorthand for "is_admin only".
   const ENTRIES = [
+  { version: 647, date: '2026-09-24', title: 'Dark mode: white text and white chart lines', items: ['In dark mode all text is now white (it was a warm beige), and the chart lines are white too, like the original page. On Weekly Stats and Webinars.'] },
   { version: 646, date: '2026-09-24', title: 'Light mode: easier to read', items: ['In light mode the labels, \u201cvs last week\u201d lines, tabs, chart dates and chart values were a soft grey. They are now near-black, on Weekly Stats and Webinars.'] },
   { version: 645, date: '2026-09-24', title: 'Dark mode: easier to read', items: ['In dark mode the labels, \u201cvs last week\u201d lines, tabs, chart dates and chart values were a dim grey. They are now much closer to white, on Weekly Stats and Webinars.'] },
   { version: 644, date: '2026-09-24', title: 'Weekly Stats: every week shows on the charts again', items: ['Each chart shows all 13 week dates again, like before. They sit flat when there is room and tilt on smaller screens.', 'Each card says how many weeks it covers again (\u201c13 weeks\u201d).'] },

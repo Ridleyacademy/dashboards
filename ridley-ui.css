@@ -10,9 +10,9 @@ body{
   --surface-hover:#252220;
   --line:#2E2A26;
   --line-strong:#6E665D;
-  --ink:#F2EFE9;
-  --ink-muted:#DAD4CB;
-  --ink-faint:#BCB4A9;
+  --ink:#FFFFFF;
+  --ink-muted:#FFFFFF;
+  --ink-faint:#F2F2F2;
   --brand:#C42127;
   --brand-deep:#8E141E;
   --on-brand:#FFFFFF;
@@ -26,7 +26,7 @@ body{
   --negative-tint:rgba(242,132,78,0.14);
   --caution:#E2B24A;
   --caution-tint:rgba(226,178,74,0.14);
-  --viz-1:#D9D2C7;
+  --viz-1:#FFFFFF;
   --viz-2:#E0303A;
   --viz-3:#BFA050;
   --viz-4:#6FB3BB;

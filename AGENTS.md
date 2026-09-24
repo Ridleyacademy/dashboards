@@ -319,7 +319,7 @@ header.
 
 The dashboards' identity lives in the design-system artifact **"Ridley Academy"** (https://claude.ai/artifact/B4s3s7Mdigr3wzQ46e3sRu): tokens, `ra-` components, usage rules, and the Webinars reference page. Built from the official brand guide (Brand Red #AC1818, Near-Black #1C1A18, Paper #F2EFE9, matte Gold #BFA050; Playfair Display for titles + big figures, Inter for everything else).
 
-- `ridley-ui.css` is GENERATED from that system — edit the system, regenerate, don't hand-edit. Load it after `mobile.css`; wrap page content in `.ra`. Theme: Stage (dark) on `body`, Paper on `body.light` (theme.js).
+- `ridley-ui.css` is GENERATED from that system — edit the system, regenerate, don't hand-edit. The design source (tokens.json, bundle.css, component docs), the generator (`scripts/build_ridley_ui.py`, reproduces ridley-ui.css byte-for-byte), page patterns and data rules live in the Claude skill **`ridley-dashboard-design`** (`~/Documents/.claude/skills/ridley-dashboard-design/`) — use it for any dashboard page work. Load it after `mobile.css`; wrap page content in `.ra`. Theme: Stage (dark) on `body`, Paper on `body.light` (theme.js).
 - Rules: monochrome until it matters (red = the one primary action + money outcomes; vermilion `negative` for bad numbers, never brand red; gold once per view). Deltas: arrow = direction, colour = good/bad for the business (costs going down are green). Nothing may overlap — stages/steps/badges are sibling grid/flex cells, never absolutely positioned. Check every page at 1200/768/390px in both themes.
 - Say "Sales", never "Bought". Plain labels + a "What the numbers mean" glossary.
 - Only webinars.html uses it so far; the shared `.topbar` (mobile.css) is unchanged until all pages move over.

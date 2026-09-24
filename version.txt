@@ -88,3 +88,4 @@
 2026-09-24T15:00:00Z-v639-new-webinars-appear
 2026-09-24T16:00:00Z-v640-offer-minute-per-webinar
 2026-09-24T18:00:00Z-v641-weekly-stats-new-look
+2026-09-24T18:30:00Z-v642-weekly-stats-two-columns

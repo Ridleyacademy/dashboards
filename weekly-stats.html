@@ -163,7 +163,9 @@
   #kpiGrid .ra-stat.skel { min-height: 96px; }
 
   /* One chart per stat */
-  .chart-grid { display: grid; gap: var(--space-3); grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); }
+  /* two charts per row; one on phones */
+  .chart-grid { display: grid; gap: var(--space-3); grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  @media (max-width:700px){ .chart-grid { grid-template-columns: minmax(0, 1fr); } }
   .chart-card { display: flex; flex-direction: column; gap: 6px; min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow-card); padding: var(--space-4) var(--space-4) var(--space-3); cursor: pointer; }
   .chart-card:hover { border-color: var(--line-strong); }
   .chart-card-head { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
@@ -171,11 +173,11 @@
   .chart-card-now { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
   .chart-card-value { font: 700 24px/28px var(--font-display); font-variant-numeric: lining-nums tabular-nums; white-space: nowrap; }
   .chart-card-vs { font-size: 12px; line-height: 16px; color: var(--ink-faint); }
-  .chart-card-wrap { position: relative; height: 170px; }
+  .chart-card-wrap { position: relative; height: 200px; }
   .chart-card-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; font-size: 11px; line-height: 14px; color: var(--ink-faint); }
   .chart-card-foot .sp { flex: 1 1 auto; }
   .ws-av { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: var(--radius-pill); background: var(--surface-sunken); color: var(--ink-muted); font: 600 10px/1 var(--font-sans); }
-  .chart-card.skel { height: 262px; cursor: default; }
+  .chart-card.skel { height: 292px; cursor: default; }
   .ws-empty { grid-column: 1 / -1; }
 
   /* Reorder mode: a drag handle appears in each card's head row */
@@ -618,7 +620,7 @@ disputes_won,weekly,2026-04-22,2
   </div>
 </div>
 
-<script src="weekly-stats.js"></script>
+<script src="weekly-stats.js?v=642"></script>
 <script src="nav-menu.js"></script>
 <script src="access-guard.js"></script>
 </body>

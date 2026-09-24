@@ -62,9 +62,9 @@ body.light{
   --surface-hover:#F7F4EE;
   --line:#DDD7CC;
   --line-strong:#857C70;
-  --ink:#1C1A18;
-  --ink-muted:#2E2A26;
-  --ink-faint:#3D3833;
+  --ink:#000000;
+  --ink-muted:#000000;
+  --ink-faint:#000000;
   --brand:#AC1818;
   --brand-deep:#8E141E;
   --on-brand:#FFFFFF;
@@ -78,7 +78,7 @@ body.light{
   --negative-tint:rgba(169,58,13,0.10);
   --caution:#835B00;
   --caution-tint:rgba(131,91,0,0.10);
-  --viz-1:#3B3632;
+  --viz-1:#000000;
   --viz-2:#AC1818;
   --viz-3:#BFA050;
   --viz-4:#3E7C84;

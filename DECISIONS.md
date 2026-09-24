@@ -13,6 +13,11 @@ the structural map lives in the knowledge graph (`/graphify`). Format:
 
 ---
 
+## 2026-09-24 — Paper (light) text is pure black (v648)
+**What:** Paper tokens `ink`, `ink-muted`, `ink-faint` and `viz-1` (default chart line) → #000000. Skill tokens.json + artifact tokens.json, ridley-ui.css regenerated, `?v=648` on webinars.html and weekly-stats.html.
+**Why:** Owner: "in light mode actually black, not near, otherwise they are hard to see". Together with v647: text is pure white on Stage and pure black on Paper — hierarchy only from size, weight and case.
+**Touched:** ridley-ui.css, webinars.html, weekly-stats.html, version.txt v648, changelog.js v648; skill tokens.json; artifact project/tokens.json.
+
 ## 2026-09-24 — Stage (dark) text is pure white (v647)
 **What:** Stage tokens `ink` #F2EFE9 → #FFFFFF, `ink-muted` #DAD4CB → #FFFFFF, `ink-faint` #BCB4A9 → #F2F2F2, `viz-1` (default chart line) #D9D2C7 → #FFFFFF. Skill tokens.json + artifact tokens.json, ridley-ui.css regenerated, `?v=647` on webinars.html and weekly-stats.html.
 **Why:** Owner: "in dark mode I said to make it white and you made it brown, it needs to be white". The warm off-whites read as beige/brown on the near-black ground. Rule: in Stage, text and the default chart line are neutral white, not warm.

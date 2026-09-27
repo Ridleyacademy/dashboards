@@ -372,6 +372,8 @@
   .action-btn-edit:hover  { background: rgba(107,158,255,0.2); }
   .action-btn-del   { background: rgba(248,113,113,0.1); color: var(--red); }
   .action-btn-del:hover   { background: rgba(248,113,113,0.2); }
+  .action-btn-refund { background: var(--gold-bg, rgba(251,191,36,0.1)); color: var(--gold); }
+  .action-btn-refund:hover { background: rgba(251,191,36,0.2); }
   .action-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
   /* ── Edit modal ────────────────────────────────── */
@@ -1632,6 +1634,7 @@ function renderLog(filter) {
     <td data-label="Affiliate" style="${clip}color:var(--text-muted);" title="${r.Affiliate||''}">${r.Affiliate || '—'}</td>
     <td class="col-actions" style="text-align:right;white-space:nowrap;">
       <button class="action-btn action-btn-edit" data-id="${r.id}" title="Edit">Edit</button>
+      <button class="action-btn action-btn-refund" data-id="${r.id}" title="Mark refunded — removes it from income and the webinar funnel, and stops the sync putting it back" style="margin-left:4px;">Refund</button>
       <button class="action-btn action-btn-del" data-id="${r.id}" title="Delete" style="margin-left:4px;">Del</button>
     </td>
   </tr>`).join('');
@@ -1952,6 +1955,44 @@ document.getElementById('editSaveBtn').addEventListener('click', async () => {
   }
 });
 
+// Mark a sale refunded. NOT the same as Del: a plain delete is undone by the
+// Sales Log reconciler on its next run, because the charge is still sitting in
+// payment_transactions as eligible income. This clears the source payment row
+// too, so income and the webinar funnel both drop it and it stays dropped.
+async function refundRow(id, btn) {
+  const row = logRawData.find(r => String(r.id) === String(id)) || {};
+  const who = row.Name || row.Email || 'this sale';
+  if (!confirm(`Mark ${who} \u2014 ${row.Price ? fmtMoney(row.Price) : ''} as REFUNDED?\n\n`
+    + 'It is removed from income and from the webinar funnel, and the sync will not put it back.\n'
+    + 'Use this instead of Del for refunds.')) return;
+  const prev = btn.textContent;
+  btn.disabled = true; btn.textContent = '\u2026';
+  try {
+    const { data: { session } } = await supa.auth.getSession();
+    const res = await fetch(INCOME_BASE + '?api=refund', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+      body: JSON.stringify({ id, note: 'marked refunded from income dashboard' }),
+    });
+    const json = await res.json();
+    if (!res.ok || !json.ok) throw new Error(json.error || 'Failed');
+
+    logRawData = logRawData.filter(r => String(r.id) !== String(id));
+    renderLog();
+
+    // Be honest when we could not pin the payment row: the sale is gone from the
+    // Sales Log but nothing stops the reconciler re-creating it.
+    if (json.will_resync) {
+      alert('Removed from the Sales Log, but no single payment row matched'
+        + (json.candidates > 1 ? ` (${json.candidates} candidates \u2014 looks like payment-plan instalments).` : '.')
+        + '\nIncome still counts the charge and the sync may re-add the row. Tell Claude to suppress it by payment id.');
+    }
+  } catch (err) {
+    alert('Mark refunded failed: ' + err.message);
+    btn.disabled = false; btn.textContent = prev;
+  }
+}
+
 async function deleteRow(id, btn) {
   if (!confirm('Delete this transaction? This cannot be undone.')) return;
   btn.disabled = true; btn.textContent = '…';
@@ -1976,7 +2017,9 @@ async function deleteRow(id, btn) {
 // Log tbody click delegation for edit/delete buttons
 document.getElementById('logTableBody').addEventListener('click', e => {
   const editBtn = e.target.closest('.action-btn-edit');
+  const refBtn  = e.target.closest('.action-btn-refund');
   const delBtn  = e.target.closest('.action-btn-del');
+  if (refBtn) { refundRow(Number(refBtn.dataset.id), refBtn); return; }
   if (editBtn) {
     // Use loose comparison (== not ===) to handle string/number mismatch
     const id = editBtn.dataset.id;

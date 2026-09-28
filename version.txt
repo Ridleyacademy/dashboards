@@ -102,3 +102,4 @@
 2026-09-27T22:00:00Z-v653-income-mark-refunded
 2026-09-28T09:00:00Z-v654-ad-trace-adset-rename
 2026-09-28T10:00:00Z-v655-exclude-test-sales-and-ad-ids
+2026-09-28T11:00:00Z-v656-drop-live-window-attribution

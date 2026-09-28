@@ -108,3 +108,4 @@
 2026-09-28T15:00:00Z-v659-stat-windows
 2026-09-28T17:00:00Z-v660-window-calls-and-sms
 2026-09-28T18:00:00Z-v661-sheet-windows
+2026-09-28T19:30:00Z-v662-ad-creative-preview

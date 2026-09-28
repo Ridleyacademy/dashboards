@@ -87,7 +87,30 @@
     /* the average row is pinned at the TOP, under the column names (a bottom-pinned row collides with overlay scrollbars) */
     .ra-sheet thead tr.a td{ position:sticky; top:var(--avgtop, 76px); z-index:2; background:var(--surface-sunken); color:var(--ink); font-weight:600; border-bottom:1px solid var(--line-strong); }
     .ra-sheet thead tr.a td.first{ z-index:3; color:var(--ink-muted); }
-  </style>
+  
+  /* the ad name opens the ad itself */
+  button.ad-open { all: unset; cursor: pointer; font: inherit; color: inherit; text-decoration: underline;
+    text-decoration-style: dotted; text-underline-offset: 3px; }
+  button.ad-open:hover, button.ad-open:focus-visible { text-decoration-style: solid; color: var(--red, #c1121f); }
+  #creativeWrap[hidden] { display: none; }
+  #creativeWrap { position: fixed; inset: 0; z-index: 90; display: flex; align-items: center; justify-content: center;
+    background: rgba(0,0,0,.55); padding: 16px; }
+  #creativeBox { background: var(--card, #fff); border-radius: 14px; max-width: 620px; width: 100%;
+    max-height: 92vh; overflow: auto; box-shadow: 0 20px 60px rgba(0,0,0,.35); }
+  #creativeBox header { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between;
+    padding: 14px 16px; border-bottom: 1px solid var(--line, rgba(0,0,0,.12)); position: sticky; top: 0;
+    background: var(--card, #fff); }
+  #creativeBox header h3 { margin: 0; font-size: 15px; line-height: 1.3; }
+  #creativeBox header .sub { display: block; font-weight: 400; opacity: .7; font-size: 12px; margin-top: 2px; }
+  #creativeClose { all: unset; cursor: pointer; font-size: 20px; line-height: 1; padding: 2px 6px; border-radius: 6px; }
+  #creativeClose:hover, #creativeClose:focus-visible { background: rgba(0,0,0,.08); }
+  #creativeBody { padding: 14px 16px 18px; }
+  #creativeBody iframe { width: 100%; height: 640px; border: 0; border-radius: 10px; background: #fff; }
+  #creativeBody img.shot { width: 100%; border-radius: 10px; display: block; background: rgba(0,0,0,.05); }
+  #creativeBody .copy { margin-top: 12px; font-size: 13px; line-height: 1.5; white-space: pre-wrap; }
+  #creativeBody .headline { font-weight: 700; margin-top: 10px; font-size: 14px; }
+  #creativeBody .links { margin-top: 14px; display: flex; gap: 12px; flex-wrap: wrap; font-size: 13px; }
+</style>
 </head>
 <body class="ra-app">
   <header class="topbar">
@@ -208,6 +231,7 @@
   const SUPABASE_URL = 'https://pojqljrhhtnigyrtzdzz.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBvanFsanJoaHRuaWd5cnR6ZHp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTA3ODMsImV4cCI6MjA5MTM4Njc4M30.PcSBDqOzbiZxZ7IAs5efqx0gsAlAG0cj3GqUOkAmxos';
   const BASE = SUPABASE_URL + '/functions/v1/webinar-analytics';
+  const CREATIVE_BASE = SUPABASE_URL + '/functions/v1/meta-creative';
   const supa = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   window.supa = supa;
   const $ = (id) => document.getElementById(id);
@@ -555,6 +579,64 @@
     return j;
   }
 
+  // ================= the ad behind the name =================
+  // Clicking an ad's name opens what was actually served. Meta's preview and image URLs
+  // are signed and expire, so meta-creative fetches them live rather than storing them.
+  // The preview arrives as a facebook.com URL, which is put in an iframe we build here --
+  // Meta's own <iframe> markup is never injected into the page.
+  let creativeSeq = 0;
+  function closeCreative() {
+    $('creativeWrap').hidden = true;
+    $('creativeBody').innerHTML = '';          // stop any playing preview
+  }
+  async function openCreative(name, adsetId) {
+    const seq = ++creativeSeq;
+    $('creativeTitle').innerHTML = esc(name);
+    $('creativeBody').innerHTML = '<span class="ra-skel block" style="height:320px"></span>';
+    $('creativeWrap').hidden = false;
+    $('creativeClose').focus();
+    try {
+      const { data: { session } } = await supa.auth.getSession();
+      if (!session) { location.replace('index.html'); return; }
+      const q = '?name=' + encodeURIComponent(name) + (adsetId ? '&adset=' + encodeURIComponent(adsetId) : '');
+      const res = await fetch(CREATIVE_BASE + q, { headers: { Authorization: 'Bearer ' + session.access_token } });
+      const d = await res.json();
+      if (seq !== creativeSeq) return;         // a different ad was opened meanwhile
+      if (!res.ok) throw new Error(d.error || ('HTTP ' + res.status));
+
+      $('creativeTitle').innerHTML = esc(d.ad_name || name) +
+        (d.status ? `<span class="sub">${esc(String(d.status).toLowerCase())}${d.creative_name ? ' · ' + esc(d.creative_name) : ''}</span>` : '');
+
+      const bits = [];
+      if (d.preview_url) {
+        bits.push(`<iframe src="${esc(d.preview_url)}" loading="lazy" referrerpolicy="no-referrer" title="Ad preview"></iframe>`);
+      } else if (d.image) {
+        bits.push(`<img class="shot" src="${esc(d.image)}" alt="" referrerpolicy="no-referrer">`);
+      }
+      if (d.title) bits.push(`<div class="headline">${esc(d.title)}</div>`);
+      if (d.body) bits.push(`<div class="copy">${esc(d.body)}</div>`);
+      const links = [];
+      if (d.permalink) links.push(`<a href="${esc(d.permalink)}" target="_blank" rel="noopener noreferrer">Open the post on Facebook</a>`);
+      if (d.link) links.push(`<a href="${esc(d.link)}" target="_blank" rel="noopener noreferrer">Where it sent people</a>`);
+      if (links.length) bits.push(`<div class="links">${links.join('')}</div>`);
+      if (!bits.length) {
+        bits.push(callout('plain', '▤', 'Meta did not return a preview or an image for this ad.' +
+          (d.notes && d.notes.length ? ' ' + esc(d.notes[0]) : '')));
+      }
+      $('creativeBody').innerHTML = bits.join('');
+    } catch (e) {
+      if (seq !== creativeSeq) return;
+      $('creativeBody').innerHTML = callout('negative', '⚠', 'Couldn’t load the ad: ' + esc(e.message));
+    }
+  }
+  $('creativeClose').addEventListener('click', closeCreative);
+  $('creativeWrap').addEventListener('click', (e) => { if (e.target === $('creativeWrap')) closeCreative(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('creativeWrap').hidden) closeCreative(); });
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest && e.target.closest('button.ad-open');
+    if (b) openCreative(b.dataset.ad || '', b.dataset.adset || '');
+  });
+
   // ================= summary: registrations, sources, sync =================
   function render(d) {
     lastSummary = d;
@@ -807,7 +889,7 @@
       $('adsCard').style.display = '';
       const isSmall = (a) => a.paid && a.spend < 5 && a.regs === 0;
       const smallCount = ads.filter(isSmall).length;
-      const rows = ads.map(a => `<tr class="${a.paid ? '' : 'muted-row'}${isSmall(a) ? ' small-ad' : ''}"><td>${esc(a.ad)}${a.paid ? '' : ' <span class="sub">organic / not matched to an ad</span>'}${a.adset ? `<span class="sub">${esc(a.adset)}${a.paid && a.campaign ? ' · ' + esc(a.campaign) : ''}</span>` : ''}</td><td>${a.paid ? money(a.spend) : '—'}</td><td>${a.paid ? num(a.clicks) : '—'}</td><td>${a.ctr == null ? '—' : a.ctr + '%'}</td><td>${num(a.regs)}</td><td>${a.cost_per_reg == null ? '—' : money(a.cost_per_reg)}</td><td>${num(a.attended)}</td><td>${num(a.saw_offer)}</td><td>${num(a.sales)}${splitN(a)}</td><td>${a.revenue ? money(a.revenue) : '—'}${splitM(a)}</td><td>${a.paid ? pos(a.revenue - a.spend) : '—'}</td><td>${back(a.roas)}</td></tr>`).join('');
+      const rows = ads.map(a => `<tr class="${a.paid ? '' : 'muted-row'}${isSmall(a) ? ' small-ad' : ''}"><td>${a.paid ? `<button type="button" class="ad-open" data-ad="${esc(a.ad)}" data-adset="${esc(a.adset_id || '')}" title="See the ad itself">${esc(a.ad)}</button>` : esc(a.ad)}${a.paid ? '' : ' <span class="sub">organic / not matched to an ad</span>'}${a.adset ? `<span class="sub">${esc(a.adset)}${a.paid && a.campaign ? ' · ' + esc(a.campaign) : ''}</span>` : ''}</td><td>${a.paid ? money(a.spend) : '—'}</td><td>${a.paid ? num(a.clicks) : '—'}</td><td>${a.ctr == null ? '—' : a.ctr + '%'}</td><td>${num(a.regs)}</td><td>${a.cost_per_reg == null ? '—' : money(a.cost_per_reg)}</td><td>${num(a.attended)}</td><td>${num(a.saw_offer)}</td><td>${num(a.sales)}${splitN(a)}</td><td>${a.revenue ? money(a.revenue) : '—'}${splitM(a)}</td><td>${a.paid ? pos(a.revenue - a.spend) : '—'}</td><td>${back(a.roas)}</td></tr>`).join('');
       const totRoas = spend > 0 ? Math.round(100 * m.attributed_revenue / spend) / 100 : null;
       $('tblAds').innerHTML = tbl(['Ad', 'Spend', 'Clicks', 'Clicked', 'Registered', 'Per registration', 'Showed up', 'Saw offer', 'Sales<span class="sub">live / rep</span>', 'Revenue<span class="sub">live / rep</span>', 'Profit', '$ back per $1'], rows,
         { foot: `<tr><td>All ads</td><td>${money(spend)}</td><td>${num(m.clicks)}</td><td>${m.ctr == null ? '—' : m.ctr + '%'}</td><td>${num(m.paid_regs)}</td><td>${m.paid_regs ? money(spend / m.paid_regs) : '—'}</td><td>${num(m.paid_attended)}</td><td>${num(m.paid_saw_offer)}</td><td>${num(m.attributed_sales)}${splitN({ sales: m.attributed_sales, live_sales: m.attributed_live_sales, rep_sales: m.attributed_rep_sales })}</td><td>${money(m.attributed_revenue)}${splitM({ revenue: m.attributed_revenue, live_revenue: m.attributed_live_revenue, rep_revenue: m.attributed_rep_revenue })}</td><td>${pos(m.attributed_revenue - spend)}</td><td>${back(totRoas)}</td></tr>` }) +
@@ -964,6 +1046,16 @@
     if (store.get('webinars-view', 'story') === 'sheet') sheetView(true);
   })();
 </script>
+<div id="creativeWrap" hidden role="dialog" aria-modal="true" aria-labelledby="creativeTitle">
+  <div id="creativeBox">
+    <header>
+      <h3 id="creativeTitle">Ad</h3>
+      <button id="creativeClose" type="button" aria-label="Close">&times;</button>
+    </header>
+    <div id="creativeBody"></div>
+  </div>
+</div>
+
 <script src="access-guard.js"></script>
 <script src="theme.js"></script>
 <script src="changelog.js"></script>

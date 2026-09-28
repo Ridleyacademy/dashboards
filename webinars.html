@@ -227,6 +227,16 @@
     <p class="ra-foot">Attendance and sales update automatically about 45 minutes after each webinar ends. Registrations come from the AXL page scenario (ridleyacademy.net/register); source tags are reported by the thank-you page. No personal data is stored or shown here. Generated <span id="genAt">—</span>.</p>
   </main>
 
+<div id="creativeWrap" hidden role="dialog" aria-modal="true" aria-labelledby="creativeTitle">
+  <div id="creativeBox">
+    <header>
+      <h3 id="creativeTitle">Ad</h3>
+      <button id="creativeClose" type="button" aria-label="Close">&times;</button>
+    </header>
+    <div id="creativeBody"></div>
+  </div>
+</div>
+
 <script>
   const SUPABASE_URL = 'https://pojqljrhhtnigyrtzdzz.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBvanFsanJoaHRuaWd5cnR6ZHp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTA3ODMsImV4cCI6MjA5MTM4Njc4M30.PcSBDqOzbiZxZ7IAs5efqx0gsAlAG0cj3GqUOkAmxos';
@@ -586,10 +596,12 @@
   // Meta's own <iframe> markup is never injected into the page.
   let creativeSeq = 0;
   function closeCreative() {
+    if (!$('creativeWrap')) return;
     $('creativeWrap').hidden = true;
     $('creativeBody').innerHTML = '';          // stop any playing preview
   }
   async function openCreative(name, adsetId) {
+    if (!$('creativeWrap')) return;
     const seq = ++creativeSeq;
     $('creativeTitle').innerHTML = esc(name);
     $('creativeBody').innerHTML = '<span class="ra-skel block" style="height:320px"></span>';
@@ -629,9 +641,10 @@
       $('creativeBody').innerHTML = callout('negative', '⚠', 'Couldn’t load the ad: ' + esc(e.message));
     }
   }
-  $('creativeClose').addEventListener('click', closeCreative);
-  $('creativeWrap').addEventListener('click', (e) => { if (e.target === $('creativeWrap')) closeCreative(); });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('creativeWrap').hidden) closeCreative(); });
+  // bound defensively: a missing panel must never stop the rest of the page loading
+  if ($('creativeClose')) $('creativeClose').addEventListener('click', closeCreative);
+  if ($('creativeWrap')) $('creativeWrap').addEventListener('click', (e) => { if (e.target === $('creativeWrap')) closeCreative(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('creativeWrap') && !$('creativeWrap').hidden) closeCreative(); });
   document.addEventListener('click', (e) => {
     const b = e.target.closest && e.target.closest('button.ad-open');
     if (b) openCreative(b.dataset.ad || '', b.dataset.adset || '');
@@ -1046,16 +1059,6 @@
     if (store.get('webinars-view', 'story') === 'sheet') sheetView(true);
   })();
 </script>
-<div id="creativeWrap" hidden role="dialog" aria-modal="true" aria-labelledby="creativeTitle">
-  <div id="creativeBox">
-    <header>
-      <h3 id="creativeTitle">Ad</h3>
-      <button id="creativeClose" type="button" aria-label="Close">&times;</button>
-    </header>
-    <div id="creativeBody"></div>
-  </div>
-</div>
-
 <script src="access-guard.js"></script>
 <script src="theme.js"></script>
 <script src="changelog.js"></script>

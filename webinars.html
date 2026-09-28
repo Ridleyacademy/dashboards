@@ -307,9 +307,13 @@
     try { localStorage.setItem(WINKEY, k); } catch (_) {}
     paintWindow();
     attendancePromise = null;          // the per-webinar table is windowed too
+    sheetRows = null;                  // and so is the all-webinars sheet
     lastFunnel = null;
-    loadFunnel();
-    if ($('pAll') && $('pAll').open) loadAttendance();
+    if ($('sheetView') && !$('sheetView').hidden) loadSheet();
+    else {
+      loadFunnel();
+      if ($('pAll') && $('pAll').open) loadAttendance();
+    }
   }
   for (const [k, id] of Object.entries(WINDOW_BTN)) $(id).addEventListener('click', () => setWindow(k));
   paintWindow();
@@ -433,7 +437,7 @@
     $('sheetBox').innerHTML = '<div style="padding:16px;display:flex;flex-direction:column;gap:10px">' + Array.from({ length: 8 }, () => '<span class="ra-skel block"></span>').join('') + '</div>';
     sheetLoading = (async () => {
       try {
-        const j = await authedFetch('?api=sheet');
+        const j = await authedFetch('?api=sheet&window=' + statWindow);
         sheetRows = (j.rows || []).map(r => ({ id: r.webinar_id, name: r.name || (r.data && r.data.name) || r.webinar_id, f: sheetFigures(r.data || {}) }));
         const pend = Number(j.pending || 0);
         $('sheetNote').innerHTML = `<b>${num(sheetRows.length)}</b> webinars with 20+ people in the room · click a column to sort, a row to open it` +

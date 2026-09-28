@@ -111,6 +111,9 @@
         <div class="ra-seg" role="group" aria-label="View">
           <button id="viewStory" aria-pressed="true" title="One webinar, step by step">▤ One webinar</button><button id="viewSheet" aria-pressed="false" title="Every webinar in one table, like a spreadsheet">⊞ All webinars sheet</button>
         </div>
+        <div class="ra-seg" role="group" aria-label="How long after the webinar to count">
+          <button id="winDay" aria-pressed="true" title="Only what happened on the day of the webinar itself (New York time)">Day</button><button id="winWeek" aria-pressed="false" title="The first 7 days after the webinar ended">Week 1</button><button id="winMonth" aria-pressed="false" title="The first 30 days after the webinar ended">Month 1</button><button id="winAll" aria-pressed="false" title="Everything since, for as long as that lead has not come through a later webinar">All time</button>
+        </div>
         <select class="ra-select" id="webinarSel" aria-label="Webinar"><option value="">Loading webinars…</option></select>
         <button class="ra-btn primary" id="syncBtn" title="Pull attendance from AXL"><span class="g">⇉</span> Sync attendance</button>
       </div>
@@ -286,6 +289,30 @@
   }
   $('detSimple').addEventListener('click', () => setDetail(false));
   $('detFull').addEventListener('click', () => setDetail(true));
+
+  // How long after the webinar a sale still counts toward it. Ad spend, impressions and
+  // page visitors never change with this -- they are what was paid to fill THIS webinar --
+  // so the return figures improve as the window widens. The comparison webinar uses the
+  // same window, otherwise "vs last webinar" would put a day against a lifetime.
+  const WINKEY = 'webinars-stat-window';
+  const WINDOW_BTN = { day: 'winDay', week: 'winWeek', month: 'winMonth', all: 'winAll' };
+  let statWindow = 'day';
+  try { const v = localStorage.getItem(WINKEY); if (v && WINDOW_BTN[v]) statWindow = v; } catch (_) {}
+  function paintWindow() {
+    for (const [k, id] of Object.entries(WINDOW_BTN)) $(id).setAttribute('aria-pressed', String(k === statWindow));
+  }
+  function setWindow(k) {
+    if (!WINDOW_BTN[k] || k === statWindow) return;
+    statWindow = k;
+    try { localStorage.setItem(WINKEY, k); } catch (_) {}
+    paintWindow();
+    attendancePromise = null;          // the per-webinar table is windowed too
+    lastFunnel = null;
+    loadFunnel();
+    if ($('pAll') && $('pAll').open) loadAttendance();
+  }
+  for (const [k, id] of Object.entries(WINDOW_BTN)) $(id).addEventListener('click', () => setWindow(k));
+  paintWindow();
   setDetail(!!store.get('webinars-detail', false));
   const openState = store.get('webinars-open', {});
   document.querySelectorAll('.ra-panel').forEach(p => {
@@ -823,7 +850,7 @@
   }
 
   function loadAttendanceData() {
-    if (!attendancePromise) attendancePromise = authedFetch('?api=attendance');
+    if (!attendancePromise) attendancePromise = authedFetch('?api=attendance&window=' + statWindow);
     return attendancePromise;
   }
 
@@ -834,7 +861,7 @@
     const seq = ++funnelSeq;
     showJourneyLoading();
     try {
-      const f = await authedFetch('?api=funnel&w=' + encodeURIComponent(w));
+      const f = await authedFetch('?api=funnel&w=' + encodeURIComponent(w) + '&window=' + statWindow);
       if (seq !== funnelSeq) return; // a newer webinar was selected meanwhile
       renderJourney(f);
     } catch (e) {

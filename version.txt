@@ -113,3 +113,4 @@
 2026-09-28T21:00:00Z-v664-ad-window-no-overlap
 2026-09-30T20:00:00Z-v665-ad-boundary-only-ad-driven
 2026-10-05T12:00:00Z-v666-webinar-compare-same-kind
+2026-10-05T14:00:00Z-v667-webinar-daily-signups

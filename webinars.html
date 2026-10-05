@@ -171,9 +171,10 @@
       <summary><span class="t">Where registrations came from</span><span class="s" id="sumRegs">—</span></summary>
       <div class="ra-panel-body">
         <div class="ra-grid">
-          <div class="ra-card"><div class="ra-card-head"><h3>Sign-ups per day</h3></div><div class="ra-chart"><canvas id="chDays"></canvas></div></div>
+          <div class="ra-card"><div class="ra-card-head"><h3>Sign-ups per day</h3><span class="aside">bars: registered &middot; line: % who showed up</span></div><div class="ra-chart"><canvas id="chDays"></canvas></div></div>
           <div class="ra-card"><div class="ra-card-head"><h3>By type of traffic</h3><span class="aside">utm_medium</span></div><div id="tblMediums"></div></div>
         </div>
+        <div class="ra-card" id="dailyCard"><div class="ra-card-head"><h3>Each day&rsquo;s sign-ups</h3><span class="aside">did that day&rsquo;s people turn up, and how long did they stay</span></div><div class="ra-tablewrap" id="tblDaily"></div><p class="ra-foot" id="dailyNote" style="margin:10px 0 0"></p></div>
         <div class="ra-card"><div class="ra-card-head"><h3>By source</h3><span class="aside">utm_source</span></div><div class="ra-tablewrap" id="tblSources"></div></div>
         <div id="syncNote"></div>
       </div>
@@ -291,7 +292,7 @@
 
   // ---- charts (re-drawn when the theme changes, since colours come from the tokens)
   let charts = {};
-  let lastSummary = null, lastCurve = null;
+  let lastSummary = null, lastCurve = null, lastDaily = null;
   function chart(id, cfg) { if (charts[id]) charts[id].destroy(); charts[id] = new Chart($(id), cfg); }
   function chartDefaults() {
     Chart.defaults.font.family = getComputedStyle(document.body).getPropertyValue('--font-sans').trim() || 'Montserrat, sans-serif'; Chart.defaults.font.size = 12; Chart.defaults.font.weight = '600';
@@ -300,10 +301,62 @@
   }
   const yAxis = () => ({ beginAtZero: true, grid: { color: cssv('--viz-grid') }, border: { display: false }, ticks: { precision: 0 } });
   const xAxis = (extra) => Object.assign({ grid: { display: false }, border: { display: false } }, extra || {});
-  function drawDays(d) {
+  // Sign-ups per day. Driven by the funnel's `daily` rows (the AXL roster, dated from our
+  // own registrations) so this chart and the table under it can never disagree. Rows with
+  // no date are left off the chart and shown in the table instead.
+  function drawDaily(rows) {
     chartDefaults();
-    chart('chDays', { type: 'bar', data: { labels: d.days.map(x => fmtDay(x.day)), datasets: [{ label: 'Registrations', data: d.days.map(x => x.regs), backgroundColor: cssv('--viz-1'), borderRadius: 3, barPercentage: 0.7 }] },
-      options: { maintainAspectRatio: false, scales: { x: xAxis(), y: yAxis() } } });
+    const r = (rows || []).filter(x => x.day);
+    const hasRate = r.some(x => x.show_up_pct != null);
+    const sets = [{ label: 'Registered', data: r.map(x => Number(x.registered || 0)), backgroundColor: cssv('--viz-1'), borderRadius: 3, barPercentage: 0.7, order: 2 }];
+    if (hasRate) sets.push({ label: 'Showed up', type: 'line', yAxisID: 'y1', data: r.map(x => x.show_up_pct == null ? null : Number(x.show_up_pct)), borderColor: cssv('--viz-3'), backgroundColor: cssv('--viz-3'), borderWidth: 2, pointRadius: 2.5, tension: 0.3, spanGaps: true, order: 1 });
+    chart('chDays', { type: 'bar', data: { labels: r.map(x => fmtDay(x.day)), datasets: sets },
+      options: { maintainAspectRatio: false, scales: Object.assign({ x: xAxis(), y: yAxis() },
+        hasRate ? { y1: { position: 'right', beginAtZero: true, suggestedMax: 100, grid: { display: false }, border: { display: false }, ticks: { callback: (v) => v + '%' } } } : {}),
+        plugins: { tooltip: { callbacks: { label: (c) => c.dataset.yAxisID === 'y1' ? `Showed up: ${c.parsed.y}%` : `Registered: ${num(c.parsed.y)}` } } } } });
+  }
+
+  // One row per day someone signed up: how many, how many of THEM turned up, and how long
+  // that day's people stayed. Shows whether a last-minute registrant is worth more or less
+  // than one who signed up a week out -- which the single headline show-up rate hides.
+  function renderDaily(rows) {
+    rows = rows || [];
+    drawDaily(rows);
+    const box = $('tblDaily'), note = $('dailyNote');
+    if (!box) return;
+    if (!rows.length) {
+      box.innerHTML = '<div class="ra-empty"><b>No sign-up dates for this webinar</b><span>We only started recording when each person registered in September 2026, so older webinars cannot be broken down by day.</span></div>';
+      if (note) note.textContent = '';
+      return;
+    }
+    const totReg = rows.reduce((t, x) => t + Number(x.registered || 0), 0);
+    const anyAtt = rows.some(x => x.attended != null);
+    const totAtt = anyAtt ? rows.reduce((t, x) => t + Number(x.attended || 0), 0) : null;
+    // average minutes across the whole webinar, weighted by how many people each day brought
+    const wMin = rows.filter(x => x.avg_minutes != null && x.attended);
+    const totMin = wMin.length ? wMin.reduce((t, x) => t + Number(x.avg_minutes) * Number(x.attended), 0) / wMin.reduce((t, x) => t + Number(x.attended), 0) : null;
+    const dash = '<span class="dim">—</span>';
+    const body = rows.map((x) => {
+      const reg = Number(x.registered || 0), share = rate(reg, totReg || 1);
+      const when = x.day ? fmtDay(x.day) : '<span class="dim">Date unknown</span>';
+      return `<tr><td>${when}</td>`
+        + `<td data-label="Registered">${num(reg)}<span class="ra-meter"><i style="width:${share || 0}%"></i></span></td>`
+        + `<td data-label="Showed up">${x.attended == null ? dash : num(x.attended)}</td>`
+        + `<td data-label="Show-up rate">${x.show_up_pct == null ? dash : pct(x.show_up_pct)}</td>`
+        + `<td data-label="Average time watched">${x.avg_minutes == null ? dash : mins(x.avg_minutes)}</td></tr>`;
+    }).join('');
+    const foot = `<tr><td><b>All days</b></td><td data-label="Registered"><b>${num(totReg)}</b></td>`
+      + `<td data-label="Showed up"><b>${totAtt == null ? '—' : num(totAtt)}</b></td>`
+      + `<td data-label="Show-up rate"><b>${totAtt == null ? '—' : pct(rate(totAtt, totReg || 1))}</b></td>`
+      + `<td data-label="Average time watched"><b>${totMin == null ? '—' : mins(totMin)}</b></td></tr>`;
+    box.innerHTML = tbl(['Signed up on', 'Registered', 'Showed up', 'Show-up rate', 'Average time watched'], body, { stack: true, foot });
+    if (note) {
+      const undated = rows.filter(x => !x.day).reduce((t, x) => t + Number(x.registered || 0), 0);
+      const bits = ['Average time watched counts only the people who turned up. These figures are never narrowed by the Day / Week / Month buttons \u2014 when someone signed up and whether they showed are fixed facts of the webinar.'];
+      if (!anyAtt) bits.push('We cannot tell who attended on this one: its roster has no contact id to match a sign-up to, so only the registration counts are shown.');
+      else if (undated) bits.push(`${num(undated)} ${undated === 1 ? 'person is' : 'people are'} on the roster but we hold no registration record for them, so their sign-up day is unknown. They are still counted in the totals.`);
+      note.textContent = bits.join(' ');
+    }
   }
   function drawLive(curve) {
     chartDefaults();
@@ -313,7 +366,7 @@
       options: { maintainAspectRatio: false, plugins: { tooltip: { callbacks: { title: (i) => 'minute ' + i[0].label, label: (i) => i.raw + ' people in the room' } } },
         scales: { x: xAxis({ ticks: { maxTicksLimit: 8, callback: function (v) { return this.getLabelForValue(v) + ' min'; } } }), y: yAxis() } }, plugins: [offer] });
   }
-  new MutationObserver(() => { if (lastSummary) drawDays(lastSummary); if (lastCurve) drawLive(lastCurve); }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+  new MutationObserver(() => { if (lastDaily) drawDaily(lastDaily); if (lastCurve) drawLive(lastCurve); }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
 
   // ---- remembered view choices (per viewer)
   const store = { get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (_) { return d; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (_) {} } };
@@ -656,7 +709,6 @@
     lastSummary = d;
     webinarWhen = d.webinar || null;
     $('webinarWhen').textContent = d.webinar && d.webinar.scheduledAt ? fmtWhen(d.webinar.scheduledAt) : '';
-    drawDays(d);
 
     $('tblMediums').innerHTML = d.mediums.length ? '<div class="ra-bars">' + d.mediums.map(m => {
       const share = rate(m.regs, d.total || 1);
@@ -693,6 +745,8 @@
 
   function renderJourney(f) {
     lastFunnel = f;
+    lastDaily = f.daily || [];
+    renderDaily(lastDaily);
     offerMin = f.offer_minute != null ? Number(f.offer_minute) : 90;
     $('offerLegend').textContent = 'Offer starts · minute ' + num(offerMin);
     // 0 visitors / 0 texts means "not tracked yet" (older webinars), not a real zero

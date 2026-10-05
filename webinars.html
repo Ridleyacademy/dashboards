@@ -89,6 +89,13 @@
     .ra-sheet thead tr.a td.first{ z-index:3; color:var(--ink-muted); }
   
   /* the ad name opens the ad itself */
+  /* hidden until the image actually loads, so a row with no thumbnail keeps today's exact
+     layout. NB: no loading="lazy" on these -- a lazy image that starts display:none is
+     never fetched, so its load event never fires and it could never reveal itself. */
+  .ad-thumb { display: none; }
+  .ad-thumb.has { display: inline-block; width: 34px; height: 34px; margin-right: 8px; vertical-align: middle;
+    border-radius: 4px; border: 1px solid var(--line); object-fit: cover; background: var(--viz-grid); }
+  .ad-thumb.has:hover { border-color: var(--red, #c1121f); }
   button.ad-open { all: unset; cursor: pointer; font: inherit; color: inherit; text-decoration: underline;
     text-decoration-style: dotted; text-underline-offset: 3px; }
   button.ad-open:hover, button.ad-open:focus-visible { text-decoration-style: solid; color: var(--red, #c1121f); }
@@ -647,6 +654,38 @@
   // Clicking an ad's name opens what was actually served. Meta's preview and image URLs
   // are signed and expire, so meta-creative fetches them live rather than storing them.
   // The preview arrives as a facebook.com URL, which is put in an iframe we build here --
+  // Thumbnails for the whole ads table in ONE request, run AFTER the table is already on
+  // screen. Everything here is best-effort on purpose: no await blocks the render, every
+  // failure is swallowed, and a row whose thumbnail never arrives keeps the exact layout it
+  // has today (.ad-thumb is display:none until an image actually loads). Meta's CDN urls are
+  // signed and expire, so they are fetched per load rather than stored.
+  let thumbSeq = 0;
+  async function loadAdThumbs(ads) {
+    const seq = ++thumbSeq;
+    try {
+      const want = (ads || []).filter(a => a && a.paid && a.ad)
+        .map(a => ({ n: a.ad, s: a.adset_id || '' }));
+      if (!want.length) return;
+      const seen = new Set(), uniq = [];
+      for (const w of want) { const k = w.n + '|' + w.s; if (!seen.has(k)) { seen.add(k); uniq.push(w); } }
+      const { data: { session } } = await supa.auth.getSession();
+      if (!session || seq !== thumbSeq) return;
+      const res = await fetch(CREATIVE_BASE + '?thumbs=' + encodeURIComponent(JSON.stringify(uniq)),
+        { headers: { Authorization: 'Bearer ' + session.access_token } });
+      if (!res.ok || seq !== thumbSeq) return;
+      const d = await res.json();
+      const map = (d && d.thumbs) || {};
+      if (seq !== thumbSeq) return;
+      document.querySelectorAll('img.ad-thumb').forEach((img) => {
+        const u = map[img.dataset.k || ''];
+        if (!u || typeof u !== 'string' || !/^https:\/\//.test(u)) return;
+        img.addEventListener('load', () => img.classList.add('has'), { once: true });
+        img.addEventListener('error', () => img.removeAttribute('src'), { once: true });
+        img.src = u;
+      });
+    } catch (_) { /* no thumbnails is not an error worth showing anyone */ }
+  }
+
   // Meta's own <iframe> markup is never injected into the page.
   let creativeSeq = 0;
   function closeCreative() {
@@ -700,7 +739,7 @@
   if ($('creativeWrap')) $('creativeWrap').addEventListener('click', (e) => { if (e.target === $('creativeWrap')) closeCreative(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('creativeWrap') && !$('creativeWrap').hidden) closeCreative(); });
   document.addEventListener('click', (e) => {
-    const b = e.target.closest && e.target.closest('button.ad-open');
+    const b = e.target.closest && e.target.closest('button.ad-open, img.ad-thumb.has');
     if (b) openCreative(b.dataset.ad || '', b.dataset.adset || '');
   });
 
@@ -961,13 +1000,14 @@
       $('adsCard').style.display = '';
       const isSmall = (a) => a.paid && a.spend < 5 && a.regs === 0;
       const smallCount = ads.filter(isSmall).length;
-      const rows = ads.map(a => `<tr class="${a.paid ? '' : 'muted-row'}${isSmall(a) ? ' small-ad' : ''}"><td>${a.paid ? `<button type="button" class="ad-open" data-ad="${esc(a.ad)}" data-adset="${esc(a.adset_id || '')}" title="See the ad itself">${esc(a.ad)}</button>` : esc(a.ad)}${a.paid ? '' : ' <span class="sub">organic / not matched to an ad</span>'}${a.adset ? `<span class="sub">${esc(a.adset)}${a.paid && a.campaign ? ' · ' + esc(a.campaign) : ''}</span>` : ''}</td><td>${a.paid ? money(a.spend) : '—'}</td><td>${a.paid ? num(a.clicks) : '—'}</td><td>${a.ctr == null ? '—' : a.ctr + '%'}</td><td>${num(a.regs)}</td><td>${a.cost_per_reg == null ? '—' : money(a.cost_per_reg)}</td><td>${num(a.attended)}</td><td>${num(a.saw_offer)}</td><td>${num(a.sales)}${splitN(a)}</td><td>${a.revenue ? money(a.revenue) : '—'}${splitM(a)}</td><td>${a.paid ? pos(a.revenue - a.spend) : '—'}</td><td>${back(a.roas)}</td></tr>`).join('');
+      const rows = ads.map(a => `<tr class="${a.paid ? '' : 'muted-row'}${isSmall(a) ? ' small-ad' : ''}"><td>${a.paid ? `<img class="ad-thumb" alt="" referrerpolicy="no-referrer" data-k="${esc(a.ad)}|${esc(a.adset_id || '')}" data-ad="${esc(a.ad)}" data-adset="${esc(a.adset_id || '')}" title="See the ad itself">` : ''}${a.paid ? `<button type="button" class="ad-open" data-ad="${esc(a.ad)}" data-adset="${esc(a.adset_id || '')}" title="See the ad itself">${esc(a.ad)}</button>` : esc(a.ad)}${a.paid ? '' : ' <span class="sub">organic / not matched to an ad</span>'}${a.adset ? `<span class="sub">${esc(a.adset)}${a.paid && a.campaign ? ' · ' + esc(a.campaign) : ''}</span>` : ''}</td><td>${a.paid ? money(a.spend) : '—'}</td><td>${a.paid ? num(a.clicks) : '—'}</td><td>${a.ctr == null ? '—' : a.ctr + '%'}</td><td>${num(a.regs)}</td><td>${a.cost_per_reg == null ? '—' : money(a.cost_per_reg)}</td><td>${num(a.attended)}</td><td>${num(a.saw_offer)}</td><td>${num(a.sales)}${splitN(a)}</td><td>${a.revenue ? money(a.revenue) : '—'}${splitM(a)}</td><td>${a.paid ? pos(a.revenue - a.spend) : '—'}</td><td>${back(a.roas)}</td></tr>`).join('');
       const totRoas = spend > 0 ? Math.round(100 * m.attributed_revenue / spend) / 100 : null;
       $('tblAds').innerHTML = tbl(['Ad', 'Spend', 'Clicks', 'Clicked', 'Registered', 'Per registration', 'Showed up', 'Saw offer', 'Sales<span class="sub">live / rep</span>', 'Revenue<span class="sub">live / rep</span>', 'Profit', '$ back per $1'], rows,
         { foot: `<tr><td>All ads</td><td>${money(spend)}</td><td>${num(m.clicks)}</td><td>${m.ctr == null ? '—' : m.ctr + '%'}</td><td>${num(m.paid_regs)}</td><td>${m.paid_regs ? money(spend / m.paid_regs) : '—'}</td><td>${num(m.paid_attended)}</td><td>${num(m.paid_saw_offer)}</td><td>${num(m.attributed_sales)}${splitN({ sales: m.attributed_sales, live_sales: m.attributed_live_sales, rep_sales: m.attributed_rep_sales })}</td><td>${money(m.attributed_revenue)}${splitM({ revenue: m.attributed_revenue, live_revenue: m.attributed_live_revenue, rep_revenue: m.attributed_rep_revenue })}</td><td>${pos(m.attributed_revenue - spend)}</td><td>${back(totRoas)}</td></tr>` }) +
         (smallCount ? `<button class="ra-btn ghost sm" id="moreAds" style="margin-top:8px">Show ${smallCount} more ads (under $5 spend, no registrations)</button>` : '');
       const more = $('moreAds');
       if (more) more.addEventListener('click', () => { const t = $('tblAds'); t.classList.toggle('show-all'); more.textContent = t.classList.contains('show-all') ? 'Hide small ads' : `Show ${smallCount} more ads (under $5 spend, no registrations)`; });
+      loadAdThumbs(ads);        // deliberately not awaited: the table is already on screen
 
       const camps = Array.isArray(f.campaigns) ? f.campaigns : [];
       if (camps.length) {

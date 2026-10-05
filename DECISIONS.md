@@ -13,6 +13,13 @@ the structural map lives in the knowledge graph (`/graphify`). Format:
 
 ---
 
+## 2026-10-05 — Webinars: ad creative thumbnails in the Ads table
+**What:** `meta-creative` v4 gains `GET ?thumbs=<json>` — a url-encoded `[{n:"<ad name>",s:"<adset_id>"}]` answered as `{ thumbs: { "name|adset": url } }`. Creative ids are de-duplicated (27 Oct-4 rows resolve to 11 creatives) and fetched in ONE Meta multi-get of `thumbnail_url,image_url`. `webinars.html` renders a 34px `<img class="ad-thumb">` in each paid row, filled in after the table is on screen; clicking it opens the existing full preview.
+**Why:** Asked for: see the creative on the row without opening each ad.
+**Safety (the dashboard was in active use):** the whole feature is additive and fail-soft — `webinar-analytics` was not touched at all, the thumbs branch answers 200 with `{}` on every error path, `loadAdThumbs()` is never awaited and swallows everything, and `.ad-thumb` is `display:none` until an image actually loads, so a row without one keeps the exact layout it had.
+**Gotcha found in testing:** the first cut had `loading="lazy"` on an image that starts `display:none`. A lazy image that is hidden is never fetched, so its `load` event never fires and it can never reveal itself — thumbnails would have silently never appeared. Dropped the attribute (these are 34px images, lazy buys nothing) and left a comment so it is not re-added. Found by rendering the real markup in a browser, not by reading the code.
+**Touched:** edge fn meta-creative v4 (deploy verified against local source); webinars.html; version.txt v669; changelog.js v669.
+
 ## 2026-10-05 — Webinars: reconcile the Ads panel's ROAS with the headline
 **What:** The Ads panel summary now leads with revenue ÷ spend over the WHOLE webinar ($2.21 for Oct 4) and shows the ad-pinned figure second ($1.86); the footnote spells out the unpinned sales, their value, and how many registrations arrived with no ad tag.
 **Why:** The page showed $2.21 at the top and $1.86 in the Ads panel with nothing explaining the gap, which read as $6,985 of untracked sales. Nothing was missing — the headline already counts every sale; the per-ad rows can only count what they can pin to one named ad. Oct 4's gap is exactly 5 sales: 1 registrant with no utm anywhere (Helen Coleman, registered 13:00 on the day) and 4 manual attachments whose purchase email is on no roster.

@@ -217,7 +217,7 @@
         <dt>Revenue</dt><dd>What customers paid, before anything is taken off.</dd>
         <dt>Revenue after fees</dt><dd>Revenue minus rep commission (10%), rep manager commission (5%), card processor fees and the buy-now-pay-later cost (20%).</dd>
         <dt>Profit</dt><dd>Revenue after fees minus ad spend and text-message cost.</dd>
-        <dt>$ back per $1</dt><dd>Revenue ÷ ad spend (ROAS). Above $1 means the ads paid for themselves.</dd>
+        <dt>$ back per $1</dt><dd>Revenue ÷ ad spend (ROAS). Above $1 means the ads paid for themselves. This counts <b>every</b> sale the webinar made. The Ads panel also shows a second, lower figure counting only sales we can pin to one named ad — a buyer who used a different email, or whose registration lost its ad tag, cannot be pinned to an ad even though the ads brought them in.</dd>
         <dt>Return on cost</dt><dd>Profit ÷ everything the webinar cost (ROI). 100% means every $1 spent came back with $1 on top.</dd>
         <dt>Talked to</dt><dd>A rep spoke with the person for 3 minutes or more on one call. Shorter calls (voicemail, no answer, a quick hang-up) count as called, not talked to.</dd>
         <dt>Time to first call</dt><dd>How long until a rep first called. For leads handed to reps the clock starts at the hand-over; for other offer viewers it starts when the webinar ends.</dd>
@@ -991,11 +991,24 @@
           (c.adsets || []).map(a => `<tr class="child"><td style="min-width:220px"><b>${esc(a.name)}</b>${status(a.status)}${who(a.targeting)}</td><td>${budget(a)}</td>${cells(a)}</tr>`).join('')).join('');
         $('tblCamps').innerHTML = tbl(['Campaign / ad set', 'Budget', 'Spend', 'Ad views', 'Clicked', 'Per 1,000 views', 'Registered', 'Per registration', 'Showed up', 'Saw offer', 'Sales<span class="sub">live / rep</span>', 'Per sale', 'Revenue<span class="sub">live / rep</span>', 'Profit', '$ back per $1'], body);
       } else { $('campCard').style.display = 'none'; }
+      // Two returns on the same spend, and the gap between them read as missing money:
+      // the rows above can only count a sale we can pin to ONE named ad, while the top of
+      // the page counts every sale the webinar made. On a webinar that ads filled, the
+      // people we cannot pin are almost certainly ad traffic whose utm was lost on the way
+      // in -- they show up at the same rate as the tagged ones and nothing like list
+      // traffic -- so the FULL figure is the honest return on the spend, and it leads.
       const untraced = salesN - Number(m.attributed_sales || 0);
+      const untracedRev = (s && s.revenue != null && m.attributed_revenue != null) ? s.revenue - m.attributed_revenue : null;
+      const noTag = (s && s.registered != null && m.paid_regs != null) ? s.registered - m.paid_regs : null;
+      const fullRoas = (s && s.revenue != null && spend > 0) ? s.revenue / spend : null;
       $('adsNote').textContent = (m.campaigns && m.campaigns.length ? 'Campaign: ' + m.campaigns.join(', ') + '. ' : '') +
-        'An ad is linked when a registrant’s utm_content equals its Meta ad name and utm_term equals its ad set name; spend counts from the first registration to the end of the webinar. Sales per ad match the customer’s email to the registrant' +
-        (untraced > 0 ? ' — ' + untraced + ' of ' + salesN + ' sales couldn’t be traced to an ad (a different email, or non-ad traffic).' : '.');
-      $('sumAds').innerHTML = `<b>${money(spend)}</b> spent${m.attributed_revenue != null && spend > 0 ? ` · every $1 brought back <b>$${(m.attributed_revenue / spend).toFixed(2)}</b> in traced sales` : ''} · <b>${num(m.attributed_sales)} of ${num(sl && sl.buyers ? sl.buyers : salesN)}</b> sales traced to an ad`;
+        'An ad is linked when a registrant’s utm_content equals its Meta ad name and utm_term equals its ad set name; spend counts from the first registration to the end of the webinar. Sales per ad match the customer’s email to the registrant.' +
+        (untraced > 0 ? ` ${untraced} of ${salesN} sales${untracedRev ? ' (' + money(untracedRev) + ')' : ''} are not in the rows above. They still count in this webinar’s revenue and in the $ back per $1 — we just cannot say which ad earned them.` : '') +
+        (noTag > 0 ? ` ${num(noTag)} of ${num(s.registered)} registrations came in with no ad tag at all; on a webinar filled by ads that is almost always a tag lost on the way in, not a different source.` : '');
+      $('sumAds').innerHTML = `<b>${money(spend)}</b> spent`
+        + (fullRoas != null ? ` · every $1 brought back <b>$${fullRoas.toFixed(2)}</b>` : '')
+        + (m.attributed_revenue != null && spend > 0 ? ` · <b>$${(m.attributed_revenue / spend).toFixed(2)}</b> of that pinned to a named ad` : '')
+        + ` · <b>${num(m.attributed_sales)} of ${num(sl && sl.buyers ? sl.buyers : salesN)}</b> sales traced to an ad`;
     } else {
       $('adsCard').style.display = 'none'; $('campCard').style.display = 'none';
       $('sumAds').innerHTML = !m.connected ? 'Meta Ads isn’t connected' : 'No Meta ads are linked to this webinar';

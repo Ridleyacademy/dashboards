@@ -13,6 +13,13 @@ the structural map lives in the knowledge graph (`/graphify`). Format:
 
 ---
 
+## 2026-10-05 — Webinars: reconcile the Ads panel's ROAS with the headline
+**What:** The Ads panel summary now leads with revenue ÷ spend over the WHOLE webinar ($2.21 for Oct 4) and shows the ad-pinned figure second ($1.86); the footnote spells out the unpinned sales, their value, and how many registrations arrived with no ad tag.
+**Why:** The page showed $2.21 at the top and $1.86 in the Ads panel with nothing explaining the gap, which read as $6,985 of untracked sales. Nothing was missing — the headline already counts every sale; the per-ad rows can only count what they can pin to one named ad. Oct 4's gap is exactly 5 sales: 1 registrant with no utm anywhere (Helen Coleman, registered 13:00 on the day) and 4 manual attachments whose purchase email is on no roster.
+**Evidence the untagged are still ad traffic:** across all four ads webinars the untagged residue is small and consistent (5.6%, 4.7%, 8.1%, 6.1%) and carries no utm fragment at all, and it shows up at a rate just above the tagged cohort (Oct 4: 32.7% vs 28.1%) — nothing like the 72.8% a list webinar produces. So it is tag loss on the way in, not a second channel.
+**Touched:** webinars.html only (both figures were already in the funnel payload — no edge fn or SQL change); version.txt v668; changelog.js v668.
+**Still unresolved:** the 4 buyers cannot be tied to an ad by any data we hold — the AXL roster carries first names only (1,759 first names, 18 surnames on Oct 4) and their purchase emails appear on no roster and in no CRM lead tag. The remaining route is an AXL contact-email lookup to get a contactId, then matching `webinar_registrations.contact_id`; that needs an AXL API call, so a small edge-fn endpoint. Also noted: webhook-written Sales Log rows keep only a first name (96.7% single-word since 1 Sep) while reconciler rows keep the full name (92.3%); the full name is in `payment_transactions.buyer_name`.
+
 ## 2026-10-05 — Webinars: each day's sign-ups (registered / show-up / time watched)
 **What:** `webinar_daily_signups(webinar_id)` (new) returns one row per sign-up DAY: registered, attended, show-up %, average minutes watched. `webinar-analytics` v62 returns it as `daily` on `?api=funnel`; `webinars.html` renders a full-width table in the registrations panel and re-points the existing per-day chart at the same rows (bars = registered, line = show-up %), so chart and table can never disagree.
 **Why:** The single headline show-up rate hides that a late registrant is a far better lead: on Oct 4 same-day sign-ups showed up at 47.8% vs ~25% a week out, and Sep 27 matches (49.7% on the day). Useful for deciding how long before a webinar to spend.

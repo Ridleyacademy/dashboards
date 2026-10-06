@@ -55,6 +55,19 @@
     /* ---- Sheet view: every webinar, every figure ---- */
     .ra-sheetbar{ display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-2) var(--space-3); }
     .ra-sheetbar .grow{ flex:1 1 200px; min-width:0; font-size:12px; line-height:16px; color:var(--ink-faint); }
+    /* Replays view (page-only; promote to the bundle when a second page needs it) */
+    .rp-stack{ display:flex; flex-direction:column; gap:var(--space-4); min-width:0; }
+    .ra-section[hidden]{ display:none; }  /* .ra-section sets display:flex, which beats the hidden attribute */
+    #replayStats{ grid-template-columns:repeat(6, minmax(0,1fr)); }
+    @media (max-width:1100px){ #replayStats{ grid-template-columns:repeat(3, minmax(0,1fr)); } }
+    @media (max-width:560px){ #replayStats{ grid-template-columns:repeat(2, minmax(0,1fr)); } }
+    #replayStats .n{ white-space:normal; }
+    .rp-bars{ display:grid; grid-template-columns:max-content minmax(0,1fr) max-content; gap:8px 12px; align-items:center; font-size:13px; line-height:18px; font-variant-numeric:tabular-nums; }
+    .rp-bars .k{ color:var(--ink-muted); font-weight:600; white-space:nowrap; }
+    .rp-bars .b{ height:14px; background:var(--surface-sunken); border-radius:var(--radius-xs); overflow:hidden; }
+    .rp-bars .b i{ display:block; height:100%; background:var(--viz-1); }
+    .rp-bars .v{ font-weight:600; text-align:right; white-space:nowrap; }
+    .rp-bars .mark{ grid-column:1 / -1; font-size:12px; line-height:16px; font-weight:600; color:var(--brand-text); border-top:1px dashed var(--line-strong); padding-top:6px; }
     .ra-input{ height:32px; padding:0 10px; border-radius:var(--radius-sm); border:1px solid var(--line-strong); background:var(--surface); color:var(--ink); font:500 13px/1 var(--font-sans); min-width:0; width:220px; max-width:100%; }
     @media (pointer:coarse){ .ra-input{ height:44px; } }
     /* the webinar column is frozen; the other columns scroll BEHIND it and settle on whole columns
@@ -139,7 +152,7 @@
       </div>
       <div class="ra-toolbar">
         <div class="ra-seg" role="group" aria-label="View">
-          <button id="viewStory" aria-pressed="true" title="One webinar, step by step">▤ One webinar</button><button id="viewSheet" aria-pressed="false" title="Every webinar in one table, like a spreadsheet">⊞ All webinars sheet</button>
+          <button id="viewStory" aria-pressed="true" title="One webinar, step by step">▤ One webinar</button><button id="viewSheet" aria-pressed="false" title="Every webinar in one table, like a spreadsheet">⊞ All webinars sheet</button><button id="viewReplay" aria-pressed="false" title="How many people open and watch the replay pages, and what they click">▷ Replays</button>
         </div>
         <div class="ra-seg" role="group" aria-label="How long after the webinar to count">
           <button id="winDay" aria-pressed="true" title="Only what happened on the day of the webinar itself (New York time)">Day</button><button id="winWeek" aria-pressed="false" title="The first 7 days after the webinar ended">Week 1</button><button id="winMonth" aria-pressed="false" title="The first 30 days after the webinar ended">Month 1</button><button id="winAll" aria-pressed="false" title="Everything since, for as long as that lead has not come through a later webinar">All time</button>
@@ -212,6 +225,35 @@
       <div class="ra-sheet" id="sheetBox"></div>
     </section>
 
+    <section class="ra-section" id="replayView" hidden aria-label="Replay pages">
+      <div class="rp-stack">
+        <div class="ra-sheetbar">
+          <select class="ra-select" id="replaySel" aria-label="Replay page"><option value="">Loading replay pages…</option></select>
+          <span class="grow" id="replayNote">Loading…</span>
+          <a class="ra-btn" id="replayOpen" href="#" target="_blank" rel="noopener"><span class="g">↗</span> Open the page</a>
+        </div>
+        <div id="replayHealth"></div>
+        <div id="replayFunnel"></div>
+        <div class="ra-stats" id="replayStats"></div>
+        <details class="ra-panel" id="pRpStay" data-key="rp-stay" open>
+          <summary><span class="t">How long people stayed</span><span class="s" id="sumRpStay">—</span></summary>
+          <div class="ra-panel-body" id="rpStay"></div>
+        </details>
+        <details class="ra-panel" id="pRpDays" data-key="rp-days">
+          <summary><span class="t">Opens by day</span><span class="s" id="sumRpDays">—</span></summary>
+          <div class="ra-panel-body"><div class="ra-tablewrap" id="rpDays"></div></div>
+        </details>
+        <details class="ra-panel" id="pRpSrc" data-key="rp-src">
+          <summary><span class="t">Where they came from and what they watched on</span><span class="s" id="sumRpSrc">—</span></summary>
+          <div class="ra-panel-body rp-stack"><div class="ra-tablewrap" id="rpSources"></div><div class="ra-tablewrap" id="rpDevices"></div></div>
+        </details>
+        <details class="ra-panel" id="pRpAll" data-key="rp-all">
+          <summary><span class="t">All replay pages</span><span class="s" id="sumRpAll">—</span></summary>
+          <div class="ra-panel-body"><div class="ra-tablewrap" id="rpAll"></div></div>
+        </details>
+      </div>
+    </section>
+
     <details class="ra-glossary">
       <summary>What the numbers mean</summary>
       <dl>
@@ -229,6 +271,11 @@
         <dt>Talked to</dt><dd>A rep spoke with the person for 3 minutes or more on one call. Shorter calls (voicemail, no answer, a quick hang-up) count as called, not talked to.</dd>
         <dt>Time to first call</dt><dd>How long until a rep first called. For leads handed to reps the clock starts at the hand-over; for other offer viewers it starts when the webinar ends.</dd>
         <dt>Arrows ▲ ▼</dt><dd>Every number is compared with the previous webinar <b>of the same kind</b> — an ads webinar against the last ads webinar, a list webinar against the last list webinar. Paid traffic is cold and list traffic is warm, so comparing the two would make every arrow misleading. Green means better for us, orange means worse — so a cost going down is green. If there is no earlier webinar of the same kind, no arrows are shown.</dd>
+        <dt>Replays: visits and people</dt><dd>A <b>visit</b> is one time the replay page was opened. <b>People</b> counts each browser once, however many times it came back. Someone who opens the page on a phone and again on a computer counts as two.</dd>
+        <dt>Replays: pressed play</dt><dd>The video does not start by itself, so this is everyone who actually clicked play.</dd>
+        <dt>Replays: watch time</dt><dd>Minutes the video was really playing, added up across a person’s visits. Pauses and time on another tab are not counted. <b>Typical</b> is the middle person: half watched longer, half shorter.</dd>
+        <dt>Replays: saw the offer</dt><dd>Their video reached the minute where the price is named on that page.</dd>
+        <dt>Replays: clicks</dt><dd>People who clicked “Get the deal”, “Get a free piano consultation” or the book download at least once. A click on the deal opens the checkout — it is not a sale.</dd>
         <dt>Ads / list webinar</dt><dd>An <b>ads</b> webinar is one where at least a fifth of the registrations came from a Meta ad we can identify; in practice ours run over 90%. Everything else is a <b>list</b> webinar, filled by emailing people we already have.</dd>
       </dl>
     </details>
@@ -633,8 +680,129 @@
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'ridley-webinars-' + new Date().toISOString().slice(0, 10) + '.csv';
     document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
   });
-  $('viewStory').addEventListener('click', () => sheetView(false));
-  $('viewSheet').addEventListener('click', () => sheetView(true));
+  $('viewStory').addEventListener('click', () => { replayView(false); sheetView(false); });
+  $('viewSheet').addEventListener('click', () => { replayView(false); sheetView(true); });
+  $('viewReplay').addEventListener('click', () => replayView(true));
+
+  // ================= replays: who opens the replay pages, how long they watch, what they click =================
+  // Numbers come from replay_sessions (one row per visit, written by the pages' own beacon) via the
+  // replay-stats edge function. Counts only — no names or emails.
+  const REPLAY_BASE = SUPABASE_URL + '/functions/v1/replay-stats';
+  let replayData = null, replayLoading = null;
+  const winSeg = () => document.querySelector('.ra-seg[aria-label="How long after the webinar to count"]');
+  function replayView(on) {
+    $('replayView').hidden = !on;
+    $('viewReplay').setAttribute('aria-pressed', String(on));
+    if (winSeg()) winSeg().style.display = on ? 'none' : '';
+    if (!on) return;
+    $('storyView').style.display = 'none'; $('sheetView').hidden = true;
+    $('viewStory').setAttribute('aria-pressed', 'false'); $('viewSheet').setAttribute('aria-pressed', 'false');
+    $('webinarSel').style.display = 'none'; $('syncBtn').style.display = 'none'; document.querySelector('.ra-pagehead .meta').style.display = 'none';
+    store.set('webinars-view', 'replay');
+    if (!replayData) loadReplay(); else renderReplay();
+  }
+  async function loadReplay() {
+    if (replayLoading) return replayLoading;
+    $('replayFunnel').innerHTML = '<div style="display:flex;flex-direction:column;gap:10px">' + Array.from({ length: 4 }, () => '<span class="ra-skel block"></span>').join('') + '</div>';
+    replayLoading = (async () => {
+      try {
+        const { data: { session } } = await supa.auth.getSession();
+        if (!session) { location.replace('index.html'); return; }
+        const res = await fetch(REPLAY_BASE, { headers: { Authorization: 'Bearer ' + session.access_token } });
+        const j = await res.json();
+        if (!res.ok) throw new Error(j.error || ('HTTP ' + res.status));
+        replayData = j;
+        const sel = $('replaySel'), want = store.get('webinars-replay', '');
+        sel.innerHTML = (j.pages || []).map(p => `<option value="${esc(p.slug)}">${esc(p.title)}</option>`).join('') || '<option value="">No replay pages yet</option>';
+        if ([...sel.options].some(o => o.value === want)) sel.value = want;
+        renderReplay();
+      } catch (e) {
+        $('replayFunnel').innerHTML = callout('negative', '⚠', 'Could not load the replay numbers: ' + esc(e.message));
+        $('replayNote').textContent = '';
+      } finally { replayLoading = null; }
+    })();
+    return replayLoading;
+  }
+  const rpMin = (m) => (m == null ? '—' : (m < 60 ? (Math.round(m * 10) / 10) + ' min' : Math.floor(m / 60) + ' h ' + Math.round(m % 60) + ' min'));
+  function renderReplay() {
+    const pages = (replayData && replayData.pages) || [];
+    const p = pages.find(x => x.slug === $('replaySel').value) || pages[0];
+    ['replayHealth', 'replayFunnel', 'replayStats', 'rpStay', 'rpDays', 'rpSources', 'rpDevices', 'rpAll'].forEach(id => { $(id).innerHTML = ''; });
+    if (!p) { $('replayFunnel').innerHTML = callout('', '▤', 'No replay pages are being tracked yet.'); $('replayNote').textContent = ''; return; }
+    $('replayOpen').href = p.url;
+    $('replayNote').textContent = (p.first_open ? 'Counting since ' + fmtLong(p.first_open) + ' · last opened ' + fmtWhen(p.last_open) : 'Nobody has opened this page yet') + ' · video is ' + rpMin(p.minutes_long) + ' long';
+    $('genAt').textContent = fmtWhen(replayData.generated_at);
+
+    // problems only
+    const health = [];
+    if (!p.people) health.push(callout('', '▤', 'Nobody has opened this page yet. Numbers appear here as soon as the first person does.'));
+    else if (p.played < 20) health.push(callout('caution', '⚠', `Only <b>${num(p.played)}</b> ${p.played === 1 ? 'person has' : 'people have'} pressed play so far, so the percentages will jump around until more people watch.`));
+    $('replayHealth').innerHTML = health.join('');
+
+    // the story: opened → played → stayed → saw the offer → clicked the deal
+    const kept = (a, b) => (b ? Math.round(100 * a / b) : 0);
+    const f = [
+      stage({ l: 'Opened the page', n: num(p.people), help: `people · ${num(p.visits)} visits in total, ${num(p.came_back)} came back more than once` }),
+      step(pct(rate(p.played, p.people)), 'pressed play'),
+      stage({ l: 'Pressed play', n: num(p.played), help: 'Started the video', bar: fbar(kept(p.played, p.people), 100 - kept(p.played, p.people)) }),
+      step(pct(rate(p.watched_1min, p.played)), 'stayed a minute'),
+      stage({ l: 'Watched 1 minute or more', n: num(p.watched_1min), help: 'This is when the two buttons appear', bar: fbar(kept(p.watched_1min, p.people), kept(p.played - p.watched_1min, p.people)) }),
+      step(pct(rate(p.saw_offer, p.watched_1min)), 'reached the offer'),
+      stage({ l: 'Saw the offer', n: num(p.saw_offer), help: p.offer_minute == null ? 'No offer minute set for this page' : `Their video reached minute ${num(p.offer_minute)}, when the price is named`, bar: fbar(kept(p.saw_offer, p.people), kept(p.watched_1min - p.saw_offer, p.people)) }),
+      step(pct(rate(p.deal_people, p.played)), 'of viewers clicked'),
+      stage({ cls: 'outcome', l: 'Clicked Get the deal', n: num(p.deal_people), help: `people · ${num(p.deal_clicks)} clicks. Opens the checkout — not a sale yet` }),
+    ];
+    $('replayFunnel').innerHTML = `<div class="ra-funnel" role="list" aria-label="Replay page, step by step">${f.join('')}</div>`;
+
+    // figures that are not in the row above
+    const stat = (l, n, sub, cls) => `<div class="ra-stat${cls ? ' ' + cls : ''}"><div class="l">${esc(l)}</div><div class="n">${n}</div><div class="sub">${sub}</div></div>`;
+    const ofViewers = (n) => (p.played ? pct(rate(n, p.played)) + ' of viewers' : 'nobody has pressed play yet');
+    const total = Number(p.total_hours) >= 1 ? num(p.total_hours) + ' h' : rpMin((Number(p.avg_minutes) || 0) * (p.played || 0));
+    $('replayStats').innerHTML = [
+      stat('Average watch time', rpMin(p.avg_minutes), 'per person who pressed play'),
+      stat('Typical watch time', rpMin(p.median_minutes), 'half watched longer, half shorter'),
+      stat('Clicked free consultation', num(p.consult_people), `${ofViewers(p.consult_people)} · ${num(p.consult_clicks)} clicks`),
+      stat('Downloaded the book', num(p.book_people), p.book_minute == null ? 'no unlock time set' : `${num(p.book_unlocked)} reached the unlock at minute ${num(p.book_minute)}`),
+      stat('Watched to the end', num(p.finished), ofViewers(p.finished)),
+      stat('Total time watched', total, 'everyone added together'),
+    ].join('');
+
+    // how long people stayed
+    const stayed = p.stayed || [];
+    let marks = [[p.offer_minute, 'The price is named at minute '], [p.book_minute, 'The book unlocks at minute ']].filter(m => m[0] != null).sort((a, b) => a[0] - b[0]);
+    let bars = '';
+    for (const r of stayed) {
+      while (marks.length && marks[0][0] <= r.min) { const m = marks.shift(); bars += `<div class="mark">${esc(m[1] + num(m[0]))}</div>`; }
+      const share = kept(r.people, p.played);
+      bars += `<span class="k">${r.min < 60 ? r.min + ' min' : (r.min / 60) + ' h'}</span><span class="b" aria-hidden="true"><i style="width:${share}%"></i></span><span class="v">${num(r.people)} · ${share}%</span>`;
+    }
+    for (const m of marks) bars += `<div class="mark">${esc(m[1] + num(m[0]))}</div>`;
+    $('rpStay').innerHTML = p.played ? `<div class="rp-bars" role="img" aria-label="People still watching after each number of minutes">${bars}</div>` : callout('', '▤', 'Nobody has pressed play yet.');
+    const half = stayed.filter(r => p.played && r.people * 2 >= p.played).pop();
+    $('sumRpStay').textContent = p.played ? (half ? `Half of viewers were still watching at ${half.min} min` : 'Half of viewers left within the first minute') : 'No viewers yet';
+
+    // by day
+    const days = (p.days || []).slice().reverse(), maxDay = Math.max(1, ...days.map(d => d.people));
+    $('rpDays').innerHTML = days.length ? tbl(['Day', 'People', '', 'Visits', 'Pressed play', '% played'],
+      days.map(d => `<tr><td>${esc(fmtDay(d.day))}</td><td>${num(d.people)}</td><td><span class="ra-meter"><i style="width:${Math.round(100 * d.people / maxDay)}%"></i></span></td><td>${num(d.visits)}</td><td>${num(d.played)}</td><td>${pct(rate(d.played, d.people))}</td></tr>`).join('')) : '';
+    const best = days.slice().sort((a, b) => b.people - a.people)[0];
+    $('sumRpDays').textContent = best ? `Busiest day ${fmtDay(best.day)} · ${num(best.people)} people` : 'No opens yet';
+
+    // sources + devices
+    const src = p.sources || [], dev = p.devices || [];
+    $('rpSources').innerHTML = src.length ? tbl(['Where from', 'People', 'Pressed play', 'Clicked deal', 'Clicked consultation'],
+      src.map(r => `<tr><td>${esc(r.source)}</td><td>${num(r.people)}</td><td>${num(r.played)}</td><td>${num(r.deal)}</td><td>${num(r.consult)}</td></tr>`).join('')) : '';
+    $('rpDevices').innerHTML = dev.length ? tbl(['Watched on', 'People', 'Pressed play', 'Average watch'],
+      dev.map(r => `<tr><td>${esc(r.device)}</td><td>${num(r.people)}</td><td>${num(r.played)}</td><td>${rpMin(r.avg_minutes)}</td></tr>`).join('')) : '';
+    $('sumRpSrc').textContent = src.length ? `Most from ${src[0].source}` + (dev.length ? ` · mostly on a ${dev[0].device.toLowerCase()}` : '') : 'No opens yet';
+
+    // every replay page side by side
+    $('rpAll').innerHTML = tbl(['Replay page', 'People', 'Visits', 'Played', '% played', 'Typical watch', 'Saw offer', 'Deal', 'Consultation', 'Book'],
+      pages.map(x => `<tr data-slug="${esc(x.slug)}" class="${x.slug === p.slug ? 'selected' : ''}" style="cursor:pointer"><td style="white-space:nowrap">${esc(x.title)}</td><td>${num(x.people)}</td><td>${num(x.visits)}</td><td>${num(x.played)}</td><td>${pct(rate(x.played, x.people))}</td><td>${rpMin(x.median_minutes)}</td><td>${num(x.saw_offer)}</td><td class="outcome">${num(x.deal_people)}</td><td>${num(x.consult_people)}</td><td>${num(x.book_people)}</td></tr>`).join(''));
+    $('sumRpAll').textContent = `${num(pages.length)} page${pages.length === 1 ? '' : 's'} · ${num(pages.reduce((a, x) => a + (x.people || 0), 0))} people in total`;
+  }
+  $('replaySel').addEventListener('change', () => { store.set('webinars-replay', $('replaySel').value); renderReplay(); });
+  $('rpAll').addEventListener('click', (e) => { const tr = e.target.closest('tr[data-slug]'); if (!tr) return; $('replaySel').value = tr.dataset.slug; store.set('webinars-replay', tr.dataset.slug); renderReplay(); window.scrollTo(0, 0); });
 
   const WKEY = 'webinars-selected';
   function selectedWebinar() { return $('webinarSel').value || localStorage.getItem(WKEY) || ''; }
@@ -1147,7 +1315,7 @@
   });
   $('journey').addEventListener('keydown', (e) => { if (e.target.id === 'offerMinIn' && e.key === 'Enter') { const s = e.target.closest('.help').querySelector('[data-act="offer-save"]'); if (s) s.click(); } });
   function alertBox(msg) { $('health').insertAdjacentHTML('afterbegin', callout('negative', '⚠', esc(msg))); }
-  $('refreshBtn').addEventListener('click', () => { attendancePromise = null; load(); loadAttendance(); if (!$('sheetView').hidden) { sheetRows = null; loadSheet(); } });
+  $('refreshBtn').addEventListener('click', () => { attendancePromise = null; load(); loadAttendance(); if (!$('sheetView').hidden) { sheetRows = null; loadSheet(); } if (!$('replayView').hidden) { replayData = null; loadReplay(); } });
   $('webinarSel').addEventListener('change', () => load());
   $('syncBtn').addEventListener('click', async () => {
     const b = $('syncBtn'); b.setAttribute('aria-disabled', 'true'); b.disabled = true; b.innerHTML = '<span class="g">⇉</span> Syncing…';
@@ -1169,6 +1337,7 @@
     load();
     loadAttendance();
     if (store.get('webinars-view', 'story') === 'sheet') sheetView(true);
+    else if (store.get('webinars-view', 'story') === 'replay') replayView(true);
   })();
 </script>
 <script src="access-guard.js"></script>

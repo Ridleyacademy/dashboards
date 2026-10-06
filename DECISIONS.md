@@ -13,6 +13,14 @@ the structural map lives in the knowledge graph (`/graphify`). Format:
 
 ---
 
+## 2026-10-06 — Webinars: Replays view (opens, watch time, clicks per replay page)
+**What:** Third view on webinars.html (`▷ Replays`, remembered in `webinars-view` = `replay`): a step row (opened → pressed play → watched 1 min → saw the offer → clicked Get the deal), a six-figure strip, "How long people stayed" bars with the offer and book-unlock minutes marked, opens by day, sources + device, and a table of every replay page. Data: the replay pages' own beacon (`replay-track`, public, origin-locked) writes one row per visit to `replay_sessions`; `replay_pages` holds each page's video positions (start / offer / book unlock / length); SQL `replay_stats()` rolls visits up to one row per browser per page and returns counts only; new edge fn `replay-stats` v1 (verify_jwt, same gate as webinar-analytics) serves it.
+**Why:** Asked for: a Replays section with how many views, how many unique people opened the page, and the rest. The replay pages were rebuilt on Oct 5 with a deal button, a consultation button and a book download, and there was nowhere to see whether anyone used them.
+**Design choices:** People, not visits, drive every step (a refresh is not a second viewer) and visits are shown beside the first step. "Saw the offer" is the video POSITION reaching the offer second, not minutes watched, because the Secret 3 page starts 59 minutes in. A separate small function rather than a new branch in webinar-analytics: that function is large and the dashboard was in use, so nothing existing was redeployed. Live compute is fine here (two pages, a few hundred rows) — revisit with a snapshot if replay_sessions grows past ~100k rows.
+**Also fixed:** `.ra-section` sets `display:flex`, which beats the `hidden` attribute, so a hidden `#sheetView` was still laid out. Added `.ra-section[hidden]{display:none}` on the page.
+**Limits:** "People" is per browser (localStorage id), so phone + laptop counts twice; private windows count as new each time. Counting starts 2026-10-05. A deal click is a checkout open, not a sale. Country is not captured.
+**Touched:** webinars.html; edge fns replay-stats v1 (new), replay-track v1 (new, Oct 5); tables replay_sessions, replay_pages; SQL replay_track(), replay_stats(); version.txt v670; changelog.js v670; AGENTS.md.
+
 ## 2026-10-05 — Webinars: ad creative thumbnails in the Ads table
 **What:** `meta-creative` v4 gains `GET ?thumbs=<json>` — a url-encoded `[{n:"<ad name>",s:"<adset_id>"}]` answered as `{ thumbs: { "name|adset": url } }`. Creative ids are de-duplicated (27 Oct-4 rows resolve to 11 creatives) and fetched in ONE Meta multi-get of `thumbnail_url,image_url`. `webinars.html` renders a 34px `<img class="ad-thumb">` in each paid row, filled in after the table is on screen; clicking it opens the existing full preview.
 **Why:** Asked for: see the creative on the row without opening each ad.

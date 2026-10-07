@@ -13,6 +13,12 @@ the structural map lives in the knowledge graph (`/graphify`). Format:
 
 ---
 
+## 2026-10-07 — Webinars → Replays: date and time filter, hour-by-hour
+**What:** Period picker on the Replays view (All time / Today / Yesterday / Last 7 days / Last 30 days / custom from–to with `datetime-local` inputs). `replay_stats()` became `replay_stats(p_from timestamptz, p_to timestamptz)` (both optional) and filters `replay_sessions.opened_at`; when the window is ≤ 3 days it also returns `hours[]` (visits, people, played, deal, consult per UTC hour) and the page shows "Opens by hour" instead of "Opens by day". `replay-stats` v2 reads `?from=&to=` (ISO), rejects unreadable or inverted ranges with 400.
+**Why:** Asked for: filter the replay stats by date and time to see more granular data.
+**Choices:** The filter is on when the page was OPENED, not on when minutes were watched — a session is one row with totals, so a visit cannot be split across a boundary; said so in the glossary. Presets and inputs use the viewer's own time zone (hour labels too); the by-day table stays in New York days like the rest of the page. A person who visited both inside and outside the window is counted inside it using only their in-window visits.
+**Touched:** webinars.html; SQL replay_stats(timestamptz, timestamptz) (old zero-arg version dropped); edge fn replay-stats v2; version.txt v671; changelog.js v671; AGENTS.md.
+
 ## 2026-10-06 — Webinars: Replays view (opens, watch time, clicks per replay page)
 **What:** Third view on webinars.html (`▷ Replays`, remembered in `webinars-view` = `replay`): a step row (opened → pressed play → watched 1 min → saw the offer → clicked Get the deal), a six-figure strip, "How long people stayed" bars with the offer and book-unlock minutes marked, opens by day, sources + device, and a table of every replay page. Data: the replay pages' own beacon (`replay-track`, public, origin-locked) writes one row per visit to `replay_sessions`; `replay_pages` holds each page's video positions (start / offer / book unlock / length); SQL `replay_stats()` rolls visits up to one row per browser per page and returns counts only; new edge fn `replay-stats` v1 (verify_jwt, same gate as webinar-analytics) serves it.
 **Why:** Asked for: a Replays section with how many views, how many unique people opened the page, and the rest. The replay pages were rebuilt on Oct 5 with a deal button, a consultation button and a book download, and there was nowhere to see whether anyone used them.

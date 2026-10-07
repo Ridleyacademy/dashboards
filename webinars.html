@@ -57,7 +57,10 @@
     .ra-sheetbar .grow{ flex:1 1 200px; min-width:0; font-size:12px; line-height:16px; color:var(--ink-faint); }
     /* Replays view (page-only; promote to the bundle when a second page needs it) */
     .rp-stack{ display:flex; flex-direction:column; gap:var(--space-4); min-width:0; }
-    .ra-section[hidden]{ display:none; }  /* .ra-section sets display:flex, which beats the hidden attribute */
+    .ra-section[hidden]{ display:none; }
+    .rp-custom{ display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-2); font-size:12px; }
+    .rp-custom[hidden]{ display:none; }
+    .rp-custom .ra-input{ width:auto; min-width:0; }  /* .ra-section sets display:flex, which beats the hidden attribute */
     #replayStats{ grid-template-columns:repeat(6, minmax(0,1fr)); }
     @media (max-width:1100px){ #replayStats{ grid-template-columns:repeat(3, minmax(0,1fr)); } }
     @media (max-width:560px){ #replayStats{ grid-template-columns:repeat(2, minmax(0,1fr)); } }
@@ -229,6 +232,15 @@
       <div class="rp-stack">
         <div class="ra-sheetbar">
           <select class="ra-select" id="replaySel" aria-label="Replay page"><option value="">Loading replay pages…</option></select>
+          <select class="ra-select" id="replayRange" aria-label="Time period" title="Only count visits that opened the page in this period">
+            <option value="all">All time</option><option value="today">Today</option><option value="yesterday">Yesterday</option><option value="7d">Last 7 days</option><option value="30d">Last 30 days</option><option value="custom">Choose dates and times…</option>
+          </select>
+          <span class="rp-custom" id="replayCustom" hidden>
+            <input class="ra-input" type="datetime-local" id="replayFrom" aria-label="From">
+            <span>to</span>
+            <input class="ra-input" type="datetime-local" id="replayTo" aria-label="To">
+            <button class="ra-btn" id="replayApply" type="button"><span class="g">✓</span> Show</button>
+          </span>
           <span class="grow" id="replayNote">Loading…</span>
           <a class="ra-btn" id="replayOpen" href="#" target="_blank" rel="noopener"><span class="g">↗</span> Open the page</a>
         </div>
@@ -240,7 +252,7 @@
           <div class="ra-panel-body" id="rpStay"></div>
         </details>
         <details class="ra-panel" id="pRpDays" data-key="rp-days">
-          <summary><span class="t">Opens by day</span><span class="s" id="sumRpDays">—</span></summary>
+          <summary><span class="t" id="rpDaysTitle">Opens by day</span><span class="s" id="sumRpDays">—</span></summary>
           <div class="ra-panel-body"><div class="ra-tablewrap" id="rpDays"></div></div>
         </details>
         <details class="ra-panel" id="pRpSrc" data-key="rp-src">
@@ -275,6 +287,7 @@
         <dt>Replays: pressed play</dt><dd>The video does not start by itself, so this is everyone who actually clicked play.</dd>
         <dt>Replays: watch time</dt><dd>Minutes the video was really playing, added up across a person’s visits. Pauses and time on another tab are not counted. <b>Typical</b> is the middle person: half watched longer, half shorter.</dd>
         <dt>Replays: saw the offer</dt><dd>Their video reached the minute where the price is named on that page.</dd>
+        <dt>Replays: time period</dt><dd>The period picker counts visits by when the page was <b>opened</b>, in your own time zone. Someone who opened the page at 11:50 pm and watched past midnight belongs to the first day. When the period is 3 days or shorter, “Opens by day” becomes “Opens by hour”.</dd>
         <dt>Replays: clicks</dt><dd>People who clicked “Get the deal”, “Get a free piano consultation” or the book download at least once. A click on the deal opens the checkout — it is not a sale.</dd>
         <dt>Ads / list webinar</dt><dd>An <b>ads</b> webinar is one where at least a fifth of the registrations came from a Meta ad we can identify; in practice ours run over 90%. Everything else is a <b>list</b> webinar, filled by emailing people we already have.</dd>
       </dl>
@@ -689,6 +702,31 @@
   // replay-stats edge function. Counts only — no names or emails.
   const REPLAY_BASE = SUPABASE_URL + '/functions/v1/replay-stats';
   let replayData = null, replayLoading = null;
+  // Time period: a preset or a custom from/to, in the viewer's own time zone. It filters on when the page was OPENED.
+  let replayRange = store.get('webinars-replay-range', { k: 'all' });
+  if (!replayRange || !replayRange.k) replayRange = { k: 'all' };
+  function replayWindow() {
+    const n = new Date(), day = (off) => new Date(n.getFullYear(), n.getMonth(), n.getDate() + off);
+    switch (replayRange.k) {
+      case 'today': return { from: day(0) };
+      case 'yesterday': return { from: day(-1), to: day(0) };
+      case '7d': return { from: day(-6) };
+      case '30d': return { from: day(-29) };
+      case 'custom': return { from: replayRange.from ? new Date(replayRange.from) : null, to: replayRange.to ? new Date(replayRange.to) : null };
+      default: return {};
+    }
+  }
+  const fmtLocal = (d) => d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  const toInput = (d) => { const p = (x) => String(x).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
+  function paintReplayRange() {
+    $('replayRange').value = replayRange.k;
+    $('replayCustom').hidden = replayRange.k !== 'custom';
+    if (replayRange.k === 'custom') {
+      const w = replayWindow(), n = new Date();
+      $('replayFrom').value = toInput(w.from || new Date(n.getTime() - 864e5));
+      $('replayTo').value = toInput(w.to || n);
+    }
+  }
   const winSeg = () => document.querySelector('.ra-seg[aria-label="How long after the webinar to count"]');
   function replayView(on) {
     $('replayView').hidden = !on;
@@ -708,7 +746,10 @@
       try {
         const { data: { session } } = await supa.auth.getSession();
         if (!session) { location.replace('index.html'); return; }
-        const res = await fetch(REPLAY_BASE, { headers: { Authorization: 'Bearer ' + session.access_token } });
+        const w = replayWindow(), qs = new URLSearchParams();
+        if (w.from && !isNaN(w.from)) qs.set('from', w.from.toISOString());
+        if (w.to && !isNaN(w.to)) qs.set('to', w.to.toISOString());
+        const res = await fetch(REPLAY_BASE + (qs.toString() ? '?' + qs : ''), { headers: { Authorization: 'Bearer ' + session.access_token } });
         const j = await res.json();
         if (!res.ok) throw new Error(j.error || ('HTTP ' + res.status));
         replayData = j;
@@ -730,12 +771,15 @@
     ['replayHealth', 'replayFunnel', 'replayStats', 'rpStay', 'rpDays', 'rpSources', 'rpDevices', 'rpAll'].forEach(id => { $(id).innerHTML = ''; });
     if (!p) { $('replayFunnel').innerHTML = callout('', '▤', 'No replay pages are being tracked yet.'); $('replayNote').textContent = ''; return; }
     $('replayOpen').href = p.url;
-    $('replayNote').textContent = (p.first_open ? 'Counting since ' + fmtLong(p.first_open) + ' · last opened ' + fmtWhen(p.last_open) : 'Nobody has opened this page yet') + ' · video is ' + rpMin(p.minutes_long) + ' long';
+    const win = replayWindow(), filtered = !!(win.from || win.to);
+    const period = filtered ? 'Showing visits opened ' + (win.from ? 'from ' + fmtLocal(win.from) : 'up') + ' to ' + (win.to ? fmtLocal(win.to) : 'now') + ' (your local time) · ' : '';
+    $('replayNote').textContent = period + (p.first_open ? (filtered ? 'last opened ' : 'Counting since ' + fmtLong(p.first_open) + ' · last opened ') + fmtWhen(p.last_open) : (filtered ? 'nobody opened this page in this period' : 'Nobody has opened this page yet')) + ' · video is ' + rpMin(p.minutes_long) + ' long';
     $('genAt').textContent = fmtWhen(replayData.generated_at);
 
     // problems only
     const health = [];
-    if (!p.people) health.push(callout('', '▤', 'Nobody has opened this page yet. Numbers appear here as soon as the first person does.'));
+    if (!p.people) health.push(callout('', '▤', filtered ? 'Nobody opened this page in this period. Try a wider period, or All time.' : 'Nobody has opened this page yet. Numbers appear here as soon as the first person does.'));
+    else if (!p.played) health.push(callout('', '▤', 'People opened the page' + (filtered ? ' in this period' : '') + ', but nobody has pressed play yet.'));
     else if (p.played < 20) health.push(callout('caution', '⚠', `Only <b>${num(p.played)}</b> ${p.played === 1 ? 'person has' : 'people have'} pressed play so far, so the percentages will jump around until more people watch.`));
     $('replayHealth').innerHTML = health.join('');
 
@@ -781,12 +825,22 @@
     const half = stayed.filter(r => p.played && r.people * 2 >= p.played).pop();
     $('sumRpStay').textContent = p.played ? (half ? `Half of viewers were still watching at ${half.min} min` : 'Half of viewers left within the first minute') : 'No viewers yet';
 
-    // by day
-    const days = (p.days || []).slice().reverse(), maxDay = Math.max(1, ...days.map(d => d.people));
-    $('rpDays').innerHTML = days.length ? tbl(['Day', 'People', '', 'Visits', 'Pressed play', '% played'],
+    // by hour when the period is 3 days or less, otherwise by day
+    const hours = replayData.hourly && Array.isArray(p.hours) ? p.hours.slice().reverse() : null;
+    $('rpDaysTitle').textContent = hours ? 'Opens by hour' : 'Opens by day';
+    if (hours) {
+      const maxH = Math.max(1, ...hours.map(h => h.people));
+      const hl = (iso) => new Date(iso).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric' });
+      $('rpDays').innerHTML = hours.length ? tbl(['Hour (your time)', 'People', '', 'Visits', 'Pressed play', 'Clicked deal', 'Clicked consultation'],
+        hours.map(h => `<tr><td>${esc(hl(h.hour))}</td><td>${num(h.people)}</td><td><span class="ra-meter"><i style="width:${Math.round(100 * h.people / maxH)}%"></i></span></td><td>${num(h.visits)}</td><td>${num(h.played)}</td><td>${num(h.deal)}</td><td>${num(h.consult)}</td></tr>`).join('')) : '';
+      const bh = hours.slice().sort((a, b) => b.people - a.people)[0];
+      $('sumRpDays').textContent = bh ? `Busiest hour ${hl(bh.hour)} · ${num(bh.people)} ${bh.people === 1 ? 'person' : 'people'}` : 'No opens in this period';
+    }
+    const days = hours ? [] : (p.days || []).slice().reverse(), maxDay = Math.max(1, ...days.map(d => d.people));
+    if (!hours) $('rpDays').innerHTML = days.length ? tbl(['Day', 'People', '', 'Visits', 'Pressed play', '% played'],
       days.map(d => `<tr><td>${esc(fmtDay(d.day))}</td><td>${num(d.people)}</td><td><span class="ra-meter"><i style="width:${Math.round(100 * d.people / maxDay)}%"></i></span></td><td>${num(d.visits)}</td><td>${num(d.played)}</td><td>${pct(rate(d.played, d.people))}</td></tr>`).join('')) : '';
     const best = days.slice().sort((a, b) => b.people - a.people)[0];
-    $('sumRpDays').textContent = best ? `Busiest day ${fmtDay(best.day)} · ${num(best.people)} people` : 'No opens yet';
+    if (!hours) $('sumRpDays').textContent = best ? `Busiest day ${fmtDay(best.day)} · ${num(best.people)} people` : 'No opens yet';
 
     // sources + devices
     const src = p.sources || [], dev = p.devices || [];
@@ -802,6 +856,18 @@
     $('sumRpAll').textContent = `${num(pages.length)} page${pages.length === 1 ? '' : 's'} · ${num(pages.reduce((a, x) => a + (x.people || 0), 0))} people in total`;
   }
   $('replaySel').addEventListener('change', () => { store.set('webinars-replay', $('replaySel').value); renderReplay(); });
+  function setReplayRange(r) { replayRange = r; store.set('webinars-replay-range', r); paintReplayRange(); replayData = null; loadReplay(); }
+  $('replayRange').addEventListener('change', () => {
+    const k = $('replayRange').value;
+    if (k !== 'custom') return setReplayRange({ k });
+    replayRange = { k: 'custom', from: replayRange.from || null, to: replayRange.to || null }; paintReplayRange();   // wait for Show
+  });
+  $('replayApply').addEventListener('click', () => {
+    const f = new Date($('replayFrom').value), t = new Date($('replayTo').value);
+    if (isNaN(f) || isNaN(t) || f >= t) { $('replayNote').textContent = 'Pick a start that is before the end.'; return; }
+    setReplayRange({ k: 'custom', from: f.toISOString(), to: t.toISOString() });
+  });
+  paintReplayRange();
   $('rpAll').addEventListener('click', (e) => { const tr = e.target.closest('tr[data-slug]'); if (!tr) return; $('replaySel').value = tr.dataset.slug; store.set('webinars-replay', tr.dataset.slug); renderReplay(); window.scrollTo(0, 0); });
 
   const WKEY = 'webinars-selected';

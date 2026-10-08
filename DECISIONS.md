@@ -13,6 +13,12 @@ the structural map lives in the knowledge graph (`/graphify`). Format:
 
 ---
 
+## 2026-10-08 — Weekly Stats: Webinar Rep Revenue per Lead (Staff Meeting)
+**What:** New metric `webinar_rep_revenue_per_lead` (D2, usd, `in_staff_meeting`, sort_order 135 = right under Experience GI). SQL `webinar_rep_revenue_per_lead()` returns, per webinar, rep-credited revenue (`webinar_sale_attribution()` rows with `affiliate` set, all payments, any date) and the unique people in `webinar_lead_tags` tagged from the scheduled start to 5 hours later; `write_webinar_rep_revenue_per_lead(12)` upserts it into `weekly_stats` on the closing Wednesday of the webinar's Thu→Wed week, plus a properly weighted monthly row. pg_cron job 42 `webinar-rep-revenue-per-lead` runs it every 6 hours.
+**Why:** Asked for: revenue from the reps against the leads they were given during the webinar, as a Staff Meeting stat under Experience GI.
+**Choices:** `source='manual'` rows written by cron instead of a new `derived_sql_id` branch, so the large weekly-stats edge function was not redeployed. Monthly rows are written explicitly because the page otherwise SUMS weekly rows into a month, which is wrong for a ratio. Numerator is ALL rep-credited revenue for the webinar (the owner's wording: "total revenue from the reps"), not only sales from the handed-over leads — for Oct 4 that is $20,104 vs $15,716. Denominator is unique people, so it is lower than the Webinars page's "leads handed to reps" (which counts each hand-over reason and earlier-dated tags). Webinars with fewer than 10 hand-overs are skipped (Sep 29 demo: 1 lead, $20,745 rep revenue).
+**Touched:** SQL only (2 functions, 1 metric row, cron job 42); version.txt v672; changelog.js v672; AGENTS.md. No frontend or edge-function change.
+
 ## 2026-10-07 — Webinars → Replays: date and time filter, hour-by-hour
 **What:** Period picker on the Replays view (All time / Today / Yesterday / Last 7 days / Last 30 days / custom from–to with `datetime-local` inputs). `replay_stats()` became `replay_stats(p_from timestamptz, p_to timestamptz)` (both optional) and filters `replay_sessions.opened_at`; when the window is ≤ 3 days it also returns `hours[]` (visits, people, played, deal, consult per UTC hour) and the page shows "Opens by hour" instead of "Opens by day". `replay-stats` v2 reads `?from=&to=` (ISO), rejects unreadable or inverted ranges with 400.
 **Why:** Asked for: filter the replay stats by date and time to see more granular data.

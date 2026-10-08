@@ -2042,6 +2042,7 @@ All HTTP-triggered jobs call an edge function via `net.http_post`/`net.http_get`
 | 5 | `daily_lifecycle_dispatch` | `0 14 * * *` | SQL `run_daily_lifecycle_dispatch()` — lifecycle emails |
 | 6 | `zoom-scheduler-every-15m` | `*/15 * * * *` | edge fn: per-occurrence Zoom invites + 24h/1h/live reminders |
 | 7 | `weekly-active-snapshot-wed` | `30 23 * * 3` | SQL `write_weekly_active_snapshot()` — Wed end-of-week active counts |
+| 42 | `webinar-rep-revenue-per-lead` | `20 */6 * * *` | SQL `write_webinar_rep_revenue_per_lead(12)` — fills the Weekly Stats metric `webinar_rep_revenue_per_lead` (rep-credited webinar revenue ÷ unique leads tagged during the webinar) as `manual` rows in `weekly_stats`, weekly + monthly |
 | 8 | `double-payment-detector-15m` | `*/15 * * * *` | edge fn: flag duplicate charges → support ticket + alert |
 | 9 | `zoom-room-roll` | `0 9 * * *` | edge fn `zoom-room-migrate?action=roll` — trim every recurring room to next 2 occurrences so it never expires |
 | 10 | `email-drainer-every-min` | `* * * * *` | edge fn: drain `email_outbox` → Resend (sole sender) |

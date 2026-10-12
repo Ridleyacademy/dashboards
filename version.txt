@@ -121,3 +121,4 @@
 2026-10-08T13:00:00Z-v672-webinar-rep-revenue-per-lead
 2026-10-12T12:00:00Z-v673-transition-context
 2026-10-12T14:00:00Z-v674-cost-was
+2026-10-12T15:30:00Z-v675-full-width

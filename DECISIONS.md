@@ -13,6 +13,14 @@ the structural map lives in the knowledge graph (`/graphify`). Format:
 
 ---
 
+## 2026-10-12 — Webinars: page uses the full window so wide tables stop side-scrolling
+**What:** `.ra-page { max-width: none }` scoped to webinars.html, with `.ra-sectionhead p` and `.ra-glossary dd` capped at 92ch so prose keeps a readable measure.
+**Why:** the design system's 1200px page is right for reading-shaped pages but wrong for this one. Measured: the Each ad table is 1295px of content in a 1200px shell — 145px permanently hidden behind a horizontal scroll, including Profit and $ back.
+**Measured after:** at a 1440px viewport the page is 1425px and the table 1375px, overflow 0. Fits from ~1366px up; 1280px still hides 65px, 1024px hides 321px, phones unchanged. `.ra-table` is already `width:100%`, so it fills whatever the card gives it rather than stopping at its natural width.
+**Scoped on purpose:** ridley-ui.css is shared with the other dashboards and the 1200px measure suits them; only this page opts out. Weekly Stats and the rest are untouched and could take the same override if wanted.
+**Verified:** built a harness with the real ridley-ui.css, this page's own style block and six real Oct 4 ad rows, then A/B'd it in the browser by toggling `max-width` between 1200px and none and measuring `scrollWidth` vs `clientWidth` — 145px hidden before, 0 after. Checked 900–1600px and phone width for regressions.
+**Touched:** webinars.html only; version.txt v675; changelog.js v675.
+
 ## 2026-10-12 — Webinars: costs show the previous figure, not just the % change
 **What:** Cost rows gained an optional `w` (what it was last webinar), rendered by `costBox` in the label slot of the change row — which was empty — so no stage grew. Applied to cost per 1,000 views, visitor, registration, attendee, offer view and sale, plus `$ back per $1` and `Return on cost`.
 **Why:** The costs showed only a percentage change, so there was nothing to anchor it to. "17.9% cheaper" means little without "was $609".

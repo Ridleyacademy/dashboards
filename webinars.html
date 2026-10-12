@@ -108,6 +108,16 @@
   /* hidden until the image actually loads, so a row with no thumbnail keeps today's exact
      layout. NB: no loading="lazy" on these -- a lazy image that starts display:none is
      never fetched, so its load event never fires and it could never reveal itself. */
+  /* The ads list, the campaigns table and the all-webinars table run to a dozen columns and
+     were forcing a side-scroll inside the design system's 1200px page. This page is a
+     dashboard, not an article, so its shell grows with the window and the tables get the
+     room instead. Scoped here on purpose: ridley-ui.css is shared, and the 1200px measure
+     is right for the reading-shaped pages that use it.
+     Prose does NOT follow the window -- long lines are hard to read -- so the blocks meant
+     to be read keep a sane measure of their own. */
+  .ra-page { max-width: none; }
+  .ra-sectionhead p, .ra-glossary dd { max-width: 92ch; }
+
   /* what a cost was last webinar, in the change row's empty label slot */
   .ra-fstage .cost .was { color: var(--ink-faint); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
   /* context under a points move: what the rate was last time, and the proportional change */

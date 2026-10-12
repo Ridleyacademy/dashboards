@@ -108,6 +108,8 @@
   /* hidden until the image actually loads, so a row with no thumbnail keeps today's exact
      layout. NB: no loading="lazy" on these -- a lazy image that starts display:none is
      never fetched, so its load event never fires and it could never reveal itself. */
+  /* what a cost was last webinar, in the change row's empty label slot */
+  .ra-fstage .cost .was { color: var(--ink-faint); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
   /* context under a points move: what the rate was last time, and the proportional change */
   .ra-was, .ra-rel { font: 600 10px/13px var(--font-sans); font-variant-numeric: tabular-nums; white-space: nowrap; }
   .ra-was { color: var(--ink-faint); }
@@ -292,6 +294,7 @@
         <dt>Return on cost</dt><dd>Profit ÷ everything the webinar cost (ROI). 100% means every $1 spent came back with $1 on top.</dd>
         <dt>Talked to</dt><dd>A rep spoke with the person for 3 minutes or more on one call. Shorter calls (voicemail, no answer, a quick hang-up) count as called, not talked to.</dd>
         <dt>Time to first call</dt><dd>How long until a rep first called. For leads handed to reps the clock starts at the hand-over; for other offer viewers it starts when the webinar ends.</dd>
+        <dt>Costs: &ldquo;was&rdquo;</dt><dd>Every cost &mdash; per 1,000 views, per visitor, per registration, per attendee, per offer view, per sale &mdash; shows what it was on the previous webinar of the same kind, next to the change. Same for $ back per $1 and Return on cost.</dd>
         <dt>Points vs proportional change</dt><dd>Under each step-to-step rate you get three things: the change in <b>points</b>, what the rate <b>was</b> last time, and how much it moved <b>proportionally</b>. Going from 28.4% to 26.8% is 1.6 points &mdash; but that is a 5.6% slip. The same 1.6 points off a 4% rate would be a 40% collapse, so the points figure alone can badly over- or under-sell a move.</dd>
         <dt>Arrows ▲ ▼</dt><dd>Every number is compared with the previous webinar <b>of the same kind</b> — an ads webinar against the last ads webinar, a list webinar against the last list webinar. Paid traffic is cold and list traffic is warm, so comparing the two would make every arrow misleading. Green means better for us, orange means worse — so a cost going down is green. If there is no earlier webinar of the same kind, no arrows are shown.</dd>
         <dt>Replays: visits and people</dt><dd>A <b>visit</b> is one time the replay page was opened. <b>People</b> counts each browser once, however many times it came back. Someone who opens the page on a phone and again on a computer counts as two.</dd>
@@ -377,7 +380,9 @@
   const stage = (o) => `<div class="ra-fstage ${o.cls || ''}" role="listitem"><div class="l">${esc(o.l)}</div><div class="n">${o.n}</div>${o.help ? `<div class="help">${o.help}</div>` : ''}${o.vs || ''}${o.bar || ''}${o.brk || ''}${o.cost || ''}</div>`;
   const step = (r, what, delta, opts) => `<div class="ra-fstep${opts && opts.lead ? ' lead' : ''}" aria-hidden="true"><span class="arr h">${opts && opts.lead ? '↳' : '→'}</span><span class="arr v">↓</span><span class="rate${opts && opts.minus ? ' minus' : ''}">${r == null ? '' : r}</span><span class="what">${what}</span>${delta || ''}</div>`;
   const brk = (rows) => { const r = rows.filter(Boolean); return r.length ? '<div class="ra-brk">' + r.map(x => `<div class="r" title="${esc(x.t || '')}"><span class="k">${esc(x.k)}</span><span class="v">${x.v}</span>${x.d || '<span class="ra-delta"></span>'}</div>`).join('') + '</div>' : ''; };
-  const costBox = (rows) => { const r = rows.filter(Boolean); return r.length ? '<div class="cost">' + r.map(x => `<div class="row"><span>${esc(x.k)}</span><b class="${x.tone || ''}">${x.v}</b></div>${x.d ? `<div class="row"><span></span>${x.d}</div>` : ''}`).join('') + '</div>' : ''; };
+  // `w` is what the figure was last webinar. It goes in the label slot of the change row,
+  // which was empty, so a cost gains its history without the stage growing.
+  const costBox = (rows) => { const r = rows.filter(Boolean); return r.length ? '<div class="cost">' + r.map(x => `<div class="row"><span>${esc(x.k)}</span><b class="${x.tone || ''}">${x.v}</b></div>${(x.d || x.w) ? `<div class="row"><span class="was">${x.w ? 'was ' + esc(x.w) : ''}</span>${x.d || ''}</div>` : ''}`).join('') + '</div>' : ''; };
   const fbar = (kept, lost) => `<div class="ra-fbar" aria-hidden="true"><i class="kept" style="width:${Math.max(0, Math.min(100, kept))}%"></i><i class="lost" style="width:${Math.max(0, Math.min(100 - kept, lost))}%"></i></div>`;
   const chapter = (n, title, sub, row) => `<div class="ra-chapter-body"><div class="ra-chapter"><span class="num">${n}</span><div><h3>${title}</h3><p>${sub}</p></div></div>${row}</div>`;
   const callout = (kind, glyph, html) => `<div class="ra-callout ${kind}"><span class="g">${glyph}</span><div>${html}</div></div>`;
@@ -1087,7 +1092,8 @@
     const costOf = (k, den, pDen) => {
       if (!hasAds || !den) return null;
       const pv = (pHasAds && pDen) ? pSpend / pDen : null;
-      return { k, v: costMoney(spend / den), d: pv == null ? '' : dPct(spend / den, pv, 'down') };
+      return { k, v: costMoney(spend / den), w: pv == null ? '' : costMoney(pv),
+               d: pv == null ? '' : dPct(spend / den, pv, 'down') };
     };
     const registered = s ? s.registered : (S.total != null ? S.total : 0);
     const imps = hasAds ? Number(m.impressions || 0) : 0;
@@ -1098,7 +1104,7 @@
     if (hasAds && imps) {
       r1.push(step('', 'paid for views'));
       r1.push(stage({ l: 'Saw an ad', n: num(imps), help: `times an ad was shown · ${num(m.clicks)} clicks${m.ctr == null ? '' : ' · ' + m.ctr + '% clicked'}`, vs: vs(imps, pHasAds ? pm.impressions : null),
-        cost: costBox([{ k: 'Cost per 1,000 views', v: costMoney(1000 * spend / imps), d: dPct(1000 * spend / imps, pm.cpm, 'down') }]) }));
+        cost: costBox([{ k: 'Cost per 1,000 views', v: costMoney(1000 * spend / imps), w: (pHasAds && pm.cpm != null) ? costMoney(pm.cpm) : '', d: dPct(1000 * spend / imps, pm.cpm, 'down') }]) }));
       const toNext = f.visitors != null ? pct2(f.visitors, imps) : pct2(registered, imps);
       const pToNext = pHasAds && pm.impressions ? (P.visitors != null ? pct2(P.visitors, pm.impressions) : (ps ? pct2(ps.registered, pm.impressions) : null)) : null;
       r1.push(step(pct(toNext), f.visitors != null ? 'visited the page' : 'signed up', dPtsCtx(toNext, pToNext)));
@@ -1159,7 +1165,7 @@
         { k: 'Paid in full', v: money1(sl.fullpay_revenue), d: dPct(sl.fullpay_revenue, psl && psl.fullpay_revenue), t: 'Paid in full' },
         { k: 'Payment plan', v: money1(sl.plan_revenue), d: dPct(sl.plan_revenue, psl && psl.plan_revenue), t: 'Payment plan' }];
       const r3 = [stage({ cls: 'outcome', l: 'Revenue', n: money(s.revenue), help: 'what customers paid, before anything is taken off', vs: vs(s.revenue, ps && ps.revenue, money),
-        brk: brk(split() || []), cost: costBox([roas != null ? { k: 'Every $1 on ads brought back', v: '$' + roas.toFixed(2), tone: roas >= 1 ? 'good' : 'bad', d: dPct(roas, pRoas) } : null]) })];
+        brk: brk(split() || []), cost: costBox([roas != null ? { k: 'Every $1 on ads brought back', v: '$' + roas.toFixed(2), tone: roas >= 1 ? 'good' : 'bad', w: pRoas != null ? '$' + Number(pRoas).toFixed(2) : '', d: dPct(roas, pRoas) } : null]) })];
       if (netRev != null) {
         const off = sl.total_deductions != null ? Number(sl.total_deductions) : Number(s.revenue) - netRev;
         r3.push(step('−' + money(off), 'fees &amp; commissions', '', { minus: true }));
@@ -1177,7 +1183,7 @@
           brk: brk([hasAds ? { k: 'Meta ads', v: money1(spend), d: dPct(spend, pHasAds ? pSpend : null, 'flat'), t: 'Meta ad spend for this webinar' } : null,
             smsCost ? { k: 'Text messages', v: money1(smsCost), d: dPct(smsCost, pSmsCost, 'down'), t: 'Twilio cost of the messages sent to this webinar’s registrants' } : null,
             { k: 'Total cost', v: money1(costBase), d: dPct(costBase, pCostBase || null, 'flat'), t: 'Everything spent to run this webinar' }]),
-          cost: costBox([roi != null ? { k: 'Return on cost', v: roi + '%', tone: roi >= 0 ? 'good' : 'bad', d: dPts(roi, pRoi) } : null]) }));
+          cost: costBox([roi != null ? { k: 'Return on cost', v: roi + '%', tone: roi >= 0 ? 'good' : 'bad', w: pRoi != null ? pRoi + '%' : '', d: dPts(roi, pRoi) } : null]) }));
       }
       html += chapter(3, 'The money', 'What came in, what came off, what was left.', `<div class="ra-funnel" role="list" aria-label="The money">${r3.join('')}</div>`);
 

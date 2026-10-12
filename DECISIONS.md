@@ -13,6 +13,13 @@ the structural map lives in the knowledge graph (`/graphify`). Format:
 
 ---
 
+## 2026-10-12 — Webinars: costs show the previous figure, not just the % change
+**What:** Cost rows gained an optional `w` (what it was last webinar), rendered by `costBox` in the label slot of the change row — which was empty — so no stage grew. Applied to cost per 1,000 views, visitor, registration, attendee, offer view and sale, plus `$ back per $1` and `Return on cost`.
+**Why:** The costs showed only a percentage change, so there was nothing to anchor it to. "17.9% cheaper" means little without "was $609".
+**Note:** `Return on cost` still reports its change in points rather than proportionally — it is not a step-to-step transition, so it keeps `dPts`; it now carries `was 61%` alongside.
+**Verified:** rendered the real `costBox`/`stage` markup and CSS with live Oct 4 vs Sep 27 figures, at a realistic five-stage width as well as a deliberately cramped nine-stage one, and checked the no-previous case renders no empty row. Colours confirmed: a cost going up is red, down is green.
+**Touched:** webinars.html only; version.txt v674; changelog.js v674.
+
 ## 2026-10-12 — Webinars: points change alone was misleading, so every transition gained context
 **What:** New `dPtsCtx(cur, prev, dir)` renders three things for a step-to-step rate: the points change (as before), `was <prev>%`, and the proportional move (`17.9% lower`). Wired into all five funnel transitions plus the two bar-list rows that compare with last time. `dPts` is unchanged and still used by the cost box.
 **Why:** 1.6 points off 28.4% is a 5.6% slip; the same 1.6 points off 4% is a 40% collapse. The points figure alone can badly over- or under-sell a move, and the owner could not tell which from the funnel. Real example on the live data: Oct 4 vs Sep 27 show-up is −6.2 pts, which is −17.9% proportionally.

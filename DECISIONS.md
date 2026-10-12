@@ -13,6 +13,13 @@ the structural map lives in the knowledge graph (`/graphify`). Format:
 
 ---
 
+## 2026-10-12 — Webinars: points change alone was misleading, so every transition gained context
+**What:** New `dPtsCtx(cur, prev, dir)` renders three things for a step-to-step rate: the points change (as before), `was <prev>%`, and the proportional move (`17.9% lower`). Wired into all five funnel transitions plus the two bar-list rows that compare with last time. `dPts` is unchanged and still used by the cost box.
+**Why:** 1.6 points off 28.4% is a 5.6% slip; the same 1.6 points off 4% is a 40% collapse. The points figure alone can badly over- or under-sell a move, and the owner could not tell which from the funnel. Real example on the live data: Oct 4 vs Sep 27 show-up is −6.2 pts, which is −17.9% proportionally.
+**Layout:** the three stack inside the funnel column (widened 84px → 104px) and flow inline in the bar lists. Both scoped to webinars.html's own style block rather than ridley-ui.css, so no other dashboard moves. Below the 900px breakpoint they stay inline and wrap, matching how the funnel already turns into rows.
+**Verified:** rendered the real shipped markup and CSS at desktop and 375px with live figures before release — arithmetic checked (6.2/34.6 = 17.9%, 6.4/40.3 = 15.9%, 3/14.2 = 21.1%) and the zero-change case shows `= 0 pts · was 12%` with no proportional line. A harness defect (no viewport meta) initially hid the mobile breakpoint; fixed in the harness, not the page.
+**Touched:** webinars.html only; version.txt v673; changelog.js v673. No SQL or edge-function change.
+
 ## 2026-10-09 — Untagged-source report, override timezone bug, two manual attaches
 **What:** (1) New `webinar_untagged_sources(since)` — buckets every registration by how much we know about its origin: `dark` (no utm, no referrer, no landing page), `fbclid only` (provably Facebook, no utm), `page only`, `tagged`. (2) Fixed a timezone bug in `webinar_sale_attribution()`. (3) Attached sales 3474 ($1,397, 4 Oct) and 3530 ($997, 8 Oct) for mseago@hotmail.com to the Oct 4 webinar on the owner's instruction.
 **Why (the report):** 2,736 of 6,977 registrations since 1 Sep (39%) carry no utm at all, so they can never be tied to an ad, email or SMS. The owner wants AXL sends that go out without a tracking code found and fixed. The buckets make such a send show up as a block of untagged arrivals on one landing page.

@@ -108,6 +108,16 @@
   /* hidden until the image actually loads, so a row with no thumbnail keeps today's exact
      layout. NB: no loading="lazy" on these -- a lazy image that starts display:none is
      never fetched, so its load event never fires and it could never reveal itself. */
+  /* context under a points move: what the rate was last time, and the proportional change */
+  .ra-was, .ra-rel { font: 600 10px/13px var(--font-sans); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .ra-was { color: var(--ink-faint); }
+  .ra-rel.good { color: var(--positive); } .ra-rel.bad { color: var(--negative); } .ra-rel.flat { color: var(--ink-faint); }
+  @media (min-width: 901px) {
+    /* in the funnel the three read as a stack, so the column needs a little more room */
+    .ra-fstep { flex-basis: 104px; }
+    .ra-fstep .ra-was, .ra-fstep .ra-rel { display: block; }
+  }
+  .ra-bars .note .ra-was, .ra-bars .note .ra-rel { margin-left: 6px; }
   .ad-thumb { display: none; }
   .ad-thumb.has { display: inline-block; width: 34px; height: 34px; margin-right: 8px; vertical-align: middle;
     border-radius: 4px; border: 1px solid var(--line); object-fit: cover; background: var(--viz-grid); }
@@ -282,6 +292,7 @@
         <dt>Return on cost</dt><dd>Profit ÷ everything the webinar cost (ROI). 100% means every $1 spent came back with $1 on top.</dd>
         <dt>Talked to</dt><dd>A rep spoke with the person for 3 minutes or more on one call. Shorter calls (voicemail, no answer, a quick hang-up) count as called, not talked to.</dd>
         <dt>Time to first call</dt><dd>How long until a rep first called. For leads handed to reps the clock starts at the hand-over; for other offer viewers it starts when the webinar ends.</dd>
+        <dt>Points vs proportional change</dt><dd>Under each step-to-step rate you get three things: the change in <b>points</b>, what the rate <b>was</b> last time, and how much it moved <b>proportionally</b>. Going from 28.4% to 26.8% is 1.6 points &mdash; but that is a 5.6% slip. The same 1.6 points off a 4% rate would be a 40% collapse, so the points figure alone can badly over- or under-sell a move.</dd>
         <dt>Arrows ▲ ▼</dt><dd>Every number is compared with the previous webinar <b>of the same kind</b> — an ads webinar against the last ads webinar, a list webinar against the last list webinar. Paid traffic is cold and list traffic is warm, so comparing the two would make every arrow misleading. Green means better for us, orange means worse — so a cost going down is green. If there is no earlier webinar of the same kind, no arrows are shown.</dd>
         <dt>Replays: visits and people</dt><dd>A <b>visit</b> is one time the replay page was opened. <b>People</b> counts each browser once, however many times it came back. Someone who opens the page on a phone and again on a computer counts as two.</dd>
         <dt>Replays: pressed play</dt><dd>The video does not start by itself, so this is everyone who actually clicked play.</dd>
@@ -343,6 +354,22 @@
     const d = Math.round(10 * (Number(p) - Number(pp))) / 10;
     if (!d) return '<span class="ra-delta same">0 pts</span>';
     return `<span class="ra-delta ${d > 0 ? 'up' : 'down'} ${tone(d, dir)}">${Math.abs(d)} pt${Math.abs(d) === 1 ? '' : 's'}</span>`;
+  }
+  // A points move on its own hides how big it really is: 1.6 points off 28.4% is a 5.6%
+  // slip, the same 1.6 points off 4% is a 40% collapse. So every step-to-step rate shows
+  // three things -- the points change, the rate it is measured against, and the
+  // proportional move. Stacked under each other in the funnel, inline in the bar lists.
+  function dPtsCtx(p, pp, dir) {
+    if (p == null || pp == null) return '';
+    const cur = Number(p), was = Number(pp);
+    const d = Math.round(10 * (cur - was)) / 10;
+    const rel = was ? Math.round(1000 * (cur - was) / Math.abs(was)) / 10 : null;
+    const head = !d
+      ? '<span class="ra-delta same">0 pts</span>'
+      : `<span class="ra-delta ${d > 0 ? 'up' : 'down'} ${tone(d, dir)}">${Math.abs(d)} pt${Math.abs(d) === 1 ? '' : 's'}</span>`;
+    const relSpan = (rel == null || !rel) ? ''
+      : `<span class="ra-rel ${tone(rel, dir)}">${Math.abs(rel)}% ${rel > 0 ? 'higher' : 'lower'}</span>`;
+    return `${head}<span class="ra-was">was ${pct(was)}</span>${relSpan}`;
   }
   function tone(d, dir) { if (dir === 'flat') return 'flat'; return (dir === 'down' ? d < 0 : d > 0) ? 'good' : 'bad'; }
 
@@ -1074,11 +1101,11 @@
         cost: costBox([{ k: 'Cost per 1,000 views', v: costMoney(1000 * spend / imps), d: dPct(1000 * spend / imps, pm.cpm, 'down') }]) }));
       const toNext = f.visitors != null ? pct2(f.visitors, imps) : pct2(registered, imps);
       const pToNext = pHasAds && pm.impressions ? (P.visitors != null ? pct2(P.visitors, pm.impressions) : (ps ? pct2(ps.registered, pm.impressions) : null)) : null;
-      r1.push(step(pct(toNext), f.visitors != null ? 'visited the page' : 'signed up', dPts(toNext, pToNext)));
+      r1.push(step(pct(toNext), f.visitors != null ? 'visited the page' : 'signed up', dPtsCtx(toNext, pToNext)));
     } else if (hasAds) r1.push(step('', 'paid for views'));
     if (f.visitors != null) {
       r1.push(stage({ l: 'Visited the page', n: num(f.visitors), help: 'different people on the register page', vs: vs(f.visitors, P && P.visitors), cost: costBox([costOf('Cost per visitor', f.visitors, P && P.visitors)]) }));
-      r1.push(step(pct(f.visitors_to_reg_pct), 'signed up', dPts(f.visitors_to_reg_pct, P && P.visitors && ps ? pct2(ps.registered, P.visitors) : null)));
+      r1.push(step(pct(f.visitors_to_reg_pct), 'signed up', dPtsCtx(f.visitors_to_reg_pct, P && P.visitors && ps ? pct2(ps.registered, P.visitors) : null)));
     }
     r1.push(stage({ cls: 's1', l: 'Registered', n: num(registered),
       help: 'signed up for this webinar' + (hasAds && m.paid_regs != null ? ` · ${num(m.paid_regs)} from ads` : '') + (S.today ? ` · ${num(S.today)} today` : ''),
@@ -1111,15 +1138,15 @@
         sl.attended_count == null ? null : { k: 'From people who attended', v: num(sl.attended_count), d: '', t: 'Sales from attendees (counted up to 30 days after) · ' + money(sl.attended_revenue) },
         sl.week_count ? { k: 'From people who didn’t attend', v: num(sl.week_count), d: '', t: 'Registered but did not show — counted until the next webinar starts · ' + money(sl.week_revenue) } : null]);
       const r2 = [
-        step(pct(s.show_up_pct), 'of registered showed up', dPts(s.show_up_pct, ps && ps.show_up_pct), { lead: true }),
+        step(pct(s.show_up_pct), 'of registered showed up', dPtsCtx(s.show_up_pct, ps && ps.show_up_pct), { lead: true }),
         stage({ cls: 's2', l: 'Showed up', n: num(s.attendees), help: 'joined the live room' + (s.avg_minutes == null ? '' : ` · watched ${s.avg_minutes} min on average`), vs: vs(s.attendees, ps && ps.attendees),
           bar: fbar(100 * s.attendees / reg, 100 * (reg - s.attendees) / reg) + `<div class="lostline">−${num(Math.max(0, reg - s.attendees))} didn’t show up</div>`, brk: roomBrk,
           cost: costBox([costOf('Cost per attendee', s.attendees, ps && ps.attendees)]) }),
-        step(pct(s.saw_offer_pct), 'stayed for the offer', dPts(s.saw_offer_pct, ps && ps.saw_offer_pct)),
+        step(pct(s.saw_offer_pct), 'stayed for the offer', dPtsCtx(s.saw_offer_pct, ps && ps.saw_offer_pct)),
         stage({ cls: 's3', l: 'Saw the offer', n: num(s.saw_offer), help: `stayed until the offer started (minute ${num(offerMin)})` + (window.__canEditWebinar ? ` <button class="ra-btn ghost sm" data-act="offer-edit" title="Set the minute the offer started in this webinar">✎ Change</button><span class="offer-form" hidden><input class="ra-input" id="offerMinIn" type="number" min="1" max="600" step="1" value="${esc(offerMin)}" aria-label="Offer starts at minute" style="width:84px;height:28px"> <button class="ra-btn primary sm" data-act="offer-save">Save</button> <button class="ra-btn ghost sm" data-act="offer-cancel">Cancel</button></span>` : ''), vs: vs(s.saw_offer, ps && ps.saw_offer),
           bar: fbar(100 * s.saw_offer / reg, 100 * (s.attendees - s.saw_offer) / reg) + `<div class="lostline">−${num(Math.max(0, s.attendees - s.saw_offer))} left before the offer</div>`,
           cost: costBox([costOf('Cost per offer view', s.saw_offer, ps && ps.saw_offer)]) }),
-        step(pct(convOffer), 'became sales', dPts(convOffer, ps && ps.saw_offer && pSalesN != null ? rate(pSalesN, ps.saw_offer) : null)),
+        step(pct(convOffer), 'became sales', dPtsCtx(convOffer, ps && ps.saw_offer && pSalesN != null ? rate(pSalesN, ps.saw_offer) : null)),
         stage({ cls: 's4', l: 'Sales', n: num(salesN), help: convAtt == null ? '' : `${pct(convAtt)} of everyone who showed up`, vs: vs(salesN, pSalesN),
           bar: fbar(100 * salesN / reg, 100 * Math.max(0, s.saw_offer - salesN) / reg) + (s.saw_offer > salesN ? `<div class="lostline">−${num(s.saw_offer - salesN)} saw the offer, no sale</div>` : ''),
           brk: salesBrk, cost: costBox([costOf('Cost per sale', salesN, pSalesN)]) })];
@@ -1182,14 +1209,14 @@
     const handed = '<div class="ra-card"><div class="ra-card-head"><h3>Who we handed to reps</h3><span class="aside">share of the ' + num(s.saw_offer) + ' who saw the offer</span></div><div class="ra-bars">' + kinds.map(([label, k]) => {
       const c = crm[k] || { total: 0, worked: 0, bought: 0 }, pc = (pcrm && pcrm[k]) || null;
       const cur = rate(c.total, s.saw_offer), was = (pc && ps) ? rate(pc.total, ps.saw_offer) : null;
-      return `<div class="row" title="${esc(`${label}: ${c.total} handed to the sales team · ${c.worked} already worked · ${c.bought} became sales`)}"><span class="name">${label}</span><span class="val">${num(c.total)}<small>${pct(cur)}</small></span><span class="track"><i style="width:${100 * (cur || 0) / maxShare}%"></i></span><span class="note">${c.bought ? `<span>${c.bought} became sale${c.bought > 1 ? 's' : ''}</span>` : ''}${was != null ? `<span>${dPts(cur, was)} vs last</span>` : ''}</span></div>`;
+      return `<div class="row" title="${esc(`${label}: ${c.total} handed to the sales team · ${c.worked} already worked · ${c.bought} became sales`)}"><span class="name">${label}</span><span class="val">${num(c.total)}<small>${pct(cur)}</small></span><span class="track"><i style="width:${100 * (cur || 0) / maxShare}%"></i></span><span class="note">${c.bought ? `<span>${c.bought} became sale${c.bought > 1 ? 's' : ''}</span>` : ''}${was != null ? `<span>${dPtsCtx(cur, was)}</span>` : ''}</span></div>`;
     }).join('') + `</div><div class="ra-brk" style="display:flex"><div class="r"><span class="k"><b>All leads handed to reps</b></span><span class="v">${num(crm.total)} · ${pct(rate(crm.total, s.saw_offer))}${crm.bought ? ' · ' + crm.bought + ' became sales' : ''}</span></div></div></div>`;
 
     const cc = crm.calls, pcc = pcrm && pcrm.calls;
     let follow = '';
     if (cc) {
       const speed = (label, med, pMed, within, called, note) => med == null ? '' : `<div class="row" title="${esc(note)}"><span class="name">${label}</span><span class="val">${mins(med)}<small>typical</small></span><span class="track"><i style="width:${called ? rate(within, called) : 0}%"></i></span><span class="note"><span>${pct(called ? rate(within, called) : 0)} called within 1 hour</span>${pMed != null ? `<span>${dPct(med, pMed, 'down')} vs last</span>` : ''}</span></div>`;
-      const calls = (label, called, total, reached, pCalled, pTotal, note) => { const cur = rate(called, total), was = pcc ? rate(pCalled, pTotal) : null; return `<div class="row" title="${esc(note)}"><span class="name">${label}</span><span class="val">${num(called)} of ${num(total)}<small>${pct(cur)}</small></span><span class="track"><i style="width:${cur || 0}%"></i></span><span class="note"><span>${num(reached)} talked for 3+ minutes</span>${was != null ? `<span>${dPts(cur, was)} vs last</span>` : ''}</span></div>`; };
+      const calls = (label, called, total, reached, pCalled, pTotal, note) => { const cur = rate(called, total), was = pcc ? rate(pCalled, pTotal) : null; return `<div class="row" title="${esc(note)}"><span class="name">${label}</span><span class="val">${num(called)} of ${num(total)}<small>${pct(cur)}</small></span><span class="track"><i style="width:${cur || 0}%"></i></span><span class="note"><span>${num(reached)} talked for 3+ minutes</span>${was != null ? `<span>${dPtsCtx(cur, was)}</span>` : ''}</span></div>`; };
       follow = '<div class="ra-card"><div class="ra-card-head"><h3>How fast reps followed up</h3></div><div class="ra-bars">' +
         speed('Time to first call — leads handed to reps', cc.lead_median_min, pcc && pcc.lead_median_min, cc.lead_within_1h, cc.lead_called, 'Clock starts when the lead is handed over (its tag), not when the webinar ends' + (cc.lead_untimed ? ' · ' + cc.lead_untimed + ' leads have no hand-over time yet and are left out' : '')) +
         speed('Time to first call — everyone who saw the offer', cc.offer_median_min, pcc && pcc.offer_median_min, cc.offer_within_1h, cc.offer_called, 'Everyone who stayed until the offer — clock starts when the webinar ended. Overlaps the leads above on purpose, they are two views of the same room') +

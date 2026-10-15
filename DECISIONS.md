@@ -13,6 +13,17 @@ the structural map lives in the knowledge graph (`/graphify`). Format:
 
 ---
 
+## 2026-10-15 — Webinar lead tags: counted by time, and re-read while a webinar is recent
+**What:** (1) `webinar_rep_revenue_per_lead()` now matches a lead to a webinar by the tag's own timestamp, not by the `webinar_id` the row happens to be filed under. (2) `syncLeadTags` in webinar-analytics (v64) re-reads a deal's tags when what we hold is older than 3h, for webinars less than 14 days old, and writes `synced_at` explicitly so a re-read actually refreshes it.
+**Why:** The 11 Oct webinar reported 0 leads handed over while AXL's counters said 123, so the Staff Meeting metric wrote no row for it.
+**Two separate bugs, both found by following the data:**
+1. *Mis-filing.* `webinar_lead_tags.webinar_id` records which webinar's sync wrote the row, not which webinar the tag belongs to. A contact registered for several webinars gets every tag stamped onto whichever one fetched their deal first, so a hand-over made during webinar N lands under M — then is dropped twice, because M's window does not contain the timestamp and N has no row. **1,656 of 2,203 timestamped rows are filed this way**, more than the 547 filed correctly.
+2. *Read once, never again.* A deal's tags were only ever fetched the first time, so a deal recorded days before a webinar could never show a tag added DURING it. This is the bigger half: the five hand-overs we did capture for 11 Oct were only seen because some *other* webinar's sync happened to fetch the same deals that afternoon.
+**Correction to an earlier conclusion:** I first reported that CRM tagging had stopped after 4 Oct (9 tags vs ~110/week). That was wrong — the owner said the leads were tagged and they were right. The apparent collapse was bug 2: as the contact base matures, more deals are already recorded, so new tags go unseen. Worth remembering that a metric falling off a cliff is more often our capture than their behaviour.
+**Verified:** fix 1 changes no historical figure — every webinar since Aug is identical, only 11 Oct moves (0 → 6). Fix 2 deployed as v64 and byte-verified against the local source. `syncLeadTags` runs inside a try/catch in `crmLeads`, so even a failure there cannot affect the dashboard; the worst case is tags staying stale.
+**Known, not fixed:** `webinar_call_coverage` and `webinar_sms_cost` also key on the filed `webinar_id` and have the same mis-filing exposure. Left alone deliberately — they feed live funnel panels and were out of scope.
+**Touched:** migration `rep_revenue_per_lead_match_by_time`; edge fn webinar-analytics v64. No frontend change, so no version bump.
+
 ## 2026-10-12 — Webinars: page uses the full window so wide tables stop side-scrolling
 **What:** `.ra-page { max-width: none }` scoped to webinars.html, with `.ra-sectionhead p` and `.ra-glossary dd` capped at 92ch so prose keeps a readable measure.
 **Why:** the design system's 1200px page is right for reading-shaped pages but wrong for this one. Measured: the Each ad table is 1295px of content in a 1200px shell — 145px permanently hidden behind a horizontal scroll, including Profit and $ back.

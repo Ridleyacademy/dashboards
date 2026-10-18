@@ -13,6 +13,13 @@ the structural map lives in the knowledge graph (`/graphify`). Format:
 
 ---
 
+## 2026-10-18 — An upcoming webinar was compared against the wrong kind
+**What:** `webinar_ad_driven()` now falls back to `webinar_registrations` for a webinar that has no roster yet, instead of returning no row at all.
+**Why:** It read only `webinar_attendees`, the AXL roster, which does not exist until a webinar has run. An upcoming webinar produced NO row; the funnel read the absence as "not an ads webinar", so today's advertised masterclass was compared against the last LIST webinar (29 Sep) rather than last Sunday. Reported from the dashboard: "the week over week report shows September 29th for some reason."
+**The giveaway:** today's webinar is 1,686 ad-tagged registrations out of 1,767 — 95.4% — so there was never any doubt about its kind; we simply had not looked at the only data that existed for it yet. This is the same `has_roster` fallback `webinar_ad_stats` has always used; `webinar_ad_driven()` was written without it when it was split out on 5 Oct.
+**Verified:** today now classifies as ads (95.4%) and resolves its comparison to 11 Oct. Every finished webinar's classification is unchanged, and ad spend is identical before and after (11 Oct $22,731.91, 4 Oct $20,003.51). `webinar_ad_stats` also consumes this function, but its ad-window boundary is restricted to webinars with >= 20 attendees, which an unrun webinar can never satisfy — so no window moved.
+**Touched:** migration `webinar_ad_driven_before_the_roster_exists`. SQL only — no edge function or frontend change, so no version bump; a page reload picks it up.
+
 ## 2026-10-15 — Webinar lead tags: counted by time, and re-read while a webinar is recent
 **What:** (1) `webinar_rep_revenue_per_lead()` now matches a lead to a webinar by the tag's own timestamp, not by the `webinar_id` the row happens to be filed under. (2) `syncLeadTags` in webinar-analytics (v64) re-reads a deal's tags when what we hold is older than 3h, for webinars less than 14 days old, and writes `synced_at` explicitly so a re-read actually refreshes it.
 **Why:** The 11 Oct webinar reported 0 leads handed over while AXL's counters said 123, so the Staff Meeting metric wrote no row for it.

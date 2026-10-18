@@ -13,6 +13,14 @@ the structural map lives in the knowledge graph (`/graphify`). Format:
 
 ---
 
+## 2026-10-18 — "Saw the offer" now shows the room count beside the watch-time count
+**What:** New `inRoomAtOffer(curve, minute)` reads the live-viewer curve the chart already draws and the Saw the offer stage shows both: "watched at least N minutes - X were in the room at minute N". Help text rewritten to say which is which.
+**Why:** Reported twice. 11 Oct: stage 228, chart ~260. 18 Oct: stage 142, chart 192. The stage counts total watch DURATION >= the offer minute; the curve counts presence AT that minute. They diverge by whoever joined late -- ~50 people today (437 attendees, 202 watched 60+ min, 142 watched 79+).
+**Why not just switch to the room count:** it is anonymous. "Saw the offer" feeds cost per offer view and the offer->sale conversion, which must match individual people to their purchases. So the identified count stays the stage number and the room count sits beside it, labelled.
+**Why not compute true presence:** we cannot. `webinar_attendees.attended_at` is the same sync timestamp for every attendee and the stored raw payload holds only the email, so there is no per-person join time. AXL gives us total watch duration and nothing else.
+**Gotcha found in testing:** the first cut took the curve sample NEAREST the offer minute. The curve is sampled (capped at 150 points), so the nearest can sit before the offer -- and since the room drains, that flatters the figure. Changed to the first sample at or after the offer minute, within 3 minutes, else nothing. Unit-tested at 1, 2, 5 and 10-minute sampling plus empty/null/past-the-end.
+**Touched:** webinars.html only; version.txt v676; changelog.js v676. No SQL or edge-function change.
+
 ## 2026-10-18 — An upcoming webinar was compared against the wrong kind
 **What:** `webinar_ad_driven()` now falls back to `webinar_registrations` for a webinar that has no roster yet, instead of returning no row at all.
 **Why:** It read only `webinar_attendees`, the AXL roster, which does not exist until a webinar has run. An upcoming webinar produced NO row; the funnel read the absence as "not an ads webinar", so today's advertised masterclass was compared against the last LIST webinar (29 Sep) rather than last Sunday. Reported from the dashboard: "the week over week report shows September 29th for some reason."

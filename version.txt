@@ -122,3 +122,4 @@
 2026-10-12T12:00:00Z-v673-transition-context
 2026-10-12T14:00:00Z-v674-cost-was
 2026-10-12T15:30:00Z-v675-full-width
+2026-10-18T20:00:00Z-v676-in-room-at-offer

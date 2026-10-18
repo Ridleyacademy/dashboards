@@ -293,7 +293,7 @@
       <dl>
         <dt>Registered</dt><dd>Signed up on ridleyacademy.net/register for this webinar.</dd>
         <dt>Showed up</dt><dd>Joined the live room at least once.</dd>
-        <dt>Saw the offer</dt><dd>Stayed until the offer starts. That is minute 90 unless it was changed for that webinar — use “✎ Change” on the Saw the offer step when the offer started earlier or later.</dd>
+        <dt>Saw the offer</dt><dd>Counts everyone who <b>watched at least</b> the offer minute in total — minute 90 unless it was changed for that webinar, via “✎ Change” on the step. Alongside it we show how many were <b>in the room</b> at that minute, read off the live chart. The second number is usually higher, because someone who joined late can be there for the offer without having watched that many minutes. The stage number is the one used for cost per offer view and for the sales conversion, because those have to match individual people to their purchases, and the live chart is an anonymous headcount.</dd>
         <dt>Sales</dt><dd>Sales in the Sales Log from people linked to this webinar. People who attended count for 30 days afterwards (so follow-up and phone-closed deals land here); people who registered but didn’t show count until the next webinar starts; anyone with no registration counts only if the sale happened during the live event. Rebills, refunds and chargebacks are left out.</dd>
         <dt>Live / Rep</dt><dd>Live = the sale happened during the webinar with nobody closing it. Rep = a sales rep is credited (Affiliate column, their declaration, or a call of 3+ minutes).</dd>
         <dt>Paid in full / Payment plan</dt><dd>How the customer paid, from the Sales Log status.</dd>
@@ -467,6 +467,23 @@
       note.textContent = bits.join(' ');
     }
   }
+  // The stage counts people who WATCHED at least the offer minute; the live curve counts
+  // who was IN THE ROOM at that minute. They differ by whoever joined late -- present for
+  // the offer, but short of that many minutes watched. Reading 142 on the stage and 192 on
+  // the chart looks like a bug, so the stage now says both.
+  function inRoomAtOffer(curve, minute) {
+    if (!Array.isArray(curve) || !curve.length || minute == null) return null;
+    // The curve is sampled, so the offer minute itself may not be a point. Take the first
+    // sample AT or AFTER it, never the one before: the room drains as the webinar runs, so
+    // the earlier sample would flatter the figure. Give up if the nearest is far away.
+    let best = null;
+    for (const p of curve) {
+      const m = Number(p.m);
+      if (m >= Number(minute) && (best === null || m < Number(best.m))) best = p;
+    }
+    return (best && Number(best.m) - Number(minute) <= 3) ? Number(best.c) : null;
+  }
+
   function drawLive(curve) {
     chartDefaults();
     const offerAt = curve.findIndex(p => Number(p.m) >= offerMin);
@@ -1159,7 +1176,8 @@
           bar: fbar(100 * s.attendees / reg, 100 * (reg - s.attendees) / reg) + `<div class="lostline">−${num(Math.max(0, reg - s.attendees))} didn’t show up</div>`, brk: roomBrk,
           cost: costBox([costOf('Cost per attendee', s.attendees, ps && ps.attendees)]) }),
         step(pct(s.saw_offer_pct), 'stayed for the offer', dPtsCtx(s.saw_offer_pct, ps && ps.saw_offer_pct)),
-        stage({ cls: 's3', l: 'Saw the offer', n: num(s.saw_offer), help: `stayed until the offer started (minute ${num(offerMin)})` + (window.__canEditWebinar ? ` <button class="ra-btn ghost sm" data-act="offer-edit" title="Set the minute the offer started in this webinar">✎ Change</button><span class="offer-form" hidden><input class="ra-input" id="offerMinIn" type="number" min="1" max="600" step="1" value="${esc(offerMin)}" aria-label="Offer starts at minute" style="width:84px;height:28px"> <button class="ra-btn primary sm" data-act="offer-save">Save</button> <button class="ra-btn ghost sm" data-act="offer-cancel">Cancel</button></span>` : ''), vs: vs(s.saw_offer, ps && ps.saw_offer),
+        stage({ cls: 's3', l: 'Saw the offer', n: num(s.saw_offer), help: `watched at least ${num(offerMin)} minutes, when the offer starts`
+          + ((() => { const inRoom = inRoomAtOffer(f.curve, offerMin); return inRoom == null ? '' : ` \u00b7 <b>${num(inRoom)}</b> were in the room at minute ${num(offerMin)}`; })()) + (window.__canEditWebinar ? ` <button class="ra-btn ghost sm" data-act="offer-edit" title="Set the minute the offer started in this webinar">✎ Change</button><span class="offer-form" hidden><input class="ra-input" id="offerMinIn" type="number" min="1" max="600" step="1" value="${esc(offerMin)}" aria-label="Offer starts at minute" style="width:84px;height:28px"> <button class="ra-btn primary sm" data-act="offer-save">Save</button> <button class="ra-btn ghost sm" data-act="offer-cancel">Cancel</button></span>` : ''), vs: vs(s.saw_offer, ps && ps.saw_offer),
           bar: fbar(100 * s.saw_offer / reg, 100 * (s.attendees - s.saw_offer) / reg) + `<div class="lostline">−${num(Math.max(0, s.attendees - s.saw_offer))} left before the offer</div>`,
           cost: costBox([costOf('Cost per offer view', s.saw_offer, ps && ps.saw_offer)]) }),
         step(pct(convOffer), 'became sales', dPtsCtx(convOffer, ps && ps.saw_offer && pSalesN != null ? rate(pSalesN, ps.saw_offer) : null)),

@@ -13,6 +13,15 @@ the structural map lives in the knowledge graph (`/graphify`). Format:
 
 ---
 
+## 2026-10-18 — Call coverage and SMS cost now use the same lead definition as the metric
+**What:** New `webinar_lead_handovers(webinar_id)` — one row per person handed to the sales team DURING a webinar (by tag time, not by which webinar's sync wrote the row), carrying their earliest hand-over time and a phone if any row had one. `webinar_call_coverage` and `webinar_sms_cost` now source their leads from it. Patched by text substitution on the live definitions with an assertion, so nothing else in either function could change.
+**Why:** Completes the 15 Oct fix. `webinar_rep_revenue_per_lead()` was moved onto tag time then, but these two still keyed on the filed `webinar_id`, so they counted leads handed over during *other* webinars — 1,656 of 2,203 timestamped rows are mis-filed.
+**Effect — lead counts corrected to the true in-window figures:** 4 Oct 99→87, 27 Sep 84→72, 6 Sep 78→39, 29 Sep 71→1, 11 Oct 18→7, 18 Oct 77→65, 20 Sep 58→50, 13 Sep 37→30.
+**The bigger win is speed-to-lead,** which was being computed from hand-over times belonging to other webinars and was simply wrong: 11 Oct median time to first call was reported as **9,921.5 minutes (6.9 days)** and is now **10.9 minutes**; 29 Sep was 273.9 and is now null (it genuinely had one hand-over).
+**Verified against captured baselines for 8 webinars:** SMS messages and cost are byte-identical on every one (the roster already covered those numbers), and the offer side of call coverage is unchanged everywhere. Only the lead-side figures and medians move, which is the intent.
+**Note:** `lead_untimed` is now structurally 0 — a lead is selected by having a hand-over time, so it can no longer be missing one.
+**Touched:** migrations `webinar_lead_handovers_helper`, `coverage_and_sms_use_lead_handovers`. SQL only — no edge function or frontend change, so no version bump.
+
 ## 2026-10-18 — "Saw the offer" now shows the room count beside the watch-time count
 **What:** New `inRoomAtOffer(curve, minute)` reads the live-viewer curve the chart already draws and the Saw the offer stage shows both: "watched at least N minutes - X were in the room at minute N". Help text rewritten to say which is which.
 **Why:** Reported twice. 11 Oct: stage 228, chart ~260. 18 Oct: stage 142, chart 192. The stage counts total watch DURATION >= the offer minute; the curve counts presence AT that minute. They diverge by whoever joined late -- ~50 people today (437 attendees, 202 watched 60+ min, 142 watched 79+).

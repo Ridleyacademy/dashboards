@@ -293,7 +293,7 @@
       <dl>
         <dt>Registered</dt><dd>Signed up on ridleyacademy.net/register for this webinar.</dd>
         <dt>Showed up</dt><dd>Joined the live room at least once.</dd>
-        <dt>Saw the offer</dt><dd>Counts everyone who <b>watched at least</b> the offer minute in total — minute 90 unless it was changed for that webinar, via “✎ Change” on the step. Alongside it we show how many were <b>in the room</b> at that minute, read off the live chart. The second number is usually higher, because someone who joined late can be there for the offer without having watched that many minutes. The stage number is the one used for cost per offer view and for the sales conversion, because those have to match individual people to their purchases, and the live chart is an anonymous headcount.</dd>
+        <dt>Saw the offer</dt><dd>How many people were <b>in the room</b> at the offer minute, read off the live chart — minute 90 unless changed for that webinar, via “✎ Change” on the step. Beside it we show how many <b>watched that long in total</b>, which is always lower, because someone who joins late can be there for the offer without having watched that many minutes. Cost per offer view and the sales conversion use the room figure. The per-ad table still uses watch time, because that is the only count that can be matched to an individual buyer. If AXL has no live chart for a webinar the stage falls back to watch time and says so.</dd>
         <dt>Sales</dt><dd>Sales in the Sales Log from people linked to this webinar. People who attended count for 30 days afterwards (so follow-up and phone-closed deals land here); people who registered but didn’t show count until the next webinar starts; anyone with no registration counts only if the sale happened during the live event. Rebills, refunds and chargebacks are left out.</dd>
         <dt>Live / Rep</dt><dd>Live = the sale happened during the webinar with nobody closing it. Rep = a sales rep is credited (Affiliate column, their declaration, or a call of 3+ minutes).</dd>
         <dt>Paid in full / Payment plan</dt><dd>How the customer paid, from the Sales Log status.</dd>
@@ -467,23 +467,6 @@
       note.textContent = bits.join(' ');
     }
   }
-  // The stage counts people who WATCHED at least the offer minute; the live curve counts
-  // who was IN THE ROOM at that minute. They differ by whoever joined late -- present for
-  // the offer, but short of that many minutes watched. Reading 142 on the stage and 192 on
-  // the chart looks like a bug, so the stage now says both.
-  function inRoomAtOffer(curve, minute) {
-    if (!Array.isArray(curve) || !curve.length || minute == null) return null;
-    // The curve is sampled, so the offer minute itself may not be a point. Take the first
-    // sample AT or AFTER it, never the one before: the room drains as the webinar runs, so
-    // the earlier sample would flatter the figure. Give up if the nearest is far away.
-    let best = null;
-    for (const p of curve) {
-      const m = Number(p.m);
-      if (m >= Number(minute) && (best === null || m < Number(best.m))) best = p;
-    }
-    return (best && Number(best.m) - Number(minute) <= 3) ? Number(best.c) : null;
-  }
-
   function drawLive(curve) {
     chartDefaults();
     const offerAt = curve.findIndex(p => Number(p.m) >= offerMin);
@@ -553,6 +536,7 @@
     const smsCost = d.sms && sms.cost != null ? Number(sms.cost) : null;
     const costBase = (hasAds ? spend : 0) + (smsCost || 0);
     const per = (den) => (hasAds && den ? spend / den : null);
+    const sawOffer = d.room_at_offer != null ? Number(d.room_at_offer) : s.saw_offer;
     const imps = hasAds ? Number(m.impressions || 0) : 0;
     return {
       date: d.ended_at, spend, imps: hasAds ? imps : null, clicks: hasAds ? m.clicks : null, ctr: hasAds ? m.ctr : null,
@@ -560,8 +544,10 @@
       visitors: d.visitors, v2r: d.visitors_to_reg_pct, registered: s.registered, fromAds: hasAds ? m.paid_regs : null, cpr: per(s.registered),
       offerMin: d.offer_minute != null ? Number(d.offer_minute) : 90,
       attended: s.attendees, showup: s.show_up_pct, avgmin: s.avg_minutes, peak: pk.peak, held: pk.avg_of_peak_pct,
-      saw: s.saw_offer, sawpct: s.saw_offer_pct, cpa: per(s.attendees), cpo: per(s.saw_offer),
-      sales: salesN, o2s: s.saw_offer && salesN != null ? rate(salesN, s.saw_offer) : null, a2s: s.attendees && salesN != null ? rate(salesN, s.attendees) : null,
+      // who was IN THE ROOM at the offer minute; falls back to the watch-time count when
+      // AXL gave us no curve for that webinar (see room_at_offer in webinar-analytics)
+      saw: sawOffer, sawpct: s.attendees ? rate(sawOffer, s.attendees) : null, cpa: per(s.attendees), cpo: per(sawOffer),
+      sales: salesN, o2s: sawOffer && salesN != null ? rate(salesN, sawOffer) : null, a2s: s.attendees && salesN != null ? rate(salesN, s.attendees) : null,
       live: d.sales ? sl.live_sales : null, rep: d.sales ? sl.phone_sales : null, full: d.sales ? sl.fullpay_count : null, plan: d.sales ? sl.plan_count : null,
       fromAtt: d.sales ? sl.attended_count : null, fromNon: d.sales ? sl.week_count : null, cps: per(salesN), traced: hasAds ? m.attributed_sales : null,
       revenue: s.revenue, liveRev: d.sales ? sl.live_revenue : null, repRev: d.sales ? sl.phone_revenue : null,
@@ -570,7 +556,7 @@
       net: netRev, smsCost, cost: (hasAds || smsCost != null) ? costBase : null,
       profit: netRev != null && (hasAds || smsCost != null) ? netRev - costBase : null,
       roi: netRev != null && costBase > 0 ? 100 * (netRev - costBase) / costBase : null,
-      leads: crm ? crm.total : null, leadsPct: crm && s.saw_offer ? rate(crm.total, s.saw_offer) : null,
+      leads: crm ? crm.total : null, leadsPct: crm && sawOffer ? rate(crm.total, sawOffer) : null,
       cart: crm ? (crm.cart_abandonment || {}).total : null, survey: crm ? (crm.survey || {}).total : null,
       hot: crm ? (crm.hot_leads_chat || {}).total : null, chat: crm ? (crm.leads_chat || {}).total : null, leadSales: crm ? crm.bought : null,
       speed: cc ? cc.lead_median_min : null, within1h: cc && cc.lead_called ? rate(cc.lead_within_1h, cc.lead_called) : null,
@@ -1157,7 +1143,17 @@
     } else {
       $('statusPill').innerHTML = '<span class="ra-pill positive">Attendance in</span>';
       const convAtt = s.attendees ? rate(salesN, s.attendees) : null;
-      const convOffer = s.saw_offer ? rate(salesN, s.saw_offer) : null;
+      // "Saw the offer" means people who were IN THE ROOM when the offer started, off the
+      // live curve. The old count -- whoever WATCHED at least the offer minute -- silently
+      // dropped late joiners (142 against 192 on 18 Oct). It is still the fallback when AXL
+      // has no curve, and it remains what the per-ad table uses, being the only count that
+      // can be matched to an individual buyer.
+      const sawOffer = f.room_at_offer != null ? Number(f.room_at_offer) : s.saw_offer;
+      const sawIsRoom = f.room_at_offer != null;
+      const pSawOffer = P ? (P.room_at_offer != null ? Number(P.room_at_offer) : (ps ? ps.saw_offer : null)) : null;
+      const sawPct = s.attendees ? rate(sawOffer, s.attendees) : null;
+      const pSawPct = (ps && ps.attendees && pSawOffer != null) ? rate(pSawOffer, ps.attendees) : null;
+      const convOffer = sawOffer ? rate(salesN, sawOffer) : null;
       const reg = s.registered || 1;
       // ---- 2 · The webinar
       const roomBrk = pk.peak == null ? '' : brk([
@@ -1175,14 +1171,16 @@
         stage({ cls: 's2', l: 'Showed up', n: num(s.attendees), help: 'joined the live room' + (s.avg_minutes == null ? '' : ` · watched ${s.avg_minutes} min on average`), vs: vs(s.attendees, ps && ps.attendees),
           bar: fbar(100 * s.attendees / reg, 100 * (reg - s.attendees) / reg) + `<div class="lostline">−${num(Math.max(0, reg - s.attendees))} didn’t show up</div>`, brk: roomBrk,
           cost: costBox([costOf('Cost per attendee', s.attendees, ps && ps.attendees)]) }),
-        step(pct(s.saw_offer_pct), 'stayed for the offer', dPtsCtx(s.saw_offer_pct, ps && ps.saw_offer_pct)),
-        stage({ cls: 's3', l: 'Saw the offer', n: num(s.saw_offer), help: `watched at least ${num(offerMin)} minutes, when the offer starts`
-          + ((() => { const inRoom = inRoomAtOffer(f.curve, offerMin); return inRoom == null ? '' : ` \u00b7 <b>${num(inRoom)}</b> were in the room at minute ${num(offerMin)}`; })()) + (window.__canEditWebinar ? ` <button class="ra-btn ghost sm" data-act="offer-edit" title="Set the minute the offer started in this webinar">✎ Change</button><span class="offer-form" hidden><input class="ra-input" id="offerMinIn" type="number" min="1" max="600" step="1" value="${esc(offerMin)}" aria-label="Offer starts at minute" style="width:84px;height:28px"> <button class="ra-btn primary sm" data-act="offer-save">Save</button> <button class="ra-btn ghost sm" data-act="offer-cancel">Cancel</button></span>` : ''), vs: vs(s.saw_offer, ps && ps.saw_offer),
-          bar: fbar(100 * s.saw_offer / reg, 100 * (s.attendees - s.saw_offer) / reg) + `<div class="lostline">−${num(Math.max(0, s.attendees - s.saw_offer))} left before the offer</div>`,
-          cost: costBox([costOf('Cost per offer view', s.saw_offer, ps && ps.saw_offer)]) }),
-        step(pct(convOffer), 'became sales', dPtsCtx(convOffer, ps && ps.saw_offer && pSalesN != null ? rate(pSalesN, ps.saw_offer) : null)),
+        step(pct(sawPct), 'were there for the offer', dPtsCtx(sawPct, pSawPct)),
+        stage({ cls: 's3', l: 'Saw the offer', n: num(sawOffer), help: (sawIsRoom
+            ? `in the room at minute ${num(offerMin)}, when the offer starts \u00b7 <b>${num(s.saw_offer)}</b> watched that long in total`
+            : `watched at least ${num(offerMin)} minutes, when the offer starts \u00b7 no live chart for this one, so this is watch time`)
+          + (window.__canEditWebinar ? ` <button class="ra-btn ghost sm" data-act="offer-edit" title="Set the minute the offer started in this webinar">✎ Change</button><span class="offer-form" hidden><input class="ra-input" id="offerMinIn" type="number" min="1" max="600" step="1" value="${esc(offerMin)}" aria-label="Offer starts at minute" style="width:84px;height:28px"> <button class="ra-btn primary sm" data-act="offer-save">Save</button> <button class="ra-btn ghost sm" data-act="offer-cancel">Cancel</button></span>` : ''), vs: vs(s.saw_offer, ps && ps.saw_offer),
+          bar: fbar(100 * sawOffer / reg, 100 * (s.attendees - sawOffer) / reg) + `<div class="lostline">−${num(Math.max(0, s.attendees - sawOffer))} left before the offer</div>`,
+          cost: costBox([costOf('Cost per offer view', sawOffer, pSawOffer)]) }),
+        step(pct(convOffer), 'became sales', dPtsCtx(convOffer, pSawOffer && pSalesN != null ? rate(pSalesN, pSawOffer) : null)),
         stage({ cls: 's4', l: 'Sales', n: num(salesN), help: convAtt == null ? '' : `${pct(convAtt)} of everyone who showed up`, vs: vs(salesN, pSalesN),
-          bar: fbar(100 * salesN / reg, 100 * Math.max(0, s.saw_offer - salesN) / reg) + (s.saw_offer > salesN ? `<div class="lostline">−${num(s.saw_offer - salesN)} saw the offer, no sale</div>` : ''),
+          bar: fbar(100 * salesN / reg, 100 * Math.max(0, sawOffer - salesN) / reg) + (sawOffer > salesN ? `<div class="lostline">−${num(sawOffer - salesN)} saw the offer, no sale</div>` : ''),
           brk: salesBrk, cost: costBox([costOf('Cost per sale', salesN, pSalesN)]) })];
       html += chapter(2, 'The webinar', 'Who showed up, who stayed for the offer, and the sales.', `<div class="ra-funnel" role="list" aria-label="The webinar">${r2.join('')}</div>`);
 
@@ -1238,13 +1236,18 @@
     const crm = f.crm, pcrm = P && P.crm;
     if (!crm || !s) { $('pLeads').style.display = 'none'; return; }
     $('pLeads').style.display = '';
+    // same "saw the offer" population the funnel uses -- in the room at the offer minute,
+    // falling back to watch time when AXL gave us no curve. Recomputed here because this
+    // runs in its own function.
+    const sawOffer = f.room_at_offer != null ? Number(f.room_at_offer) : s.saw_offer;
+    const pSawOffer = P ? (P.room_at_offer != null ? Number(P.room_at_offer) : (ps ? ps.saw_offer : null)) : null;
     const kinds = [['Abandoned the checkout', 'cart_abandonment'], ['Filled in the survey', 'survey'], ['Hot leads from chat', 'hot_leads_chat'], ['Other leads from chat', 'leads_chat']];
-    const maxShare = Math.max(1, ...kinds.map(([, k]) => rate((crm[k] || {}).total || 0, s.saw_offer) || 0));
-    const handed = '<div class="ra-card"><div class="ra-card-head"><h3>Who we handed to reps</h3><span class="aside">share of the ' + num(s.saw_offer) + ' who saw the offer</span></div><div class="ra-bars">' + kinds.map(([label, k]) => {
+    const maxShare = Math.max(1, ...kinds.map(([, k]) => rate((crm[k] || {}).total || 0, sawOffer) || 0));
+    const handed = '<div class="ra-card"><div class="ra-card-head"><h3>Who we handed to reps</h3><span class="aside">share of the ' + num(sawOffer) + ' who saw the offer</span></div><div class="ra-bars">' + kinds.map(([label, k]) => {
       const c = crm[k] || { total: 0, worked: 0, bought: 0 }, pc = (pcrm && pcrm[k]) || null;
-      const cur = rate(c.total, s.saw_offer), was = (pc && ps) ? rate(pc.total, ps.saw_offer) : null;
+      const cur = rate(c.total, sawOffer), was = (pc && pSawOffer) ? rate(pc.total, pSawOffer) : null;
       return `<div class="row" title="${esc(`${label}: ${c.total} handed to the sales team · ${c.worked} already worked · ${c.bought} became sales`)}"><span class="name">${label}</span><span class="val">${num(c.total)}<small>${pct(cur)}</small></span><span class="track"><i style="width:${100 * (cur || 0) / maxShare}%"></i></span><span class="note">${c.bought ? `<span>${c.bought} became sale${c.bought > 1 ? 's' : ''}</span>` : ''}${was != null ? `<span>${dPtsCtx(cur, was)}</span>` : ''}</span></div>`;
-    }).join('') + `</div><div class="ra-brk" style="display:flex"><div class="r"><span class="k"><b>All leads handed to reps</b></span><span class="v">${num(crm.total)} · ${pct(rate(crm.total, s.saw_offer))}${crm.bought ? ' · ' + crm.bought + ' became sales' : ''}</span></div></div></div>`;
+    }).join('') + `</div><div class="ra-brk" style="display:flex"><div class="r"><span class="k"><b>All leads handed to reps</b></span><span class="v">${num(crm.total)} · ${pct(rate(crm.total, sawOffer))}${crm.bought ? ' · ' + crm.bought + ' became sales' : ''}</span></div></div></div>`;
 
     const cc = crm.calls, pcc = pcrm && pcrm.calls;
     let follow = '';

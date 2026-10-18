@@ -13,6 +13,16 @@ the structural map lives in the knowledge graph (`/graphify`). Format:
 
 ---
 
+## 2026-10-19 — "Saw the offer" now means who was in the room, everywhere
+**What:** `roomAtOffer(curve, minute)` in webinar-analytics (v66) reads the live-viewer curve and returns how many were in the room at the offer minute. Returned as `room_at_offer` on the funnel, on `prev` (using the PREVIOUS webinar's own offer minute, fetched for the first time) and stored on every sheet row. The page uses it for the stage headline, cost per offer view, the offer->sale conversion, the lead-share denominators, the Sheet column and the comparison; watch time is shown beside it and remains the fallback when AXL has no curve.
+**Why:** Reported three times. The old number counted whoever WATCHED at least the offer minute, which drops late joiners: 18 Oct showed 142 against 192 in the room, 11 Oct 228 against ~260. The owner chose "room count everywhere" when asked.
+**What stays on watch time:** the per-ad table, because the room count is an anonymous headcount and per-ad figures must match individual buyers to ads.
+**Two bugs caught before shipping, both by checking rather than assuming:**
+1. A first pass deleted the client-side curve reader while the stage still called it -- a guaranteed ReferenceError, exactly the v662 failure. `deno check` does NOT catch undefined identifiers in this file, so it passed silently; found by grepping for the dangling name.
+2. The "Who we handed to reps" block lives in `renderLeads()`, a different function, so the new `sawOffer` const was out of scope there. Found by walking brace depth from each declaration and listing uses outside it. Fixed by declaring it in that function too.
+**Touched:** edge fn webinar-analytics v66 (deploy byte-verified); webinars.html; version.txt v677; changelog.js v677.
+**Known:** webinars whose sheet row was built when AXL had no stats yet (18 Oct was built 15:35, minutes after it ended, and has a null peak) carry no stored room figure until the sheet refreshes them; the funnel still shows it live.
+
 ## 2026-10-18 — Call coverage and SMS cost now use the same lead definition as the metric
 **What:** New `webinar_lead_handovers(webinar_id)` — one row per person handed to the sales team DURING a webinar (by tag time, not by which webinar's sync wrote the row), carrying their earliest hand-over time and a phone if any row had one. `webinar_call_coverage` and `webinar_sms_cost` now source their leads from it. Patched by text substitution on the live definitions with an assertion, so nothing else in either function could change.
 **Why:** Completes the 15 Oct fix. `webinar_rep_revenue_per_lead()` was moved onto tag time then, but these two still keyed on the filed `webinar_id`, so they counted leads handed over during *other* webinars — 1,656 of 2,203 timestamped rows are mis-filed.

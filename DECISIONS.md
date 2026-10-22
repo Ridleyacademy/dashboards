@@ -13,6 +13,12 @@ the structural map lives in the knowledge graph (`/graphify`). Format:
 
 ---
 
+## 2026-10-22 — Cost per NEW registrant on the Webinars dashboard
+**What:** New SQL `webinar_new_registrants(p_webinar_id)` → (regs, repeats, new_regs, emails_checked). Repeat = same email registered for another class whose class date (`min(attended_at)`) is within the 6 months before this class and > 6 days before it. Registrants come from the `webinar_attendees` roster once synced, else `webinar_registrations` + `contact_tracking_ids.email` (partial — `emails_checked`). webinar-analytics v68 returns it as `new_regs` on the funnel and on `prev`; webinars.html adds "Cost per new registrant" (with was/±) under Cost per registration and "N repeats (last 6 months) · X of Y checked so far" to the Registered help line.
+**Why:** On 21 Oct the ads started excluding everyone registered in the last 180 days. Cost per registration rose 12% (cheap repeats gone) while cost per NEW person fell; the same day "cost per new registrant" was hand-calculated three inconsistent ways. The owner asked for the method in hard files and on the dashboard. Rules: `~/Documents/ridley-metrics/METRICS.md` (§4) — keep the SQL and that file in step.
+**Traps baked in:** never use `webinar_attendees.created_at` as a class date (old webinars bulk-imported 2026-09-13); never match repeats on AXL contact_id (returns 0 for the current week); first version timed out — rewritten to look only at the prior webinars the registrants' emails appear in (0.3 s).
+**Touched:** SQL `webinar_new_registrants` (service_role only); edge fn webinar-analytics v68 (byte-verified); webinars.html; version.txt v678; changelog.js.
+
 ## 2026-10-19 — "Saw the offer" now means who was in the room, everywhere
 **What:** `roomAtOffer(curve, minute)` in webinar-analytics (v66) reads the live-viewer curve and returns how many were in the room at the offer minute. Returned as `room_at_offer` on the funnel, on `prev` (using the PREVIOUS webinar's own offer minute, fetched for the first time) and stored on every sheet row. The page uses it for the stage headline, cost per offer view, the offer->sale conversion, the lead-share denominators, the Sheet column and the comparison; watch time is shown beside it and remains the fallback when AXL has no curve.
 **Why:** Reported three times. The old number counted whoever WATCHED at least the offer minute, which drops late joiners: 18 Oct showed 142 against 192 in the room, 11 Oct 228 against ~260. The owner chose "room count everywhere" when asked.

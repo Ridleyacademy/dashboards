@@ -1126,9 +1126,14 @@
       r1.push(stage({ l: 'Visited the page', n: num(f.visitors), help: 'different people on the register page', vs: vs(f.visitors, P && P.visitors), cost: costBox([costOf('Cost per visitor', f.visitors, P && P.visitors)]) }));
       r1.push(step(pct(f.visitors_to_reg_pct), 'signed up', dPtsCtx(f.visitors_to_reg_pct, P && P.visitors && ps ? pct2(ps.registered, P.visitors) : null)));
     }
+    // NEW registrants = not registered for another class in the 6 months before this one
+    // (the Meta exclusion window). Rules: ridley-metrics/METRICS.md section 4.
+    const nr = f.new_regs || null, pnr = (P && P.new_regs) || null;
+    const nrNote = nr ? ` · ${num(nr.repeats)} repeat${nr.repeats === 1 ? '' : 's'} (last 6 months)` + (nr.emails_checked < nr.regs ? ` · ${num(nr.emails_checked)} of ${num(nr.regs)} checked so far` : '') : '';
     r1.push(stage({ cls: 's1', l: 'Registered', n: num(registered),
-      help: 'signed up for this webinar' + (hasAds && m.paid_regs != null ? ` · ${num(m.paid_regs)} from ads` : '') + (S.today ? ` · ${num(S.today)} today` : ''),
-      vs: vs(registered, ps && ps.registered), cost: costBox([costOf('Cost per registration', registered, ps && ps.registered)]) }));
+      help: 'signed up for this webinar' + (hasAds && m.paid_regs != null ? ` · ${num(m.paid_regs)} from ads` : '') + (S.today ? ` · ${num(S.today)} today` : '') + nrNote,
+      vs: vs(registered, ps && ps.registered), cost: costBox([costOf('Cost per registration', registered, ps && ps.registered),
+        nr ? costOf('Cost per new registrant', nr.new_regs, pnr && pnr.new_regs) : null]) }));
     let html = chapter(1, 'Getting people in', 'From the ads to the registration page.', `<div class="ra-funnel" role="list" aria-label="Getting people in">${r1.join('')}</div>`);
 
     const startsAt = webinarWhen && (webinarWhen.startedAt || webinarWhen.scheduledAt);

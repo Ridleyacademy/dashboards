@@ -125,3 +125,4 @@
 2026-10-18T20:00:00Z-v676-in-room-at-offer
 2026-10-19T12:00:00Z-v677-saw-offer-room
 2026-10-22T15:30:00Z-v678-cost-per-new-registrant
+2026-10-27T19:00:00Z-v679-reinvite-out-of-ad-stats

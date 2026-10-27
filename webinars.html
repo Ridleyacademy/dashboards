@@ -1135,6 +1135,15 @@
       vs: vs(registered, ps && ps.registered), cost: costBox([costOf('Cost per registration', registered, ps && ps.registered),
         nr ? costOf('Cost per new registrant', nr.new_regs, pnr && pnr.new_regs) : null]) }));
     let html = chapter(1, 'Getting people in', 'From the ads to the registration page.', `<div class="ra-funnel" role="list" aria-label="Getting people in">${r1.join('')}</div>`);
+    // Re-invite: last class's no-shows emailed + texted to come back. Not ads, so they are left
+    // out of every figure on this page (METRICS.md section 3) and shown only here.
+    const ri = f.reinvite;
+    if (ri && Number(ri.invited) > 0) {
+      const ran = s && s.attendees > 0;
+      html += callout('', '↪', `<b>Re-invite (email + text, not ads)</b> — last class’s no-shows: ${num(ri.invited)} invited · <b>${num(ri.registered)}</b> signed up again`
+        + (ran ? ` · ${num(ri.attended)} showed up · ${num(ri.saw_offer)} stayed for the offer · ${num(ri.buyers)} sale${Number(ri.buyers) === 1 ? '' : 's'}${Number(ri.buyers) ? ' (' + money(ri.revenue) + ')' : ''}` : '')
+        + '. They are left out of every number on this page, so the ad figures stay clean.');
+    }
 
     const startsAt = webinarWhen && (webinarWhen.startedAt || webinarWhen.scheduledAt);
     const upcoming = s && s.attendees === 0 && startsAt && Date.parse(startsAt) > Date.now() - 3 * 3600e3;
@@ -1375,8 +1384,15 @@
     const seq = ++funnelSeq;
     showJourneyLoading();
     try {
-      const f = await authedFetch('?api=funnel&w=' + encodeURIComponent(w) + '&window=' + statWindow);
+      // the re-invite line (no-shows of the last class brought back by email/SMS) comes straight
+      // from SQL; it never blocks the board if it fails
+      const [f, ri] = await Promise.all([
+        authedFetch('?api=funnel&w=' + encodeURIComponent(w) + '&window=' + statWindow),
+        supa.rpc('webinar_reinvite_stats', { p_webinar_id: w })
+          .then(r => (r.error ? null : (Array.isArray(r.data) ? r.data[0] : r.data))).catch(() => null),
+      ]);
       if (seq !== funnelSeq) return; // a newer webinar was selected meanwhile
+      if (f && ri && !f.reinvite) f.reinvite = ri;
       renderJourney(f);
     } catch (e) {
       if (seq !== funnelSeq) return;

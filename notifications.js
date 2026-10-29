@@ -505,10 +505,16 @@
   }
 
   // ── Realtime: subscribe to inserts/updates on this user's notifications.
-  async function startRealtime() {
+  // v680: only (re)subscribe when the signed-in user actually changes. Auth
+  // events (SIGNED_IN on tab focus, TOKEN_REFRESHED) used to tear down and
+  // rebuild the channel every time — a getUser call + new websocket each.
+  let realtimeUserId = null;
+  async function startRealtime(sess) {
     const s = ensureSupa(); if (!s) return;
-    const { data: { user } } = await s.auth.getUser();
+    const user = sess?.user;
     if (!user) return;
+    if (realtimeChannel && realtimeUserId === user.id) return;
+    realtimeUserId = user.id;
     if (realtimeChannel) { try { s.removeChannel(realtimeChannel); } catch (_) {} realtimeChannel = null; }
     realtimeChannel = s.channel('notifications-' + user.id)
       .on('postgres_changes', {
@@ -761,8 +767,8 @@
       setTimeout(init, 250);
       return;
     }
-    s.auth.getSession().then(({ data }) => { if (data?.session) { startPolling(); startRealtime(); injectPushCta(); maybeShowFirstTimePushBanner(); } });
-    s.auth.onAuthStateChange((_e, sess) => { if (sess) { startPolling(); startRealtime(); injectPushCta(); maybeShowFirstTimePushBanner(); } });
+    s.auth.getSession().then(({ data }) => { if (data?.session) { startPolling(); startRealtime(data.session); injectPushCta(); maybeShowFirstTimePushBanner(); } });
+    s.auth.onAuthStateChange((_e, sess) => { if (sess) { startPolling(); startRealtime(sess); injectPushCta(); maybeShowFirstTimePushBanner(); } });
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

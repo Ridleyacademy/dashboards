@@ -44,9 +44,22 @@
     // When the new SW takes over (after skipWaiting + claim), reload once to
     // pick up fresh code & assets. Defer if a "What's new" modal is up so we
     // don't wipe it from under the user.
+    // v680: guard against reload loops. A first-ever install (no controller
+    // yet) never needs a reload, and we allow at most one SW-triggered reload
+    // per 30s — a Safari profile with a stuck SW was reloading every 2-4s.
+    const _hadController = !!navigator.serviceWorker.controller;
     let _reloading = false;
     function safeReload() {
       if (_reloading) return;
+      if (!_hadController) return;
+      try {
+        const last = Number(sessionStorage.getItem('sw-reload-at') || 0);
+        if (Date.now() - last < 30000) {
+          console.warn('[PWA] controllerchange reload skipped (loop guard)');
+          return;
+        }
+        sessionStorage.setItem('sw-reload-at', String(Date.now()));
+      } catch (_) {}
       if (window.__changelogModalOpen) {
         // Try again every second until they close the modal
         setTimeout(safeReload, 1000);

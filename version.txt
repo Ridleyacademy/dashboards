@@ -126,3 +126,4 @@
 2026-10-19T12:00:00Z-v677-saw-offer-room
 2026-10-22T15:30:00Z-v678-cost-per-new-registrant
 2026-10-27T19:00:00Z-v679-reinvite-out-of-ad-stats
+2026-10-29T19:50:00Z-v680-reload-loop-guard

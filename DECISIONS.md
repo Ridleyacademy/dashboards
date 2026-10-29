@@ -398,3 +398,6 @@ the structural map lives in the knowledge graph (`/graphify`). Format:
 **Touched:** ~12 edge fns; app_permissions/app_roles/app_user_roles. See AGENTS.md → Backend RBAC.
 
 <!-- Older history: see git log + changelog.js. Add new entries above this line. -->
+
+## 2026-10-29 — v680 reload-loop guard
+A Safari profile reloaded every 2-4s (stuck SW → controllerchange loop), ~150 req/min. pwa.js now never reloads on first SW install and allows at most one SW-triggered reload per 30s (sessionStorage `sw-reload-at`). notifications.js only rebuilds the realtime channel when the user id changes (auth events no longer cost a getUser + new websocket each).

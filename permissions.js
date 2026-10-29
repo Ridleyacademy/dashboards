@@ -12,11 +12,11 @@
     { href: 'home.html',         id: null,           roles: '*' },
     // Internal messaging (DMs + groups) — available to every logged-in user.
     { href: 'messages.html',     id: 'messages',     roles: '*' },
-    { href: 'index.html',        id: 'sales',        roles: ['sales', 'sales_manager'] },
-    { href: 'meta-ads.html',     id: 'meta',         roles: ['marketing'] },
-    { href: 'performance.html',  id: 'performance',  roles: ['marketing', 'sales', 'sales_manager'] },
-    { href: 'income.html',       id: 'income',       roles: ['finance'] },
-    { href: 'calls.html',        id: 'calls',        roles: ['calls', 'sales_manager', 'rep'] },
+    { href: 'index.html',        id: 'sales',        roles: ['sales', 'sales_manager'], granular: 'sales.view' },
+    { href: 'meta-ads.html',     id: 'meta',         roles: ['marketing'], granular: 'meta.view' },
+    { href: 'performance.html',  id: 'performance',  roles: ['marketing', 'sales', 'sales_manager'], granular: 'performance.view' },
+    { href: 'income.html',       id: 'income',       roles: ['finance'], granular: 'income.view' },
+    { href: 'calls.html',        id: 'calls',        roles: ['calls', 'sales_manager', 'rep'], granular: 'calls.view' },
     // Booked Calls — Calendly bookings + source attribution. Same audience as
     // calls.html so nobody needs reconfiguring; granular keys layer on top.
     { href: 'calendly.html',     id: 'calendly',     roles: ['calls', 'sales_manager', 'rep'], granular: ['calendly.view', 'calendly.view_others'] },

@@ -13,6 +13,12 @@ the structural map lives in the knowledge graph (`/graphify`). Format:
 
 ---
 
+## 2026-11-01 — "Saw the offer" filtered to people from ads
+**What:** New SQL `webinar_ad_offer_shares()` (authenticated, called from the browser like `webinar_reinvite_stats`) gives, for classes with `reinvite_cohort` people, how many watched to the offer minute from ads and in total. `adRoomAtOffer()` in webinars.html scales `room_at_offer` by that share in the funnel, the leads block, the previous-class comparison and the sheet.
+**Why:** Owner spotted it on 1 Nov: `room_at_offer` is everyone (403 at minute 80) but `stats.attendees` is ads only (312), so the step read 129% and cost per offer view and offer-to-sale were understated.
+**Why an estimate:** AXL gives a per-second headcount and each person's total minutes only; `cuepoints` is empty, so nobody can be placed in the room at a given minute. Classes with no cohort are unchanged, including 25 Oct and earlier.
+**Touched:** SQL `webinar_ad_offer_shares`; webinars.html; version.txt v681; changelog.js. Edge fn untouched (the 60 KB fn cannot be redeployed without the CLI).
+
 ## 2026-10-22 — Cost per NEW registrant on the Webinars dashboard
 **What:** New SQL `webinar_new_registrants(p_webinar_id)` → (regs, repeats, new_regs, emails_checked). Repeat = same email registered for another class whose class date (`min(attended_at)`) is within the 6 months before this class and > 6 days before it. Registrants come from the `webinar_attendees` roster once synced, else `webinar_registrations` + `contact_tracking_ids.email` (partial — `emails_checked`). webinar-analytics v68 returns it as `new_regs` on the funnel and on `prev`; webinars.html adds "Cost per new registrant" (with was/±) under Cost per registration and "N repeats (last 6 months) · X of Y checked so far" to the Registered help line.
 **Why:** On 21 Oct the ads started excluding everyone registered in the last 180 days. Cost per registration rose 12% (cheap repeats gone) while cost per NEW person fell; the same day "cost per new registrant" was hand-calculated three inconsistent ways. The owner asked for the method in hard files and on the dashboard. Rules: `~/Documents/ridley-metrics/METRICS.md` (§4) — keep the SQL and that file in step.

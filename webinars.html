@@ -293,7 +293,7 @@
       <dl>
         <dt>Registered</dt><dd>Signed up on ridleyacademy.net/register for this webinar.</dd>
         <dt>Showed up</dt><dd>Joined the live room at least once.</dd>
-        <dt>Saw the offer</dt><dd>How many people were <b>in the room</b> at the offer minute, read off the live chart — minute 90 unless changed for that webinar, via “✎ Change” on the step. Beside it we show how many <b>watched that long in total</b>, which is always lower, because someone who joins late can be there for the offer without having watched that many minutes. Cost per offer view and the sales conversion use the room figure. The per-ad table still uses watch time, because that is the only count that can be matched to an individual buyer. If AXL has no live chart for a webinar the stage falls back to watch time and says so.</dd>
+        <dt>Saw the offer</dt><dd>How many people were <b>in the room</b> at the offer minute, read off the live chart — minute 90 unless changed for that webinar, via “✎ Change” on the step. Beside it we show how many <b>watched that long in total</b>, which is always lower, because someone who joins late can be there for the offer without having watched that many minutes. Cost per offer view and the sales conversion use the room figure. The per-ad table still uses watch time, because that is the only count that can be matched to an individual buyer. If AXL has no live chart for a webinar the stage falls back to watch time and says so. When email or re-invite people were in the class, the room figure is an <b>estimate of the people from ads</b>: the room count, which covers everyone, multiplied by the ads’ share of those who watched that long. The live chart still shows everyone.</dd>
         <dt>Sales</dt><dd>Sales in the Sales Log from people linked to this webinar. People who attended count for 30 days afterwards (so follow-up and phone-closed deals land here); people who registered but didn’t show count until the next webinar starts; anyone with no registration counts only if the sale happened during the live event. Rebills, refunds and chargebacks are left out.</dd>
         <dt>Live / Rep</dt><dd>Live = the sale happened during the webinar with nobody closing it. Rep = a sales rep is credited (Affiliate column, their declaration, or a call of 3+ minutes).</dd>
         <dt>Paid in full / Payment plan</dt><dd>How the customer paid, from the Sales Log status.</dd>
@@ -522,6 +522,23 @@
     p.addEventListener('toggle', () => { openState[k] = p.open; store.set('webinars-open', openState); if (p.open) Object.values(charts).forEach(c => c.resize()); });
   });
 
+  // AXL's room count at the offer minute is an anonymous headcount of EVERYONE. Where a class
+  // has email or re-invite people in it, the ad figure is that room scaled by the ads' share
+  // of those who watched to the offer minute (webinar_ad_offer_shares). Other classes: unchanged.
+  let adOfferShares = {};
+  function loadAdOfferShares() {
+    return supa.rpc('webinar_ad_offer_shares').then(r => {
+      if (r.error) return;
+      adOfferShares = {};
+      (r.data || []).forEach(x => { adOfferShares[x.webinar_id] = x; });
+    }).catch(() => {});
+  }
+  function adRoomAtOffer(d, id) {
+    if (!d || d.room_at_offer == null) return null;
+    const sh = adOfferShares[id || d.webinar_id], room = Number(d.room_at_offer);
+    return sh && Number(sh.all_watched) ? Math.round(room * Number(sh.ad_watched) / Number(sh.all_watched)) : room;
+  }
+
   // ================= the sheet: every webinar, every figure =================
   // Rows come pre-computed from webinar_sheet (?api=sheet); every column is derived with
   // the same formulas the journey uses, so the two views always agree.
@@ -536,7 +553,7 @@
     const smsCost = d.sms && sms.cost != null ? Number(sms.cost) : null;
     const costBase = (hasAds ? spend : 0) + (smsCost || 0);
     const per = (den) => (hasAds && den ? spend / den : null);
-    const sawOffer = d.room_at_offer != null ? Number(d.room_at_offer) : s.saw_offer;
+    const sawOffer = d.room_at_offer != null ? adRoomAtOffer(d) : s.saw_offer;
     const imps = hasAds ? Number(m.impressions || 0) : 0;
     return {
       date: d.ended_at, spend, imps: hasAds ? imps : null, clicks: hasAds ? m.clicks : null, ctr: hasAds ? m.ctr : null,
@@ -637,7 +654,7 @@
     $('sheetBox').innerHTML = '<div style="padding:16px;display:flex;flex-direction:column;gap:10px">' + Array.from({ length: 8 }, () => '<span class="ra-skel block"></span>').join('') + '</div>';
     sheetLoading = (async () => {
       try {
-        const j = await authedFetch('?api=sheet&window=' + statWindow);
+        const [j] = await Promise.all([authedFetch('?api=sheet&window=' + statWindow), loadAdOfferShares()]);
         sheetRows = (j.rows || []).map(r => ({ id: r.webinar_id, name: r.name || (r.data && r.data.name) || r.webinar_id, f: sheetFigures(r.data || {}) }));
         const pend = Number(j.pending || 0);
         $('sheetNote').innerHTML = `<b>${num(sheetRows.length)}</b> webinars with 20+ people in the room · click a column to sort, a row to open it` +
@@ -1162,9 +1179,10 @@
       // dropped late joiners (142 against 192 on 18 Oct). It is still the fallback when AXL
       // has no curve, and it remains what the per-ad table uses, being the only count that
       // can be matched to an individual buyer.
-      const sawOffer = f.room_at_offer != null ? Number(f.room_at_offer) : s.saw_offer;
+      const sawOffer = f.room_at_offer != null ? adRoomAtOffer(f, selectedWebinar()) : s.saw_offer;
       const sawIsRoom = f.room_at_offer != null;
-      const pSawOffer = P ? (P.room_at_offer != null ? Number(P.room_at_offer) : (ps ? ps.saw_offer : null)) : null;
+      const sawIsShare = sawIsRoom && sawOffer !== Number(f.room_at_offer);
+      const pSawOffer = P ? (P.room_at_offer != null ? adRoomAtOffer(P) : (ps ? ps.saw_offer : null)) : null;
       const sawPct = s.attendees ? rate(sawOffer, s.attendees) : null;
       const pSawPct = (ps && ps.attendees && pSawOffer != null) ? rate(pSawOffer, ps.attendees) : null;
       const convOffer = sawOffer ? rate(salesN, sawOffer) : null;
@@ -1186,7 +1204,9 @@
           bar: fbar(100 * s.attendees / reg, 100 * (reg - s.attendees) / reg) + `<div class="lostline">−${num(Math.max(0, reg - s.attendees))} didn’t show up</div>`, brk: roomBrk,
           cost: costBox([costOf('Cost per attendee', s.attendees, ps && ps.attendees)]) }),
         step(pct(sawPct), 'were there for the offer', dPtsCtx(sawPct, pSawPct)),
-        stage({ cls: 's3', l: 'Saw the offer', n: num(sawOffer), help: (sawIsRoom
+        stage({ cls: 's3', l: 'Saw the offer', n: num(sawOffer), help: (sawIsShare
+            ? `estimated from ads, out of the <b>${num(f.room_at_offer)}</b> in the room at minute ${num(offerMin)}, when the offer starts \u00b7 <b>${num(s.saw_offer)}</b> from ads watched that long in total`
+            : sawIsRoom
             ? `in the room at minute ${num(offerMin)}, when the offer starts \u00b7 <b>${num(s.saw_offer)}</b> watched that long in total`
             : `watched at least ${num(offerMin)} minutes, when the offer starts \u00b7 no live chart for this one, so this is watch time`)
           + (window.__canEditWebinar ? ` <button class="ra-btn ghost sm" data-act="offer-edit" title="Set the minute the offer started in this webinar">✎ Change</button><span class="offer-form" hidden><input class="ra-input" id="offerMinIn" type="number" min="1" max="600" step="1" value="${esc(offerMin)}" aria-label="Offer starts at minute" style="width:84px;height:28px"> <button class="ra-btn primary sm" data-act="offer-save">Save</button> <button class="ra-btn ghost sm" data-act="offer-cancel">Cancel</button></span>` : ''), vs: vs(s.saw_offer, ps && ps.saw_offer),
@@ -1253,8 +1273,8 @@
     // same "saw the offer" population the funnel uses -- in the room at the offer minute,
     // falling back to watch time when AXL gave us no curve. Recomputed here because this
     // runs in its own function.
-    const sawOffer = f.room_at_offer != null ? Number(f.room_at_offer) : s.saw_offer;
-    const pSawOffer = P ? (P.room_at_offer != null ? Number(P.room_at_offer) : (ps ? ps.saw_offer : null)) : null;
+    const sawOffer = f.room_at_offer != null ? adRoomAtOffer(f, selectedWebinar()) : s.saw_offer;
+    const pSawOffer = P ? (P.room_at_offer != null ? adRoomAtOffer(P) : (ps ? ps.saw_offer : null)) : null;
     const kinds = [['Abandoned the checkout', 'cart_abandonment'], ['Filled in the survey', 'survey'], ['Hot leads from chat', 'hot_leads_chat'], ['Other leads from chat', 'leads_chat']];
     const maxShare = Math.max(1, ...kinds.map(([, k]) => rate((crm[k] || {}).total || 0, sawOffer) || 0));
     const handed = '<div class="ra-card"><div class="ra-card-head"><h3>Who we handed to reps</h3><span class="aside">share of the ' + num(sawOffer) + ' who saw the offer</span></div><div class="ra-bars">' + kinds.map(([label, k]) => {
@@ -1390,6 +1410,7 @@
         authedFetch('?api=funnel&w=' + encodeURIComponent(w) + '&window=' + statWindow),
         supa.rpc('webinar_reinvite_stats', { p_webinar_id: w })
           .then(r => (r.error ? null : (Array.isArray(r.data) ? r.data[0] : r.data))).catch(() => null),
+        loadAdOfferShares(),
       ]);
       if (seq !== funnelSeq) return; // a newer webinar was selected meanwhile
       if (f && ri && !f.reinvite) f.reinvite = ri;

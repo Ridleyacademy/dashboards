@@ -539,6 +539,22 @@
     return sh && Number(sh.all_watched) ? Math.round(room * Number(sh.ad_watched) / Number(sh.all_watched)) : room;
   }
 
+  // The peak has the same problem, but it can land at any minute, so it is scaled by the ads'
+  // share of everyone who showed up (webinar_ad_room_shares). Room held % stays a whole-room ratio.
+  let adRoomShares = {};
+  function loadAdRoomShares() {
+    return supa.rpc('webinar_ad_room_shares').then(r => {
+      if (r.error) return;
+      adRoomShares = {};
+      (r.data || []).forEach(x => { adRoomShares[x.webinar_id] = x; });
+    }).catch(() => {});
+  }
+  function adPeak(pk, id) {
+    if (!pk || pk.peak == null) return null;
+    const sh = adRoomShares[id], peak = Number(pk.peak);
+    return sh && Number(sh.all_attended) ? Math.round(peak * Number(sh.ad_attended) / Number(sh.all_attended)) : peak;
+  }
+
   // ================= the sheet: every webinar, every figure =================
   // Rows come pre-computed from webinar_sheet (?api=sheet); every column is derived with
   // the same formulas the journey uses, so the two views always agree.
@@ -560,7 +576,7 @@
       cpm: hasAds && imps ? 1000 * spend / imps : null, cpc: hasAds ? m.cpc : null,
       visitors: d.visitors, v2r: d.visitors_to_reg_pct, registered: s.registered, fromAds: hasAds ? m.paid_regs : null, cpr: per(s.registered),
       offerMin: d.offer_minute != null ? Number(d.offer_minute) : 90,
-      attended: s.attendees, showup: s.show_up_pct, avgmin: s.avg_minutes, peak: pk.peak, held: pk.avg_of_peak_pct,
+      attended: s.attendees, showup: s.show_up_pct, avgmin: s.avg_minutes, peak: adPeak(pk, d.webinar_id), held: pk.avg_of_peak_pct,
       // who was IN THE ROOM at the offer minute; falls back to the watch-time count when
       // AXL gave us no curve for that webinar (see room_at_offer in webinar-analytics)
       saw: sawOffer, sawpct: s.attendees ? rate(sawOffer, s.attendees) : null, cpa: per(s.attendees), cpo: per(sawOffer),
@@ -598,7 +614,7 @@
     ['attended', 'Showed up', num, 'up', 'The webinar'],
     ['showup', 'Show-up %', pct, 'up', 'The webinar', 'Share of registered who joined the live room'],
     ['avgmin', 'Avg minutes watched', (v) => v == null ? '—' : (Math.round(v * 10) / 10).toFixed(1), 'up', 'The webinar'],
-    ['peak', 'Most in the room', num, 'up', 'The webinar', 'Most people in the room at the same time'],
+    ['peak', 'Most in the room', num, 'up', 'The webinar', 'Most people from ads in the room at the same time (estimated where email or re-invite people were there too)'],
     ['held', 'Room held %', pct, 'up', 'The webinar', 'Average room size as a share of the peak'],
     ['offerMin', 'Offer starts (minute)', num, null, 'The webinar', 'Minute the offer started in that webinar (90 unless changed)'],
     ['saw', 'Saw the offer', num, 'up', 'The webinar', 'Stayed until the offer started'],
@@ -654,7 +670,7 @@
     $('sheetBox').innerHTML = '<div style="padding:16px;display:flex;flex-direction:column;gap:10px">' + Array.from({ length: 8 }, () => '<span class="ra-skel block"></span>').join('') + '</div>';
     sheetLoading = (async () => {
       try {
-        const [j] = await Promise.all([authedFetch('?api=sheet&window=' + statWindow), loadAdOfferShares()]);
+        const [j] = await Promise.all([authedFetch('?api=sheet&window=' + statWindow), loadAdOfferShares(), loadAdRoomShares()]);
         sheetRows = (j.rows || []).map(r => ({ id: r.webinar_id, name: r.name || (r.data && r.data.name) || r.webinar_id, f: sheetFigures(r.data || {}) }));
         const pend = Number(j.pending || 0);
         $('sheetNote').innerHTML = `<b>${num(sheetRows.length)}</b> webinars with 20+ people in the room · click a column to sort, a row to open it` +
@@ -1189,7 +1205,7 @@
       const reg = s.registered || 1;
       // ---- 2 · The webinar
       const roomBrk = pk.peak == null ? '' : brk([
-        { k: 'Most in the room at once', v: num(pk.peak), d: dPct(pk.peak, P && P.peak && P.peak.peak), t: 'Most people in the room at the same time' },
+        { k: 'Most in the room at once', v: num(adPeak(pk, selectedWebinar())), d: dPct(adPeak(pk, selectedWebinar()), P ? adPeak(P.peak, P.webinar_id) : null), t: adPeak(pk, selectedWebinar()) === Number(pk.peak) ? 'Most people in the room at the same time' : `Estimated from ads, out of the ${num(pk.peak)} in the room at the busiest moment, using the ads' share of everyone who showed up` },
         pk.avg_of_peak_pct == null ? null : { k: 'Room held', v: pct(pk.avg_of_peak_pct), d: dPct(pk.avg_of_peak_pct, P && P.peak && P.peak.avg_of_peak_pct), t: 'Average room size as a share of the peak — how well people stayed' }]);
       const salesBrk = !sl ? '' : brk([
         { k: 'Live — sale during the webinar', v: num(sl.live_sales), d: dPct(sl.live_sales, psl && psl.live_sales), t: 'Sale made during the webinar — nobody closed it · ' + money(sl.live_revenue) },
@@ -1305,7 +1321,7 @@
     if (curve.length > 2) {
       $('pLive').style.display = '';
       lastCurve = curve; drawLive(curve);
-      $('sumLive').innerHTML = pk.peak == null ? 'People in the room, minute by minute' : `Up to <b>${num(pk.peak)}</b> people at once${pk.avg_of_peak_pct == null ? '' : ` · the room held <b>${pct(pk.avg_of_peak_pct)}</b> on average`}`;
+      $('sumLive').innerHTML = pk.peak == null ? 'People in the room, minute by minute' : `Up to <b>${num(adPeak(pk, selectedWebinar()))}</b> people from ads at once${adPeak(pk, selectedWebinar()) === Number(pk.peak) ? '' : ` (<b>${num(pk.peak)}</b> in the whole room, which is what this chart shows)`}${pk.avg_of_peak_pct == null ? '' : ` · the room held <b>${pct(pk.avg_of_peak_pct)}</b> on average`}`;
     } else { $('pLive').style.display = 'none'; lastCurve = null; }
   }
 
@@ -1411,6 +1427,7 @@
         supa.rpc('webinar_reinvite_stats', { p_webinar_id: w })
           .then(r => (r.error ? null : (Array.isArray(r.data) ? r.data[0] : r.data))).catch(() => null),
         loadAdOfferShares(),
+        loadAdRoomShares(),
       ]);
       if (seq !== funnelSeq) return; // a newer webinar was selected meanwhile
       if (f && ri && !f.reinvite) f.reinvite = ri;

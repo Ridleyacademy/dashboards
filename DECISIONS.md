@@ -13,6 +13,10 @@ the structural map lives in the knowledge graph (`/graphify`). Format:
 
 ---
 
+## 2026-11-02 — "Most in the room" filtered to people from ads
+
+AXL's peak is an anonymous headcount of everyone, so it was shown beside ads-only figures. It is now scaled by the ads' share of everyone who showed up (`webinar_ad_room_shares()`, read from the browser because webinar-analytics cannot be redeployed without the CLI). The offer share was not reused because the peak can land at a different minute, and the sheet has no curve to find that minute. It is an estimate: it assumes ads people were as likely as anyone to be in the room at the peak. Room held % stays a whole-room ratio and the live chart stays whole-room, with a caption saying so.
+
 ## 2026-11-01 — "Saw the offer" filtered to people from ads
 **What:** New SQL `webinar_ad_offer_shares()` (authenticated, called from the browser like `webinar_reinvite_stats`) gives, for classes with `reinvite_cohort` people, how many watched to the offer minute from ads and in total. `adRoomAtOffer()` in webinars.html scales `room_at_offer` by that share in the funnel, the leads block, the previous-class comparison and the sheet.
 **Why:** Owner spotted it on 1 Nov: `room_at_offer` is everyone (403 at minute 80) but `stats.attendees` is ads only (312), so the step read 129% and cost per offer view and offer-to-sale were understated.

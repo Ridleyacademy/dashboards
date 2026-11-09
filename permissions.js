@@ -46,6 +46,8 @@
     { href: 'ms-alerts.html',    id: 'ms_analytics', roles: ['mentorship', 'sales_manager', 'ms_ic', 'delivery_ic'], granular: 'ms_analytics.view' },
     // Webinar Registrations — AXL /register funnel: registrations by source, personal-link share, show-up rate.
     { href: 'webinars.html',     id: 'webinars',     roles: ['marketing', 'sales_manager', 'mentorship'], granular: 'webinars.view' },
+    // Evergreen class (every 10 min, /class): same audience as Webinars.
+    { href: 'evergreen.html',    id: 'evergreen',    roles: ['marketing', 'sales_manager', 'mentorship'], granular: 'webinars.view' },
     // Coach Dashboard: only true editors. Primary gate is the GRANULAR
     // `coach.edit` permission. Legacy fallback includes `coach` /
     // `ms_ic` / `delivery_ic` for users whose JWT predates the

@@ -1442,7 +1442,9 @@
     $('tblAttendance').innerHTML = '<div style="display:flex;flex-direction:column;gap:10px">' + Array.from({ length: 5 }, () => '<span class="ra-skel block"></span>').join('') + '</div>';
     try {
       const d = await loadAttendanceData();
-      const rows = (d.webinars || []).filter(w => w.attendees > 0);
+      // a real webinar has 20+ people in the room (data rules); this keeps the evergreen class's
+      // ~66 tiny sessions a day out of this table — they have their own page, evergreen.html
+      const rows = (d.webinars || []).filter(w => w.attendees >= 20);
       const cols = ['Ended', 'Registered', 'Showed up', 'Saw offer', '% who saw offer', 'Avg minutes', 'Sales', '% of attendees', '% of offer viewers', 'Revenue'];
       $('tblAttendance').innerHTML = rows.length ? tbl(['Webinar'].concat(cols), rows.map(w => {
         const vals = [fmtEnd(w.ended_at), num(w.registered), num(w.attendees), num(w.saw_offer), pct(w.saw_offer_pct), w.avg_minutes == null ? '—' : w.avg_minutes, num(w.buyers), pct(w.buyers_pct_attendees), pct(w.buyers_pct_saw_offer), money(w.revenue)];
@@ -1457,8 +1459,17 @@
     }
   }
 
+  // The evergreen class (a new session every 10 minutes, ridleyacademy.net/class) has its own page,
+  // evergreen.html. Keep its template out of the picker and its tiny sessions out of the tables here.
+  const EVERGREEN_IDS = new Set(['fUjX6twe0E2KXNWSzXNE-A']);
   async function loadWebinars() {
     const j = await authedFetch('?api=webinars');
+    j.webinars = (j.webinars || []).filter(w => !EVERGREEN_IDS.has(w.id));
+    if (!j.default || EVERGREEN_IDS.has(j.default)) {
+      const soon = Date.now() - 3 * 3600e3;
+      const up = j.webinars.filter(x => x.scheduledAt && Date.parse(x.scheduledAt) >= soon).sort((a, b) => Date.parse(a.scheduledAt) - Date.parse(b.scheduledAt))[0];
+      j.default = (up || j.webinars[0] || {}).id || null;
+    }
     const sel = $('webinarSel');
     const remembered = localStorage.getItem(WKEY);
     sel.innerHTML = j.webinars.map(w => `<option value="${esc(w.id)}">${esc(w.name)}${w.regs ? ' · ' + num(w.regs) + ' registered' : ''}</option>`).join('');

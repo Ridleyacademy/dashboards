@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg?v=303">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=303">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=303">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Evergreen Class</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <script src="permissions.js"></script>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#000000">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Ridleyacademy">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=303">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap">
+  <link rel="stylesheet" href="mobile.css">
+  <link rel="stylesheet" href="ridley-ui.css?v=652">
+  <style>
+    /* The shared topbar still reads the old variable names — map them onto the Ridley tokens. */
+    body{ --bg:var(--paper); --surface2:var(--surface-sunken); --surface3:var(--surface-hover); --border:var(--line); --border-light:var(--line);
+          --text:var(--ink); --text-muted:var(--ink-muted); --text-dim:var(--ink-faint); --blue:var(--brand-text); --blue-bg:var(--brand-tint);
+          margin:0; font-family:var(--font-sans); font-size:14px; }
+    *{ box-sizing:border-box; }
+    .topbar{ display:flex; align-items:center; gap:10px; padding:10px 18px; border-bottom:1px solid var(--line); position:sticky; top:0; z-index:100; }
+    .topbar-logo{ width:26px; height:26px; border-radius:8px; display:flex; align-items:center; justify-content:center; }
+    .topbar-brand{ font-weight:800; letter-spacing:0.01em; }
+    .topbar-spacer{ flex:1; }
+    .tbtn{ background:var(--surface2); border:1px solid var(--border); color:var(--text); border-radius:9px; padding:7px 12px; font-size:0.82rem; cursor:pointer; display:inline-flex; align-items:center; gap:6px; }
+    .tbtn:hover{ border-color:var(--line-strong); }
+    .nav-dropdown{ position:relative; }
+    .nav-dropdown-menu{ display:none; position:absolute; top:100%; right:0; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:6px; margin-top:6px; min-width:210px; z-index:200; max-height:70vh; overflow:auto; }
+    .nav-menu-link{ display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:8px; color:var(--text); text-decoration:none; font-size:0.85rem; }
+    .nav-menu-link:hover{ background:var(--surface2); }
+    .nav-menu-link.active{ background:var(--blue-bg); color:var(--blue); }
+    .user-pill{ display:flex; align-items:center; gap:8px; background:var(--surface2); border:1px solid var(--border); border-radius:999px; padding:4px 10px 4px 4px; }
+    .user-pill-av{ width:26px; height:26px; border-radius:999px; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:0.8rem; }
+    .user-pill-email{ font-size:0.78rem; color:var(--text-muted); max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    /* ---- page-only bits (evergreen.html) ---- */
+    .ra-page{ padding-top:var(--space-5); max-width:none; }
+    .ra-pagehead .meta{ display:flex; flex-wrap:wrap; gap:4px 8px; align-items:center; }
+    .ra-sectionhead p, .ra-glossary dd{ max-width:92ch; }
+    .eg-custom{ display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-2); font-size:12px; color:var(--ink-muted); }
+    .eg-custom[hidden]{ display:none; }
+    .ra-input{ height:32px; padding:0 10px; border-radius:var(--radius-sm); border:1px solid var(--line-strong); background:var(--surface); color:var(--ink); font:500 13px/1 var(--font-sans); min-width:0; max-width:100%; }
+    @media (pointer:coarse){ .ra-input{ height:44px; } }
+    /* the five steps: tiles in one row, each with its own bar (kept vs lost) */
+    .eg-steps{ display:grid; gap:1px; background:var(--line); border:1px solid var(--line); border-radius:var(--radius-md); overflow:hidden; grid-template-columns:repeat(5, minmax(0,1fr)); }
+    @media (max-width:1100px){ .eg-steps{ grid-template-columns:repeat(3, minmax(0,1fr)); } }
+    @media (max-width:640px){ .eg-steps{ grid-template-columns:repeat(2, minmax(0,1fr)); } }
+    @media (max-width:420px){ .eg-steps{ grid-template-columns:minmax(0,1fr); } }
+    .eg-steps .ra-stat{ gap:6px; }
+    .eg-steps .ra-stat .n{ white-space:normal; }
+    .eg-steps .help{ font-size:12px; line-height:16px; color:var(--ink-faint); }
+    .eg-bar{ display:flex; height:6px; border-radius:var(--radius-xs); overflow:hidden; background:var(--surface-sunken); }
+    .eg-bar i{ display:block; height:100%; background:var(--viz-1); }
+    .eg-bar i.lost{ background:var(--viz-rest); }
+    .eg-cost{ display:flex; flex-direction:column; gap:2px; margin-top:4px; padding-top:8px; border-top:1px solid var(--line); font-size:12px; line-height:16px; }
+    .eg-cost .row{ display:flex; justify-content:space-between; gap:8px; color:var(--ink-muted); }
+    .eg-cost .row b{ color:var(--ink); font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap; }
+    .eg-cost .row b.outcome{ color:var(--brand-text); }
+    .ra-table td.now{ font-weight:700; }
+    .ra-table tr.quiet td{ color:var(--ink-faint); }
+    .ra-table .tag{ display:inline-block; font:600 11px/16px var(--font-sans); padding:0 6px; border-radius:var(--radius-pill); background:var(--surface-sunken); color:var(--ink-muted); }
+    .ra-table .tag.yes{ background:var(--positive-tint); color:var(--positive); }
+    .ra-table .tag.sale{ background:var(--brand-tint); color:var(--brand-text); }
+    .ra-table .tag.wait{ background:var(--caution-tint); color:var(--caution); }
+    .ra-skel.block{ height:14px; }
+  </style>
+</head>
+<body class="ra-app">
+  <header class="topbar">
+    <div class="topbar-logo"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#06231a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg></div>
+    <div class="topbar-brand">Evergreen Class</div>
+    <div class="topbar-spacer"></div>
+    <button class="tbtn" id="refreshBtn" title="Refresh"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> Refresh</button>
+    <button class="tbtn" id="themeBtn" style="font-size:1rem;" title="Toggle theme">◐</button>
+    <div class="nav-dropdown" id="navDropdown"><button class="tbtn" id="navDropdownBtn">Dashboards ▾</button><div class="nav-dropdown-menu" id="navDropMenu"></div></div>
+    <div class="user-pill"><div class="user-pill-av" id="userAvatar">U</div><div class="user-pill-email" id="userEmail">…</div></div>
+    <button class="tbtn" id="signOutBtn"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg> Sign Out</button>
+  </header>
+
+  <main class="ra ra-page" id="wrap">
+    <div class="ra-pagehead">
+      <div>
+        <h1>Evergreen class</h1>
+        <div class="meta"><span>A new class every 10 minutes · ridleyacademy.net/class</span><span id="periodLbl"></span><span id="cmpLbl"></span></div>
+      </div>
+      <div class="ra-toolbar">
+        <div class="ra-seg" role="group" aria-label="Period">
+          <button data-p="today" aria-pressed="true">Today</button><button data-p="yesterday" aria-pressed="false">Yesterday</button><button data-p="7" aria-pressed="false">7 days</button><button data-p="30" aria-pressed="false">30 days</button><button data-p="custom" aria-pressed="false" title="Pick any dates">Dates…</button>
+        </div>
+        <div class="ra-seg" role="group" aria-label="Group by">
+          <button id="gDay" aria-pressed="true" title="One row per day">By day</button><button id="gHour" aria-pressed="false" title="One row per hour of the day (New York time), added up over the period">By hour</button>
+        </div>
+      </div>
+    </div>
+    <div class="eg-custom" id="customBox" hidden>
+      <label>From <input class="ra-input" type="date" id="dFrom"></label>
+      <label>to <input class="ra-input" type="date" id="dTo"></label>
+      <button class="ra-btn sm" id="dGo">Show</button>
+      <span>New York dates</span>
+    </div>
+
+    <section class="ra-section" aria-labelledby="stepsTitle">
+      <div class="ra-sectionhead"><div><h2 id="stepsTitle">From ad to sale</h2><p>Everyone who signed up in this period, followed through to the end. Arrows compare with the same number of days just before.</p></div></div>
+      <div class="eg-steps" id="steps"></div>
+      <div id="notes" style="display:flex;flex-direction:column;gap:8px"></div>
+    </section>
+
+    <section class="ra-section" aria-labelledby="trendTitle">
+      <div class="ra-sectionhead"><div><h2 id="trendTitle">By day</h2><p id="trendHelp">Bars: sign-ups, people who came, people who saw the offer. Line: cost per sign-up.</p></div></div>
+      <div class="ra-card">
+        <div class="ra-legend"><span><i style="background:var(--viz-rest)"></i>Signed up</span><span><i style="background:var(--viz-1)"></i>Came to the class</span><span><i style="background:var(--viz-2)"></i>Saw the offer</span><span><i style="background:var(--gold);height:2px;border-radius:0"></i>Cost per sign-up</span></div>
+        <div class="ra-chart"><canvas id="chTrend"></canvas></div>
+      </div>
+      <div class="ra-card"><div class="ra-tablewrap" id="tblRows"></div></div>
+    </section>
+
+    <details class="ra-panel" data-key="ads">
+      <summary><span class="t">Each ad</span><span class="s" id="sumAds">—</span></summary>
+      <div class="ra-panel-body"><div class="ra-tablewrap" id="tblAds"></div></div>
+    </details>
+
+    <details class="ra-panel" data-key="people">
+      <summary><span class="t">Each person</span><span class="s" id="sumPeople">—</span></summary>
+      <div class="ra-panel-body"><div class="ra-tablewrap" id="tblPeople"></div></div>
+    </details>
+
+    <details class="ra-glossary">
+      <summary>What the numbers mean</summary>
+      <dl>
+        <dt>Why there is no list of classes</dt><dd>A new class starts every 10 minutes, so there are about 66 a day, mostly with one or two people in each. Instead, everyone is grouped by the <b>day</b> (or the <b>hour of the day</b>) they signed up, and followed to the end from there.</dd>
+        <dt>By day / By hour</dt><dd>By day: one row per New York calendar day. By hour: one row per hour of the day, added up over the whole period — so with “7 days” the 10 am row is everyone who signed up between 10:00 and 10:59 on any of those days. Ad spend by hour comes straight from Meta.</dd>
+        <dt>Visitors</dt><dd>Different people who opened ridleyacademy.net/class (each browser once per row). “From ads” = arrived from a Facebook or Instagram ad.</dd>
+        <dt>Signed up</dt><dd>Registered for the evergreen class. Test sign-ups are left out. People who book again from our own no-show messages count again on the day they rebook.</dd>
+        <dt>Came to the class</dt><dd>Was in the class for at least a moment. Known about 45 minutes after their class ends (a class runs about 2½ hours), so the last few hours always show as “class not finished yet”.</dd>
+        <dt>Saw the offer</dt><dd>Was in the room after minute 75, when Stephen starts the offer — the same rule AXL uses for its Saw Offer stage. Recorded the moment it happens, and again at the end of the class for anyone who left and came back.</dd>
+        <dt>Sales</dt><dd>Sales in the Sales Log from someone who signed up here, on or after the day they signed up (rebills left out). Matched by email, which we learn when their class roster arrives.</dd>
+        <dt>Costs</dt><dd>Ad spend of the evergreen campaign (T3) divided by each step. A cost going down is green.</dd>
+        <dt>Arrows ▲ ▼</dt><dd>Compared with the same number of days just before this period (Today against yesterday, 7 days against the 7 days before). Green means better for us.</dd>
+      </dl>
+    </details>
+
+    <p class="ra-foot">Ad spend updates about every hour, attendance about 45 minutes after each class ends. These sign-ups are kept out of the Webinars page. Generated <span id="genAt">—</span>.</p>
+  </main>
+
+<script>
+  const SUPABASE_URL = 'https://pojqljrhhtnigyrtzdzz.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBvanFsanJoaHRuaWd5cnR6ZHp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MTA3ODMsImV4cCI6MjA5MTM4Njc4M30.PcSBDqOzbiZxZ7IAs5efqx0gsAlAG0cj3GqUOkAmxos';
+  const BASE = SUPABASE_URL + '/functions/v1/evergreen-stats';
+  const supa = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  window.supa = supa;
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const cssv = (n) => getComputedStyle(document.body).getPropertyValue(n).trim() || '#888';
+  const num = (v) => v == null ? '—' : Number(v).toLocaleString();
+  const money = (v, dp) => v == null || !isFinite(v) ? '—' : '$' + Number(v).toLocaleString(undefined, { minimumFractionDigits: dp || 0, maximumFractionDigits: dp || 0 });
+  const per = (spend, n) => (n > 0 && spend > 0) ? money(spend / n, 2) : '—';
+  const rate = (a, b) => b > 0 ? Math.round(1000 * a / b) / 10 : null;
+  const pctS = (v) => v == null ? '—' : v + '%';
+  const callout = (kind, glyph, html) => `<div class="ra-callout ${kind}"><span class="g">${glyph}</span><div>${html}</div></div>`;
+  const tbl = (head, rows, opts) => `<table class="ra-table${opts && opts.stack ? ' stack' : ''}"><thead><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows}</tbody>${opts && opts.foot ? `<tfoot>${opts.foot}</tfoot>` : ''}</table>`;
+  const store = { get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (_) { return d; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (_) {} } };
+
+  // ---- New York dates
+  const etDate = (d) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(d || new Date());
+  const addDays = (s, n) => { const t = new Date(s + 'T12:00:00Z'); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10); };
+  const dayLbl = (s, long) => new Date(s + 'T12:00:00Z').toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric', ...(long ? { year: 'numeric' } : {}) });
+  const hourLbl = (h) => { const n = Number(h); const ap = n < 12 ? 'am' : 'pm'; const x = n % 12 || 12; return `${x} ${ap}`; };
+  const timeET = (iso) => new Date(iso).toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+
+  // ---- deltas: arrow = direction, colour = good/bad for the business
+  function tone(d, dir) { if (dir === 'flat') return 'flat'; return (dir === 'down' ? d < 0 : d > 0) ? 'good' : 'bad'; }
+  function dPct(cur, prev, dir) { if (cur == null || prev == null || !Number(prev) || !isFinite(cur)) return '';
+    const d = Math.round(1000 * (cur - prev) / Math.abs(prev)) / 10; if (!d) return '<span class="ra-delta same">0%</span>';
+    return `<span class="ra-delta ${d > 0 ? 'up' : 'down'} ${tone(d, dir)}">${Math.abs(d)}%</span>`; }
+  function dPts(cur, prev) { if (cur == null || prev == null) return ''; const d = Math.round(10 * (cur - prev)) / 10; if (!d) return '<span class="ra-delta same">0 pts</span>';
+    return `<span class="ra-delta ${d > 0 ? 'up' : 'down'} ${tone(d, 'up')}">${Math.abs(d)} pts</span>`; }
+
+  // ---- state
+  let period = store.get('evergreen-period', 'today');
+  let group = store.get('evergreen-group', 'day');
+  let custom = store.get('evergreen-custom', null);
+  let last = null;
+
+  function range() {
+    const t = etDate();
+    if (period === 'yesterday') return [addDays(t, -1), addDays(t, -1)];
+    if (period === '7') return [addDays(t, -6), t];
+    if (period === '30') return [addDays(t, -29), t];
+    if (period === 'custom' && custom && custom.from && custom.to) return [custom.from, custom.to];
+    return [t, t];
+  }
+
+  async function authedFetch(path) {
+    const { data: { session } } = await supa.auth.getSession();
+    if (!session) { location.replace('index.html'); throw new Error('Not signed in'); }
+    const res = await fetch(BASE + path, { headers: { Authorization: 'Bearer ' + session.access_token } });
+    const j = await res.json();
+    if (!res.ok) throw new Error(j.error || ('HTTP ' + res.status));
+    return j;
+  }
+
+  // ---- the five steps
+  function stepTile(o) {
+    const bar = o.of != null ? `<div class="eg-bar" title="${esc(o.barTitle || '')}"><i style="width:${Math.max(0, Math.min(100, o.of))}%"></i><i class="lost" style="width:${Math.max(0, 100 - Math.min(100, o.of))}%"></i></div>` : '';
+    const cost = (o.cost || []).filter(Boolean).map(c => `<div class="row"><span>${esc(c.k)}</span><b class="${c.cls || ''}">${c.v}</b></div>${c.d ? `<div class="row"><span></span>${c.d}</div>` : ''}`).join('');
+    return `<div class="ra-stat${o.outcome ? ' outcome' : ''}"><span class="l">${esc(o.l)}</span><span class="n">${o.n}</span><span class="sub">${o.d || ''}</span>${bar}<span class="help">${o.help}</span>${cost ? `<div class="eg-cost">${cost}</div>` : ''}</div>`;
+  }
+
+  function renderSteps(j) {
+    const t = j.totals, p = j.prev;
+    const cps = t.signups ? t.spend / t.signups : null, pcps = p.signups ? p.spend / p.signups : null;
+    const cpa = t.attended ? t.spend / t.attended : null, pcpa = p.attended ? p.spend / p.attended : null;
+    const cpo = t.saw_offer ? t.spend / t.saw_offer : null, pcpo = p.saw_offer ? p.spend / p.saw_offer : null;
+    const cpsale = t.sales ? t.spend / t.sales : null, pcpsale = p.sales ? p.spend / p.sales : null;
+    const conv = rate(t.signups_ads, t.visitors_ads), pconv = rate(p.signups_ads, p.visitors_ads);
+    const show = rate(t.attended, t.roster), pshow = rate(p.attended, p.roster);
+    const offer = rate(t.saw_offer, t.attended), poffer = rate(p.saw_offer, p.attended);
+    const close = rate(t.sales, t.saw_offer);
+    const waiting = t.signups - t.roster;
+    $('steps').innerHTML = [
+      stepTile({ l: 'Ad spend', n: money(t.spend, 2), d: dPct(t.spend, p.spend, 'flat'), help: `${num(t.visitors_ads)} visitors from ads · ${num(t.visitors)} in all`,
+        cost: [t.visitors_ads ? { k: 'Per visitor', v: per(t.spend, t.visitors_ads), d: dPct(t.spend / t.visitors_ads, p.visitors_ads ? p.spend / p.visitors_ads : null, 'down') } : null] }),
+      stepTile({ l: 'Signed up', n: num(t.signups), d: dPct(t.signups, p.signups, 'up'), of: conv, barTitle: 'Share of ad visitors who signed up',
+        help: conv == null ? 'No ad visitors in this period' : `${pctS(conv)} of ad visitors signed up ${dPts(conv, pconv)}`,
+        cost: [{ k: 'Cost per sign-up', v: cps == null ? '—' : money(cps, 2), d: dPct(cps, pcps, 'down') }] }),
+      stepTile({ l: 'Came to the class', n: num(t.attended), d: dPct(t.attended, p.attended, 'up'), of: show, barTitle: 'Share of sign-ups whose class has finished who came',
+        help: (show == null ? 'No class finished yet' : `${pctS(show)} of sign-ups came ${dPts(show, pshow)}`) + (waiting > 0 ? ` · ${num(waiting)} class${waiting === 1 ? '' : 'es'} not finished yet` : ''),
+        cost: [{ k: 'Cost per person who came', v: cpa == null ? '—' : money(cpa, 2), d: dPct(cpa, pcpa, 'down') }] }),
+      stepTile({ l: 'Saw the offer', n: num(t.saw_offer), d: dPct(t.saw_offer, p.saw_offer, 'up'), of: offer, barTitle: 'Share of people who came who were there for the offer',
+        help: offer == null ? 'In the room after minute 75' : `${pctS(offer)} of those who came ${dPts(offer, poffer)}`,
+        cost: [{ k: 'Cost per offer viewer', v: cpo == null ? '—' : money(cpo, 2), d: dPct(cpo, pcpo, 'down') }] }),
+      stepTile({ l: 'Sales', n: num(t.sales), d: dPct(t.sales, p.sales, 'up'), of: close, outcome: t.sales > 0, barTitle: 'Share of offer viewers who bought',
+        help: close == null ? 'From the Sales Log' : `${pctS(close)} of offer viewers bought`,
+        cost: [{ k: 'Revenue', v: money(t.revenue), cls: t.revenue > 0 ? 'outcome' : '' }, { k: 'Cost per sale', v: cpsale == null ? '—' : money(cpsale, 0), d: dPct(cpsale, pcpsale, 'down') }, t.spend > 0 && t.revenue > 0 ? { k: '$ back per $1', v: '$' + (t.revenue / t.spend).toFixed(2) } : null] }),
+    ].join('');
+    const notes = [];
+    if (waiting > 0) notes.push(callout('', '◷', `<b>${num(waiting)}</b> ${waiting === 1 ? 'person’s' : 'people’s'} class has not finished yet, so “came” and “saw the offer” for them are still to come. Rates above only count people whose class is over.`));
+    if (j.hour_spend === 'unavailable') notes.push(callout('caution', '⚠', 'Meta did not answer for spend by hour, so the hourly spend column is empty. The totals still use the daily figure.'));
+    $('notes').innerHTML = notes.join('');
+  }
+
+  // ---- chart
+  let charts = {};
+  function chartDefaults() {
+    Chart.defaults.font.family = cssv('--font-sans') || 'Montserrat, sans-serif'; Chart.defaults.font.size = 12; Chart.defaults.font.weight = '600';
+    Chart.defaults.color = cssv('--ink-faint'); Chart.defaults.plugins.legend.display = false;
+    Object.assign(Chart.defaults.plugins.tooltip, { backgroundColor: cssv('--surface'), titleColor: cssv('--ink'), bodyColor: cssv('--ink-muted'), borderColor: cssv('--line'), borderWidth: 1, cornerRadius: 5, padding: 10 });
+  }
+  function bucketLbl(b) { return group === 'hour' ? hourLbl(b) : dayLbl(b); }
+  function drawTrend(j) {
+    chartDefaults();
+    const rows = j.rows;
+    if (charts.trend) charts.trend.destroy();
+    charts.trend = new Chart($('chTrend'), {
+      data: {
+        labels: rows.map(r => bucketLbl(r.bucket)),
+        datasets: [
+          { type: 'bar', label: 'Signed up', data: rows.map(r => r.signups), backgroundColor: cssv('--viz-rest'), borderRadius: 3, yAxisID: 'y', order: 2 },
+          { type: 'bar', label: 'Came to the class', data: rows.map(r => r.attended), backgroundColor: cssv('--viz-1'), borderRadius: 3, yAxisID: 'y', order: 2 },
+          { type: 'bar', label: 'Saw the offer', data: rows.map(r => r.saw_offer), backgroundColor: cssv('--viz-2'), borderRadius: 3, yAxisID: 'y', order: 2 },
+          { type: 'line', label: 'Cost per sign-up', data: rows.map(r => r.signups && r.spend ? Math.round(100 * r.spend / r.signups) / 100 : null), borderColor: cssv('--gold'), backgroundColor: cssv('--gold'), pointRadius: 3, spanGaps: true, yAxisID: 'y2', order: 1 },
+        ],
+      },
+      options: {
+        maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+        plugins: { tooltip: { callbacks: { label: (c) => c.dataset.yAxisID === 'y2' ? ` Cost per sign-up: ${c.raw == null ? '—' : money(c.raw, 2)}` : ` ${c.dataset.label}: ${c.raw}` } } },
+        scales: {
+          x: { grid: { display: false }, border: { display: false } },
+          y: { beginAtZero: true, grid: { color: cssv('--viz-grid') }, border: { display: false }, ticks: { precision: 0 } },
+          y2: { beginAtZero: true, position: 'right', grid: { display: false }, border: { display: false }, ticks: { callback: (v) => '$' + v } },
+        },
+      },
+    });
+  }
+  new MutationObserver(() => { if (last) drawTrend(last); }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+
+  // ---- tables
+  function renderRows(j) {
+    const head = [group === 'hour' ? 'Hour (NY)' : 'Day', 'Ad spend', 'Visitors', 'Signed up', 'Cost per sign-up', 'Came', 'Saw the offer', 'Cost per offer viewer', 'Sales', 'Revenue'];
+    const today = j.today, nowH = etDate() === today ? new Date().toLocaleString('en-US', { timeZone: 'America/New_York', hour: '2-digit', hour12: false }).slice(0, 2) : null;
+    const sub = (v, what) => v == null ? '' : `<span class="sub">${v}% ${what}</span>`;
+    const line = (lbl, r, cls, cur) => {
+      const show = rate(r.attended, r.roster), conv = rate(r.signups_ads, r.visitors_ads), off = rate(r.saw_offer, r.attended);
+      const came = (r.signups && !r.roster) ? '<span class="tag wait">not yet</span>' : num(r.attended) + sub(show, 'of sign-ups');
+      const vals = [money(r.spend, 2), num(r.visitors), num(r.signups) + sub(conv, 'of ad visitors'), per(r.spend, r.signups), came, num(r.saw_offer) + sub(off, 'of who came'), per(r.spend, r.saw_offer), r.sales ? `<span class="tag sale">${num(r.sales)}</span>` : '0', money(r.revenue)];
+      return `<tr class="${cls || ''}"><td class="${cur ? 'now' : ''}">${lbl}</td>${vals.map((v, i) => `<td data-label="${head[i + 1]}">${v}</td>`).join('')}</tr>`;
+    };
+    const rows = j.rows.filter(r => r.signups || r.visitors || Number(r.spend));
+    const body = rows.map(r => line(bucketLbl(r.bucket) + (group === 'day' && r.bucket === today ? ' <span class="ra-pill plain brand">today</span>' : ''), r,
+      (!r.signups && !Number(r.spend)) ? 'quiet' : '', group === 'hour' ? r.bucket === nowH && j.from === j.to && j.to === today : r.bucket === today)).join('');
+    const t = Object.assign({}, j.totals);
+    const foot = rows.length > 1 ? line('Total', t, '') : '';
+    $('tblRows').innerHTML = rows.length ? tbl(head, body, { stack: window.innerWidth < 700, foot }) : '<div class="ra-empty"><b>Nothing in this period</b><span>No visits, sign-ups or ad spend.</span></div>';
+  }
+
+  function renderAds(j) {
+    const ads = (j.ads || []).filter(a => Number(a.spend) || a.signups);
+    const head = ['Ad', 'Spend', 'Signed up', 'Cost per sign-up', 'Came', 'Saw the offer', 'Cost per offer viewer', 'Sales', 'Revenue'];
+    $('tblAds').innerHTML = ads.length ? tbl(head, ads.map(a => {
+      const vals = [money(a.spend, 2), num(a.signups), per(Number(a.spend), a.signups), num(a.attended), num(a.saw_offer), per(Number(a.spend), a.saw_offer), num(a.sales), money(a.revenue)];
+      return `<tr><td>${esc(a.ad_name)}</td>${vals.map((v, i) => `<td data-label="${head[i + 1]}">${v}</td>`).join('')}</tr>`;
+    }).join(''), { stack: window.innerWidth < 700 }) : '<div class="ra-empty"><b>No ad activity in this period</b></div>';
+    const best = ads.filter(a => a.signups > 0 && Number(a.spend) > 0).sort((a, b) => (a.spend / a.signups) - (b.spend / b.signups))[0];
+    $('sumAds').innerHTML = ads.length ? `<b>${ads.length}</b> ad${ads.length === 1 ? '' : 's'}` + (best ? ` · cheapest sign-ups: <b>${esc(best.ad_name.replace(/^STATIC\s+/, ''))}</b> (${per(Number(best.spend), best.signups)})` : '') : 'No ad activity';
+  }
+
+  function renderPeople(j) {
+    const pp = j.people || [];
+    const head = ['Signed up (NY)', 'Name', 'From', 'Came', 'Saw the offer', 'Sale'];
+    $('tblPeople').innerHTML = pp.length ? tbl(head, pp.map(p => {
+      const came = !p.roster ? '<span class="tag wait">class not finished</span>' : (p.attended ? `<span class="tag yes">${Math.round(p.minutes)} min</span>` : '<span class="tag">no show</span>');
+      const vals = [esc(p.first_name || '—'), esc(p.ad ? p.ad.replace(/^STATIC\s+/, '') : (p.ads ? 'ad' : 'other')), came, p.saw_offer ? '<span class="tag yes">yes</span>' : (p.roster ? 'no' : '—'), p.sales ? `<span class="tag sale">${money(p.revenue)}</span>` : ''];
+      return `<tr><td>${esc(timeET(p.registered_at))}</td>${vals.map((v, i) => `<td data-label="${head[i + 1]}">${v}</td>`).join('')}</tr>`;
+    }).join(''), { stack: window.innerWidth < 700 }) : '<div class="ra-empty"><b>No sign-ups in this period</b></div>';
+    const n = pp.length, came = pp.filter(p => p.attended).length, off = pp.filter(p => p.saw_offer).length, s = pp.filter(p => p.sales).length;
+    $('sumPeople').innerHTML = n ? `<b>${n}</b> signed up · <b>${came}</b> came · <b>${off}</b> saw the offer · <b>${s}</b> sale${s === 1 ? '' : 's'}` : 'No sign-ups';
+  }
+
+  function skeleton() {
+    $('steps').innerHTML = Array.from({ length: 5 }, () => '<div class="ra-stat"><span class="ra-skel block" style="width:60%"></span><span class="ra-skel block" style="height:28px;width:50%"></span><span class="ra-skel block"></span></div>').join('');
+    $('tblRows').innerHTML = '<div style="display:flex;flex-direction:column;gap:10px">' + Array.from({ length: 5 }, () => '<span class="ra-skel block"></span>').join('') + '</div>';
+  }
+
+  let seq = 0;
+  async function load() {
+    const [from, to] = range();
+    const mySeq = ++seq;
+    $('periodLbl').textContent = '· ' + (from === to ? dayLbl(from, true) : `${dayLbl(from)} – ${dayLbl(to, true)}`);
+    $('trendTitle').textContent = group === 'hour' ? 'By hour of the day' : 'By day';
+    $('trendHelp').textContent = group === 'hour' ? 'People are counted in the hour they signed up (New York time), added up over the whole period. Bars: sign-ups, people who came, people who saw the offer. Line: cost per sign-up.' : 'Bars: sign-ups, people who came, people who saw the offer. Line: cost per sign-up.';
+    skeleton();
+    try {
+      const j = await authedFetch(`?from=${from}&to=${to}&group=${group}`);
+      if (mySeq !== seq) return;
+      last = j;
+      $('cmpLbl').textContent = `· compared with ${j.prev_period.from === j.prev_period.to ? dayLbl(j.prev_period.from) : dayLbl(j.prev_period.from) + ' – ' + dayLbl(j.prev_period.to)}`;
+      renderSteps(j); drawTrend(j); renderRows(j); renderAds(j); renderPeople(j);
+      $('genAt').textContent = new Date(j.generated_at).toLocaleString();
+    } catch (e) {
+      if (mySeq !== seq) return;
+      $('steps').innerHTML = ''; $('tblRows').innerHTML = '';
+      $('notes').innerHTML = callout('negative', '⚠', 'Couldn’t load: ' + esc(e.message) + '. Try Refresh.');
+    }
+  }
+
+  // ---- controls
+  function setPeriod(p) {
+    period = p; store.set('evergreen-period', p);
+    document.querySelectorAll('[data-p]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.p === p)));
+    $('customBox').hidden = p !== 'custom';
+    if (p === 'custom') { const [f, t] = range(); $('dFrom').value = (custom && custom.from) || f; $('dTo').value = (custom && custom.to) || t; if (!(custom && custom.from)) return; }
+    load();
+  }
+  function setGroup(g) {
+    group = g; store.set('evergreen-group', g);
+    $('gDay').setAttribute('aria-pressed', String(g === 'day')); $('gHour').setAttribute('aria-pressed', String(g === 'hour'));
+    load();
+  }
+  document.querySelectorAll('[data-p]').forEach(b => b.addEventListener('click', () => setPeriod(b.dataset.p)));
+  $('gDay').addEventListener('click', () => setGroup('day'));
+  $('gHour').addEventListener('click', () => setGroup('hour'));
+  $('dGo').addEventListener('click', () => { if (!$('dFrom').value || !$('dTo').value) return; custom = { from: $('dFrom').value, to: $('dTo').value }; store.set('evergreen-custom', custom); load(); });
+  $('refreshBtn').addEventListener('click', () => load());
+  $('signOutBtn').addEventListener('click', async () => { try { await supa.auth.signOut(); } catch (_) {} location.href = 'index.html'; });
+  $('navDropdownBtn').addEventListener('click', (e) => { e.stopPropagation(); const m = $('navDropMenu'); m.style.display = m.style.display === 'block' ? 'none' : 'block'; });
+  document.addEventListener('click', () => { const m = $('navDropMenu'); if (m) m.style.display = 'none'; });
+  const openState = store.get('evergreen-open', {});
+  document.querySelectorAll('.ra-panel').forEach(p => { const k = p.dataset.key; if (k in openState) p.open = !!openState[k]; p.addEventListener('toggle', () => { openState[k] = p.open; store.set('evergreen-open', openState); }); });
+  let rsT = null; window.addEventListener('resize', () => { clearTimeout(rsT); rsT = setTimeout(() => { if (last) { renderRows(last); renderAds(last); renderPeople(last); } }, 250); });
+
+  (async function init() {
+    const { data: { session } } = await supa.auth.getSession();
+    if (session?.user) { const em = session.user.email || ''; $('userEmail').textContent = em; $('userAvatar').textContent = (em[0] || 'U').toUpperCase(); window.__RIDLEY_USER = session.user; }
+    document.querySelectorAll('[data-p]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.p === period)));
+    $('gDay').setAttribute('aria-pressed', String(group === 'day')); $('gHour').setAttribute('aria-pressed', String(group === 'hour'));
+    $('customBox').hidden = period !== 'custom';
+    if (period === 'custom') { const [f, t] = range(); $('dFrom').value = f; $('dTo').value = t; }
+    load();
+  })();
+</script>
+<script src="access-guard.js"></script>
+<script src="theme.js"></script>
+<script src="changelog.js"></script>
+<script src="notifications.js"></script>
+<script src="messages-widget.js"></script>
+<script src="nav-menu.js"></script>
+</body>
+</html>

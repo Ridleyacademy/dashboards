@@ -1461,7 +1461,8 @@
 
   // The evergreen class (a new session every 10 minutes, ridleyacademy.net/class) has its own page,
   // evergreen.html. Keep its template out of the picker and its tiny sessions out of the tables here.
-  const EVERGREEN_IDS = new Set(['fUjX6twe0E2KXNWSzXNE-A']);
+  // Also its two booked copies ("Book a later class" on /class, 2026-11-11): 7 pm ET and 12 noon ET, Mon-Fri.
+  const EVERGREEN_IDS = new Set(['fUjX6twe0E2KXNWSzXNE-A', 'KrAOuMHhkkWe_TUEDwzn-Q', 'UnN2X11NhU-Z44WGoBFdLQ']);
   async function loadWebinars() {
     const j = await authedFetch('?api=webinars');
     j.webinars = (j.webinars || []).filter(w => !EVERGREEN_IDS.has(w.id));

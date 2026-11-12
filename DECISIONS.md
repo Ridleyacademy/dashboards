@@ -13,6 +13,14 @@ the structural map lives in the knowledge graph (`/graphify`). Format:
 
 ---
 
+## 2026-11-12 — Webinars: cost per registration by day (Sign-ups per day)
+**What:** Sign-ups per day is now a line chart (registered on the left axis, cost per registration on the right in $, show-up % as a dashed line with % labels when cost is on the right). Each day's sign-ups table gains Ad spend + Cost per registration (+ totals). Today's row/point is labelled "(so far)". No edge-fn deploy: `webinar_daily_signups()` itself now returns `spend` + `cost_per_reg` (full join with NEW `webinar_daily_spend()`), and webinar-analytics passes the rows straight through as `daily`.
+**Why:** Owner wanted to see day-by-day cost per registrant on the dashboard (after the 11 Nov $12 cost goal cut it from ~$17 to ~$10) and asked for a graph rather than bars.
+**Data:** `webinar_daily_spend(webinar_id)` = the SAME window, day splits and linked campaigns as `webinar_ad_stats()`, grouped by date — sum equals the page's AD SPEND (checked: 15 Nov $4,735.88, 4 Nov $5,504.54). Spend days with no sign-ups come back with registered 0. service_role only; webinar_daily_signups kept its grants (authenticated, service_role).
+**Touched:** SQL webinar_daily_spend (new), webinar_daily_signups (2 new columns); webinars.html (drawDaily, renderDaily, money2, dayLabel); version.txt v684; changelog.js.
+
+---
+
 ## 2026-11-09 — Evergreen Class dashboard (evergreen.html)
 **What:** New page for the every-10-minute AXL class (template fUjX6twe0E2KXNWSzXNE-A, page /class). Grouped by ET day or by ET hour of the day (people counted in the bucket of their SIGN-UP time = cohort; spend and visitors by when they happened). Steps: spend → signed up → came → saw the offer → sales, costs per step, arrows vs the same-length period before; chart, table, Each ad, Each person (first name only, no email/phone). Webinars page: evergreen template filtered out of the picker; the all-webinars attendance table now shows only webinars with 20+ attendees (the agreed "real webinar" rule) — that is where ~66 sessions/day were piling up.
 **Why:** Owner: the evergreen class must not flood the Webinars dashboard, and needs its own view per day and per hour instead of hundreds of sessions.

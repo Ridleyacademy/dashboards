@@ -216,7 +216,7 @@
       <summary><span class="t">Where registrations came from</span><span class="s" id="sumRegs">—</span></summary>
       <div class="ra-panel-body">
         <div class="ra-grid">
-          <div class="ra-card"><div class="ra-card-head"><h3>Sign-ups per day</h3><span class="aside">bars: registered &middot; line: % who showed up</span></div><div class="ra-chart"><canvas id="chDays"></canvas></div></div>
+          <div class="ra-card"><div class="ra-card-head"><h3>Sign-ups per day</h3><span class="aside">registered, cost per registration and % who showed up, by the day people signed up</span></div><div class="ra-chart"><canvas id="chDays"></canvas></div></div>
           <div class="ra-card"><div class="ra-card-head"><h3>By type of traffic</h3><span class="aside">utm_medium</span></div><div id="tblMediums"></div></div>
         </div>
         <div class="ra-card" id="dailyCard"><div class="ra-card-head"><h3>Each day&rsquo;s sign-ups</h3><span class="aside">did that day&rsquo;s people turn up, and how long did they stay</span></div><div class="ra-tablewrap" id="tblDaily"></div><p class="ra-foot" id="dailyNote" style="margin:10px 0 0"></p></div>
@@ -343,6 +343,7 @@
   const pct = (v) => v == null ? '—' : (Math.abs(v) < 1 && v != 0 ? (Math.round(v * 100) / 100) : (Math.round(v * 10) / 10)) + '%';
   const num = (v) => v == null ? '—' : Number(v).toLocaleString();
   const money = (v) => v == null ? '—' : '$' + Number(v).toLocaleString(undefined, { maximumFractionDigits: 0 });
+  const money2 = (v) => v == null ? '\u2014' : '$' + Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const money1 = (v) => { if (v == null) return '—'; const n = Math.round(Number(v)); return Math.abs(n) >= 1000 ? '$' + (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : '$' + n; };
   const costMoney = (v) => '$' + Number(v).toLocaleString(undefined, { minimumFractionDigits: v < 100 ? 2 : 0, maximumFractionDigits: v < 100 ? 2 : 0 });
   const signed = (v) => (v < 0 ? '−' : '') + money(Math.abs(v));
@@ -413,16 +414,38 @@
   // Sign-ups per day. Driven by the funnel's `daily` rows (the AXL roster, dated from our
   // own registrations) so this chart and the table under it can never disagree. Rows with
   // no date are left off the chart and shown in the table instead.
+  // today (New York) is still filling up, so its point and row are marked as a part day
+  const todayET = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+  const dayLabel = (d) => fmtDay(d) + (d === todayET() ? ' (so far)' : '');
   function drawDaily(rows) {
     chartDefaults();
     const r = (rows || []).filter(x => x.day);
     const hasRate = r.some(x => x.show_up_pct != null);
-    const sets = [{ label: 'Registered', data: r.map(x => Number(x.registered || 0)), backgroundColor: cssv('--viz-1'), borderRadius: 3, barPercentage: 0.7, order: 2 }];
-    if (hasRate) sets.push({ label: 'Showed up', type: 'line', yAxisID: 'y1', data: r.map(x => x.show_up_pct == null ? null : Number(x.show_up_pct)), borderColor: cssv('--viz-3'), backgroundColor: cssv('--viz-3'), borderWidth: 2, pointRadius: 2.5, tension: 0.3, spanGaps: true, order: 1 });
-    chart('chDays', { type: 'bar', data: { labels: r.map(x => fmtDay(x.day)), datasets: sets },
-      options: { maintainAspectRatio: false, scales: Object.assign({ x: xAxis(), y: yAxis() },
-        hasRate ? { y1: { position: 'right', beginAtZero: true, suggestedMax: 100, grid: { display: false }, border: { display: false }, ticks: { callback: (v) => v + '%' } } } : {}),
-        plugins: { tooltip: { callbacks: { label: (c) => c.dataset.yAxisID === 'y1' ? `Showed up: ${c.parsed.y}%` : `Registered: ${num(c.parsed.y)}` } } } } });
+    const hasCost = r.some(x => x.cost_per_reg != null);
+    const line = (color, extra) => Object.assign({ type: 'line', borderColor: color, backgroundColor: color, borderWidth: 2.5, pointRadius: 3.5, pointHoverRadius: 5, tension: 0.2, spanGaps: true }, extra);
+    const sets = [line(cssv('--viz-1'), { label: 'Registered', yAxisID: 'y', data: r.map(x => Number(x.registered || 0)), order: 1 })];
+    if (hasCost) sets.push(line(cssv('--viz-4'), { label: 'Cost per registration', yAxisID: 'yc', data: r.map(x => x.cost_per_reg == null ? null : Number(x.cost_per_reg)), order: 2 }));
+    if (hasRate) sets.push(line(cssv('--viz-3'), { label: 'Showed up', yAxisID: 'y1', borderDash: [5, 4], data: r.map(x => x.show_up_pct == null ? null : Number(x.show_up_pct)), order: 3 }));
+    const wide = (($('chDays') || {}).parentElement || {}).clientWidth > 520;   // axis titles only where they fit; the legend names the lines
+    const scales = { x: xAxis(), y: Object.assign(yAxis(), { title: { display: hasCost && wide, text: 'Registered' } }) };
+    if (hasCost) scales.yc = { position: 'right', beginAtZero: true, grid: { display: false }, border: { display: false }, title: { display: wide, text: 'Cost per registration' }, ticks: { callback: (v) => '$' + v } };
+    if (hasRate) scales.y1 = { display: !hasCost, position: 'right', beginAtZero: true, suggestedMax: 100, grid: { display: false }, border: { display: false }, ticks: { callback: (v) => v + '%' } };
+    // with cost on the right axis, show-up has no visible scale of its own, so print each % at its point
+    const rateLabels = { id: 'rateLabels', afterDatasetsDraw(c) {
+      if (!hasRate || !hasCost) return;
+      const i = c.data.datasets.findIndex(d => d.yAxisID === 'y1'); if (i < 0) return;
+      const meta = c.getDatasetMeta(i); if (meta.hidden) return;
+      const g = c.ctx; g.save(); g.fillStyle = cssv('--viz-3'); g.font = '700 11px ' + Chart.defaults.font.family; g.textAlign = 'center';
+      meta.data.forEach((pt, k) => { const v = c.data.datasets[i].data[k]; if (v != null) g.fillText(v + '%', pt.x, pt.y - 9); });
+      g.restore(); } };
+    chart('chDays', { type: 'line', data: { labels: r.map(x => dayLabel(x.day)), datasets: sets }, plugins: [rateLabels],
+      options: { maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, scales,
+        plugins: { legend: { display: sets.length > 1, position: 'bottom', labels: { usePointStyle: true, pointStyle: 'line', boxWidth: 24, padding: 14 } },
+          tooltip: { callbacks: {
+            label: (c) => c.dataset.yAxisID === 'y1' ? `Showed up: ${c.parsed.y}%`
+              : c.dataset.yAxisID === 'yc' ? `Cost per registration: ${money2(c.parsed.y)}`
+              : `Registered: ${num(c.parsed.y)}`,
+            afterBody: (items) => { const x = r[items[0].dataIndex]; return x && x.spend != null ? `Ad spend: ${money(x.spend)}` : ''; } } } } } });
   }
 
   // One row per day someone signed up: how many, how many of THEM turned up, and how long
@@ -439,6 +462,8 @@
       return;
     }
     const totReg = rows.reduce((t, x) => t + Number(x.registered || 0), 0);
+    const anySpend = rows.some(x => x.spend != null);
+    const totSpend = anySpend ? rows.reduce((t, x) => t + Number(x.spend || 0), 0) : null;
     const anyAtt = rows.some(x => x.attended != null);
     const totAtt = anyAtt ? rows.reduce((t, x) => t + Number(x.attended || 0), 0) : null;
     // average minutes across the whole webinar, weighted by how many people each day brought
@@ -447,21 +472,23 @@
     const dash = '<span class="dim">—</span>';
     const body = rows.map((x) => {
       const reg = Number(x.registered || 0), share = rate(reg, totReg || 1);
-      const when = x.day ? fmtDay(x.day) : '<span class="dim">Date unknown</span>';
+      const when = x.day ? dayLabel(x.day) : '<span class="dim">Date unknown</span>';
       return `<tr><td>${when}</td>`
         + `<td data-label="Registered">${num(reg)}<span class="ra-meter"><i style="width:${share || 0}%"></i></span></td>`
+        + (anySpend ? `<td data-label="Ad spend">${x.spend == null ? dash : money(x.spend)}</td><td data-label="Cost per registration">${x.cost_per_reg == null ? dash : money2(x.cost_per_reg)}</td>` : '')
         + `<td data-label="Showed up">${x.attended == null ? dash : num(x.attended)}</td>`
         + `<td data-label="Show-up rate">${x.show_up_pct == null ? dash : pct(x.show_up_pct)}</td>`
         + `<td data-label="Average time watched">${x.avg_minutes == null ? dash : mins(x.avg_minutes)}</td></tr>`;
     }).join('');
     const foot = `<tr><td><b>All days</b></td><td data-label="Registered"><b>${num(totReg)}</b></td>`
+      + (anySpend ? `<td data-label="Ad spend"><b>${money(totSpend)}</b></td><td data-label="Cost per registration"><b>${totReg ? money2(totSpend / totReg) : '\u2014'}</b></td>` : '')
       + `<td data-label="Showed up"><b>${totAtt == null ? '—' : num(totAtt)}</b></td>`
       + `<td data-label="Show-up rate"><b>${totAtt == null ? '—' : pct(rate(totAtt, totReg || 1))}</b></td>`
       + `<td data-label="Average time watched"><b>${totMin == null ? '—' : mins(totMin)}</b></td></tr>`;
-    box.innerHTML = tbl(['Signed up on', 'Registered', 'Showed up', 'Show-up rate', 'Average time watched'], body, { stack: true, foot });
+    box.innerHTML = tbl(['Signed up on', 'Registered'].concat(anySpend ? ['Ad spend', 'Cost per registration'] : [], ['Showed up', 'Show-up rate', 'Average time watched']), body, { stack: true, foot });
     if (note) {
       const undated = rows.filter(x => !x.day).reduce((t, x) => t + Number(x.registered || 0), 0);
-      const bits = ['Average time watched counts only the people who turned up. These figures are never narrowed by the Day / Week / Month buttons \u2014 when someone signed up and whether they showed are fixed facts of the webinar.'];
+      const bits = [(anySpend ? 'Ad spend is that day\u2019s spend on the ads that fed this webinar (New York days, Meta updates hourly, so today runs up to an hour behind); cost per registration = that spend \u00f7 that day\u2019s sign-ups. ' : '') + 'Average time watched counts only the people who turned up. These figures are never narrowed by the Day / Week / Month buttons \u2014 when someone signed up and whether they showed are fixed facts of the webinar.'];
       if (!anyAtt) bits.push('We cannot tell who attended on this one: its roster has no contact id to match a sign-up to, so only the registration counts are shown.');
       else if (undated) bits.push(`${num(undated)} ${undated === 1 ? 'person is' : 'people are'} on the roster but we hold no registration record for them, so their sign-up day is unknown. They are still counted in the totals.`);
       note.textContent = bits.join(' ');

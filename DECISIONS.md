@@ -13,6 +13,14 @@ the structural map lives in the knowledge graph (`/graphify`). Format:
 
 ---
 
+## 2026-11-13 — Webinars: ad spend only for classes the ads filled
+**What:** `webinar_ad_stats()` and `webinar_daily_spend()` now return nothing for a webinar that is not ad-driven (`webinar_ad_driven()`: >=10 registrants with a known ad utm AND >=20% of registrants). Their roster CTE is gated with `where exists (select 1 from ad_driven a where a.webinar_id = p_webinar_id)`. SQL only, no page or edge-fn change.
+**Why:** The one-off Christmas Songs class (5KOGnJjDCke-SekC6Lbdww, email-only) showed $3,072 of the masterclass campaigns' spend: 18 of its 488 registrants carried OLD Facebook utm_content (kept on the AXL contact from an earlier ad click), and any ad-tagged registrant linked that ad's whole campaign. The same spend was also on the 15 Nov masterclass (counted twice).
+**Check:** every webinar of the last 30 days re-run; all masterclasses + evergreen unchanged to the dollar (15 Nov $7,462, 4 Nov $5,505, 25 Oct $12,339); Christmas now null. Side effect: a brand-new class shows no spend until its first 10 ad registrants.
+**Touched:** SQL webinar_ad_stats, webinar_daily_spend (migration webinar_spend_only_for_ad_driven).
+
+---
+
 ## 2026-11-12 — Webinars: cost per registration by day (Sign-ups per day)
 **What:** Sign-ups per day is now a line chart (registered on the left axis, cost per registration on the right in $, show-up % as a dashed line with % labels when cost is on the right). Each day's sign-ups table gains Ad spend + Cost per registration (+ totals). Today's row/point is labelled "(so far)". No edge-fn deploy: `webinar_daily_signups()` itself now returns `spend` + `cost_per_reg` (full join with NEW `webinar_daily_spend()`), and webinar-analytics passes the rows straight through as `daily`.
 **Why:** Owner wanted to see day-by-day cost per registrant on the dashboard (after the 11 Nov $12 cost goal cut it from ~$17 to ~$10) and asked for a graph rather than bars.
